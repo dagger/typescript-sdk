@@ -7,6 +7,8 @@ import (
 	"path/filepath"
 	"strings"
 	"text/template"
+
+	"github.com/iancoleman/strcase"
 )
 
 func main() {
@@ -25,7 +27,7 @@ func run(args []string) error {
 	templateDir := args[1]
 	outDir := args[2]
 	data := map[string]string{
-		"ModuleName": moduleName,
+		"ModuleName": strcase.ToCamel(moduleName),
 	}
 
 	return filepath.WalkDir(templateDir, func(path string, entry os.DirEntry, err error) error {

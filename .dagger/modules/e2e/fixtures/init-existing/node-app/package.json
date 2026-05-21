@@ -1,0 +1,10 @@
+{
+  "name": "user-pkg",
+  "version": "1.2.3",
+  "scripts": {
+    "build": "tsc"
+  },
+  "devDependencies": {
+    "@dagger.io/dagger": "./sdk"
+  }
+}

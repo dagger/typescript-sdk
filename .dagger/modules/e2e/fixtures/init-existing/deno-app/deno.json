@@ -1,0 +1,12 @@
+{
+  "tasks": {
+    "dev": "deno run main.ts"
+  },
+  "imports": {
+    "@user/lib": "./src/lib.ts"
+  },
+  "unstable": [
+    "bare-node-builtins",
+    "kv"
+  ]
+}

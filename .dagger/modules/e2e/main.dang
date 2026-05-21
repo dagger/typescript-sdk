@@ -11,6 +11,8 @@ type E2e {
   let skipModulePath: String! = fixtureRoot + "/skip/app"
   let generateModulePath: String! = fixtureRoot + "/generate/app"
   let depsModulePath: String! = fixtureRoot + "/deps/app"
+  let existingNodePath: String! = fixtureRoot + "/init-existing/node-app"
+  let existingDenoPath: String! = fixtureRoot + "/init-existing/deno-app"
 
   """
   Fail the current check when a condition is false.
@@ -118,6 +120,51 @@ type E2e {
     assertAdded(denoChanges, denoPath + "/deno.json")
     assert(contains(denoChanges.addedPaths, denoPath + "/package.json") == false, "deno init should not generate package.json")
     assert(contains(denoChanges.addedPaths, denoPath + "/tsconfig.json") == false, "deno init should not generate tsconfig.json")
+
+    null
+  }
+
+  """
+  Init against a path that already contains user-authored package.json,
+  tsconfig.json, or deno.json should merge Dagger-required keys into those
+  files instead of clobbering them.
+  """
+  pub initRespectsExistingCheck(ws: Workspace!): Void @check {
+    let nodeChanges = typescriptSdk.init(ws, name: "init-existing-node", path: existingNodePath)
+    let denoChanges = typescriptSdk.init(ws, name: "init-existing-deno", path: existingDenoPath, runtime: TypescriptSdkRuntime.DENO)
+
+    # Existing user files should be modified (merged), not added fresh.
+    assert(contains(nodeChanges.modifiedPaths, existingNodePath + "/package.json"), "existing package.json should be merged, not added")
+    assert(contains(nodeChanges.modifiedPaths, existingNodePath + "/tsconfig.json"), "existing tsconfig.json should be merged, not added")
+    assert(contains(nodeChanges.addedPaths, existingNodePath + "/package.json") == false, "package.json should not be reported as added when it already existed")
+    assert(contains(nodeChanges.addedPaths, existingNodePath + "/tsconfig.json") == false, "tsconfig.json should not be reported as added when it already existed")
+
+    let mergedPkg = nodeChanges.layer.file(existingNodePath + "/package.json").contents
+    assertContains(mergedPkg, "\"name\": \"user-pkg\"", "user-authored name key should be preserved")
+    assertContains(mergedPkg, "\"version\": \"1.2.3\"", "user-authored version key should be preserved")
+    assertContains(mergedPkg, "\"build\": \"tsc\"", "user-authored script should be preserved")
+    assertContains(mergedPkg, "\"type\":\"module\"", "Dagger-required type=module should be added")
+    assertNotContains(mergedPkg, "\"@dagger.io/dagger\"", "legacy in-tree @dagger.io/dagger devDependency should be stripped")
+
+    let mergedTsConfig = nodeChanges.layer.file(existingNodePath + "/tsconfig.json").contents
+    assertContains(mergedTsConfig, "\"target\": \"ES2020\"", "user-authored compiler target should be preserved")
+    assertContains(mergedTsConfig, "\"strict\": true", "user-authored strict flag should be preserved")
+    assertContains(mergedTsConfig, "\"@user/lib\"", "user-authored path mapping should be preserved")
+    assertContains(mergedTsConfig, "\"experimentalDecorators\":true", "Dagger-required experimentalDecorators should be added")
+    assertContains(mergedTsConfig, "\"@dagger.io/dagger\"", "Dagger SDK path mapping should be added")
+    assertContains(mergedTsConfig, "\"@dagger.io/dagger/telemetry\"", "Dagger telemetry path mapping should be added")
+
+    assert(contains(denoChanges.modifiedPaths, existingDenoPath + "/deno.json"), "existing deno.json should be merged, not added")
+    assert(contains(denoChanges.addedPaths, existingDenoPath + "/deno.json") == false, "deno.json should not be reported as added when it already existed")
+
+    let mergedDeno = denoChanges.layer.file(existingDenoPath + "/deno.json").contents
+    assertContains(mergedDeno, "\"dev\": \"deno run main.ts\"", "user-authored deno task should be preserved")
+    assertContains(mergedDeno, "\"@user/lib\"", "user-authored deno import should be preserved")
+    assertContains(mergedDeno, "\"kv\"", "user-authored unstable flag should be preserved")
+    assertContains(mergedDeno, "\"@dagger.io/dagger\"", "Dagger SDK import should be added")
+    assertContains(mergedDeno, "\"nodeModulesDir\":\"auto\"", "Dagger-required nodeModulesDir should be added")
+    assertContains(mergedDeno, "\"experimentalDecorators\":true", "Dagger-required experimentalDecorators should be added")
+    assertContains(mergedDeno, "\"bare-node-builtins\"", "Dagger-required unstable flag should be appended")
 
     null
   }

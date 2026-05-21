@@ -125,9 +125,16 @@ type TypescriptSdk {
     } else if (currentModule.source.exists("templates/" + selectedTemplate) == false) {
       raise "unknown init template: " + template
     } else {
+      let includePrefix = if (modPath == ".") { "" } else { modPath + "/" }
+      let existing = ws.directory("/", include: [
+        includePrefix + "package.json",
+        includePrefix + "tsconfig.json",
+        includePrefix + "deno.json",
+      ])
+
       let config = "{\n  \"name\": " + toJSON(name) + ",\n  \"engineVersion\": \"latest\",\n  \"sdk\": {\n    \"source\": \"typescript\"\n  },\n  \"codegen\": {\n    \"automaticGitignore\": " + toJSON(ignoreGenerated) + "\n  }\n}\n"
       let templateSource = if (selectedTemplate == "default") {
-        renderedDefaultTemplate(name, runtime)
+        renderedDefaultTemplate(name, runtime, existing, modPath)
       } else {
         currentModule.source.directory("templates/" + selectedTemplate)
       }
@@ -168,11 +175,14 @@ type TypescriptSdk {
   Render the default TypeScript template with the requested module name and runtime.
 
   Seeds index.ts from the common template, then layers in runtime-specific
-  config files via the config-updator helper. The config-updator is invoked
-  with the would-be output as its input so the same code path can later be
-  reused on existing modules to merge into user customizations.
+  config files via the config-updator helper. The config-updator reads
+  existing user config files (rooted at modPath in `existing`) so any user
+  customizations are preserved; only Dagger-required keys are added or
+  refreshed.
   """
-  let renderedDefaultTemplate(name: String!, runtime: Runtime!): Directory! {
+  let renderedDefaultTemplate(name: String!, runtime: Runtime!, existing: Directory!, modPath: String!): Directory! {
+    let existingPrefix = if (modPath == ".") { "/existing/" } else { "/existing/" + modPath + "/" }
+
     let builder = container
       .from("golang:1.25-alpine")
       .withoutEntrypoint
@@ -181,6 +191,7 @@ type TypescriptSdk {
       .withDirectory("/helpers/render-template", currentModule.source.directory("helpers/render-template"))
       .withDirectory("/helpers/config-updator", currentModule.source.directory("helpers/config-updator"))
       .withDirectory("/template", currentModule.source.directory("templates/default"))
+      .withDirectory("/existing", existing)
       .withWorkdir("/helpers/render-template")
       .withExec(["go", "build", "-o", "/usr/local/bin/render-template", "."])
       .withWorkdir("/helpers/config-updator")
@@ -189,11 +200,11 @@ type TypescriptSdk {
 
     let withConfig = if (runtime == Runtime.NODE or runtime == Runtime.BUN) {
       builder
-        .withExec(["config-updator", "package-json", "/rendered/package.json", "/rendered/package.json"])
-        .withExec(["config-updator", "tsconfig", "/rendered/tsconfig.json", "/rendered/tsconfig.json"])
+        .withExec(["config-updator", "package-json", existingPrefix + "package.json", "/rendered/package.json"])
+        .withExec(["config-updator", "tsconfig", existingPrefix + "tsconfig.json", "/rendered/tsconfig.json"])
     } else {
       builder
-        .withExec(["config-updator", "deno-config", "/rendered/deno.json", "/rendered/deno.json"])
+        .withExec(["config-updator", "deno-config", existingPrefix + "deno.json", "/rendered/deno.json"])
     }
 
     withConfig.directory("/rendered")
