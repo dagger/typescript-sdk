@@ -1,0 +1,17 @@
+{
+  "name": "deps-app",
+  "engineVersion": "latest",
+  "sdk": {
+    "source": "typescript"
+  },
+  "dependencies": [
+    "../dep-string",
+    {
+      "name": "dep-named",
+      "source": "../dep-named"
+    },
+    {
+      "source": "../dep-source-only"
+    }
+  ]
+}

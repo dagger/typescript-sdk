@@ -1,0 +1,9 @@
+# Dagger workspace configuration
+# Install modules with: dagger install <module>
+# Example:
+#   dagger install github.com/dagger/dagger/modules/wolfi
+
+[modules.typescript-sdk]
+source = ".."
+# Marker filename that skips generate when found at or above a TypeScript SDK module root.
+# settings.skipGenerateFilename = ""

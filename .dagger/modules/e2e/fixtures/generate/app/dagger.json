@@ -1,0 +1,7 @@
+{
+  "name": "generate-app",
+  "engineVersion": "latest",
+  "sdk": {
+    "source": "typescript"
+  }
+}

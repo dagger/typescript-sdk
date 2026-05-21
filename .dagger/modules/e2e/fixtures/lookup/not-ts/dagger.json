@@ -1,0 +1,7 @@
+{
+  "name": "not-ts",
+  "engineVersion": "latest",
+  "sdk": {
+    "source": "dang"
+  }
+}
