@@ -1,3 +1,9 @@
+enum Runtime {
+  NODE
+  BUN
+  DENO
+}
+
 type TypescriptSdk {
   let tsPattern = "\"sdk\"\\s*:\\s*\\{[^}]*\"source\"\\s*:\\s*\"typescript\""
 
@@ -90,7 +96,7 @@ type TypescriptSdk {
   `ignoreGenerated` to configure generation to add generated SDK paths to
   .gitignore instead.
   """
-  pub init(ws: Workspace!, name: String!, path: String! = "", template: String! = "", ignoreGenerated: Boolean! = false): Changeset! {
+  pub init(ws: Workspace!, name: String!, path: String! = "", template: String! = "", runtime: Runtime! = Runtime.NODE, ignoreGenerated: Boolean! = false): Changeset! {
     let rawPath = if (path == "") {
       let daggerDir = ws.findUp(".dagger", ".")
       if (daggerDir == null) {
@@ -121,7 +127,7 @@ type TypescriptSdk {
     } else {
       let config = "{\n  \"name\": " + toJSON(name) + ",\n  \"engineVersion\": \"latest\",\n  \"sdk\": {\n    \"source\": \"typescript\"\n  },\n  \"codegen\": {\n    \"automaticGitignore\": " + toJSON(ignoreGenerated) + "\n  }\n}\n"
       let templateSource = if (selectedTemplate == "default") {
-        renderedDefaultTemplate(name)
+        renderedDefaultTemplate(name, runtime)
       } else {
         currentModule.source.directory("templates/" + selectedTemplate)
       }
@@ -159,20 +165,38 @@ type TypescriptSdk {
   }
 
   """
-  Render the default TypeScript template with the requested module name.
+  Render the default TypeScript template with the requested module name and runtime.
+
+  Seeds index.ts from the common template, then layers in runtime-specific
+  config files via the config-updator helper. The config-updator is invoked
+  with the would-be output as its input so the same code path can later be
+  reused on existing modules to merge into user customizations.
   """
-  let renderedDefaultTemplate(name: String!): Directory! {
-    container
+  let renderedDefaultTemplate(name: String!, runtime: Runtime!): Directory! {
+    let builder = container
       .from("golang:1.25-alpine")
       .withoutEntrypoint
       .withMountedCache("/go/pkg/mod", cacheVolume("go-mod"))
       .withMountedCache("/root/.cache/go-build", cacheVolume("go-build"))
-      .withDirectory("/helper", currentModule.source.directory("helpers/render-template"))
+      .withDirectory("/helpers/render-template", currentModule.source.directory("helpers/render-template"))
+      .withDirectory("/helpers/config-updator", currentModule.source.directory("helpers/config-updator"))
       .withDirectory("/template", currentModule.source.directory("templates/default"))
-      .withWorkdir("/helper")
+      .withWorkdir("/helpers/render-template")
       .withExec(["go", "build", "-o", "/usr/local/bin/render-template", "."])
+      .withWorkdir("/helpers/config-updator")
+      .withExec(["go", "build", "-o", "/usr/local/bin/config-updator", "."])
       .withExec(["render-template", name, "/template", "/rendered"])
-      .directory("/rendered")
+
+    let withConfig = if (runtime == Runtime.NODE or runtime == Runtime.BUN) {
+      builder
+        .withExec(["config-updator", "package-json", "/rendered/package.json", "/rendered/package.json"])
+        .withExec(["config-updator", "tsconfig", "/rendered/tsconfig.json", "/rendered/tsconfig.json"])
+    } else {
+      builder
+        .withExec(["config-updator", "deno-config", "/rendered/deno.json", "/rendered/deno.json"])
+    }
+
+    withConfig.directory("/rendered")
   }
 
   """

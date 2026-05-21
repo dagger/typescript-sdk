@@ -90,18 +90,34 @@ type E2e {
   pub initCheck(ws: Workspace!): Void @check {
     let defaultPath = outputRoot + "/init-default"
     let ignoredPath = outputRoot + "/init-ignore-generated"
+    let bunPath = outputRoot + "/init-bun"
+    let denoPath = outputRoot + "/init-deno"
 
     let defaultChanges = typescriptSdk.init(ws, name: "init-default", path: defaultPath)
     let ignoredChanges = typescriptSdk.init(ws, name: "init-ignore-generated", path: ignoredPath, ignoreGenerated: true)
+    let bunChanges = typescriptSdk.init(ws, name: "init-bun", path: bunPath, runtime: TypescriptSdkRuntime.BUN)
+    let denoChanges = typescriptSdk.init(ws, name: "init-deno", path: denoPath, runtime: TypescriptSdkRuntime.DENO)
 
     assertAdded(defaultChanges, defaultPath + "/dagger.json")
-    assertAdded(defaultChanges, defaultPath + "/index.ts")
-    assert(contains(defaultChanges.addedPaths, defaultPath + "/src/index.ts") == false, "init should not generate src/index.ts")
+    assertAdded(defaultChanges, defaultPath + "/src/index.ts")
+    assertAdded(defaultChanges, defaultPath + "/package.json")
+    assertAdded(defaultChanges, defaultPath + "/tsconfig.json")
+    assert(contains(defaultChanges.addedPaths, defaultPath + "/index.ts") == false, "init should not generate index.ts at the module root")
+    assert(contains(defaultChanges.addedPaths, defaultPath + "/deno.json") == false, "node init should not generate deno.json")
     assert(defaultChanges.modifiedPaths.length == 0, "init unexpectedly modified existing files")
     assert(defaultChanges.removedPaths.length == 0, "init unexpectedly removed files")
     assertContains(defaultChanges.layer.file(defaultPath + "/dagger.json").contents, "\"automaticGitignore\": false", "default init should check in generated files")
 
     assertContains(ignoredChanges.layer.file(ignoredPath + "/dagger.json").contents, "\"automaticGitignore\": true", "ignoreGenerated init should configure automatic .gitignore output")
+
+    assertAdded(bunChanges, bunPath + "/src/index.ts")
+    assertAdded(bunChanges, bunPath + "/package.json")
+    assertAdded(bunChanges, bunPath + "/tsconfig.json")
+
+    assertAdded(denoChanges, denoPath + "/src/index.ts")
+    assertAdded(denoChanges, denoPath + "/deno.json")
+    assert(contains(denoChanges.addedPaths, denoPath + "/package.json") == false, "deno init should not generate package.json")
+    assert(contains(denoChanges.addedPaths, denoPath + "/tsconfig.json") == false, "deno init should not generate tsconfig.json")
 
     null
   }
