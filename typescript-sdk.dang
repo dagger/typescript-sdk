@@ -130,6 +130,7 @@ type TypescriptSdk {
         includePrefix + "package.json",
         includePrefix + "tsconfig.json",
         includePrefix + "deno.json",
+        includePrefix + "bun.lock",
       ])
 
       let config = "{\n  \"name\": " + toJSON(name) + ",\n  \"engineVersion\": \"latest\",\n  \"sdk\": {\n    \"source\": \"typescript\"\n  },\n  \"codegen\": {\n    \"automaticGitignore\": " + toJSON(ignoreGenerated) + "\n  }\n}\n"
@@ -182,6 +183,7 @@ type TypescriptSdk {
   """
   let renderedDefaultTemplate(name: String!, runtime: Runtime!, existing: Directory!, modPath: String!): Directory! {
     let existingPrefix = if (modPath == ".") { "/existing/" } else { "/existing/" + modPath + "/" }
+    let wsPrefix = if (modPath == ".") { "" } else { modPath + "/" }
 
     let builder = container
       .from("golang:1.25-alpine")
@@ -198,10 +200,22 @@ type TypescriptSdk {
       .withExec(["go", "build", "-o", "/usr/local/bin/config-updator", "."])
       .withExec(["render-template", name, "/template", "/rendered"])
 
-    let withConfig = if (runtime == Runtime.NODE or runtime == Runtime.BUN) {
+    let withConfig = if (runtime == Runtime.NODE) {
       builder
         .withExec(["config-updator", "package-json", existingPrefix + "package.json", "/rendered/package.json"])
         .withExec(["config-updator", "tsconfig", existingPrefix + "tsconfig.json", "/rendered/tsconfig.json"])
+    } else if (runtime == Runtime.BUN) {
+      # The Dagger TypeScript runtime picks bun over node by spotting bun.lock,
+      # so we emit an empty one for a fresh init. If the workspace already has
+      # one we leave it alone (overlay semantics via init's withDirectory).
+      let nodeConfig = builder
+        .withExec(["config-updator", "package-json", existingPrefix + "package.json", "/rendered/package.json"])
+        .withExec(["config-updator", "tsconfig", existingPrefix + "tsconfig.json", "/rendered/tsconfig.json"])
+      if (existing.exists(wsPrefix + "bun.lock")) {
+        nodeConfig
+      } else {
+        nodeConfig.withExec(["touch", "/rendered/bun.lock"])
+      }
     } else {
       builder
         .withExec(["config-updator", "deno-config", existingPrefix + "deno.json", "/rendered/deno.json"])

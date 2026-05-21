@@ -13,6 +13,7 @@ type E2e {
   let depsModulePath: String! = fixtureRoot + "/deps/app"
   let existingNodePath: String! = fixtureRoot + "/init-existing/node-app"
   let existingDenoPath: String! = fixtureRoot + "/init-existing/deno-app"
+  let existingBunPath: String! = fixtureRoot + "/init-existing/bun-app"
 
   """
   Fail the current check when a condition is false.
@@ -106,6 +107,7 @@ type E2e {
     assertAdded(defaultChanges, defaultPath + "/tsconfig.json")
     assert(contains(defaultChanges.addedPaths, defaultPath + "/index.ts") == false, "init should not generate index.ts at the module root")
     assert(contains(defaultChanges.addedPaths, defaultPath + "/deno.json") == false, "node init should not generate deno.json")
+    assert(contains(defaultChanges.addedPaths, defaultPath + "/bun.lock") == false, "node init should not generate bun.lock")
     assert(defaultChanges.modifiedPaths.length == 0, "init unexpectedly modified existing files")
     assert(defaultChanges.removedPaths.length == 0, "init unexpectedly removed files")
     assertContains(defaultChanges.layer.file(defaultPath + "/dagger.json").contents, "\"automaticGitignore\": false", "default init should check in generated files")
@@ -115,6 +117,7 @@ type E2e {
     assertAdded(bunChanges, bunPath + "/src/index.ts")
     assertAdded(bunChanges, bunPath + "/package.json")
     assertAdded(bunChanges, bunPath + "/tsconfig.json")
+    assertAdded(bunChanges, bunPath + "/bun.lock")
 
     assertAdded(denoChanges, denoPath + "/src/index.ts")
     assertAdded(denoChanges, denoPath + "/deno.json")
@@ -132,6 +135,7 @@ type E2e {
   pub initRespectsExistingCheck(ws: Workspace!): Void @check {
     let nodeChanges = typescriptSdk.init(ws, name: "init-existing-node", path: existingNodePath)
     let denoChanges = typescriptSdk.init(ws, name: "init-existing-deno", path: existingDenoPath, runtime: TypescriptSdkRuntime.DENO)
+    let bunChanges = typescriptSdk.init(ws, name: "init-existing-bun", path: existingBunPath, runtime: TypescriptSdkRuntime.BUN)
 
     # Existing user files should be modified (merged), not added fresh.
     assert(contains(nodeChanges.modifiedPaths, existingNodePath + "/package.json"), "existing package.json should be merged, not added")
@@ -165,6 +169,11 @@ type E2e {
     assertContains(mergedDeno, "\"nodeModulesDir\":\"auto\"", "Dagger-required nodeModulesDir should be added")
     assertContains(mergedDeno, "\"experimentalDecorators\":true", "Dagger-required experimentalDecorators should be added")
     assertContains(mergedDeno, "\"bare-node-builtins\"", "Dagger-required unstable flag should be appended")
+
+    # bun init should not overwrite or add an existing bun.lock; the fixture's
+    # lockfile content is non-JSON so any "merge" would corrupt it.
+    assert(contains(bunChanges.addedPaths, existingBunPath + "/bun.lock") == false, "existing bun.lock should not be reported as added")
+    assert(contains(bunChanges.modifiedPaths, existingBunPath + "/bun.lock") == false, "existing bun.lock should not be modified")
 
     null
   }
