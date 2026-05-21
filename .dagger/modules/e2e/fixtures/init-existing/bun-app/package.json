@@ -1,0 +1,6 @@
+{
+  "name": "bun-user-pkg",
+  "scripts": {
+    "dev": "bun run src/index.ts"
+  }
+}
