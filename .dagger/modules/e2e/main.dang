@@ -216,10 +216,15 @@ type E2e {
     let engine = typescriptSdk.mod(ws, path: lookupModulePath).engine
     let fixed = engine.require(version: "0.21.0")
     let latest = engine.requireLatest
+    let current = engine.requireCurrent
 
     assert(engine.required == "0.20.8", "engine.required should trim a leading v")
     assertContains(fixed.layer.file(lookupModulePath + "/dagger.json").contents, "\"engineVersion\": \"v0.21.0\"", "engine.require should write a normalized version")
     assertContains(latest.layer.file(lookupModulePath + "/dagger.json").contents, "\"engineVersion\": \"latest\"", "engine.requireLatest should write latest")
+
+    let currentConfig = current.after.file(lookupModulePath + "/dagger.json").contents
+    assertContains(currentConfig, "\"engineVersion\": \"v", "engine.requireCurrent should write a v-prefixed version")
+    assertNotContains(currentConfig, "\"engineVersion\": \"latest\"", "engine.requireCurrent should not write latest")
 
     null
   }
@@ -270,6 +275,22 @@ type E2e {
 
     let updated = deps.update
     assert(updated.isEmpty, "updating only local dependencies should not edit dagger.json")
+
+    null
+  }
+
+  """
+  Listing modules in a workspace should return every module whose
+  dagger.json declares the TypeScript SDK, and nothing else.
+  """
+  pub modulesCheck(ws: Workspace!): Void @check {
+    let pathRecords = typescriptSdk.modules(ws).{path}
+
+    assert(pathRecords.filter { r => r.path == lookupModulePath }.length > 0, "lookup TypeScript module should be listed")
+    assert(pathRecords.filter { r => r.path == skipModulePath }.length > 0, "skip-marked TypeScript module should still be listed (skip only affects generate)")
+    assert(pathRecords.filter { r => r.path == generateModulePath }.length > 0, "generate TypeScript module should be listed")
+    assert(pathRecords.filter { r => r.path == depsModulePath }.length > 0, "deps TypeScript module should be listed")
+    assert(pathRecords.filter { r => r.path == nonTsModulePath }.length == 0, "non-TypeScript SDK module should be excluded from modules listing")
 
     null
   }
