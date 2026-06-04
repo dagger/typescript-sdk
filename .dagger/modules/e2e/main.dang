@@ -14,6 +14,9 @@ type E2e {
   let existingNodePath: String! = fixtureRoot + "/init-existing/node-app"
   let existingDenoPath: String! = fixtureRoot + "/init-existing/deno-app"
   let existingBunPath: String! = fixtureRoot + "/init-existing/bun-app"
+  let configModulePath: String! = fixtureRoot + "/config/app"
+  let configuredModulePath: String! = fixtureRoot + "/config/configured"
+  let configuredDenoModulePath: String! = fixtureRoot + "/config/configured-deno"
 
   """
   Fail the current check when a condition is false.
@@ -63,6 +66,16 @@ type E2e {
     assert(changes.modifiedPaths.length == 1, "dependency edit modified more than dagger.json")
     assert(changes.addedPaths.length == 0, "dependency edit should not add generated files")
     assert(changes.removedPaths.length == 0, "dependency edit should not remove generated files")
+  }
+
+  """
+  Assert that a config edit modified only the named file (no adds, no removes).
+  """
+  let assertOnlyFileChanged(changes: Changeset!, path: String!, message: String!): Void {
+    assert(contains(changes.modifiedPaths, path), message + ": did not modify " + path)
+    assert(changes.modifiedPaths.length == 1, message + ": modified more than one file")
+    assert(changes.addedPaths.length == 0, message + ": should not add files")
+    assert(changes.removedPaths.length == 0, message + ": should not remove files")
   }
 
   """
@@ -185,7 +198,7 @@ type E2e {
   pub generateCheck(ws: Workspace!): Void @check {
     let changes = typescriptSdk.mod(ws, path: generateModulePath).generate(ws)
 
-    assertAdded(changes, generateModulePath + "/src/index.ts")
+    assertAdded(changes, generateModulePath + "/sdk/index.ts")
 
     null
   }
@@ -196,7 +209,7 @@ type E2e {
   pub generateAllCheck(ws: Workspace!): Void @check {
     let changes = typescriptSdk.generateAll(ws)
 
-    assertAdded(changes, generateModulePath + "/src/index.ts")
+    assertAdded(changes, generateModulePath + "/sdk/index.ts")
     assert(contains(changes.addedPaths, lookupModulePath + "/src/index.ts") == false, "generateAll generated a lookup fixture that should be skipped")
     assert(contains(changes.addedPaths, depsModulePath + "/src/index.ts") == false, "generateAll generated dependency fixtures that should be skipped")
     assert(contains(changes.addedPaths, skipModulePath + "/src/index.ts") == false, "generateAll generated a skipped module")
@@ -284,6 +297,100 @@ type E2e {
 
     let updated = deps.update
     assert(updated.isEmpty, "updating only local dependencies should not edit dagger.json")
+
+    null
+  }
+
+  """
+  Config readers should reflect package.json (or deno.json), and mutators
+  should edit only the targeted config file while preserving unrelated keys.
+  """
+  pub configCheck(ws: Workspace!): Void @check {
+    let app = typescriptSdk.mod(ws, path: configModulePath).config
+    let configured = typescriptSdk.mod(ws, path: configuredModulePath).config
+    let configuredDeno = typescriptSdk.mod(ws, path: configuredDenoModulePath).config
+
+    # Defaults: unconfigured node module reads empty.
+    assert(app.packageManager == "", "default packageManager should be empty")
+    assert(app.baseImage == "", "default baseImage should be empty")
+
+    # Configured node module reads the override values.
+    assert(configured.packageManager == "pnpm@8.15.4", "configured packageManager should read pnpm@8.15.4")
+    assert(configured.baseImage == "node:23.2.0-alpine", "configured baseImage should read the override")
+
+    # Deno module: no package.json, baseImage comes from deno.json.
+    assert(configuredDeno.packageManager == "", "deno-only module should expose no packageManager")
+    assert(configuredDeno.baseImage == "denoland/deno:alpine-2.0.0", "deno baseImage should read from deno.json")
+
+    let appPkg = configModulePath + "/package.json"
+
+    let pm = app.setPackageManager("yarn@1.22.22")
+    assertOnlyFileChanged(pm, appPkg, "setPackageManager")
+    assertContains(pm.after.file(appPkg).contents, "yarn@1.22.22", "setPackageManager did not write the new value")
+    assertContains(pm.after.file(appPkg).contents, "\"type\": \"module\"", "setPackageManager dropped unrelated keys")
+
+    let img = app.setBaseImage("node:23.2.0-alpine")
+    assertOnlyFileChanged(img, appPkg, "setBaseImage")
+    assertContains(img.after.file(appPkg).contents, "node:23.2.0-alpine", "setBaseImage did not write the image")
+
+    let configuredPkg = configuredModulePath + "/package.json"
+
+    let unsetPm = configured.unsetPackageManager
+    assertOnlyFileChanged(unsetPm, configuredPkg, "unsetPackageManager")
+    assertNotContains(unsetPm.after.file(configuredPkg).contents, "packageManager", "unsetPackageManager left the field")
+    assertContains(unsetPm.after.file(configuredPkg).contents, "node:23.2.0-alpine", "unsetPackageManager clobbered dagger.baseImage")
+
+    let unsetImg = configured.unsetBaseImage
+    assertOnlyFileChanged(unsetImg, configuredPkg, "unsetBaseImage")
+    assertNotContains(unsetImg.after.file(configuredPkg).contents, "baseImage", "unsetBaseImage left the override")
+    assertContains(unsetImg.after.file(configuredPkg).contents, "pnpm@8.15.4", "unsetBaseImage clobbered packageManager")
+
+    # Deno modules: baseImage edits route to deno.json, not package.json.
+    let configuredDenoFile = configuredDenoModulePath + "/deno.json"
+
+    let denoImg = configuredDeno.setBaseImage("denoland/deno:latest")
+    assertOnlyFileChanged(denoImg, configuredDenoFile, "setBaseImage on deno module")
+    assertContains(denoImg.after.file(configuredDenoFile).contents, "denoland/deno:latest", "setBaseImage did not write to deno.json")
+
+    let unsetDenoImg = configuredDeno.unsetBaseImage
+    assertOnlyFileChanged(unsetDenoImg, configuredDenoFile, "unsetBaseImage on deno module")
+    assertNotContains(unsetDenoImg.after.file(configuredDenoFile).contents, "baseImage", "unsetBaseImage left the override in deno.json")
+    assertContains(unsetDenoImg.after.file(configuredDenoFile).contents, "nodeModulesDir", "unsetBaseImage clobbered unrelated deno keys")
+
+    null
+  }
+
+  """
+  Init flags should write configuration into the generated config files. By
+  default, no config keys are written; the runtime decides which file the
+  base image override lands in.
+  """
+  pub initConfigCheck(ws: Workspace!): Void @check {
+    let configuredPath = outputRoot + "/init-configured"
+    let configuredDenoPath = outputRoot + "/init-configured-deno"
+    let defaultPath = outputRoot + "/init-config-default"
+
+    let configured = typescriptSdk.init(ws, name: "init-configured", path: configuredPath, packageManager: "pnpm@8.15.4", baseImage: "node:23.2.0-alpine")
+    let pkg = configuredPath + "/package.json"
+    assertAdded(configured, pkg)
+    assert(configured.modifiedPaths.length == 0, "configured init should not modify existing files")
+    assert(configured.removedPaths.length == 0, "configured init should not remove files")
+    assertContains(configured.layer.file(pkg).contents, "pnpm@8.15.4", "init --package-manager not written")
+    assertContains(configured.layer.file(pkg).contents, "node:23.2.0-alpine", "init --base-image not written")
+
+    # Deno init with baseImage routes to deno.json; no package.json is created.
+    let configuredDeno = typescriptSdk.init(ws, name: "init-configured-deno", path: configuredDenoPath, runtime: TypescriptSdkRuntime.DENO, baseImage: "denoland/deno:alpine-2.0.0")
+    let denoFile = configuredDenoPath + "/deno.json"
+    assertAdded(configuredDeno, denoFile)
+    assertContains(configuredDeno.layer.file(denoFile).contents, "denoland/deno:alpine-2.0.0", "init deno --base-image not written")
+    assert(contains(configuredDeno.addedPaths, configuredDenoPath + "/package.json") == false, "deno init should not generate package.json even with baseImage")
+
+    # Default init has no config keys.
+    let default = typescriptSdk.init(ws, name: "init-config-default", path: defaultPath)
+    let defaultPkg = defaultPath + "/package.json"
+    assertAdded(default, defaultPkg)
+    assertNotContains(default.layer.file(defaultPkg).contents, "packageManager", "default init should not write packageManager")
+    assertNotContains(default.layer.file(defaultPkg).contents, "baseImage", "default init should not write baseImage")
 
     null
   }

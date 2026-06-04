@@ -8,3 +8,6 @@ source = ".."
 
 # Marker filename that skips generate when found at or above a TypeScript SDK module root.
 # settings.skipGenerateFilename = ""
+
+[modules.e2e]
+source = "modules/e2e"

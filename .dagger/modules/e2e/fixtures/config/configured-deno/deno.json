@@ -1,0 +1,13 @@
+{
+  "nodeModulesDir": "auto",
+  "compilerOptions": {
+    "experimentalDecorators": true
+  },
+  "imports": {
+    "@dagger.io/dagger": "./sdk/index.ts",
+    "@dagger.io/dagger/telemetry": "./sdk/telemetry.ts"
+  },
+  "dagger": {
+    "baseImage": "denoland/deno:alpine-2.0.0"
+  }
+}

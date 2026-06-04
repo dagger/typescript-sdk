@@ -45,6 +45,17 @@ type Mod {
   }
 
   """
+  Manage this module's TypeScript SDK build configuration (package.json,
+  deno.json).
+  """
+  pub config: ModConfig! {
+    ModConfig(
+      path: path,
+      ws: ws,
+    )
+  }
+
+  """
   Whether this module root or an ancestor contains a marker filename.
   """
   let hasMarker(ws: Workspace!, filename: String!): Boolean! {

@@ -95,8 +95,13 @@ type TypescriptSdk {
   By default, future generated SDK files are checked into version control. Pass
   `ignoreGenerated` to configure generation to add generated SDK paths to
   .gitignore instead.
+
+  Pass `packageManager` or `baseImage` to customize the generated config.
+  Defaults leave the template unconfigured: no `packageManager` field is
+  written, and no base image override is set. `packageManager` is invalid
+  with `runtime = DENO` since Deno does not use a Node package manager.
   """
-  pub init(ws: Workspace!, name: String!, path: String! = "", template: String! = "", runtime: Runtime! = Runtime.NODE, ignoreGenerated: Boolean! = false): Changeset! {
+  pub init(ws: Workspace!, name: String!, path: String! = "", template: String! = "", runtime: Runtime! = Runtime.NODE, ignoreGenerated: Boolean! = false, packageManager: String! = "", baseImage: String! = ""): Changeset! {
     let rawPath = if (path == "") {
       let daggerDir = ws.findUp(".dagger", ".")
       if (daggerDir == null) {
@@ -124,6 +129,8 @@ type TypescriptSdk {
       raise "module already exists: " + modPath
     } else if (currentModule.source.exists("templates/" + selectedTemplate) == false) {
       raise "unknown init template: " + template
+    } else if (runtime == Runtime.DENO and packageManager != "") {
+      raise "packageManager is only supported for node/bun runtimes; omit --package-manager when --runtime is DENO"
     } else {
       let includePrefix = if (modPath == ".") { "" } else { modPath + "/" }
       let existing = ws.directory("/", include: [
@@ -134,11 +141,12 @@ type TypescriptSdk {
       ])
 
       let config = "{\n  \"name\": " + toJSON(name) + ",\n  \"engineVersion\": \"latest\",\n  \"sdk\": {\n    \"source\": \"typescript\"\n  },\n  \"codegen\": {\n    \"automaticGitignore\": " + toJSON(ignoreGenerated) + "\n  }\n}\n"
-      let templateSource = if (selectedTemplate == "default") {
+      let renderedSource = if (selectedTemplate == "default") {
         renderedDefaultTemplate(name, runtime, existing, modPath)
       } else {
         currentModule.source.directory("templates/" + selectedTemplate)
       }
+      let templateSource = configuredTemplate(renderedSource, runtime, packageManager, baseImage)
       let seeded = fork
         .withDirectory(modPath, templateSource)
         .withNewFile(configPath, config)
@@ -222,6 +230,43 @@ type TypescriptSdk {
     }
 
     withConfig.directory("/rendered")
+  }
+
+  """
+  Apply non-default `packageManager` / `baseImage` flags to a rendered template.
+
+  When both flags are empty the source is returned unchanged (no helper run,
+  no reformatting). Otherwise the module-config helper edits the rendered
+  config files in place: `packageManager` always writes to package.json,
+  `baseImage` writes to deno.json for the DENO runtime and to package.json
+  otherwise — matching where ModConfig later reads from.
+  """
+  let configuredTemplate(source: Directory!, runtime: Runtime!, packageManager: String!, baseImage: String!): Directory! {
+    if (packageManager == "" and baseImage == "") {
+      source
+    } else {
+      let baseImageFile = if (runtime == Runtime.DENO) { "/rendered/deno.json" } else { "/rendered/package.json" }
+      let built = container
+        .from("golang:1.25-alpine")
+        .withoutEntrypoint
+        .withMountedCache("/go/pkg/mod", cacheVolume("go-mod"))
+        .withMountedCache("/root/.cache/go-build", cacheVolume("go-build"))
+        .withDirectory("/helper", currentModule.source.directory("helpers/module-config"))
+        .withWorkdir("/helper")
+        .withExec(["go", "build", "-o", "/usr/local/bin/module-config", "."])
+        .withDirectory("/rendered", source)
+      let withPm = if (packageManager == "") {
+        built
+      } else {
+        built.withExec(["module-config", "set-package-manager", "/rendered/package.json", packageManager])
+      }
+      let withImg = if (baseImage == "") {
+        withPm
+      } else {
+        withPm.withExec(["module-config", "set-base-image", baseImageFile, baseImage])
+      }
+      withImg.directory("/rendered")
+    }
   }
 
   """

@@ -1,0 +1,124 @@
+"""
+TypeScript SDK build configuration stored in a module's package.json
+or deno.json.
+"""
+type ModConfig {
+  """
+  Workspace-relative path of the module root.
+  """
+  let path: String!
+
+  """
+  The workspace this module belongs to.
+  """
+  let ws: Workspace!
+
+  """
+  The Node-standard packageManager field (e.g. "pnpm@8.15.4"), read from
+  package.json. Empty when unset, or when the module has no package.json.
+  """
+  pub packageManager: String! {
+    if (hasFile(packageJsonPath)) {
+      tool(packageJsonPath).withExec(["module-config", "get-package-manager", toolPath]).stdout
+    } else {
+      ""
+    }
+  }
+
+  """
+  The base container image override, read from dagger.baseImage. For Deno
+  modules (deno.json present) the value comes from deno.json; otherwise from
+  package.json. Empty when no override is set.
+  """
+  pub baseImage: String! {
+    let file = baseImageFile
+    if (hasFile(file)) {
+      tool(file).withExec(["module-config", "get-base-image", toolPath]).stdout
+    } else {
+      ""
+    }
+  }
+
+  """
+  Set the Node-standard packageManager field in package.json.
+  """
+  pub setPackageManager(value: String!): Changeset! {
+    edit(packageJsonPath, ["module-config", "set-package-manager", toolPath, value])
+  }
+
+  """
+  Remove the packageManager field from package.json.
+  """
+  pub unsetPackageManager: Changeset! {
+    edit(packageJsonPath, ["module-config", "unset-package-manager", toolPath])
+  }
+
+  """
+  Override the base container image. Writes to deno.json for Deno modules,
+  otherwise to package.json.
+  """
+  pub setBaseImage(image: String!): Changeset! {
+    edit(baseImageFile, ["module-config", "set-base-image", toolPath, image])
+  }
+
+  """
+  Remove the base image override and fall back to the SDK default. Edits
+  whichever file currently holds dagger.baseImage.
+  """
+  pub unsetBaseImage: Changeset! {
+    edit(baseImageFile, ["module-config", "unset-base-image", toolPath])
+  }
+
+  let packageJsonPath: String! {
+    if (path == ".") { "package.json" } else { path + "/package.json" }
+  }
+
+  let denoJsonPath: String! {
+    if (path == ".") { "deno.json" } else { path + "/deno.json" }
+  }
+
+  """
+  The config file that owns dagger.baseImage for this module: deno.json
+  when present at the module root, otherwise package.json. The engine reads
+  either, but per-module we keep one source of truth.
+  """
+  let baseImageFile: String! {
+    if (hasFile(denoJsonPath)) { denoJsonPath } else { packageJsonPath }
+  }
+
+  let toolPath: String! = "/work/config.json"
+
+  let hasFile(file: String!): Boolean! {
+    ws.directory("/", include: [file]).exists(file)
+  }
+
+  """
+  Container with the module-config helper built and the requested config file
+  mounted at toolPath. Missing files are seeded as "{}" so set-* commands
+  can materialize a new file (e.g. set-package-manager on a deno-only
+  module).
+  """
+  let tool(file: String!): Container! {
+    let base = container
+      .from("golang:1.25-alpine")
+      .withoutEntrypoint
+      .withMountedCache("/go/pkg/mod", cacheVolume("go-mod"))
+      .withMountedCache("/root/.cache/go-build", cacheVolume("go-build"))
+      .withDirectory("/helper", currentModule.source.directory("helpers/module-config"))
+      .withWorkdir("/helper")
+      .withExec(["go", "build", "-o", "/usr/local/bin/module-config", "."])
+    if (hasFile(file)) {
+      base.withFile(toolPath, ws.directory("/", include: [file]).file(file))
+    } else {
+      base.withNewFile(toolPath, "{}")
+    }
+  }
+
+  """
+  Run an edit command on a config file and return the resulting change.
+  """
+  let edit(file: String!, args: [String!]!): Changeset! {
+    let edited = tool(file).withExec(args).file(toolPath).contents
+    polyfill.workspace(ws).fork.withNewFile(file, edited).changes
+  }
+}

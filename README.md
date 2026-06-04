@@ -55,6 +55,44 @@ settings are preserved.
 `init` only seeds template and config files. Run `mod ... generate` to
 produce the generated SDK.
 
+### Configure a module at creation
+
+`init` accepts configuration flags written into the module's `package.json`
+(or `deno.json` for Deno modules):
+
+```sh
+dagger call typescript-sdk init --name my-module \
+    --package-manager pnpm@8.15.4 \
+    --base-image node:23.2.0-alpine
+```
+
+Both flags are optional. By default no `packageManager` field is written and
+no base image override is set. `--package-manager` is not valid with
+`--runtime DENO`.
+
+## Configure an existing module
+
+Read current configuration:
+
+```sh
+dagger call typescript-sdk mod --path my-module config package-manager
+dagger call typescript-sdk mod --path my-module config base-image
+```
+
+Change configuration (each prints a diff to confirm before writing):
+
+```sh
+dagger call typescript-sdk mod --path my-module \
+    config set-package-manager --value pnpm@8.15.4
+dagger call typescript-sdk mod --path my-module \
+    config set-base-image --image node:23.2.0-alpine
+dagger call typescript-sdk mod --path my-module config unset-package-manager
+dagger call typescript-sdk mod --path my-module config unset-base-image
+```
+
+`base-image` writes to `deno.json` for Deno modules and to `package.json`
+otherwise — matching where the engine reads it from.
+
 ## Generate SDK files
 
 For a single module:
