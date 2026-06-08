@@ -40,10 +40,42 @@ type ModConfig {
   }
 
   """
-  Set the Node-standard packageManager field in package.json.
+  Configure this module's package manager and/or base image in a single
+  call. Pass at least one of `packageManager` or `baseImage`; passing both
+  applies both edits to the same Changeset.
+
+  `packageManager` is only supported for the Node runtime (Bun and Deno
+  bundle their own); setting it on a Bun or Deno module is rejected. The
+  value follows the Node `name@version` convention (e.g. `pnpm@8.15.4`); pass
+  just the name to use the engine's default version.
+
+  Returns a Changeset, so the diff is shown for confirmation before any
+  file is written.
   """
-  pub setPackageManager(value: String!): Changeset! {
-    edit(packageJsonPath, ["module-config", "set-package-manager", toolPath, value])
+  pub set(packageManager: String! = "", baseImage: String! = ""): Changeset! {
+    if (packageManager == "" and baseImage == "") {
+      raise "config set requires at least one of --package-manager or --base-image"
+    } else if (packageManager != "" and runtime != Runtime.NODE) {
+      raise "packageManager is only supported for the Node runtime; Bun and Deno bundle their own"
+    } else {
+      # packageManager is always rejected for non-Node, so when it's set the
+      # base-image target is package.json too. That collapses the work to a
+      # single target file regardless of which flags are set.
+      let targetFile = if (packageManager != "") { packageJsonPath } else { baseImageFile }
+      let scratch = tool(targetFile)
+      let withPm = if (packageManager == "") {
+        scratch
+      } else {
+        scratch.withExec(["module-config", "set-package-manager", toolPath, packageManager])
+      }
+      let withImg = if (baseImage == "") {
+        withPm
+      } else {
+        withPm.withExec(["module-config", "set-base-image", toolPath, baseImage])
+      }
+      let edited = withImg.file(toolPath).contents
+      polyfill.workspace(ws).fork.withNewFile(targetFile, edited).changes
+    }
   }
 
   """
@@ -51,14 +83,6 @@ type ModConfig {
   """
   pub unsetPackageManager: Changeset! {
     edit(packageJsonPath, ["module-config", "unset-package-manager", toolPath])
-  }
-
-  """
-  Override the base container image. Writes to deno.json for Deno modules,
-  otherwise to package.json.
-  """
-  pub setBaseImage(image: String!): Changeset! {
-    edit(baseImageFile, ["module-config", "set-base-image", toolPath, image])
   }
 
   """
@@ -77,6 +101,10 @@ type ModConfig {
     if (path == ".") { "deno.json" } else { path + "/deno.json" }
   }
 
+  let bunLockPath: String! {
+    if (path == ".") { "bun.lock" } else { path + "/bun.lock" }
+  }
+
   """
   The config file that owns dagger.baseImage for this module: deno.json
   when present at the module root, otherwise package.json. The engine reads
@@ -84,6 +112,21 @@ type ModConfig {
   """
   let baseImageFile: String! {
     if (hasFile(denoJsonPath)) { denoJsonPath } else { packageJsonPath }
+  }
+
+  """
+  The runtime this module uses, detected from the file layout:
+  deno.json -> DENO, bun.lock -> BUN, otherwise NODE. Mirrors how the
+  engine picks the runtime at module load.
+  """
+  let runtime: Runtime! {
+    if (hasFile(denoJsonPath)) {
+      Runtime.DENO
+    } else if (hasFile(bunLockPath)) {
+      Runtime.BUN
+    } else {
+      Runtime.NODE
+    }
   }
 
   let toolPath: String! = "/work/config.json"
@@ -95,8 +138,7 @@ type ModConfig {
   """
   Container with the module-config helper built and the requested config file
   mounted at toolPath. Missing files are seeded as "{}" so set-* commands
-  can materialize a new file (e.g. set-package-manager on a deno-only
-  module).
+  can materialize a new file.
   """
   let tool(file: String!): Container! {
     let base = container

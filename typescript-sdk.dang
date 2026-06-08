@@ -98,8 +98,10 @@ type TypescriptSdk {
 
   Pass `packageManager` or `baseImage` to customize the generated config.
   Defaults leave the template unconfigured: no `packageManager` field is
-  written, and no base image override is set. `packageManager` is invalid
-  with `runtime = DENO` since Deno does not use a Node package manager.
+  written, and no base image override is set. `packageManager` is only
+  supported with `runtime = NODE`; Bun and Deno bundle their own.
+  `packageManager` accepts the Node-standard `name@version` syntax (e.g.
+  `pnpm@8.15.4`), or just the name if you want the engine's default version.
   """
   pub init(ws: Workspace!, name: String!, path: String! = "", template: String! = "", runtime: Runtime! = Runtime.NODE, ignoreGenerated: Boolean! = false, packageManager: String! = "", baseImage: String! = ""): Changeset! {
     let rawPath = if (path == "") {
@@ -129,8 +131,8 @@ type TypescriptSdk {
       raise "module already exists: " + modPath
     } else if (currentModule.source.exists("templates/" + selectedTemplate) == false) {
       raise "unknown init template: " + template
-    } else if (runtime == Runtime.DENO and packageManager != "") {
-      raise "packageManager is only supported for node/bun runtimes; omit --package-manager when --runtime is DENO"
+    } else if (packageManager != "" and runtime != Runtime.NODE) {
+      raise "packageManager is only supported with --runtime NODE; Bun and Deno bundle their own"
     } else {
       let includePrefix = if (modPath == ".") { "" } else { modPath + "/" }
       let existing = ws.directory("/", include: [

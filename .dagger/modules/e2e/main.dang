@@ -324,14 +324,22 @@ type E2e {
 
     let appPkg = configModulePath + "/package.json"
 
-    let pm = app.setPackageManager("yarn@1.22.22")
-    assertOnlyFileChanged(pm, appPkg, "setPackageManager")
-    assertContains(pm.after.file(appPkg).contents, "yarn@1.22.22", "setPackageManager did not write the new value")
-    assertContains(pm.after.file(appPkg).contents, "\"type\": \"module\"", "setPackageManager dropped unrelated keys")
+    # Single-flag set: package manager only.
+    let pm = app.set(packageManager: "yarn@1.22.22")
+    assertOnlyFileChanged(pm, appPkg, "set(packageManager)")
+    assertContains(pm.after.file(appPkg).contents, "yarn@1.22.22", "set(packageManager) did not write the value")
+    assertContains(pm.after.file(appPkg).contents, "\"type\": \"module\"", "set(packageManager) dropped unrelated keys")
 
-    let img = app.setBaseImage("node:23.2.0-alpine")
-    assertOnlyFileChanged(img, appPkg, "setBaseImage")
-    assertContains(img.after.file(appPkg).contents, "node:23.2.0-alpine", "setBaseImage did not write the image")
+    # Single-flag set: base image only.
+    let img = app.set(baseImage: "node:23.2.0-alpine")
+    assertOnlyFileChanged(img, appPkg, "set(baseImage)")
+    assertContains(img.after.file(appPkg).contents, "node:23.2.0-alpine", "set(baseImage) did not write the image")
+
+    # Both flags in one call: a single file change carrying both edits.
+    let both = app.set(packageManager: "npm@10.7.0", baseImage: "node:23.2.0-alpine")
+    assertOnlyFileChanged(both, appPkg, "set(packageManager, baseImage)")
+    assertContains(both.after.file(appPkg).contents, "npm@10.7.0", "set(both) did not write packageManager")
+    assertContains(both.after.file(appPkg).contents, "node:23.2.0-alpine", "set(both) did not write baseImage")
 
     let configuredPkg = configuredModulePath + "/package.json"
 
@@ -348,9 +356,9 @@ type E2e {
     # Deno modules: baseImage edits route to deno.json, not package.json.
     let configuredDenoFile = configuredDenoModulePath + "/deno.json"
 
-    let denoImg = configuredDeno.setBaseImage("denoland/deno:latest")
-    assertOnlyFileChanged(denoImg, configuredDenoFile, "setBaseImage on deno module")
-    assertContains(denoImg.after.file(configuredDenoFile).contents, "denoland/deno:latest", "setBaseImage did not write to deno.json")
+    let denoImg = configuredDeno.set(baseImage: "denoland/deno:latest")
+    assertOnlyFileChanged(denoImg, configuredDenoFile, "set(baseImage) on deno module")
+    assertContains(denoImg.after.file(configuredDenoFile).contents, "denoland/deno:latest", "set(baseImage) did not write to deno.json")
 
     let unsetDenoImg = configuredDeno.unsetBaseImage
     assertOnlyFileChanged(unsetDenoImg, configuredDenoFile, "unsetBaseImage on deno module")
