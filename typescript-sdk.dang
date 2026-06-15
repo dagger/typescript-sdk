@@ -247,28 +247,48 @@ type TypescriptSdk {
     if (packageManager == "" and baseImage == "") {
       source
     } else {
-      let baseImageFile = if (runtime == Runtime.DENO) { "/rendered/deno.json" } else { "/rendered/package.json" }
-      let built = container
-        .from("golang:1.25-alpine")
-        .withoutEntrypoint
-        .withMountedCache("/go/pkg/mod", cacheVolume("go-mod"))
-        .withMountedCache("/root/.cache/go-build", cacheVolume("go-build"))
-        .withDirectory("/helper", currentModule.source.directory("helpers/module-config"))
-        .withWorkdir("/helper")
-        .withExec(["go", "build", "-o", "/usr/local/bin/module-config", "."])
-        .withDirectory("/rendered", source)
-      let withPm = if (packageManager == "") {
-        built
+      let baseImageFileName = if (runtime == Runtime.DENO) { "deno.json" } else { "package.json" }
+      # Only edit config files the template actually ships. The module-config
+      # helper treats a missing file as "{}" and would otherwise materialize a
+      # brand-new package.json/deno.json that the template intentionally omitted.
+      if (packageManager != "" and source.exists("package.json") == false) {
+        raise "cannot configure --package-manager: template has no package.json"
+      } else if (baseImage != "" and source.exists(baseImageFileName) == false) {
+        raise "cannot configure --base-image: template has no " + baseImageFileName
       } else {
-        built.withExec(["module-config", "set-package-manager", "/rendered/package.json", packageManager])
+        let built = moduleConfigBuilder.withDirectory("/rendered", source)
+        let withPm = if (packageManager == "") {
+          built
+        } else {
+          built.withExec(["module-config", "set-package-manager", "/rendered/package.json", packageManager])
+        }
+        let withImg = if (baseImage == "") {
+          withPm
+        } else {
+          withPm.withExec(["module-config", "set-base-image", "/rendered/" + baseImageFileName, baseImage])
+        }
+        withImg.directory("/rendered")
       }
-      let withImg = if (baseImage == "") {
-        withPm
-      } else {
-        withPm.withExec(["module-config", "set-base-image", baseImageFile, baseImage])
-      }
-      withImg.directory("/rendered")
     }
+  }
+
+  """
+  Container with the module-config helper compiled and on PATH at
+  /usr/local/bin/module-config.
+
+  Shared by init's template configuration (configuredTemplate) and ModConfig's
+  per-file edits (ModConfig.tool) so the Go build recipe lives in one place
+  rather than being duplicated across both call sites.
+  """
+  pub moduleConfigBuilder: Container! {
+    container
+      .from("golang:1.25-alpine")
+      .withoutEntrypoint
+      .withMountedCache("/go/pkg/mod", cacheVolume("go-mod"))
+      .withMountedCache("/root/.cache/go-build", cacheVolume("go-build"))
+      .withDirectory("/helper", currentModule.source.directory("helpers/module-config"))
+      .withWorkdir("/helper")
+      .withExec(["go", "build", "-o", "/usr/local/bin/module-config", "."])
   }
 
   """

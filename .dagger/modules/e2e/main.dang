@@ -17,6 +17,7 @@ type E2e {
   let configModulePath: String! = fixtureRoot + "/config/app"
   let configuredModulePath: String! = fixtureRoot + "/config/configured"
   let configuredDenoModulePath: String! = fixtureRoot + "/config/configured-deno"
+  let configBareModulePath: String! = fixtureRoot + "/config/bare"
 
   """
   Fail the current check when a condition is false.
@@ -364,6 +365,26 @@ type E2e {
     assertOnlyFileChanged(unsetDenoImg, configuredDenoFile, "unsetBaseImage on deno module")
     assertNotContains(unsetDenoImg.after.file(configuredDenoFile).contents, "baseImage", "unsetBaseImage left the override in deno.json")
     assertContains(unsetDenoImg.after.file(configuredDenoFile).contents, "nodeModulesDir", "unsetBaseImage clobbered unrelated deno keys")
+
+    # unset-package-manager on a Deno module is a no-op: there is no
+    # package.json, and the unset must not fabricate an empty one.
+    let denoUnsetPm = configuredDeno.unsetPackageManager
+    assert(denoUnsetPm.isEmpty, "unsetPackageManager on a Deno module should be a no-op")
+    assert(contains(denoUnsetPm.addedPaths, configuredDenoModulePath + "/package.json") == false, "unsetPackageManager must not create a package.json in a Deno module")
+
+    # Bare module (no package.json or deno.json): readers are empty and the
+    # unsetters are no-ops that never write a stray config file.
+    let bare = typescriptSdk.mod(ws, path: configBareModulePath).config
+    assert(bare.packageManager == "", "bare module should expose no packageManager")
+    assert(bare.baseImage == "", "bare module should expose no baseImage")
+
+    let bareUnsetPm = bare.unsetPackageManager
+    assert(bareUnsetPm.isEmpty, "unsetPackageManager on a module without package.json should be a no-op")
+    assert(contains(bareUnsetPm.addedPaths, configBareModulePath + "/package.json") == false, "unsetPackageManager must not fabricate a package.json")
+
+    let bareUnsetImg = bare.unsetBaseImage
+    assert(bareUnsetImg.isEmpty, "unsetBaseImage on a module without a config file should be a no-op")
+    assert(contains(bareUnsetImg.addedPaths, configBareModulePath + "/package.json") == false, "unsetBaseImage must not fabricate a package.json")
 
     null
   }

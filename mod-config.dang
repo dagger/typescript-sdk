@@ -18,7 +18,9 @@ type ModConfig {
   package.json. Empty when unset, or when the module has no package.json.
   """
   pub packageManager: String! {
-    if (hasFile(packageJsonPath)) {
+    if (runtime == Runtime.DENO) {
+      ""
+    } else if (hasFile(packageJsonPath)) {
       tool(packageJsonPath).withExec(["module-config", "get-package-manager", toolPath]).stdout
     } else {
       ""
@@ -82,7 +84,12 @@ type ModConfig {
   Remove the packageManager field from package.json.
   """
   pub unsetPackageManager: Changeset! {
-    edit(packageJsonPath, ["module-config", "unset-package-manager", toolPath])
+    if (runtime == Runtime.DENO) {
+      # Deno modules carry no package.json, so there is nothing to unset.
+      polyfill.workspace(ws).fork.changes
+    } else {
+      edit(packageJsonPath, ["module-config", "unset-package-manager", toolPath])
+    }
   }
 
   """
@@ -105,24 +112,39 @@ type ModConfig {
     if (path == ".") { "bun.lock" } else { path + "/bun.lock" }
   }
 
+  let bunLockbPath: String! {
+    if (path == ".") { "bun.lockb" } else { path + "/bun.lockb" }
+  }
+
   """
-  The config file that owns dagger.baseImage for this module: deno.json
-  when present at the module root, otherwise package.json. The engine reads
-  either, but per-module we keep one source of truth.
+  The config file that owns dagger.baseImage for this module: deno.json for
+  the Deno runtime, otherwise package.json. The engine reads either, but per
+  module we keep one source of truth. Derives from `runtime`, so a module with
+  both config files is rejected here too.
   """
   let baseImageFile: String! {
-    if (hasFile(denoJsonPath)) { denoJsonPath } else { packageJsonPath }
+    if (runtime == Runtime.DENO) { denoJsonPath } else { packageJsonPath }
   }
 
   """
   The runtime this module uses, detected from the file layout:
-  deno.json -> DENO, bun.lock -> BUN, otherwise NODE. Mirrors how the
-  engine picks the runtime at module load.
+  deno.json -> DENO, bun.lock or bun.lockb -> BUN, otherwise NODE. Mirrors how
+  the engine picks the runtime at module load. Both Bun lockfiles are checked:
+  newer Bun writes the text bun.lock, but pre-existing modules may still carry
+  the binary bun.lockb.
   """
   let runtime: Runtime! {
     if (hasFile(denoJsonPath)) {
-      Runtime.DENO
-    } else if (hasFile(bunLockPath)) {
+      if (hasFile(packageJsonPath)) {
+        # Contradictory layout: deno.json selects the Deno runtime, but
+        # package.json is a Node/Bun config file. The engine can't tell which
+        # runtime this module wants, so neither can we — surface it rather than
+        # silently treating it as Deno and editing the wrong config file.
+        raise "module has both deno.json and package.json; a TypeScript SDK module is either Deno (deno.json) or Node/Bun (package.json), not both"
+      } else {
+        Runtime.DENO
+      }
+    } else if (hasFile(bunLockPath) or hasFile(bunLockbPath)) {
       Runtime.BUN
     } else {
       Runtime.NODE
@@ -141,14 +163,7 @@ type ModConfig {
   can materialize a new file.
   """
   let tool(file: String!): Container! {
-    let base = container
-      .from("golang:1.25-alpine")
-      .withoutEntrypoint
-      .withMountedCache("/go/pkg/mod", cacheVolume("go-mod"))
-      .withMountedCache("/root/.cache/go-build", cacheVolume("go-build"))
-      .withDirectory("/helper", currentModule.source.directory("helpers/module-config"))
-      .withWorkdir("/helper")
-      .withExec(["go", "build", "-o", "/usr/local/bin/module-config", "."])
+    let base = TypescriptSdk().moduleConfigBuilder
     if (hasFile(file)) {
       base.withFile(toolPath, ws.directory("/", include: [file]).file(file))
     } else {
@@ -160,7 +175,15 @@ type ModConfig {
   Run an edit command on a config file and return the resulting change.
   """
   let edit(file: String!, args: [String!]!): Changeset! {
-    let edited = tool(file).withExec(args).file(toolPath).contents
-    polyfill.workspace(ws).fork.withNewFile(file, edited).changes
+    if (hasFile(file)) {
+      let edited = tool(file).withExec(args).file(toolPath).contents
+      polyfill.workspace(ws).fork.withNewFile(file, edited).changes
+    } else {
+      # Nothing to unset when the target file is absent. Routing through tool()
+      # would seed the missing file as "{}", making the unset a no-op, and then
+      # write that empty file back as a stray addition (e.g. an empty
+      # package.json in a Deno module). Return an empty Changeset instead.
+      polyfill.workspace(ws).fork.changes
+    }
   }
 }
