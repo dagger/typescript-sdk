@@ -280,7 +280,7 @@ type TypescriptSdk {
   per-file edits (ModConfig.tool) so the Go build recipe lives in one place
   rather than being duplicated across both call sites.
   """
-  pub moduleConfigBuilder: Container! {
+  let moduleConfigBuilder: Container! {
     container
       .from("golang:1.25-alpine")
       .withoutEntrypoint
