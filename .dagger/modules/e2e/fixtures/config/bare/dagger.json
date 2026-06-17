@@ -1,0 +1,7 @@
+{
+  "name": "config-bare",
+  "engineVersion": "latest",
+  "sdk": {
+    "source": "typescript"
+  }
+}

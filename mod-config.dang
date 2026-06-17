@@ -1,0 +1,189 @@
+"""
+TypeScript SDK build configuration stored in a module's package.json
+or deno.json.
+"""
+type ModConfig {
+  """
+  Workspace-relative path of the module root.
+  """
+  let path: String!
+
+  """
+  The workspace this module belongs to.
+  """
+  let ws: Workspace!
+
+  """
+  The Node-standard packageManager field (e.g. "pnpm@8.15.4"), read from
+  package.json. Empty when unset, or when the module has no package.json.
+  """
+  pub packageManager: String! {
+    if (runtime == Runtime.DENO) {
+      ""
+    } else if (hasFile(packageJsonPath)) {
+      tool(packageJsonPath).withExec(["module-config", "get-package-manager", toolPath]).stdout
+    } else {
+      ""
+    }
+  }
+
+  """
+  The base container image override, read from dagger.baseImage. For Deno
+  modules (deno.json present) the value comes from deno.json; otherwise from
+  package.json. Empty when no override is set.
+  """
+  pub baseImage: String! {
+    let file = baseImageFile
+    if (hasFile(file)) {
+      tool(file).withExec(["module-config", "get-base-image", toolPath]).stdout
+    } else {
+      ""
+    }
+  }
+
+  """
+  Configure this module's package manager and/or base image in a single
+  call. Pass at least one of `packageManager` or `baseImage`; passing both
+  applies both edits to the same Changeset.
+
+  `packageManager` is only supported for the Node runtime (Bun and Deno
+  bundle their own); setting it on a Bun or Deno module is rejected. The
+  value follows the Node `name@version` convention (e.g. `pnpm@8.15.4`); pass
+  just the name to use the engine's default version.
+
+  Returns a Changeset, so the diff is shown for confirmation before any
+  file is written.
+  """
+  pub set(packageManager: String! = "", baseImage: String! = ""): Changeset! {
+    if (packageManager == "" and baseImage == "") {
+      raise "config set requires at least one of --package-manager or --base-image"
+    } else if (packageManager != "" and runtime != Runtime.NODE) {
+      raise "packageManager is only supported for the Node runtime; Bun and Deno bundle their own"
+    } else {
+      # packageManager is always rejected for non-Node, so when it's set the
+      # base-image target is package.json too. That collapses the work to a
+      # single target file regardless of which flags are set.
+      let targetFile = if (packageManager != "") { packageJsonPath } else { baseImageFile }
+      let scratch = tool(targetFile)
+      let withPm = if (packageManager == "") {
+        scratch
+      } else {
+        scratch.withExec(["module-config", "set-package-manager", toolPath, packageManager])
+      }
+      let withImg = if (baseImage == "") {
+        withPm
+      } else {
+        withPm.withExec(["module-config", "set-base-image", toolPath, baseImage])
+      }
+      let edited = withImg.file(toolPath).contents
+      polyfill.workspace(ws).fork.withNewFile(targetFile, edited).changes
+    }
+  }
+
+  """
+  Remove the packageManager field from package.json.
+  """
+  pub unsetPackageManager: Changeset! {
+    if (runtime == Runtime.DENO) {
+      # Deno modules carry no package.json, so there is nothing to unset.
+      polyfill.workspace(ws).fork.changes
+    } else {
+      edit(packageJsonPath, ["module-config", "unset-package-manager", toolPath])
+    }
+  }
+
+  """
+  Remove the base image override and fall back to the SDK default. Edits
+  whichever file currently holds dagger.baseImage.
+  """
+  pub unsetBaseImage: Changeset! {
+    edit(baseImageFile, ["module-config", "unset-base-image", toolPath])
+  }
+
+  let packageJsonPath: String! {
+    if (path == ".") { "package.json" } else { path + "/package.json" }
+  }
+
+  let denoJsonPath: String! {
+    if (path == ".") { "deno.json" } else { path + "/deno.json" }
+  }
+
+  let bunLockPath: String! {
+    if (path == ".") { "bun.lock" } else { path + "/bun.lock" }
+  }
+
+  let bunLockbPath: String! {
+    if (path == ".") { "bun.lockb" } else { path + "/bun.lockb" }
+  }
+
+  """
+  The config file that owns dagger.baseImage for this module: deno.json for
+  the Deno runtime, otherwise package.json. The engine reads either, but per
+  module we keep one source of truth. Derives from `runtime`, so a module with
+  both config files is rejected here too.
+  """
+  let baseImageFile: String! {
+    if (runtime == Runtime.DENO) { denoJsonPath } else { packageJsonPath }
+  }
+
+  """
+  The runtime this module uses, detected from the file layout:
+  deno.json -> DENO, bun.lock or bun.lockb -> BUN, otherwise NODE. Mirrors how
+  the engine picks the runtime at module load. Both Bun lockfiles are checked:
+  newer Bun writes the text bun.lock, but pre-existing modules may still carry
+  the binary bun.lockb.
+  """
+  let runtime: Runtime! {
+    if (hasFile(denoJsonPath)) {
+      if (hasFile(packageJsonPath)) {
+        # Contradictory layout: deno.json selects the Deno runtime, but
+        # package.json is a Node/Bun config file. The engine can't tell which
+        # runtime this module wants, so neither can we — surface it rather than
+        # silently treating it as Deno and editing the wrong config file.
+        raise "module has both deno.json and package.json; a TypeScript SDK module is either Deno (deno.json) or Node/Bun (package.json), not both"
+      } else {
+        Runtime.DENO
+      }
+    } else if (hasFile(bunLockPath) or hasFile(bunLockbPath)) {
+      Runtime.BUN
+    } else {
+      Runtime.NODE
+    }
+  }
+
+  let toolPath: String! = "/work/config.json"
+
+  let hasFile(file: String!): Boolean! {
+    ws.directory("/", include: [file]).exists(file)
+  }
+
+  """
+  Container with the module-config helper built and the requested config file
+  mounted at toolPath. Missing files are seeded as "{}" so set-* commands
+  can materialize a new file.
+  """
+  let tool(file: String!): Container! {
+    let base = TypescriptSdk().moduleConfigBuilder
+    if (hasFile(file)) {
+      base.withFile(toolPath, ws.directory("/", include: [file]).file(file))
+    } else {
+      base.withNewFile(toolPath, "{}")
+    }
+  }
+
+  """
+  Run an edit command on a config file and return the resulting change.
+  """
+  let edit(file: String!, args: [String!]!): Changeset! {
+    if (hasFile(file)) {
+      let edited = tool(file).withExec(args).file(toolPath).contents
+      polyfill.workspace(ws).fork.withNewFile(file, edited).changes
+    } else {
+      # Nothing to unset when the target file is absent. Routing through tool()
+      # would seed the missing file as "{}", making the unset a no-op, and then
+      # write that empty file back as a stray addition (e.g. an empty
+      # package.json in a Deno module). Return an empty Changeset instead.
+      polyfill.workspace(ws).fork.changes
+    }
+  }
+}

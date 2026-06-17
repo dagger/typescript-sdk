@@ -1,0 +1,7 @@
+{
+  "name": "config-configured-deno",
+  "engineVersion": "latest",
+  "sdk": {
+    "source": "typescript"
+  }
+}

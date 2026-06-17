@@ -55,6 +55,58 @@ settings are preserved.
 `init` only seeds template and config files. Run `mod ... generate` to
 produce the generated SDK.
 
+### Configure a module at creation
+
+`init` accepts configuration flags written into the module's `package.json`
+(or `deno.json` for Deno modules):
+
+```sh
+dagger call typescript-sdk init --name my-module \
+    --package-manager pnpm@8.15.4 \
+    --base-image node:23.2.0-alpine
+```
+
+Both flags are optional. By default no `packageManager` field is written and
+no base image override is set.
+
+`--package-manager` accepts the Node-standard `name@version` syntax (e.g.
+`npm@10.7.0`, `pnpm@8.15.4`, `yarn@1.22.22`). It is only valid with the
+Node runtime; Bun and Deno bundle their own.
+
+## Configure an existing module
+
+Read current configuration:
+
+```sh
+dagger call typescript-sdk mod --path my-module config package-manager
+dagger call typescript-sdk mod --path my-module config base-image
+```
+
+Change configuration with `config set` — pass either flag, or both in a
+single call. Each returns a `Changeset` so you confirm the diff before
+anything is written:
+
+```sh
+dagger call typescript-sdk mod --path my-module \
+    config set --package-manager pnpm@8.15.4
+dagger call typescript-sdk mod --path my-module \
+    config set --base-image node:23.2.0-alpine
+dagger call typescript-sdk mod --path my-module \
+    config set --package-manager pnpm@8.15.4 --base-image node:23.2.0-alpine
+```
+
+Unset stays as separate commands:
+
+```sh
+dagger call typescript-sdk mod --path my-module config unset-package-manager
+dagger call typescript-sdk mod --path my-module config unset-base-image
+```
+
+`package-manager` is only supported on Node modules; Bun and Deno bundle
+their own and the SDK rejects the flag on those runtimes. `base-image`
+writes to `deno.json` for Deno modules and to `package.json` otherwise —
+matching where the engine reads it from.
+
 ## Generate SDK files
 
 For a single module:
