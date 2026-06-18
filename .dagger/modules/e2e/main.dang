@@ -60,16 +60,6 @@ type E2e {
   }
 
   """
-  Assert that a dependency edit modified only dagger.json.
-  """
-  let assertOnlyConfigChanged(changes: Changeset!, path: String!): Void {
-    assert(contains(changes.modifiedPaths, path), "dependency edit did not modify dagger.json")
-    assert(changes.modifiedPaths.length == 1, "dependency edit modified more than dagger.json")
-    assert(changes.addedPaths.length == 0, "dependency edit should not add generated files")
-    assert(changes.removedPaths.length == 0, "dependency edit should not remove generated files")
-  }
-
-  """
   Assert that a config edit modified only the named file (no adds, no removes).
   """
   let assertOnlyFileChanged(changes: Changeset!, path: String!, message: String!): Void {
@@ -102,20 +92,28 @@ type E2e {
   }
 
   """
-  Init should produce only the seed files and the requested generated-file policy.
+  The SDK should report the builtin runtime it targets.
+  """
+  pub targetRuntimeCheck: Void @check {
+    assert(typescriptSdk.targetRuntime == "typescript", "targetRuntime should be typescript")
+
+    null
+  }
+
+  """
+  initModule should produce only the SDK-owned seed files. The engine owns the
+  module's dagger.json, so it must not appear in the changeset.
   """
   pub initCheck(ws: Workspace!): Void @check {
     let defaultPath = outputRoot + "/init-default"
-    let ignoredPath = outputRoot + "/init-ignore-generated"
     let bunPath = outputRoot + "/init-bun"
     let denoPath = outputRoot + "/init-deno"
 
-    let defaultChanges = typescriptSdk.init(ws, name: "init-default", path: defaultPath)
-    let ignoredChanges = typescriptSdk.init(ws, name: "init-ignore-generated", path: ignoredPath, ignoreGenerated: true)
-    let bunChanges = typescriptSdk.init(ws, name: "init-bun", path: bunPath, runtime: TypescriptSdkRuntime.BUN)
-    let denoChanges = typescriptSdk.init(ws, name: "init-deno", path: denoPath, runtime: TypescriptSdkRuntime.DENO)
+    let defaultChanges = typescriptSdk.initModule(ws, name: "init-default", path: defaultPath)
+    let bunChanges = typescriptSdk.initModule(ws, name: "init-bun", path: bunPath, runtime: TypescriptSdkRuntime.BUN)
+    let denoChanges = typescriptSdk.initModule(ws, name: "init-deno", path: denoPath, runtime: TypescriptSdkRuntime.DENO)
 
-    assertAdded(defaultChanges, defaultPath + "/dagger.json")
+    assert(contains(defaultChanges.addedPaths, defaultPath + "/dagger.json") == false, "initModule should not write dagger.json; the engine owns it")
     assertAdded(defaultChanges, defaultPath + "/src/index.ts")
     assertAdded(defaultChanges, defaultPath + "/package.json")
     assertAdded(defaultChanges, defaultPath + "/tsconfig.json")
@@ -124,9 +122,6 @@ type E2e {
     assert(contains(defaultChanges.addedPaths, defaultPath + "/bun.lock") == false, "node init should not generate bun.lock")
     assert(defaultChanges.modifiedPaths.length == 0, "init unexpectedly modified existing files")
     assert(defaultChanges.removedPaths.length == 0, "init unexpectedly removed files")
-    assertContains(defaultChanges.layer.file(defaultPath + "/dagger.json").contents, "\"automaticGitignore\": false", "default init should check in generated files")
-
-    assertContains(ignoredChanges.layer.file(ignoredPath + "/dagger.json").contents, "\"automaticGitignore\": true", "ignoreGenerated init should configure automatic .gitignore output")
 
     assertAdded(bunChanges, bunPath + "/src/index.ts")
     assertAdded(bunChanges, bunPath + "/package.json")
@@ -147,9 +142,9 @@ type E2e {
   files instead of clobbering them.
   """
   pub initRespectsExistingCheck(ws: Workspace!): Void @check {
-    let nodeChanges = typescriptSdk.init(ws, name: "init-existing-node", path: existingNodePath)
-    let denoChanges = typescriptSdk.init(ws, name: "init-existing-deno", path: existingDenoPath, runtime: TypescriptSdkRuntime.DENO)
-    let bunChanges = typescriptSdk.init(ws, name: "init-existing-bun", path: existingBunPath, runtime: TypescriptSdkRuntime.BUN)
+    let nodeChanges = typescriptSdk.initModule(ws, name: "init-existing-node", path: existingNodePath)
+    let denoChanges = typescriptSdk.initModule(ws, name: "init-existing-deno", path: existingDenoPath, runtime: TypescriptSdkRuntime.DENO)
+    let bunChanges = typescriptSdk.initModule(ws, name: "init-existing-bun", path: existingBunPath, runtime: TypescriptSdkRuntime.BUN)
 
     # Existing user files should be modified (merged), not added fresh.
     assert(contains(nodeChanges.modifiedPaths, existingNodePath + "/package.json"), "existing package.json should be merged, not added")
@@ -228,76 +223,6 @@ type E2e {
 
     assert(mod.skipGenerate(ws), "skip marker was not detected")
     assert(changes.isEmpty, "generate returned changes for a skipped module")
-
-    null
-  }
-
-  """
-  Engine version helpers should read dagger.json and write normalized versions.
-  """
-  pub engineVersionCheck(ws: Workspace!): Void @check {
-    let engine = typescriptSdk.mod(ws, path: lookupModulePath).engine
-    let fixed = engine.require(version: "0.21.0")
-    let latest = engine.requireLatest
-    let current = engine.requireCurrent
-
-    assert(engine.required == "0.20.8", "engine.required should trim a leading v")
-    assertContains(fixed.layer.file(lookupModulePath + "/dagger.json").contents, "\"engineVersion\": \"v0.21.0\"", "engine.require should write a normalized version")
-    assertContains(latest.layer.file(lookupModulePath + "/dagger.json").contents, "\"engineVersion\": \"latest\"", "engine.requireLatest should write latest")
-
-    let currentConfig = current.after.file(lookupModulePath + "/dagger.json").contents
-    assertContains(currentConfig, "\"engineVersion\": \"v", "engine.requireCurrent should write a v-prefixed version")
-    assertNotContains(currentConfig, "\"engineVersion\": \"latest\"", "engine.requireCurrent should not write latest")
-
-    null
-  }
-
-  """
-  Dependency listing should preserve how users identify dependencies: string
-  entries return their source, named object entries return their name.
-  """
-  pub dependencyListCheck(ws: Workspace!): Void @check {
-    let deps = typescriptSdk.mod(ws, path: depsModulePath).deps.list
-
-    assert(contains(deps, "../dep-string"), "string dependency source was not listed")
-    assert(contains(deps, "dep-named"), "named dependency was not listed")
-    assert(contains(deps, "../dep-source-only"), "source-only dependency was not listed by source")
-
-    null
-  }
-
-  """
-  Dependency edits should update only dagger.json. Users run generate
-  separately when they want generated SDK files refreshed.
-  """
-  pub dependencyEditCheck(ws: Workspace!): Void @check {
-    let deps = typescriptSdk.mod(ws, path: depsModulePath).deps
-
-    let added = deps.add(source: "../dep-new")
-    assertOnlyConfigChanged(added, depsModulePath + "/dagger.json")
-    let addedConfig = added.after.file(depsModulePath + "/dagger.json").contents
-    assertContains(addedConfig, "\"../dep-new\"", "adding an unnamed dependency did not keep its source")
-    assertNotContains(addedConfig, "\"name\": \"dep-new\"", "adding an unnamed dependency should not load the module to discover its name")
-
-    let named = deps.add(source: "../dep-new", name: "dep-alias")
-    assertOnlyConfigChanged(named, depsModulePath + "/dagger.json")
-    let namedConfig = named.after.file(depsModulePath + "/dagger.json").contents
-    assertContains(namedConfig, "\"name\": \"dep-alias\"", "adding a named dependency did not keep the requested name")
-    assertContains(namedConfig, "\"source\": \"../dep-new\"", "adding a named dependency did not keep its relative source")
-
-    let removed = deps.remove(name: "dep-named")
-    assertOnlyConfigChanged(removed, depsModulePath + "/dagger.json")
-    let removedConfig = removed.after.file(depsModulePath + "/dagger.json").contents
-    assertNotContains(removedConfig, "\"name\": \"dep-named\"", "removing a named dependency left it in dagger.json")
-
-    let sourceRemoved = deps.remove(name: "../dep-source-only")
-    assertOnlyConfigChanged(sourceRemoved, depsModulePath + "/dagger.json")
-    let sourceRemovedConfig = sourceRemoved.after.file(depsModulePath + "/dagger.json").contents
-    assertNotContains(sourceRemovedConfig, "\"source\": \"../dep-source-only\"", "removing by source left the dependency in dagger.json")
-    assertContains(sourceRemovedConfig, "\"name\": \"dep-named\"", "removing by source removed a different dependency")
-
-    let updated = deps.update
-    assert(updated.isEmpty, "updating only local dependencies should not edit dagger.json")
 
     null
   }
@@ -399,7 +324,7 @@ type E2e {
     let configuredDenoPath = outputRoot + "/init-configured-deno"
     let defaultPath = outputRoot + "/init-config-default"
 
-    let configured = typescriptSdk.init(ws, name: "init-configured", path: configuredPath, packageManager: "pnpm@8.15.4", baseImage: "node:23.2.0-alpine")
+    let configured = typescriptSdk.initModule(ws, name: "init-configured", path: configuredPath, packageManager: "pnpm@8.15.4", baseImage: "node:23.2.0-alpine")
     let pkg = configuredPath + "/package.json"
     assertAdded(configured, pkg)
     assert(configured.modifiedPaths.length == 0, "configured init should not modify existing files")
@@ -408,14 +333,14 @@ type E2e {
     assertContains(configured.layer.file(pkg).contents, "node:23.2.0-alpine", "init --base-image not written")
 
     # Deno init with baseImage routes to deno.json; no package.json is created.
-    let configuredDeno = typescriptSdk.init(ws, name: "init-configured-deno", path: configuredDenoPath, runtime: TypescriptSdkRuntime.DENO, baseImage: "denoland/deno:alpine-2.0.0")
+    let configuredDeno = typescriptSdk.initModule(ws, name: "init-configured-deno", path: configuredDenoPath, runtime: TypescriptSdkRuntime.DENO, baseImage: "denoland/deno:alpine-2.0.0")
     let denoFile = configuredDenoPath + "/deno.json"
     assertAdded(configuredDeno, denoFile)
     assertContains(configuredDeno.layer.file(denoFile).contents, "denoland/deno:alpine-2.0.0", "init deno --base-image not written")
     assert(contains(configuredDeno.addedPaths, configuredDenoPath + "/package.json") == false, "deno init should not generate package.json even with baseImage")
 
     # Default init has no config keys.
-    let default = typescriptSdk.init(ws, name: "init-config-default", path: defaultPath)
+    let default = typescriptSdk.initModule(ws, name: "init-config-default", path: defaultPath)
     let defaultPkg = defaultPath + "/package.json"
     assertAdded(default, defaultPkg)
     assertNotContains(default.layer.file(defaultPkg).contents, "packageManager", "default init should not write packageManager")
