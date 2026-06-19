@@ -148,7 +148,7 @@ type TypescriptSdk {
   pinned release.
   """
   pub initClient(ws: Workspace!, path: String!, module: String!, dev: Boolean! = false): Changeset! {
-    polyfill.workspace(ws).generate.changes
+    polyfill.workspace(ws).fork.changes
   }
 
   """
