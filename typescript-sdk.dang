@@ -13,7 +13,14 @@ type TypescriptSdk {
   pub skipGenerateFilename: String! = ".dagger-typescript-sdk-skip-generate"
 
   """
-  Return every Dagger module whose sdk.source is "typescript".
+  Runtime source to write into modules created by this SDK.
+  """
+  pub targetRuntime: String! {
+    "typescript"
+  }
+
+  """
+  Return every legacy dagger.json Dagger module whose sdk.source is "typescript".
   """
   pub modules(ws: Workspace!): [Mod!]! {
     ws
@@ -79,22 +86,14 @@ type TypescriptSdk {
   }
 
   """
-  Create a new TypeScript SDK Dagger module and return the files to write.
+  Initialize TypeScript-owned files for a new Dagger module.
 
-  By default, the new module is created under the nearest `.dagger` directory
-  visible from the current workspace path:
-
-    <nearest .dagger>/modules/<name>
-
-  Pass `path` to choose a different module location. The target path must not
-  already contain a Dagger module.
+  The engine resolves the destination `path` and owns the module's
+  `dagger.json`; this function only returns the SDK-owned files to layer onto
+  `path` (the rendered template plus runtime-specific config).
 
   Pass `template` to materialize files from templates/<template>. The empty
   default uses this module's default template.
-
-  By default, future generated SDK files are checked into version control. Pass
-  `ignoreGenerated` to configure generation to add generated SDK paths to
-  .gitignore instead.
 
   Pass `packageManager` or `baseImage` to customize the generated config.
   Defaults leave the template unconfigured: no `packageManager` field is
@@ -103,18 +102,8 @@ type TypescriptSdk {
   `packageManager` accepts the Node-standard `name@version` syntax (e.g.
   `pnpm@8.15.4`), or just the name if you want the engine's default version.
   """
-  pub init(ws: Workspace!, name: String!, path: String! = "", template: String! = "", runtime: Runtime! = Runtime.NODE, ignoreGenerated: Boolean! = false, packageManager: String! = "", baseImage: String! = ""): Changeset! {
-    let rawPath = if (path == "") {
-      let daggerDir = ws.findUp(".dagger", ".")
-      if (daggerDir == null) {
-        ".dagger/modules/" + name
-      } else {
-        daggerDir.trimPrefix("/") + "/modules/" + name
-      }
-    } else {
-      path.trimPrefix("./").trimPrefix("/")
-    }
-
+  pub initModule(ws: Workspace!, name: String!, path: String!, template: String! = "", runtime: Runtime! = Runtime.NODE, packageManager: String! = "", baseImage: String! = ""): Changeset! {
+    let rawPath = path.trimPrefix("./").trimPrefix("/")
     let modPath = if (rawPath == "" or rawPath == ".") {
       "."
     } else if (rawPath == ".." or rawPath.trimPrefix("../") != rawPath) {
@@ -123,13 +112,10 @@ type TypescriptSdk {
       rawPath.trimSuffix("/")
     }
 
-    let configPath = if (modPath == ".") { "dagger.json" } else { modPath + "/dagger.json" }
     let selectedTemplate = "default" # Add templates selection
     let fork = polyfill.workspace(ws).fork
 
-    if (ws.directory("/", include: [configPath]).exists(configPath)) {
-      raise "module already exists: " + modPath
-    } else if (currentModule.source.exists("templates/" + selectedTemplate) == false) {
+    if (currentModule.source.exists("templates/" + selectedTemplate) == false) {
       raise "unknown init template: " + template
     } else if (packageManager != "" and runtime != Runtime.NODE) {
       raise "packageManager is only supported with --runtime NODE; Bun and Deno bundle their own"
@@ -142,19 +128,26 @@ type TypescriptSdk {
         includePrefix + "bun.lock",
       ])
 
-      let config = "{\n  \"name\": " + toJSON(name) + ",\n  \"engineVersion\": \"latest\",\n  \"sdk\": {\n    \"source\": \"typescript\"\n  },\n  \"codegen\": {\n    \"automaticGitignore\": " + toJSON(ignoreGenerated) + "\n  }\n}\n"
       let renderedSource = if (selectedTemplate == "default") {
         renderedDefaultTemplate(name, runtime, existing, modPath)
       } else {
         currentModule.source.directory("templates/" + selectedTemplate)
       }
       let templateSource = configuredTemplate(renderedSource, runtime, packageManager, baseImage)
-      let seeded = fork
-        .withDirectory(modPath, templateSource)
-        .withNewFile(configPath, config)
-
-      seeded.changes
+      fork.withDirectory(modPath, templateSource).changes
     }
+  }
+
+  """
+  Generate a typed TypeScript client for `module` at `path`.
+
+  The engine resolves `module`, records the client (generator + directory) in
+  workspace config and the target `dagger.json`, and then calls this function;
+  the SDK's job is to materialize the generated client files. `dev` selects the
+  local development client instead of a pinned release.
+  """
+  pub initClient(ws: Workspace!, path: String!, module: String!, dev: Boolean! = false): Changeset! {
+    polyfill.workspace(ws).moduleSource(path).generate.changes
   }
 
   """
@@ -292,7 +285,11 @@ type TypescriptSdk {
   }
 
   """
-  Generate all discovered Go SDK modules.
+  Generate all discovered legacy dagger.json TypeScript SDK modules.
+
+  This discovery path is obsolete for workspace-managed modules; the engine
+  owns the modules.<sdk>.as-sdk.modules source of truth.
+
   Modules with the generate skip marker are skipped.
   """
   pub generateAll(ws: Workspace!): Changeset! @generate {
