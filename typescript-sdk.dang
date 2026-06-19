@@ -139,15 +139,16 @@ type TypescriptSdk {
   }
 
   """
-  Generate a typed TypeScript client for `module` at `path`.
+  Register a typed TypeScript client for `module` at `path`.
 
   The engine resolves `module`, records the client (generator + directory) in
-  workspace config and the target `dagger.json`, and then calls this function;
-  the SDK's job is to materialize the generated client files. `dev` selects the
-  local development client instead of a pinned release.
+  workspace config and the target `dagger.json`, and generates the client
+  files itself. The SDK contributes no files of its own, so this returns an
+  empty Changeset. `dev` selects the local development client instead of a
+  pinned release.
   """
   pub initClient(ws: Workspace!, path: String!, module: String!, dev: Boolean! = false): Changeset! {
-    polyfill.workspace(ws).moduleSource(path).generate.changes
+    polyfill.workspace(ws).generate.changes
   }
 
   """
