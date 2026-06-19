@@ -93,7 +93,7 @@ dagger api client init typescript ./lib/client .dagger/modules/api --dev
 ```
 
 The engine records the client (generator + directory) in workspace config and
-the target `dagger.json`; the SDK materializes the generated client files.
+the target `dagger.json` and generates the client files itself.
 
 ## Generate SDK files and clients
 
