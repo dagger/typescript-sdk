@@ -1,6 +1,6 @@
 {
   "name": "typescript-sdk",
-  "engineVersion": "v0.20.8",
+  "engineVersion": "v1.0.0-0",
   "sdk": {
     "source": "dang"
   },
@@ -8,7 +8,7 @@
     {
       "name": "polyfill",
       "source": "github.com/dagger/sdk-sdk/polyfill@main",
-      "pin": "d1532df4f7d322a7bdab02487accde9d21bbb464"
+      "pin": "90ecbe40419359f01cef02a495e0d568648c92fb"
     }
   ],
   "source": "."

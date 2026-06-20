@@ -32,7 +32,7 @@ type TypescriptSdk {
         multiline: true,
         dotall: true,
       )
-      .{filePath}
+      .{{filePath}}
       .map { configPath =>
         mod(
           ws,
@@ -64,7 +64,7 @@ type TypescriptSdk {
               dotall: true,
               limit: 1,
             )
-            .{id}
+            .{{id}}
             .length == 0
         ) {
           raise "Dagger module does not use the TypeScript SDK: " + path
@@ -297,7 +297,7 @@ type TypescriptSdk {
     let pws = polyfill.workspace(ws)
 
     currentModule.asSDK.modules
-      .{path}
+      .{{path}}
       .map { m => Mod(path: m.path, ws: ws, skipGenerateFilename: skipGenerateFilename) }
       .filter { mod => mod.skipGenerate(ws) == false }
       .reduce(pws.fork) { fork, mod =>
