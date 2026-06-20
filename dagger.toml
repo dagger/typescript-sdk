@@ -8,3 +8,22 @@
 
 [modules.e2e]
 source = ".dagger/modules/e2e"
+
+[modules.typescript-sdk]
+source = "."
+check.skip = ["*"]
+
+[modules.typescript-sdk.as-sdk]
+name = "typescript"
+
+[[modules.typescript-sdk.as-sdk.modules]]
+path = ".dagger/modules/e2e/fixtures/generate/app"
+
+[[modules.typescript-sdk.as-sdk.modules]]
+path = ".dagger/modules/e2e/fixtures/lookup/app"
+
+[[modules.typescript-sdk.as-sdk.modules]]
+path = ".dagger/modules/e2e/fixtures/deps/app"
+
+[[modules.typescript-sdk.as-sdk.modules]]
+path = ".dagger/modules/e2e/fixtures/skip/app"
