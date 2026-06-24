@@ -301,7 +301,7 @@ type TypescriptSdk {
       .map { m => Mod(path: m.path, ws: ws, skipGenerateFilename: skipGenerateFilename) }
       .filter { mod => mod.skipGenerate(ws) == false }
       .reduce(pws.fork) { fork, mod =>
-        fork.merge(pws.moduleSource(mod.path).generate)
+        fork.merge(pws.moduleSource("/" + mod.path).generate)
       }
       .changes
   }
