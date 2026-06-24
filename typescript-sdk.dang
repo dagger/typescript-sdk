@@ -102,7 +102,7 @@ type TypescriptSdk {
   `packageManager` accepts the Node-standard `name@version` syntax (e.g.
   `pnpm@8.15.4`), or just the name if you want the engine's default version.
   """
-  pub initModule(ws: Workspace!, name: String!, path: String!, template: String! = "", runtime: Runtime! = Runtime.NODE, packageManager: String! = "", baseImage: String! = ""): Changeset! {
+  pub initModule(ws: Workspace!, name: String!, path: String!, template: String! = "minimal", runtime: Runtime! = Runtime.NODE, packageManager: String! = "", baseImage: String! = ""): Changeset! {
     let rawPath = path.trimPrefix("./").trimPrefix("/")
     let modPath = if (rawPath == "" or rawPath == ".") {
       "."
@@ -112,10 +112,9 @@ type TypescriptSdk {
       rawPath.trimSuffix("/")
     }
 
-    let selectedTemplate = "default" # Add templates selection
     let fork = polyfill.workspace(ws).fork
 
-    if (currentModule.source.exists("templates/" + selectedTemplate) == false) {
+    if (currentModule.source.exists("templates/" + template) == false) {
       raise "unknown init template: " + template
     } else if (packageManager != "" and runtime != Runtime.NODE) {
       raise "packageManager is only supported with --runtime NODE; Bun and Deno bundle their own"
@@ -128,10 +127,10 @@ type TypescriptSdk {
         includePrefix + "bun.lock",
       ])
 
-      let renderedSource = if (selectedTemplate == "default") {
+      let renderedSource = if (template == "minimal") {
         renderedDefaultTemplate(name, runtime, existing, modPath)
       } else {
-        currentModule.source.directory("templates/" + selectedTemplate)
+        currentModule.source.directory("templates/" + template)
       }
       let templateSource = configuredTemplate(renderedSource, runtime, packageManager, baseImage)
       fork.withDirectory(modPath, templateSource).changes
@@ -196,7 +195,7 @@ type TypescriptSdk {
       .withMountedCache("/root/.cache/go-build", cacheVolume("go-build"))
       .withDirectory("/helpers/render-template", currentModule.source.directory("helpers/render-template"))
       .withDirectory("/helpers/config-updator", currentModule.source.directory("helpers/config-updator"))
-      .withDirectory("/template", currentModule.source.directory("templates/default"))
+      .withDirectory("/template", currentModule.source.directory("templates/minimal"))
       .withDirectory("/existing", existing)
       .withWorkdir("/helpers/render-template")
       .withExec(["go", "build", "-o", "/usr/local/bin/render-template", "."])
