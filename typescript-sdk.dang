@@ -284,6 +284,64 @@ type TypescriptSdk {
       .withExec(["go", "build", "-o", "/usr/local/bin/module-config", "."])
   }
 
+  pub requiredClientGenerationFiles: [String!]! {
+    ["**/package.json",
+		"**/tsconfig.json",
+		"**/deno.json"]
+  }
+
+  pub generateClient(
+    modSource: ModuleSource!,
+    introspectionJSON: File!,
+    outputDir: String!,
+  ): Directory! {
+    let isLocal = modSource.kind == ModuleSourceKind.LOCAL_SOURCE
+
+    # A local dependency has no git ref: its source path is absolute in the
+    # workspace, which the engine rejects when resolving the temp module's deps.
+    # Embed its source root under `dep/` and point the dependency at it
+    # relatively. Remote dependencies resolve from their git ref + pin.
+    let depEntry = if (isLocal) {
+      "    {\n" +
+      "      \"name\": " + JSON.encode(modSource.moduleName) + ",\n" +
+      "      \"source\": \"./dep\"\n" +
+      "    }\n"
+    } else {
+      "    {\n" +
+      "      \"name\": " + JSON.encode(modSource.moduleName) + ",\n" +
+      "      \"source\": " + JSON.encode(modSource.asString) + ",\n" +
+      "      \"pin\": " + JSON.encode(modSource.pin) + "\n" +
+      "    }\n"
+    }
+
+    let config = "{\n" +
+      "  \"name\": \"_tmp_test\",\n" +
+      "  \"engineVersion\": \"latest\",\n" +
+      "  \"dependencies\": [\n" +
+      depEntry +
+      "  ],\n" +
+      "  \"clients\": [\n" +
+      "    {\n" +
+      "      \"generator\": \"typescript\",\n" +
+      "      \"directory\": " + JSON.encode(outputDir) + "\n" +
+      "    }\n" +
+      "  ]\n" +
+      "}\n"
+
+    let base = directory
+      .withNewFile("dagger.json", config)
+
+    let ctx = if (isLocal) {
+      base.withDirectory("dep", modSource.contextDirectory.directory(modSource.sourceRootSubpath))
+    } else {
+      base
+    }
+
+    ctx
+      .asModuleSource(".")
+      .generatedContextDirectory()
+  }
+
   """
   Generate all discovered legacy dagger.json TypeScript SDK modules.
 
