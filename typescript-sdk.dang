@@ -344,13 +344,169 @@ type TypescriptSdk {
   }
 
   """
+  Container with the standalone TypeScript client generator compiled and on
+  PATH at /usr/local/bin/codegen. Engine-free: it turns an introspection schema
+  + client meta JSON into client.gen.ts (and per-dependency <dep>.gen.ts files).
+  """
+  let codegenBuilder: Container! {
+    container
+      .from("golang:1.25-alpine")
+      .withoutEntrypoint
+      .withMountedCache("/go/pkg/mod", cacheVolume("go-mod"))
+      .withMountedCache("/root/.cache/go-build", cacheVolume("go-build"))
+      .withDirectory("/helper", currentModule.source.directory("helpers/codegen"))
+      .withWorkdir("/helper")
+      .withExec(["go", "build", "-o", "/usr/local/bin/codegen", "."])
+  }
+
+  """
+  Container with the config-updator helper compiled and on PATH at
+  /usr/local/bin/config-updator.
+  """
+  let configUpdatorBuilder: Container! {
+    container
+      .from("golang:1.25-alpine")
+      .withoutEntrypoint
+      .withMountedCache("/go/pkg/mod", cacheVolume("go-mod"))
+      .withMountedCache("/root/.cache/go-build", cacheVolume("go-build"))
+      .withDirectory("/helper", currentModule.source.directory("helpers/config-updator"))
+      .withWorkdir("/helper")
+      .withExec(["go", "build", "-o", "/usr/local/bin/config-updator", "."])
+  }
+
+  """
+  Generate the raw client bindings (dagger.gen.ts plus one <module>.gen.ts per
+  module) from an introspection schema.
+
+  This is the engine-free core of client generation, run in the codegen
+  container. `schemaJSON` is the client-facing introspection schema contents.
+  `module` is a JSON object describing the single module the client is bound to
+  ({kind, path, ref, pin}). It drives the generated serveBoundModule bootstrap:
+  a GIT_SOURCE module serves from its canonical ref+pin (resolves anywhere); a
+  LOCAL_SOURCE/DIR_SOURCE module resolves its workspace-root-relative path
+  against the workspace (dag.currentWorkspace().moduleSource(path)). An unknown
+  kind fails codegen closed.
+  """
+  let generateClientBindings(schemaJSON: String!, moduleName: String!, engineVersion: String!, module: String! = "{}"): Directory! {
+    let metaJson = "{\"moduleName\":" + JSON.encode(moduleName) + ",\"engineVersion\":" + JSON.encode(engineVersion) + ",\"module\":" + module + "}"
+
+    codegenBuilder
+      .withNewFile("/schema.json", schemaJSON)
+      .withNewFile("/meta.json", metaJson)
+      .withExec([
+        "codegen",
+        "--introspection-json-path", "/schema.json",
+        "--client-meta-path", "/meta.json",
+        "--output", "/out",
+      ])
+      .directory("/out")
+  }
+
+  """
+  Layer the scoped-package config files (package.json, tsconfig.json) onto a set
+  of generated Node/Bun client bindings.
+
+  `existing` supplies the client dir's current config so user customizations are
+  preserved; pass an empty directory for a brand-new client. `package.json` gets
+  type=module, an SDK-owned @dagger.io/dagger pinned to `engineVersion`, a
+  typescript pin, and a scoped name derived from `moduleName` when unnamed.
+  """
+  let configureClientNode(bindings: Directory!, existing: Directory!, engineVersion: String!, moduleName: String!): Directory! {
+    configUpdatorBuilder
+      .withDirectory("/out", bindings)
+      .withDirectory("/existing", existing)
+      .withExec(["config-updator", "client-package-json", "/existing/package.json", "/out/package.json", engineVersion, moduleName])
+      .withExec(["config-updator", "client-tsconfig", "/existing/tsconfig.json", "/out/tsconfig.json"])
+      .directory("/out")
+  }
+
+  """
+  Serialize the bound module the generated client serves. A client binds exactly
+  one module, so serveBoundModule serves that one module: a local module by its
+  workspace-root-relative `path`, a git module by its canonical `ref` + `pin`.
+  `path` is used for LOCAL_SOURCE/DIR_SOURCE; `ref`/`pin` for GIT_SOURCE; codegen
+  picks by `kind`. Shape: {kind, path, ref, pin}.
+  """
+  let boundModuleJSON(kindJSON: String!, path: String!, ref: String!, pin: String!): String! {
+    "{\"kind\":" + kindJSON +
+    ",\"path\":" + JSON.encode(path) +
+    ",\"ref\":" + JSON.encode(ref) +
+    ",\"pin\":" + JSON.encode(pin) + "}"
+  }
+
+  """
+  Build the complete Node/Bun client directory (bindings + scoped package.json +
+  tsconfig) from the bound module's client-facing schema and provenance.
+
+  Takes the pieces (not a live ModuleSource) so callers can supply them either
+  from a resolved handle or from a projected list item. `existing` supplies the
+  client dir's current config so user edits are preserved; pass an empty
+  directory for a fresh client. `kindJSON` is the already-JSON-encoded source
+  kind (e.g. "\"GIT_SOURCE\""). `path` is the module's workspace-root-relative
+  path (local kinds); `ref`/`pin` the canonical git ref + pin (GIT_SOURCE).
+  """
+  let clientDirectory(schemaJSON: String!, moduleName: String!, engineVersion: String!, kindJSON: String!, path: String!, ref: String!, pin: String!, existing: Directory!): Directory! {
+    let bindings = generateClientBindings(
+      schemaJSON,
+      moduleName,
+      engineVersion,
+      boundModuleJSON(kindJSON, path, ref, pin)
+    )
+    configureClientNode(bindings, existing, engineVersion, moduleName)
+  }
+
+  """
+  Read the client dir's current config files (package.json, tsconfig.json,
+  deno.json) so config-updator preserves user customizations on regeneration —
+  in particular a @dagger.io/dagger dependency the user has pointed at a local
+  bundle. Filters from the workspace root so a not-yet-created client dir simply
+  yields an empty directory.
+  """
+  let existingClientConfig(ws: Workspace!, path: String!): Directory! {
+    let filtered = ws.directory("/", include: [
+      path + "/package.json",
+      path + "/tsconfig.json",
+      path + "/deno.json",
+    ])
+    if (filtered.exists(path)) {
+      filtered.directory(path)
+    } else {
+      directory
+    }
+  }
+
+  """
+  Generate a typed client for `module` and stage it at workspace-relative `path`.
+
+  The workspace analogue of `mod(ws, path).generate(ws)`: it resolves the bound
+  module in the workspace, generates the client from its client-facing schema,
+  and returns the staged changes.
+  """
+  pub generateClient(ws: Workspace!, module: String!, path: String!): Changeset! {
+    let pws = polyfill.workspace(ws)
+    let modSrc = pws.moduleSource(module).core
+    pws.fork.withDirectory(path, clientDirectory(
+      modSrc.clientSchemaIntrospectionJSON.contents,
+      modSrc.moduleOriginalName,
+      modSrc.engineVersion,
+      JSON.encode(modSrc.kind),
+      # Local: the workspace-relative module path the caller resolved against.
+      # Git: unused (ref/pin drive the serve).
+      module,
+      modSrc.asString,
+      modSrc.pin,
+      existingClientConfig(ws, path)
+    )).changes
+  }
+
+  """
   Generate every managed TypeScript SDK module visible from the client's current
   location. Discovery goes through modules(ws), so running from a subdirectory
   generates only the project you're in and the projects beneath it.
 
   Modules with the generate skip marker are skipped.
   """
-  pub generateAll(ws: Workspace!): Changeset! @generate {
+  pub generateAllModule(ws: Workspace!): Changeset! @generate {
     let pws = polyfill.workspace(ws)
 
     modules(ws)
@@ -362,6 +518,38 @@ type TypescriptSdk {
         # it cancels in the merge, leaving only each module's own changes.
         let stagedWs = ws.withChanges(pws.moduleSource("/" + mod.rootPath).core.generateLocalDependencies(ws))
         fork.merge(polyfill.workspace(stagedWs).moduleSource("/" + mod.rootPath).generate)
+      }
+      .changes
+  }
+
+  """
+  Regenerate every client this SDK manages in the workspace.
+
+  Iterates the workspace-registered clients (currentModule.asSDK.clients),
+  resolves each bound module through the engine field
+  CurrentModuleAsSDKClient.moduleSource (honoring pin/remote refs), generates
+  the client from that module's ModuleSource.clientSchemaIntrospectionJSON, and
+  stages the files at the client path.
+  """
+  pub generateAllClient(ws: Workspace!): Changeset! @generate {
+    let pws = polyfill.workspace(ws)
+
+    currentModule.asSDK(ws).clients
+      .{{path, module, moduleSource.{{ clientSchemaIntrospectionJSON.{{ contents }}, moduleOriginalName, engineVersion, kind, pin, asString }} }}
+      .reduce(pws.fork) { fork, client =>
+        let m = client.moduleSource
+        fork.withDirectory(client.path, clientDirectory(
+          m.clientSchemaIntrospectionJSON.contents,
+          m.moduleOriginalName,
+          m.engineVersion,
+          JSON.encode(m.kind),
+          # Local: the config-recorded workspace-relative module path.
+          # Git: unused (ref/pin drive the serve).
+          client.module,
+          m.asString,
+          m.pin,
+          existingClientConfig(ws, client.path)
+        ))
       }
       .changes
   }

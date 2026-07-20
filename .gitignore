@@ -1,2 +1,5 @@
 # Engine-generated Dagger workspace lock files.
 .dagger/**/lock
+
+# Generated client output (dagger generate writes here for the e2e client fixture).
+.dagger/modules/e2e/fixtures/client/out/

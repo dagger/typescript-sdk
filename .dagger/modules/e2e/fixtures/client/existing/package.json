@@ -1,0 +1,8 @@
+{
+  "name": "my-existing-client",
+  "type": "module",
+  "dependencies": {
+    "@dagger.io/dagger": "./sdk",
+    "typescript": "5.9.3"
+  }
+}

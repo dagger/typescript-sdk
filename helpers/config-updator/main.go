@@ -9,8 +9,10 @@ import (
 	"fmt"
 	"io/fs"
 	"os"
+	"strings"
 
 	"github.com/tidwall/gjson"
+	"github.com/tidwall/pretty"
 	"github.com/tidwall/sjson"
 )
 
@@ -37,13 +39,14 @@ func main() {
 }
 
 func run(args []string) error {
-	if len(args) != 3 {
-		return fmt.Errorf("usage: config-updator <package-json|tsconfig|deno-config> INPUT_PATH OUTPUT_PATH")
+	if len(args) < 3 {
+		return fmt.Errorf("usage: config-updator <subcommand> INPUT_PATH OUTPUT_PATH [args...]")
 	}
 
 	subcommand := args[0]
 	inputPath := args[1]
 	outputPath := args[2]
+	extra := args[3:]
 
 	input, err := readInput(inputPath)
 	if err != nil {
@@ -58,14 +61,36 @@ func run(args []string) error {
 		updated, err = updateTSConfig(input)
 	case "deno-config":
 		updated, err = updateDenoConfig(input)
+	case "client-package-json":
+		// client-package-json INPUT OUTPUT ENGINE_VERSION MODULE_NAME
+		if len(extra) != 2 {
+			return fmt.Errorf("usage: config-updator client-package-json INPUT_PATH OUTPUT_PATH ENGINE_VERSION MODULE_NAME")
+		}
+		updated, err = updateClientPackageJSON(input, extra[0], extra[1])
+	case "client-tsconfig":
+		updated, err = updateClientTSConfig(input)
+	case "client-deno-config":
+		// client-deno-config INPUT OUTPUT ENGINE_VERSION
+		if len(extra) != 1 {
+			return fmt.Errorf("usage: config-updator client-deno-config INPUT_PATH OUTPUT_PATH ENGINE_VERSION")
+		}
+		updated, err = updateClientDenoConfig(input, extra[0])
 	default:
-		return fmt.Errorf("unknown subcommand %q (expected one of: package-json, tsconfig, deno-config)", subcommand)
+		return fmt.Errorf("unknown subcommand %q (expected one of: package-json, tsconfig, deno-config, client-package-json)", subcommand)
 	}
 	if err != nil {
 		return fmt.Errorf("%s: %w", subcommand, err)
 	}
 
-	return os.WriteFile(outputPath, []byte(updated), 0o644)
+	out := []byte(updated)
+	// Client config is emitted fresh into a scoped package, so pretty-print it
+	// (indented, key order preserved) instead of a single minified line. Module
+	// variants edit user files in place and keep sjson's format-preserving output.
+	if strings.HasPrefix(subcommand, "client-") {
+		out = pretty.PrettyOptions(out, &pretty.Options{Indent: "  "})
+	}
+
+	return os.WriteFile(outputPath, out, 0o644)
 }
 
 func readInput(path string) (string, error) {
@@ -102,6 +127,158 @@ func updatePackageJSON(packageJSON string) (string, error) {
 	}
 
 	return packageJSON, nil
+}
+
+// defaultTypeScriptVersion mirrors dagger/dagger tsdistconsts.DefaultTypeScriptVersion.
+const defaultTypeScriptVersion = "5.9.3"
+
+// updateClientPackageJSON turns the client output dir's package.json into a
+// self-contained scoped package: it pins @dagger.io/dagger to the module's
+// engine version, pins typescript, and names the package when unnamed. Existing
+// user config is preserved — in particular a @dagger.io/dagger set to a local
+// ref (e.g. "./sdk", "file:../dagger") is left untouched, so a dev/unreleased
+// engine can point at a local bundle. A missing/empty file starts from "{}".
+func updateClientPackageJSON(packageJSON, engineVersion, moduleName string) (string, error) {
+	packageJSON, err := sjson.Set(packageJSON, "type", "module")
+	if err != nil {
+		return "", fmt.Errorf("set type=module: %w", err)
+	}
+
+	// Name the package only when the user hasn't. Scoped, derived from the bound
+	// module: @dagger.io/<sanitized module name>-client.
+	if !gjson.Get(packageJSON, "name").Exists() {
+		packageJSON, err = sjson.Set(packageJSON, "name", scopedClientName(moduleName))
+		if err != nil {
+			return "", fmt.Errorf("set name: %w", err)
+		}
+	}
+
+	// The SDK owns the @dagger.io/dagger version pin, so it tracks the engine on
+	// regeneration — but only step aside for a *local* ref the user has set (a
+	// vendored bundle). Never clobber "./sdk"/"file:"/… with a version.
+	daggerDepPath := "dependencies." + gjson.Escape(daggerLibPathAlias)
+	if !isLocalDaggerRef(gjson.Get(packageJSON, daggerDepPath).String()) {
+		packageJSON, err = sjson.Set(packageJSON, daggerDepPath, npmVersion(engineVersion))
+		if err != nil {
+			return "", fmt.Errorf("set @dagger.io/dagger dependency: %w", err)
+		}
+	}
+
+	packageJSON, err = setIfNotExists(packageJSON, "dependencies.typescript", defaultTypeScriptVersion)
+	if err != nil {
+		return "", fmt.Errorf("set typescript dependency: %w", err)
+	}
+
+	return packageJSON, nil
+}
+
+// isLocalDaggerRef reports whether a package.json dependency value points at a
+// local/non-registry source the SDK must not overwrite with a version pin
+// (local paths, file:/link:/workspace: specifiers, git or URL refs).
+func isLocalDaggerRef(value string) bool {
+	for _, prefix := range []string{".", "/", "file:", "link:", "workspace:", "git+", "git:", "http:", "https:"} {
+		if strings.HasPrefix(value, prefix) {
+			return true
+		}
+	}
+	return false
+}
+
+// npmVersion converts a dagger engine version to an npm-compatible one: strip a
+// single leading "v" (v0.18.0 -> 0.18.0). A dev/pre-release suffix is kept as-is
+// (design §7): the package may be unpublishable but stays installable/executable
+// against that engine.
+func npmVersion(engineVersion string) string {
+	return strings.TrimPrefix(engineVersion, "v")
+}
+
+// scopedClientName derives @dagger.io/<sanitized>-client from the bound module
+// name: lower-cased, every run of non-alphanumerics collapsed to a single "-",
+// and leading/trailing "-" trimmed.
+func scopedClientName(moduleName string) string {
+	var b strings.Builder
+	prevDash := false
+	for _, r := range strings.ToLower(moduleName) {
+		if (r >= 'a' && r <= 'z') || (r >= '0' && r <= '9') {
+			b.WriteRune(r)
+			prevDash = false
+		} else if !prevDash {
+			b.WriteByte('-')
+			prevDash = true
+		}
+	}
+	sanitized := strings.Trim(b.String(), "-")
+	if sanitized == "" {
+		// No usable module name — fall back to a bare scoped name.
+		return "@dagger.io/client"
+	}
+	return "@dagger.io/" + sanitized + "-client"
+}
+
+// updateClientTSConfig fills a sane default tsconfig for a generated client,
+// preserving any keys the user already set. Unlike the module variant it adds
+// **no** `@dagger.io/dagger` -> `./sdk` path override: in the always-Remote model
+// the bare specifier resolves from node_modules via the package.json dependency.
+func updateClientTSConfig(tsConfig string) (string, error) {
+	defaults := []struct {
+		path  string
+		value any
+	}{
+		{"compilerOptions.target", "ES2022"},
+		{"compilerOptions.moduleResolution", "Node"},
+		{"compilerOptions.experimentalDecorators", true},
+		{"compilerOptions.strict", true},
+		{"compilerOptions.skipLibCheck", true},
+	}
+	for _, d := range defaults {
+		v, err := setValueIfNotExists(tsConfig, d.path, d.value)
+		if err != nil {
+			return "", fmt.Errorf("set %s: %w", d.path, err)
+		}
+		tsConfig = v
+	}
+	return tsConfig, nil
+}
+
+// updateClientDenoConfig configures deno.json for a generated client: the common
+// Dagger deno setup plus — for the always-Remote model — the SDK-owned
+// `@dagger.io/dagger` imports pinned to the engine version as `npm:` specifiers.
+// (Upstream's remote path assumed the user declared these; a generated client
+// dir has none, so the SDK writes them.)
+func updateClientDenoConfig(denoConfig, engineVersion string) (string, error) {
+	denoConfig, err := setIfNotExists(denoConfig, "imports.typescript", "npm:typescript@"+defaultTypeScriptVersion)
+	if err != nil {
+		return "", fmt.Errorf("set typescript import: %w", err)
+	}
+
+	denoConfig, err = sjson.Set(denoConfig, "nodeModulesDir", "auto")
+	if err != nil {
+		return "", fmt.Errorf("set nodeModulesDir: %w", err)
+	}
+
+	for _, flag := range denoUnstableFlags {
+		denoConfig, err = appendIfNotExists(denoConfig, "unstable", flag)
+		if err != nil {
+			return "", fmt.Errorf("append unstable %s: %w", flag, err)
+		}
+	}
+
+	denoConfig, err = sjson.Set(denoConfig, "compilerOptions.experimentalDecorators", true)
+	if err != nil {
+		return "", fmt.Errorf("set experimentalDecorators: %w", err)
+	}
+
+	npmDagger := "npm:" + daggerLibPathAlias + "@" + npmVersion(engineVersion)
+	denoConfig, err = sjson.Set(denoConfig, "imports."+gjson.Escape(daggerLibPathAlias), npmDagger)
+	if err != nil {
+		return "", fmt.Errorf("set @dagger.io/dagger import: %w", err)
+	}
+	denoConfig, err = sjson.Set(denoConfig, "imports."+gjson.Escape(daggerTelemetryPathAlias), npmDagger+"/telemetry")
+	if err != nil {
+		return "", fmt.Errorf("set @dagger.io/dagger/telemetry import: %w", err)
+	}
+
+	return denoConfig, nil
 }
 
 func updateTSConfig(tsConfig string) (string, error) {
@@ -164,6 +341,20 @@ func updateDenoConfig(denoConfig string) (string, error) {
 	}
 
 	return denoConfig, nil
+}
+
+// setIfNotExists sets path to value only when path is absent, preserving any
+// user-provided value. Mirrors tsutils.setIfNotExists.
+func setIfNotExists(jsonStr, path, value string) (string, error) {
+	return setValueIfNotExists(jsonStr, path, value)
+}
+
+// setValueIfNotExists is setIfNotExists for non-string JSON values (bool, etc.).
+func setValueIfNotExists(jsonStr, path string, value any) (string, error) {
+	if gjson.Get(jsonStr, path).Exists() {
+		return jsonStr, nil
+	}
+	return sjson.Set(jsonStr, path, value)
 }
 
 func appendIfNotExists(jsonStr, path, value string) (string, error) {
