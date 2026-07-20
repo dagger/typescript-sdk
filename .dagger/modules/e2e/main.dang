@@ -10,7 +10,11 @@ type E2e {
   let nonTsModulePath: String! = fixtureRoot + "/lookup/not-ts"
   let skipModulePath: String! = fixtureRoot + "/skip/app"
   let generateModulePath: String! = fixtureRoot + "/generate/app"
+  # A dagger-module.toml module with a local dagger-module.toml dependency.
+  let tomlDepAppPath: String! = fixtureRoot + "/generate-deps/app"
   let depsModulePath: String! = fixtureRoot + "/deps/app"
+  # A CLI 1.0 managed module: configured by dagger-module.toml, not dagger.json.
+  let managedTomlModulePath: String! = fixtureRoot + "/managed-toml/app"
   let existingNodePath: String! = fixtureRoot + "/init-existing/node-app"
   let existingDenoPath: String! = fixtureRoot + "/init-existing/deno-app"
   let existingBunPath: String! = fixtureRoot + "/init-existing/bun-app"
@@ -79,14 +83,44 @@ type E2e {
   }
 
   """
-  Mod lookup should find the owning TypeScript SDK module when called from a nested path.
+  Mod lookup should find the owning TypeScript SDK module when called from a
+  nested path, whether the module is configured by dagger.json or the CLI 1.0
+  dagger-module.toml.
   """
   pub moduleLookupCheck(ws: Workspace!): Void @check {
+    # Legacy dagger.json module.
     let nested = typescriptSdk.mod(ws, path: lookupNestedPath)
     let exact = typescriptSdk.mod(ws, path: lookupModulePath, findUp: false)
 
-    assert(nested.path == lookupModulePath, "find-up lookup returned the wrong module path")
-    assert(exact.path == lookupModulePath, "exact lookup returned the wrong module path")
+    assert(nested.rootPath == lookupModulePath, "find-up lookup returned the wrong module path")
+    assert(exact.rootPath == lookupModulePath, "exact lookup returned the wrong module path")
+
+    # CLI 1.0 dagger-module.toml module: resolved by walking up to its
+    # dagger-module.toml and validated against its [runtime] source.
+    let tomlNested = typescriptSdk.mod(ws, path: managedTomlModulePath + "/src")
+    let tomlExact = typescriptSdk.mod(ws, path: managedTomlModulePath, findUp: false)
+
+    assert(tomlNested.rootPath == managedTomlModulePath, "find-up lookup should resolve a dagger-module.toml module")
+    assert(tomlExact.rootPath == managedTomlModulePath, "exact lookup should resolve a dagger-module.toml module")
+
+    null
+  }
+
+  """
+  Mod lookup should select the nearest enclosing module config even when the
+  nearer module and its parent use different config filenames — a closer
+  dagger.json must not be shadowed by an ancestor dagger-module.toml.
+  """
+  pub mixedConfigModuleLookupCheck: Void @check {
+    let ws = directory
+      .withNewFile("parent/dagger-module.toml", "[runtime]\nsource = \"typescript\"\n")
+      .withNewFile("parent/child/dagger.json", "{\"sdk\":{\"source\":\"typescript\"}}")
+      .withNewFile("parent/child/nested/.keep", "")
+      .asWorkspace
+
+    let nested = typescriptSdk.mod(ws, path: "parent/child/nested")
+
+    assert(nested.rootPath == "parent/child", "find-up lookup should prefer the nearer dagger.json over an ancestor dagger-module.toml")
 
     null
   }
@@ -200,6 +234,21 @@ type E2e {
   }
 
   """
+  Generating a dagger-module.toml module with a local dagger-module.toml
+  dependency must resolve that dependency and emit its typed client. Before the
+  polyfill included dagger-module.toml dir deps in the generated context, this
+  failed with "dir module source does not contain a dagger config file".
+  """
+  pub generateTomlDepCheck(ws: Workspace!): Void @check {
+    let changes = typescriptSdk.mod(ws, path: tomlDepAppPath).generate(ws)
+
+    assertAdded(changes, tomlDepAppPath + "/sdk/index.ts")
+    assertAdded(changes, tomlDepAppPath + "/sdk/gendep.gen.ts")
+
+    null
+  }
+
+  """
   Generating all modules should discover TypeScript SDK modules and ignore skipped ones.
   """
   pub generateAllCheck(ws: Workspace!): Void @check {
@@ -209,6 +258,7 @@ type E2e {
     assert(contains(changes.addedPaths, lookupModulePath + "/src/index.ts") == false, "generateAll generated a lookup fixture that should be skipped")
     assert(contains(changes.addedPaths, depsModulePath + "/src/index.ts") == false, "generateAll generated dependency fixtures that should be skipped")
     assert(contains(changes.addedPaths, skipModulePath + "/src/index.ts") == false, "generateAll generated a skipped module")
+    assert(contains(changes.addedPaths, managedTomlModulePath + "/sdk/index.ts") == false, "generateAll generated a skipped dagger-module.toml module")
     assert(contains(changes.addedPaths, nonTsModulePath + "/src/index.ts") == false, "generateAll generated a non-TypeScript SDK module")
 
     null
@@ -350,17 +400,69 @@ type E2e {
   }
 
   """
-  Listing modules in a workspace should return every module whose
-  dagger.json declares the TypeScript SDK, and nothing else.
+  From the workspace root the whole workspace is in scope, so modules() should
+  return every TypeScript SDK module this workspace manages — whether it is
+  configured by the legacy dagger.json or the CLI 1.0 dagger-module.toml — and
+  nothing that isn't managed by this SDK (e.g. a sibling module using another SDK).
   """
   pub modulesCheck(ws: Workspace!): Void @check {
-    let pathRecords = typescriptSdk.modules(ws).{path}
+    let pathRecords = typescriptSdk.modules(ws).{{rootPath}}
 
-    assert(pathRecords.filter { r => r.path == lookupModulePath }.length > 0, "lookup TypeScript module should be listed")
-    assert(pathRecords.filter { r => r.path == skipModulePath }.length > 0, "skip-marked TypeScript module should still be listed (skip only affects generate)")
-    assert(pathRecords.filter { r => r.path == generateModulePath }.length > 0, "generate TypeScript module should be listed")
-    assert(pathRecords.filter { r => r.path == depsModulePath }.length > 0, "deps TypeScript module should be listed")
-    assert(pathRecords.filter { r => r.path == nonTsModulePath }.length == 0, "non-TypeScript SDK module should be excluded from modules listing")
+    assert(pathRecords.filter { r => r.rootPath == lookupModulePath }.length > 0, "lookup TypeScript module should be listed")
+    assert(pathRecords.filter { r => r.rootPath == skipModulePath }.length > 0, "skip-marked TypeScript module should still be listed (skip only affects generate)")
+    assert(pathRecords.filter { r => r.rootPath == generateModulePath }.length > 0, "generate TypeScript module should be listed")
+    assert(pathRecords.filter { r => r.rootPath == depsModulePath }.length > 0, "deps TypeScript module should be listed")
+    assert(pathRecords.filter { r => r.rootPath == managedTomlModulePath }.length > 0, "a dagger-module.toml (CLI 1.0) managed module should be listed")
+    assert(pathRecords.filter { r => r.rootPath == nonTsModulePath }.length == 0, "a module not managed by this SDK should be excluded from modules listing")
+
+    null
+  }
+
+  """
+  Discovery is anchored at the client's cwd, not the workspace root. Re-anchoring
+  the workspace to a subdirectory scopes modules() to the managed modules in that
+  cone (walk-down) plus the nearest enclosing one (find-up), and excludes managed
+  modules that live outside it.
+  """
+  pub modulesCwdCheck(ws: Workspace!): Void @check {
+    # A stable snapshot of the workspace, re-anchorable at any cwd. Keep every
+    # module config (both dagger.json and dagger-module.toml, for discovery) and
+    # the nested .keep so lookup/app/nested survives the include filter and can
+    # serve as a config-less subdirectory.
+    let root = ws.directory("/", include: ["**/dagger.json", "**/dagger-module.toml", "**/.keep"])
+
+    # Walk-down: from fixtures/generate only generate/app is in the cone; the
+    # sibling managed modules live outside it and must be excluded. Its
+    # cwd-relative path is "app" — a directory beneath the cwd.
+    let fromGenerate = typescriptSdk.modules(root.asWorkspace(cwd: fixtureRoot + "/generate"))
+    let fromGenerateRoots = fromGenerate.{{rootPath}}
+    assert(fromGenerateRoots.filter { r => r.rootPath == generateModulePath }.length > 0, "cwd=generate: the managed module in the cone should be discovered")
+    assert(fromGenerateRoots.filter { r => r.rootPath == lookupModulePath }.length == 0, "cwd=generate: lookup/app is outside the cone and must be excluded")
+    assert(fromGenerateRoots.filter { r => r.rootPath == depsModulePath }.length == 0, "cwd=generate: deps/app is outside the cone and must be excluded")
+    assert(fromGenerateRoots.filter { r => r.rootPath == skipModulePath }.length == 0, "cwd=generate: skip/app is outside the cone and must be excluded")
+    assert(fromGenerateRoots.length == 1, "cwd=generate: exactly one managed module is in the cone")
+    assert(fromGenerate.{{path}}.filter { r => r.path == "app" }.length > 0, "cwd=generate: the discovered module's path should be cwd-relative (app)")
+
+    # Find-up: from inside lookup/app (a nested subdir with no config of its own)
+    # the enclosing managed module is discovered; siblings are not. Its
+    # cwd-relative path is ".." — an ancestor of the cwd.
+    let fromNested = typescriptSdk.modules(root.asWorkspace(cwd: lookupNestedPath))
+    let fromNestedRoots = fromNested.{{rootPath}}
+    assert(fromNestedRoots.filter { r => r.rootPath == lookupModulePath }.length > 0, "cwd=lookup/app/nested: find-up should discover the enclosing lookup/app")
+    assert(fromNestedRoots.filter { r => r.rootPath == generateModulePath }.length == 0, "cwd=lookup/app/nested: generate/app is outside the cone")
+    assert(fromNestedRoots.length == 1, "cwd=lookup/app/nested: only the enclosing module should be discovered")
+    assert(fromNested.{{path}}.filter { r => r.path == ".." }.length > 0, "cwd=lookup/app/nested: the enclosing module's path should be cwd-relative (..)")
+
+    # Root cwd: the whole workspace is in scope, so every managed module — and
+    # only the managed ones — is discovered, whether marked by dagger.json or
+    # dagger-module.toml.
+    let fromRoot = typescriptSdk.modules(root.asWorkspace(cwd: "/")).{{rootPath}}
+    assert(fromRoot.filter { r => r.rootPath == generateModulePath }.length > 0, "cwd=/: generate/app should be listed")
+    assert(fromRoot.filter { r => r.rootPath == lookupModulePath }.length > 0, "cwd=/: lookup/app should be listed")
+    assert(fromRoot.filter { r => r.rootPath == depsModulePath }.length > 0, "cwd=/: deps/app should be listed")
+    assert(fromRoot.filter { r => r.rootPath == skipModulePath }.length > 0, "cwd=/: skip/app should be listed")
+    assert(fromRoot.filter { r => r.rootPath == managedTomlModulePath }.length > 0, "cwd=/: the dagger-module.toml managed module should be listed")
+    assert(fromRoot.length == 5, "cwd=/: exactly the five managed modules should be listed")
 
     null
   }

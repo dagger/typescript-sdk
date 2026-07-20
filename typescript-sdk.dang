@@ -5,7 +5,13 @@ enum Runtime {
 }
 
 type TypescriptSdk {
+  # Matches `"sdk": { "source": "typescript" }` in a legacy dagger.json.
   let tsPattern = "\"sdk\"\\s*:\\s*\\{[^}]*\"source\"\\s*:\\s*\"typescript\""
+
+  # Matches a `[runtime]` table with `source = "typescript"` in a CLI 1.0
+  # dagger-module.toml. [^\[]* keeps the match inside the runtime table (it stops
+  # at the next [section]).
+  let tsTomlPattern = "\\[runtime\\][^\\[]*source\\s*=\\s*\"typescript\""
 
   """
   Marker filename that skips generate when found at or above a TypeScript SDK module root.
@@ -20,26 +26,55 @@ type TypescriptSdk {
   }
 
   """
-  Return every legacy dagger.json Dagger module whose sdk.source is "typescript".
+  Config filenames that mark a Dagger module root: the CLI 1.0
+  `dagger-module.toml` (workspace-managed modules) and the legacy `dagger.json`.
+  A managed module is discovered by whichever it uses.
+  """
+  let moduleConfigFilenames: [String!]! = ["dagger-module.toml", "dagger.json"]
+
+  """
+  Return every TypeScript SDK module this workspace manages that is visible from
+  the client's current location.
+
+  Discovery is anchored at the client's cwd (never the workspace root): the
+  nearest enclosing module plus every module at or below the cwd, intersected
+  with the SDK's engine-owned list of managed modules
+  (currentModule.asSDK.modules). So running from a subdirectory acts on the
+  project you're in — and the projects beneath it — not the whole workspace.
+
+  Discovery is the polyfill's cwd-aware findConfigDirs (dagger/dagger#13688);
+  this maps its cwd-relative results to workspace-root-relative paths and keeps
+  the ones this SDK manages.
   """
   pub modules(ws: Workspace!): [Mod!]! {
-    ws
-      .directory("/", include: ["**/dagger.json"])
-      .search(
-        pattern: tsPattern,
-        globs: ["**/dagger.json"],
-        filesOnly: true,
-        multiline: true,
-        dotall: true,
-      )
-      .{{filePath}}
-      .map { configPath =>
-        mod(
-          ws,
-          if (configPath.filePath == "dagger.json") { "." } else { configPath.filePath.trimSuffix("/dagger.json") },
-          findUp: false,
-        )
+    let managed = currentModule.asSDK.modules.{{path}}
+    let cwd = ws.cwd.trimPrefix("/").trimSuffix("/")
+    polyfill.workspace(ws)
+      .findConfigDirs(moduleConfigFilenames, exclude: ["**/node_modules/**"])
+      .map { dir => moduleRelPath(cwd, dir) }
+      .uniq
+      .filter { path => managed.filter { m => m.path == path }.length > 0 }
+      .map { path => Mod(rootPath: path, ws: ws, skipGenerateFilename: skipGenerateFilename) }
+  }
+
+  """
+  Resolve a findConfigDirs result — a cwd-relative path, at or below the cwd
+  ("." , "sub/dir") or a strict ancestor (".." , "../..") — against the cwd into a
+  workspace-root-relative path, the format both asSDK module paths and
+  Mod.rootPath use.
+  """
+  let moduleRelPath(cwd: String!, dir: String!): String! {
+    let base = if (cwd == "" or cwd == ".") { [] } else { cwd.split("/") }
+    let segs = dir.split("/").reduce(base) { acc, seg =>
+      if (seg == "..") {
+        acc.dropLast(1)
+      } else if (seg == "." or seg == "") {
+        acc
+      } else {
+        acc + [seg]
       }
+    }
+    if (segs.length == 0) { "." } else { segs.join("/") }
   }
 
   """
@@ -49,29 +84,22 @@ type TypescriptSdk {
   """
   pub mod(ws: Workspace!, path: String! = ".", findUp: Boolean! = true): Mod! {
     let modPath = if (findUp) {
-      let foundConfigPath = ws.findUp("dagger.json", path)
+      # Nearest enclosing module config, regardless of filename order: the deepest
+      # hit wins, so a closer dagger.json is not shadowed by an ancestor
+      # dagger-module.toml (and vice versa) — matching polyfill findConfigDirs.
+      let foundConfigPath = moduleConfigFilenames.reduce(null) { acc, name =>
+        let found = ws.findUp(name, path)
+        if (configHitDepth(found) > configHitDepth(acc)) { found } else { acc }
+      }
       if (foundConfigPath == null) {
         raise "no Dagger module found containing path: " + path
       } else {
         let configPath = foundConfigPath.trimPrefix("/")
-        if (
-          ws
-            .directory("/", include: [configPath])
-            .file(configPath)
-            .search(
-              pattern: tsPattern,
-              multiline: true,
-              dotall: true,
-              limit: 1,
-            )
-            .{{id}}
-            .length == 0
-        ) {
+        if (isTypescriptConfig(ws, configPath) == false) {
           raise "Dagger module does not use the TypeScript SDK: " + path
-        } else if (configPath == "dagger.json") {
-          "."
         } else {
-          configPath.trimSuffix("/dagger.json")
+          let dir = configPath.split("/").dropLast(1).join("/")
+          if (dir == "") { "." } else { dir }
         }
       }
     } else {
@@ -79,10 +107,46 @@ type TypescriptSdk {
     }
 
     Mod(
-      path: modPath,
+      rootPath: modPath,
       ws: ws,
       skipGenerateFilename: skipGenerateFilename,
     )
+  }
+
+  """
+  Depth of the directory holding a find-up config hit (a workspace-absolute path).
+  A deeper hit is nearer the search origin; a null (no hit) ranks below any hit,
+  so ranking by this picks the nearest enclosing config regardless of which
+  filename found it.
+  """
+  let configHitDepth(hit: String): Int! {
+    if (hit == null) {
+      -1
+    } else {
+      let dir = hit.split("/").dropLast(1).join("/").trimPrefix("/")
+      if (dir == "") { 0 } else { dir.split("/").length }
+    }
+  }
+
+  """
+  Whether the module config at `configPath` (workspace-root-relative) declares the
+  TypeScript runtime — `"sdk": { "source": "typescript" }` in a dagger.json, or a
+  `[runtime]` table with `source = "typescript"` in a dagger-module.toml. The
+  filename picks which pattern to match.
+  """
+  let isTypescriptConfig(ws: Workspace!, configPath: String!): Boolean! {
+    let pattern = if (configPath.trimSuffix("dagger-module.toml") != configPath) { tsTomlPattern } else { tsPattern }
+    ws
+      .directory("/", include: [configPath])
+      .file(configPath)
+      .search(
+        pattern: pattern,
+        multiline: true,
+        dotall: true,
+        limit: 1,
+      )
+      .{{id}}
+      .length > 0
   }
 
   """
@@ -285,22 +349,19 @@ type TypescriptSdk {
   }
 
   """
-  Generate all discovered legacy dagger.json TypeScript SDK modules.
-
-  This discovery path is obsolete for workspace-managed modules; the engine
-  owns the modules.<sdk>.as-sdk.modules source of truth.
+  Generate every managed TypeScript SDK module visible from the client's current
+  location. Discovery goes through modules(ws), so running from a subdirectory
+  generates only the project you're in and the projects beneath it.
 
   Modules with the generate skip marker are skipped.
   """
   pub generateAll(ws: Workspace!): Changeset! @generate {
     let pws = polyfill.workspace(ws)
 
-    currentModule.asSDK.modules
-      .{{path}}
-      .map { m => Mod(path: m.path, ws: ws, skipGenerateFilename: skipGenerateFilename) }
+    modules(ws)
       .filter { mod => mod.skipGenerate(ws) == false }
       .reduce(pws.fork) { fork, mod =>
-        fork.merge(pws.moduleSource("/" + mod.path).generate)
+        fork.merge(pws.moduleSource("/" + mod.rootPath).generate)
       }
       .changes
   }

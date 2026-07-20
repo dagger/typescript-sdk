@@ -3,9 +3,11 @@ A Dagger module that uses the TypeScript SDK.
 """
 type Mod {
   """
-  Workspace-relative path of this module root.
+  Workspace-root-relative path of this module root — the module's stable
+  identity, independent of where the client is invoked from. Generate and config
+  operate on this.
   """
-  pub path: String!
+  pub rootPath: String!
 
   """
   Workspace containing this module.
@@ -16,6 +18,27 @@ type Mod {
   Marker filename that skips generate when found at or above this module root.
   """
   let skipGenerateFilename: String!
+
+  """
+  This module root relative to the client's current location: "." when the cwd is
+  the module itself, "sub/mod" for a module beneath it, ".." for an enclosing one.
+  A cwd-relative view of rootPath, so listings read the way a shell user would.
+  """
+  pub path: String! {
+    let cwd = ws.cwd.trimPrefix("/").trimSuffix("/")
+    if (rootPath == cwd) {
+      "."
+    } else if (cwd == "") {
+      rootPath
+    } else if (rootPath.trimPrefix(cwd + "/") != rootPath) {
+      rootPath.trimPrefix(cwd + "/")
+    } else if (rootPath == "." or cwd.trimPrefix(rootPath + "/") != cwd) {
+      let rootDepth = if (rootPath == ".") { 0 } else { rootPath.split("/").length }
+      cwd.split("/").dropFirst(rootDepth).map { segment => ".." }.join("/")
+    } else {
+      rootPath
+    }
+  }
 
   """
   Whether this module or an ancestor contains the configured generate skip marker.
@@ -30,7 +53,7 @@ type Mod {
   """
   pub config: ModConfig! {
     ModConfig(
-      path: path,
+      path: rootPath,
       ws: ws,
     )
   }
@@ -39,7 +62,7 @@ type Mod {
   Whether this module root or an ancestor contains a marker filename.
   """
   let hasMarker(ws: Workspace!, filename: String!): Boolean! {
-    let markerPath = ws.findUp(name: filename, from: path)
+    let markerPath = ws.findUp(name: filename, from: rootPath)
     markerPath != null
   }
 
@@ -51,7 +74,7 @@ type Mod {
     if (skipGenerate(ws)) {
       polyfill.workspace(ws).fork.changes
     } else {
-      polyfill.workspace(ws).moduleSource("/" + path).generate.changes
+      polyfill.workspace(ws).moduleSource("/" + rootPath).generate.changes
     }
   }
 }
