@@ -171,6 +171,34 @@ type E2e {
   }
 
   """
+  The default template should render a working module (a class with a container
+  function that reads source from the workspace), and the empty template should
+  render a bare @object class. Both must have their {{ .ModuleName }}
+  placeholder fully substituted.
+  """
+  pub templateCheck(ws: Workspace!): Void @check {
+    let defaultPath = outputRoot + "/template-default"
+    let emptyPath = outputRoot + "/template-empty"
+
+    let defaultChanges = typescriptSdk.initModule(ws, name: "template-default", path: defaultPath)
+    let defaultIndex = defaultChanges.layer.file(defaultPath + "/src/index.ts").contents
+    assertContains(defaultIndex, "export class TemplateDefault", "default template should render the module class")
+    assertContains(defaultIndex, "container(): Container", "default template should expose the container function")
+    assertContains(defaultIndex, "ws.directory(", "default template constructor should read source from the workspace")
+    assertContains(defaultIndex, "baseImageAddress", "default template should expose the base image field")
+    assertNotContains(defaultIndex, "{{", "default template placeholders should be fully rendered")
+
+    let emptyChanges = typescriptSdk.initModule(ws, name: "template-empty", path: emptyPath, template: "empty")
+    assertAdded(emptyChanges, emptyPath + "/src/index.ts")
+    assertAdded(emptyChanges, emptyPath + "/package.json")
+    let emptyIndex = emptyChanges.layer.file(emptyPath + "/src/index.ts").contents
+    assertContains(emptyIndex, "export class TemplateEmpty {}", "empty template should render a bare class")
+    assertNotContains(emptyIndex, "{{", "empty template placeholders should be fully rendered")
+
+    null
+  }
+
+  """
   Init against a path that already contains user-authored package.json,
   tsconfig.json, or deno.json should merge Dagger-required keys into those
   files instead of clobbering them.
