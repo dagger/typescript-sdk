@@ -453,11 +453,13 @@ type E2e {
   modules that live outside it.
   """
   pub modulesCwdCheck(ws: Workspace!): Void @check {
-    # A stable snapshot of the workspace, re-anchorable at any cwd. Keep every
-    # module config (both dagger.json and dagger-module.toml, for discovery) and
-    # the nested .keep so lookup/app/nested survives the include filter and can
-    # serve as a config-less subdirectory.
-    let root = ws.directory("/", include: ["**/dagger.json", "**/dagger-module.toml", "**/.keep"])
+    # A stable snapshot of the workspace, re-anchorable at any cwd. Keep the
+    # workspace config (dagger.toml, whose [modules.<sdk>.as-sdk] list is what
+    # modules() resolves the re-anchored workspace against), every module config
+    # (both dagger.json and dagger-module.toml, for discovery) and the nested
+    # .keep so lookup/app/nested survives the include filter and can serve as a
+    # config-less subdirectory.
+    let root = ws.directory("/", include: ["dagger.toml", "**/dagger.json", "**/dagger-module.toml", "**/.keep"])
 
     # Walk-down: from fixtures/generate only generate/app is in the cone; the
     # sibling managed modules live outside it and must be excluded. Its

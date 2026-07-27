@@ -47,7 +47,7 @@ type TypescriptSdk {
   the ones this SDK manages.
   """
   pub modules(ws: Workspace!): [Mod!]! {
-    let managed = currentModule.asSDK.modules.{{path}}
+    let managed = currentModule.asSDK(workspace: ws).modules.{{path}}
     let cwd = ws.cwd.trimPrefix("/").trimSuffix("/")
     polyfill.workspace(ws)
       .findConfigDirs(moduleConfigFilenames, exclude: ["**/node_modules/**"])
