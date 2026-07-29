@@ -23,6 +23,20 @@ type E2e {
   let configuredDenoModulePath: String! = fixtureRoot + "/config/configured-deno"
   let configBareModulePath: String! = fixtureRoot + "/config/bare"
 
+  # A client binds to the client/app module (which depends on client/dep) and is
+  # generated into its own dir.
+  let clientModulePath: String! = fixtureRoot + "/client/app"
+  let clientOutputPath: String! = fixtureRoot + "/client/out"
+  # A client dir that already has a package.json pointing @dagger.io/dagger at a
+  # local bundle; regeneration must preserve it.
+  let clientExistingPath: String! = fixtureRoot + "/client/existing"
+
+  # dagger/dagger commit whose sdk/typescript builds the @dagger.io/dagger the
+  # compile check type-checks against. Pinned to a commit (not a branch) so
+  # Dagger content-addresses the whole SDK build and reuses it across runs — a
+  # branch re-resolves HEAD every run and rebuilds. Bump to track main.
+  let daggerSourceRef: String! = "944ff62a6a768e91fc72519f343e50da2c77d889"
+
   """
   Fail the current check when a condition is false.
   """
@@ -47,6 +61,17 @@ type E2e {
   """
   let assertAdded(changes: Changeset!, path: String!): Void {
     assert(contains(changes.addedPaths, path), "expected added path: " + path)
+  }
+
+  """
+  Assert that a changeset generated a path — added on a fresh dir, or modified
+  when the client output already exists (e.g. from a prior `dagger generate`).
+  """
+  let assertGenerated(changes: Changeset!, path: String!): Void {
+    assert(
+      contains(changes.addedPaths, path) or contains(changes.modifiedPaths, path),
+      "expected generated (added or modified) path: " + path,
+    )
   }
 
   """
@@ -256,7 +281,7 @@ type E2e {
   pub generateCheck(ws: Workspace!): Void @check {
     let changes = typescriptSdk.mod(ws, path: generateModulePath).generate(ws)
 
-    assertAdded(changes, generateModulePath + "/sdk/index.ts")
+    assertGenerated(changes, generateModulePath + "/sdk/index.ts")
 
     null
   }
@@ -280,14 +305,121 @@ type E2e {
   Generating all modules should discover TypeScript SDK modules and ignore skipped ones.
   """
   pub generateAllCheck(ws: Workspace!): Void @check {
-    let changes = typescriptSdk.generateAll(ws)
+    let changes = typescriptSdk.generateAllModule(ws)
 
-    assertAdded(changes, generateModulePath + "/sdk/index.ts")
+    assertGenerated(changes, generateModulePath + "/sdk/index.ts")
     assert(contains(changes.addedPaths, lookupModulePath + "/src/index.ts") == false, "generateAll generated a lookup fixture that should be skipped")
     assert(contains(changes.addedPaths, depsModulePath + "/src/index.ts") == false, "generateAll generated dependency fixtures that should be skipped")
     assert(contains(changes.addedPaths, skipModulePath + "/src/index.ts") == false, "generateAll generated a skipped module")
     assert(contains(changes.addedPaths, managedTomlModulePath + "/sdk/index.ts") == false, "generateAll generated a skipped dagger-module.toml module")
     assert(contains(changes.addedPaths, nonTsModulePath + "/src/index.ts") == false, "generateAll generated a non-TypeScript SDK module")
+
+    null
+  }
+
+  """
+  Generating a client for a module should produce a scoped-package client:
+  dagger.gen.ts (core types), one <module>.gen.ts per module (the bound module
+  plus its deps), and package.json — rooted at the client output path.
+  """
+  pub generateClientCheck(ws: Workspace!): Void @check {
+    let changes = typescriptSdk.generateClient(ws, module: clientModulePath, path: clientOutputPath)
+
+    assertGenerated(changes, clientOutputPath + "/dagger.gen.ts")
+    assertGenerated(changes, clientOutputPath + "/client-app.gen.ts")
+    assertGenerated(changes, clientOutputPath + "/package.json")
+    assertGenerated(changes, clientOutputPath + "/tsconfig.json")
+
+    null
+  }
+
+  """
+  A generated client must type-check. The bindings extend `BaseClient`, which no
+  published @dagger.io/dagger exports yet, so build the library from dagger `main`
+  and `tsc --noEmit` the generated client against it — catching binding/tsconfig
+  bugs that file-presence checks miss.
+  """
+  pub generateClientCompilesCheck(ws: Workspace!): Void @check {
+    let changes = typescriptSdk.generateClient(ws, module: clientModulePath, path: clientOutputPath)
+    let clientDir = changes.layer.directory(clientOutputPath)
+
+    let node = container
+      .from("node:22-alpine")
+      .withMountedCache("/root/.npm", cacheVolume("npm-cache"))
+
+    # Build @dagger.io/dagger from source (pinned dagger commit). npm needs
+    # --legacy-peer-deps for the SDK's graphql peer range. The pinned tree makes
+    # this whole chain cache: after the first build, later runs reuse the layer
+    # and the npm cache volume backs the first build's downloads.
+    let daggerLib = node
+      .withDirectory("/build", git("https://github.com/dagger/dagger").commit(daggerSourceRef).tree.directory("sdk/typescript"))
+      .withWorkdir("/build")
+      .withExec(["npm", "install", "--no-audit", "--no-fund", "--legacy-peer-deps"])
+      .withExec(["npm", "run", "build"])
+      .directory("/build")
+
+    # Point the client's @dagger.io/dagger at the built lib (npm install of a
+    # local path overrides the version pin) and type-check.
+    let out = node
+      .withDirectory("/dagger-lib", daggerLib)
+      .withDirectory("/client", clientDir)
+      .withWorkdir("/client")
+      .withExec(["npm", "install", "--no-audit", "--no-fund", "--legacy-peer-deps", "/dagger-lib", "typescript@5.9.3"])
+      .withExec(["npx", "--no-install", "tsc", "--noEmit"])
+      .stdout
+
+    null
+  }
+
+  """
+  Regenerating a client whose package.json already points @dagger.io/dagger at a
+  local bundle must preserve that dependency (not overwrite it with the engine
+  version pin), and the emitted package.json must be pretty-printed.
+  """
+  pub generateClientRespectsExistingCheck(ws: Workspace!): Void @check {
+    let changes = typescriptSdk.generateClient(ws, module: clientModulePath, path: clientExistingPath)
+
+    # The "./sdk" value proves the local ref is preserved; the ": " (space after
+    # colon) proves the output is pretty-printed, not a single minified line.
+    let pkg = changes.layer.file(clientExistingPath + "/package.json").contents
+    assertContains(pkg, "\"@dagger.io/dagger\": \"./sdk\"", "existing local @dagger.io/dagger ref must be preserved and pretty-printed")
+    assertContains(pkg, "\"name\": \"my-existing-client\"", "existing package name must be preserved")
+
+    null
+  }
+
+  """
+  Regenerating all workspace-registered clients should generate each one at its
+  configured path.
+  """
+  pub generateAllClientCheck(ws: Workspace!): Void @check {
+    let changes = typescriptSdk.generateAllClient(ws)
+
+    assertGenerated(changes, clientOutputPath + "/dagger.gen.ts")
+    assertGenerated(changes, clientOutputPath + "/client-app.gen.ts")
+    assertGenerated(changes, clientOutputPath + "/package.json")
+    assertGenerated(changes, clientOutputPath + "/tsconfig.json")
+
+    null
+  }
+
+  """
+  The Go helpers (codegen, config-updator) must pass their own unit + golden
+  tests. Runs `go test` in a container so `dagger check` covers the codegen
+  logic, not just its end-to-end output.
+  """
+  pub helperTestsCheck(ws: Workspace!): Void @check {
+    let out = container
+      .from("golang:1.25-alpine")
+      .withoutEntrypoint
+      .withMountedCache("/go/pkg/mod", cacheVolume("go-mod"))
+      .withMountedCache("/root/.cache/go-build", cacheVolume("go-build"))
+      .withDirectory("/helpers", ws.directory("helpers"))
+      .withWorkdir("/helpers/codegen")
+      .withExec(["go", "test", "./..."])
+      .withWorkdir("/helpers/config-updator")
+      .withExec(["go", "test", "./..."])
+      .stdout
 
     null
   }

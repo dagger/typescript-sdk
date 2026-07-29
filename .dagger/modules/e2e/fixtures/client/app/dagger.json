@@ -1,0 +1,10 @@
+{
+  "name": "client-app",
+  "engineVersion": "latest",
+  "sdk": {
+    "source": "typescript"
+  },
+  "dependencies": [
+    "../dep"
+  ]
+}

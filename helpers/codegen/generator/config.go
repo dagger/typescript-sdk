@@ -1,0 +1,117 @@
+package generator
+
+type Config struct {
+	// Lang is the language to generate the module for.
+	Lang SDKLang
+
+	// OutputDir is the path to put the generated code.
+	// Usually this is the path to the module source directory.
+	// This allows generating extra file aside the client bindings
+	// like go.mod, go.sum etc...
+	OutputDir string
+
+	// IntrospectionJSON is an optional pre-computed introspection json string.
+	IntrospectionJSON string
+
+	// TypeDefsPath is the path of the file to write the typedefs module id.
+	TypeDefsPath string
+
+	// Generate the client in bundle mode.
+	Bundle bool
+
+	// ModuleConfig is the specific config to generate module or typedefs.
+	ModuleConfig *ModuleGeneratorConfig
+
+	// ClientConfig is the specific config to generate standalone client.
+	ClientConfig *ClientGeneratorConfig
+
+	// EntrypointConfig is the specific config to generate the static dispatch
+	// entrypoint file (currently TypeScript only).
+	EntrypointConfig *EntrypointGeneratorConfig
+}
+
+// Specific configuration for module generation.
+type ModuleGeneratorConfig struct {
+	// Name of the module to generate code for.
+	ModuleName string
+
+	// ModuleSourcePath is the subpath in OutputDir where the module source subpath is located.
+	ModuleSourcePath string
+
+	// ModuleParentPath is the path from the module source subpath to the context directory
+	ModuleParentPath string
+
+	// Whether we are initializing a new module.
+	// Currently, this is only used in go codegen to enforce backwards-compatible behavior
+	// where a pre-existing go.mod file is checked during dagger init for whether its module
+	// name is the expected value.
+	IsInit bool
+
+	// If set, use `@dagger.io/dagger` with the given version and use it in the generated client.
+	LibVersion string
+}
+
+// Module-source kinds a generated client can bind to. A local module
+// (LOCAL_SOURCE, or DIR_SOURCE — how a workspace-local module resolves in
+// practice) is served by its workspace-relative path; a GIT_SOURCE module is
+// served from its canonical ref + pin.
+const (
+	ModuleKindGit   = "GIT_SOURCE"
+	ModuleKindLocal = "LOCAL_SOURCE"
+	ModuleKindDir   = "DIR_SOURCE"
+)
+
+// BoundModule identifies the single module a generated client serves. The
+// generated serveBoundModule bootstrap uses Kind to decide how to load it at
+// runtime: a local module (LOCAL_SOURCE/DIR_SOURCE) is resolved against the
+// workspace by its workspace-root-relative Path
+// (dag.currentWorkspace().moduleSource(Path)); a git module (GIT_SOURCE) is
+// served from its canonical Ref + Pin, which resolve from anywhere.
+type BoundModule struct {
+	Kind string `json:"kind"`
+	Path string `json:"path"`
+	Ref  string `json:"ref"`
+	Pin  string `json:"pin"`
+}
+
+// Specific configuration for entrypoint generation.
+type EntrypointGeneratorConfig struct {
+	// TypedefJSONPath is the path to the JSON-serialized DaggerModule typedef
+	// produced by the SDK introspector (e.g. ts-introspector with
+	// EMIT_TYPEDEF_JSON_FILE).
+	TypedefJSONPath string
+
+	// OutputFile is the filename (relative to OutputDir) where the generated
+	// entrypoint source is written. Defaults to "__dagger.entrypoint.ts" for
+	// the TypeScript SDK.
+	OutputFile string
+
+	// ModuleRoot is the absolute path of the user's module root, used to
+	// resolve relative source-import paths for each registered @object class.
+	ModuleRoot string
+
+	// SDKImportPath is the bare specifier the entrypoint uses to import
+	// runtime helpers (defaults to "@dagger.io/dagger" for TypeScript).
+	SDKImportPath string
+
+	// SourceDir is the user's source directory name relative to ModuleRoot
+	// (defaults to "src" for TypeScript).
+	SourceDir string
+}
+
+// Specific configuration for client generation.
+type ClientGeneratorConfig struct {
+	// The name of the module to generate for.
+	ModuleName string
+
+	// BoundModule is the single module the generated client serves; it drives
+	// the generated serveBoundModule bootstrap.
+	BoundModule BoundModule
+
+	// The directory where the client will be generated.
+	ClientDir string
+
+	// The engine version from dagger.json, used to pin the dagger.io/dagger dependency.
+	// This is only populated when generating from a module source (not in tests).
+	EngineVersion string
+}

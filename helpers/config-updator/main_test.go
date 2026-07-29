@@ -402,3 +402,100 @@ func TestReadInput(t *testing.T) {
 		require.JSONEq(t, `{"name": "demo"}`, got)
 	})
 }
+
+func TestUpdateClientPackageJSON(t *testing.T) {
+	type testCase struct {
+		name          string
+		packageJSON   string
+		engineVersion string
+		moduleName    string
+		expected      string
+	}
+
+	for _, tc := range []testCase{
+		{
+			name:          "fresh client dir creates scoped package",
+			packageJSON:   `{}`,
+			engineVersion: "v0.18.0",
+			moduleName:    "My Cool Module",
+			expected:      `{"type":"module","name":"@dagger.io/my-cool-module-client","dependencies":{"@dagger.io/dagger":"0.18.0","typescript":"5.9.3"}}`,
+		},
+		{
+			name:          "existing name is preserved, sdk dep is set, typescript kept",
+			packageJSON:   `{"name":"@acme/existing","dependencies":{"typescript":"5.0.0"}}`,
+			engineVersion: "v0.19.0-dev.abc123",
+			moduleName:    "my-cool-module",
+			expected:      `{"name":"@acme/existing","type":"module","dependencies":{"@dagger.io/dagger":"0.19.0-dev.abc123","typescript":"5.0.0"}}`,
+		},
+		{
+			name:          "empty module name falls back to client",
+			packageJSON:   `{}`,
+			engineVersion: "0.20.0",
+			moduleName:    "",
+			expected:      `{"type":"module","name":"@dagger.io/client","dependencies":{"@dagger.io/dagger":"0.20.0","typescript":"5.9.3"}}`,
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			res, err := updateClientPackageJSON(removeJSONComments(tc.packageJSON), tc.engineVersion, tc.moduleName)
+			require.NoError(t, err)
+			require.JSONEq(t, tc.expected, res)
+		})
+	}
+}
+
+func TestScopedClientName(t *testing.T) {
+	for _, tc := range []struct{ in, want string }{
+		{"hello", "@dagger.io/hello-client"},
+		{"My Cool Module", "@dagger.io/my-cool-module-client"},
+		{"foo_bar.baz", "@dagger.io/foo-bar-baz-client"},
+		{"--weird--", "@dagger.io/weird-client"},
+		{"", "@dagger.io/client"},
+	} {
+		require.Equal(t, tc.want, scopedClientName(tc.in))
+	}
+}
+
+func TestNpmVersion(t *testing.T) {
+	require.Equal(t, "0.18.0", npmVersion("v0.18.0"))
+	require.Equal(t, "0.18.0", npmVersion("0.18.0"))
+	require.Equal(t, "0.19.0-dev.abc", npmVersion("v0.19.0-dev.abc"))
+}
+
+func TestUpdateClientPackageJSON_PreservesLocalDaggerRef(t *testing.T) {
+	for _, tc := range []struct {
+		name        string
+		packageJSON string
+		expected    string
+	}{
+		{
+			name:        "file: ref preserved, not overwritten with version",
+			packageJSON: `{"dependencies":{"@dagger.io/dagger":"file:../dagger2/sdk/typescript"}}`,
+			expected:    `{"type":"module","name":"@dagger.io/hello-client","dependencies":{"@dagger.io/dagger":"file:../dagger2/sdk/typescript","typescript":"5.9.3"}}`,
+		},
+		{
+			name:        "relative path ref preserved",
+			packageJSON: `{"dependencies":{"@dagger.io/dagger":"./sdk"}}`,
+			expected:    `{"type":"module","name":"@dagger.io/hello-client","dependencies":{"@dagger.io/dagger":"./sdk","typescript":"5.9.3"}}`,
+		},
+		{
+			name:        "a version pin is refreshed to the engine version",
+			packageJSON: `{"dependencies":{"@dagger.io/dagger":"0.9.0"}}`,
+			expected:    `{"type":"module","name":"@dagger.io/hello-client","dependencies":{"@dagger.io/dagger":"1.0.0","typescript":"5.9.3"}}`,
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			res, err := updateClientPackageJSON(removeJSONComments(tc.packageJSON), "v1.0.0", "hello")
+			require.NoError(t, err)
+			require.JSONEq(t, tc.expected, res)
+		})
+	}
+}
+
+func TestIsLocalDaggerRef(t *testing.T) {
+	for _, v := range []string{"./sdk", "../sdk", "file:../x", "link:./x", "/abs/path", "workspace:*", "git+https://x", "https://x/y.tgz"} {
+		require.True(t, isLocalDaggerRef(v), "%q should be local", v)
+	}
+	for _, v := range []string{"", "1.0.0", "^1.0.0", "~1.2.3", "1.0.0-beta.5", "latest", "*"} {
+		require.False(t, isLocalDaggerRef(v), "%q should not be local", v)
+	}
+}
