@@ -1,0 +1,116 @@
+"""
+Checks for typed client generation — `typescriptSdk.generateClient` for one
+client and `generateAllClient` for every client the workspace registers.
+
+A client binds exactly one module and ships as a self-contained scoped npm
+package: dagger.gen.ts for the core types, one <module>.gen.ts per module in the
+bound module's closure, plus package.json and tsconfig.json.
+"""
+type ClientChecks {
+  let fixtures: Fixtures! = Fixtures
+
+  """
+  dagger/dagger commit whose sdk/typescript builds the @dagger.io/dagger the
+  compile check type-checks against. Pinned to a commit (not a branch) so
+  Dagger content-addresses the whole SDK build and reuses it across runs — a
+  branch re-resolves HEAD every run and rebuilds. Bump to track main.
+  """
+  let daggerSourceRef: String! = "b82dd645c0a2759cee20b038de3d155ce3860cf6"
+
+  """
+  Assert that a changeset holds a complete scoped-package client at `path`.
+  """
+  let clientPackage(changes: Changeset!, path: String!): Void {
+    Asserts.generated(changes, path + "/dagger.gen.ts")
+    Asserts.generated(changes, path + "/client-app.gen.ts")
+    Asserts.generated(changes, path + "/package.json")
+    Asserts.generated(changes, path + "/tsconfig.json")
+    null
+  }
+
+  """
+  Generating a client for a module should produce a scoped-package client:
+  dagger.gen.ts (core types), one <module>.gen.ts per module (the bound module
+  plus its deps), and package.json — rooted at the client output path.
+  """
+  generateClientCheck(ws: Workspace!): Void @check {
+    clientPackage(
+      typescriptSdk.generateClient(ws, module: fixtures.clientModule, path: fixtures.clientOutput),
+      fixtures.clientOutput,
+    )
+
+    null
+  }
+
+  """
+  A generated client must type-check. The bindings extend `BaseClient`, which no
+  published @dagger.io/dagger exports yet, so build the library from dagger `main`
+  and `tsc --noEmit` the generated client against it — catching binding/tsconfig
+  bugs that file-presence checks miss.
+  """
+  generateClientCompilesCheck(ws: Workspace!): Void @check {
+    let changes = typescriptSdk.generateClient(ws, module: fixtures.clientModule, path: fixtures.clientOutput)
+    let clientDir = changes.layer.directory(fixtures.clientOutput)
+
+    let node = container
+      .from("node:22-alpine")
+      .withMountedCache("/root/.npm", cacheVolume("npm-cache"))
+
+    # Build @dagger.io/dagger from source (pinned dagger commit). npm needs
+    # --legacy-peer-deps for the SDK's graphql peer range. The pinned tree makes
+    # this whole chain cache: after the first build, later runs reuse the layer
+    # and the npm cache volume backs the first build's downloads.
+    let daggerLib = node
+      .withDirectory(
+        "/build",
+        git("https://github.com/dagger/dagger").commit(daggerSourceRef).tree.directory("sdk/typescript"),
+      )
+      .withWorkdir("/build")
+      .withExec(["npm", "install", "--no-audit", "--no-fund", "--legacy-peer-deps"])
+      .withExec(["npm", "run", "build"])
+      .directory("/build")
+
+    # Point the client's @dagger.io/dagger at the built lib (npm install of a
+    # local path overrides the version pin) and type-check.
+    let out = node
+      .withDirectory("/dagger-lib", daggerLib)
+      .withDirectory("/client", clientDir)
+      .withWorkdir("/client")
+      .withExec(["npm", "install", "--no-audit", "--no-fund", "--legacy-peer-deps", "/dagger-lib", "typescript@5.9.3"])
+      .withExec(["npx", "--no-install", "tsc", "--noEmit"])
+      .stdout
+
+    null
+  }
+
+  """
+  Regenerating a client whose package.json already points @dagger.io/dagger at a
+  local bundle must preserve that dependency (not overwrite it with the engine
+  version pin), and the emitted package.json must be pretty-printed.
+  """
+  generateClientRespectsExistingCheck(ws: Workspace!): Void @check {
+    let changes = typescriptSdk.generateClient(ws, module: fixtures.clientModule, path: fixtures.clientExisting)
+
+    # The "./sdk" value proves the local ref is preserved; the ": " (space after
+    # colon) proves the output is pretty-printed, not a single minified line.
+    let pkg = changes.layer.file(fixtures.clientExisting + "/package.json").contents
+    Asserts.stringContains(
+      pkg,
+      "\"@dagger.io/dagger\": \"./sdk\"",
+      "existing local @dagger.io/dagger ref must be preserved and pretty-printed",
+    )
+    Asserts.stringContains(pkg, "\"name\": \"my-existing-client\"", "existing package name must be preserved")
+
+    null
+  }
+
+  """
+  Regenerating all workspace-registered clients should generate each one at its
+  configured path.
+  """
+  generateAllClientCheck(ws: Workspace!): Void @check {
+    clientPackage(typescriptSdk.generateAllClient(ws), fixtures.clientOutput)
+
+    null
+  }
+}

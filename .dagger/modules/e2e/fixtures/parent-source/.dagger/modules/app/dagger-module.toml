@@ -1,0 +1,6 @@
+name = "parent-source-app"
+engineVersion = "v1.0.0-beta.7"
+source = "../../../ci"
+
+[runtime]
+  source = "typescript"

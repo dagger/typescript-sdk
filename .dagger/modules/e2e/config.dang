@@ -1,0 +1,217 @@
+"""
+Checks for `Mod.config` — reading and editing a module's TypeScript build
+configuration.
+
+The engine reads packageManager / dagger.baseImage out of the module's *source*
+directory, so every path here is resolved through `Mod.sourcePath` rather than
+the directory holding the module config.
+"""
+type ConfigChecks {
+  let fixtures: Fixtures! = Fixtures
+
+  """
+  Return the error raised while reading a module's base image, or the value
+  itself when the read unexpectedly succeeds. The read has to happen inside the
+  rescue, so this takes the module's coordinates rather than the value.
+  """
+  let baseImageFailure(ws: Workspace!, path: String!): String! {
+    typescriptSdk.mod(ws, path: path).config.baseImage rescue {
+      err: Error => err.message
+    }
+  }
+
+  """
+  Config readers should reflect package.json (or deno.json), and mutators
+  should edit only the targeted config file while preserving unrelated keys.
+  """
+  configCheck(ws: Workspace!): Void @check {
+    let app = typescriptSdk.mod(ws, path: fixtures.configModule).config
+    let configured = typescriptSdk.mod(ws, path: fixtures.configuredModule).config
+    let configuredDeno = typescriptSdk.mod(ws, path: fixtures.configuredDenoModule).config
+
+    # Defaults: unconfigured node module reads empty.
+    Asserts.assert(app.packageManager == "", "default packageManager should be empty")
+    Asserts.assert(app.baseImage == "", "default baseImage should be empty")
+
+    # Configured node module reads the override values.
+    Asserts.assert(configured.packageManager == "pnpm@8.15.4", "configured packageManager should read pnpm@8.15.4")
+    Asserts.assert(configured.baseImage == "node:23.2.0-alpine", "configured baseImage should read the override")
+
+    # Deno module: no package.json, baseImage comes from deno.json.
+    Asserts.assert(configuredDeno.packageManager == "", "deno-only module should expose no packageManager")
+    Asserts.assert(
+      configuredDeno.baseImage == "denoland/deno:alpine-2.0.0",
+      "deno baseImage should read from deno.json",
+    )
+
+    let appPkg = fixtures.configModule + "/package.json"
+
+    # Single-flag set: package manager only.
+    let pm = app.set(packageManager: "yarn@1.22.22")
+    Asserts.onlyFileChanged(pm, appPkg, "set(packageManager)")
+    Asserts.stringContains(pm.after.file(appPkg).contents, "yarn@1.22.22", "set(packageManager) did not write the value")
+    Asserts.stringContains(
+      pm.after.file(appPkg).contents,
+      "\"type\": \"module\"",
+      "set(packageManager) dropped unrelated keys",
+    )
+
+    # Single-flag set: base image only.
+    let img = app.set(baseImage: "node:23.2.0-alpine")
+    Asserts.onlyFileChanged(img, appPkg, "set(baseImage)")
+    Asserts.stringContains(img.after.file(appPkg).contents, "node:23.2.0-alpine", "set(baseImage) did not write the image")
+
+    # Both flags in one call: a single file change carrying both edits.
+    let both = app.set(packageManager: "npm@10.7.0", baseImage: "node:23.2.0-alpine")
+    Asserts.onlyFileChanged(both, appPkg, "set(packageManager, baseImage)")
+    Asserts.stringContains(both.after.file(appPkg).contents, "npm@10.7.0", "set(both) did not write packageManager")
+    Asserts.stringContains(both.after.file(appPkg).contents, "node:23.2.0-alpine", "set(both) did not write baseImage")
+
+    let configuredPkg = fixtures.configuredModule + "/package.json"
+
+    let unsetPm = configured.unsetPackageManager
+    Asserts.onlyFileChanged(unsetPm, configuredPkg, "unsetPackageManager")
+    Asserts.stringNotContains(
+      unsetPm.after.file(configuredPkg).contents,
+      "packageManager",
+      "unsetPackageManager left the field",
+    )
+    Asserts.stringContains(
+      unsetPm.after.file(configuredPkg).contents,
+      "node:23.2.0-alpine",
+      "unsetPackageManager clobbered dagger.baseImage",
+    )
+
+    let unsetImg = configured.unsetBaseImage
+    Asserts.onlyFileChanged(unsetImg, configuredPkg, "unsetBaseImage")
+    Asserts.stringNotContains(
+      unsetImg.after.file(configuredPkg).contents,
+      "baseImage",
+      "unsetBaseImage left the override",
+    )
+    Asserts.stringContains(
+      unsetImg.after.file(configuredPkg).contents,
+      "pnpm@8.15.4",
+      "unsetBaseImage clobbered packageManager",
+    )
+
+    # Deno modules: baseImage edits route to deno.json, not package.json.
+    let configuredDenoFile = fixtures.configuredDenoModule + "/deno.json"
+
+    let denoImg = configuredDeno.set(baseImage: "denoland/deno:latest")
+    Asserts.onlyFileChanged(denoImg, configuredDenoFile, "set(baseImage) on deno module")
+    Asserts.stringContains(
+      denoImg.after.file(configuredDenoFile).contents,
+      "denoland/deno:latest",
+      "set(baseImage) did not write to deno.json",
+    )
+
+    let unsetDenoImg = configuredDeno.unsetBaseImage
+    Asserts.onlyFileChanged(unsetDenoImg, configuredDenoFile, "unsetBaseImage on deno module")
+    Asserts.stringNotContains(
+      unsetDenoImg.after.file(configuredDenoFile).contents,
+      "baseImage",
+      "unsetBaseImage left the override in deno.json",
+    )
+    Asserts.stringContains(
+      unsetDenoImg.after.file(configuredDenoFile).contents,
+      "nodeModulesDir",
+      "unsetBaseImage clobbered unrelated deno keys",
+    )
+
+    # unset-package-manager on a Deno module is a no-op: there is no
+    # package.json, and the unset must not fabricate an empty one.
+    let denoUnsetPm = configuredDeno.unsetPackageManager
+    Asserts.assert(denoUnsetPm.isEmpty, "unsetPackageManager on a Deno module should be a no-op")
+    Asserts.notAdded(
+      denoUnsetPm,
+      fixtures.configuredDenoModule + "/package.json",
+      "unsetPackageManager must not create a package.json in a Deno module",
+    )
+
+    # Bare module (no package.json or deno.json): readers are empty and the
+    # unsetters are no-ops that never write a stray config file.
+    let bare = typescriptSdk.mod(ws, path: fixtures.configBareModule).config
+    Asserts.assert(bare.packageManager == "", "bare module should expose no packageManager")
+    Asserts.assert(bare.baseImage == "", "bare module should expose no baseImage")
+
+    let bareUnsetPm = bare.unsetPackageManager
+    Asserts.assert(bareUnsetPm.isEmpty, "unsetPackageManager on a module without package.json should be a no-op")
+    Asserts.notAdded(
+      bareUnsetPm,
+      fixtures.configBareModule + "/package.json",
+      "unsetPackageManager must not fabricate a package.json",
+    )
+
+    let bareUnsetImg = bare.unsetBaseImage
+    Asserts.assert(bareUnsetImg.isEmpty, "unsetBaseImage on a module without a config file should be a no-op")
+    Asserts.notAdded(
+      bareUnsetImg,
+      fixtures.configBareModule + "/package.json",
+      "unsetBaseImage must not fabricate a package.json",
+    )
+
+    null
+  }
+
+  """
+  A module whose config `source` points at a sibling tree keeps its package.json
+  there, so reads and edits must follow the source path — not the directory
+  holding the module config, which has no package.json at all.
+
+  Reading the config directory instead would silently report an unconfigured
+  module and write a stray package.json next to dagger-module.toml, where the
+  engine never looks.
+  """
+  parentSourceConfigCheck(ws: Workspace!): Void @check {
+    let mod = typescriptSdk.mod(ws, path: fixtures.parentSourceModule, findUp: false)
+    let sourcePkg = fixtures.parentSourceCode + "/package.json"
+
+    Asserts.assert(
+      mod.sourcePath == fixtures.parentSourceCode,
+      "source path should resolve through the config `source` field; got " + mod.sourcePath,
+    )
+    Asserts.assert(
+      mod.config.packageManager == "pnpm@9.1.0",
+      "packageManager should be read from the source directory; got \"" + mod.config.packageManager + "\"",
+    )
+
+    let img = mod.config.set(baseImage: "node:23.2.0-alpine")
+    Asserts.onlyFileChanged(img, sourcePkg, "set(baseImage) on a module with a relocated source")
+    Asserts.stringContains(
+      img.after.file(sourcePkg).contents,
+      "node:23.2.0-alpine",
+      "set(baseImage) did not write the image into the source package.json",
+    )
+    Asserts.stringContains(
+      img.after.file(sourcePkg).contents,
+      "pnpm@9.1.0",
+      "set(baseImage) dropped the existing packageManager",
+    )
+
+    null
+  }
+
+  """
+  A module holding both deno.json and package.json is ambiguous: deno.json
+  selects the Deno runtime while package.json is a Node/Bun config file. Surface
+  it rather than guessing and editing the file the engine does not read.
+  """
+  contradictoryRuntimeCheck: Void @check {
+    let ws = directory
+      .withNewFile("app/dagger.json", "{\"name\":\"both\",\"engineVersion\":\"latest\",\"sdk\":{\"source\":\"typescript\"}}")
+      .withNewFile("app/package.json", "{\"type\":\"module\"}")
+      .withNewFile("app/deno.json", "{\"nodeModulesDir\":\"auto\"}")
+      .asWorkspace
+
+    let message = baseImageFailure(ws, "app")
+
+    Asserts.stringContains(
+      message,
+      "both deno.json and package.json",
+      "an ambiguous Deno/Node layout was not rejected: " + message,
+    )
+
+    null
+  }
+}

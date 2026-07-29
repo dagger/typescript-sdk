@@ -1,5 +1,6 @@
-// Command codegen generates a standalone TypeScript client (client.gen.ts plus
-// per-dependency <dep>.gen.ts files) from a pre-computed introspection schema.
+// Command codegen generates a standalone TypeScript client (dagger.gen.ts for
+// the core types, plus one <module>.gen.ts per module in the bound module's
+// closure) from a pre-computed introspection schema.
 //
 // It is intentionally engine-free: the schema and the bound module's metadata
 // are supplied as files, so no nested engine session is opened.
