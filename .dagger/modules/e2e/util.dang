@@ -1,0 +1,190 @@
+"""
+Assertions shared by the e2e checks.
+"""
+type Asserts {
+  """
+  Fail the current check when a condition is false.
+  """
+  let assert(condition: Boolean!, message: String!): Void {
+    if (condition == false) {
+      raise message
+    }
+    null
+  }
+
+  """
+  Return true when a list contains the exact string.
+  """
+  let contains(values: [String!]!, want: String!): Boolean! {
+    values
+      .filter { value => value == want }
+      .length > 0
+  }
+
+  """
+  Assert that a changeset added a path.
+  """
+  let added(changes: Changeset!, path: String!): Void {
+    assert(contains(changes.addedPaths, path), "expected added path: " + path)
+  }
+
+  """
+  Assert that a changeset did not add a path.
+  """
+  let notAdded(changes: Changeset!, path: String!, message: String!): Void {
+    assert(contains(changes.addedPaths, path) == false, message)
+  }
+
+  """
+  Assert that a changeset modified a path.
+  """
+  let modified(changes: Changeset!, path: String!): Void {
+    assert(contains(changes.modifiedPaths, path), "expected modified path: " + path)
+  }
+
+  """
+  Assert that a changeset produced a path — added on a fresh tree, or modified
+  when the output already exists (e.g. from a prior `dagger generate`).
+  """
+  let generated(changes: Changeset!, path: String!): Void {
+    assert(
+      contains(changes.addedPaths, path) or contains(changes.modifiedPaths, path),
+      "expected generated (added or modified) path: " + path,
+    )
+  }
+
+  """
+  Assert that a string contains a substring.
+  """
+  let stringContains(value: String!, want: String!, message: String!): Void {
+    assert(value.contains(want), message)
+  }
+
+  """
+  Assert that a string does not contain a substring.
+  """
+  let stringNotContains(value: String!, want: String!, message: String!): Void {
+    assert(value.contains(want) == false, message)
+  }
+
+  """
+  Assert that a changeset touched exactly one file, the named one (no adds, no
+  removes) — the shape a config edit must have.
+  """
+  let onlyFileChanged(changes: Changeset!, path: String!, message: String!): Void {
+    assert(contains(changes.modifiedPaths, path), message + ": did not modify " + path)
+    assert(changes.modifiedPaths.length == 1, message + ": modified more than one file")
+    assert(changes.addedPaths.length == 0, message + ": should not add files")
+    assert(changes.removedPaths.length == 0, message + ": should not remove files")
+  }
+
+  """
+  Fail unless a result holds exactly the wanted paths, in any order.
+  """
+  let paths(got: [String!]!, want: [String!]!, context: String!): Void {
+    let rendered = context + ": got [" + got.join(", ") + "], want [" + want.join(", ") + "]"
+
+    assert(got.length == want.length, rendered)
+    want.each { path => assert(contains(got, path), rendered) }
+    null
+  }
+}
+
+"""
+Workspace-root-relative paths of the e2e fixture tree.
+
+Checks address fixtures from the workspace root rather than through
+`currentModule.source`, because the SDK functions under test take a Workspace
+and resolve everything against its root.
+"""
+type Fixtures {
+  let root: String! = ".dagger/modules/e2e/fixtures"
+
+  """
+  Where init checks stage their output. Nothing is ever written here — init
+  returns a Changeset that the checks inspect — so these paths only have to be
+  free of real files.
+  """
+  let out: String! = ".dagger/modules/e2e/out"
+
+  # Legacy dagger.json modules used for find-up resolution.
+  let lookupModule: String! = root + "/lookup/app"
+  let lookupNested: String! = lookupModule + "/nested"
+  let nonTsModule: String! = root + "/lookup/not-ts"
+
+  # A module carrying the generate skip marker.
+  let skipModule: String! = root + "/skip/app"
+
+  # The one fixture `dagger generate` really regenerates.
+  let generateModule: String! = root + "/generate/app"
+
+  # A module whose dagger.json declares local dependencies in every supported
+  # spelling (bare string, {name, source}, {source}).
+  let depsModule: String! = root + "/deps/app"
+
+  # A CLI 1.0 managed module: configured by dagger-module.toml, not dagger.json.
+  let managedTomlModule: String! = root + "/managed-toml/app"
+
+  # A dagger-module.toml module and the local dagger-module.toml dependency it
+  # imports; both are workspace-managed, so generate-all covers the closure.
+  let depAppModule: String! = root + "/generate-deps/app"
+  let depLibModule: String! = root + "/generate-deps/dep"
+
+  # Module config in <root>/.dagger/modules/app, implementation source in
+  # <root>/ci — the split layout `dagger setup` migration produces.
+  let parentSourceRoot: String! = root + "/parent-source"
+  let parentSourceModule: String! = parentSourceRoot + "/.dagger/modules/app"
+  let parentSourceCode: String! = parentSourceRoot + "/ci"
+
+  # Directories that already hold user-authored config when init runs.
+  let existingNode: String! = root + "/init-existing/node-app"
+  let existingDeno: String! = root + "/init-existing/deno-app"
+  let existingBun: String! = root + "/init-existing/bun-app"
+
+  # Modules covering each config-read shape: unset, fully configured, Deno, and
+  # no config file at all.
+  let configModule: String! = root + "/config/app"
+  let configuredModule: String! = root + "/config/configured"
+  let configuredDenoModule: String! = root + "/config/configured-deno"
+  let configBareModule: String! = root + "/config/bare"
+
+  # A client binds to client/app (which depends on client/dep) and is generated
+  # into its own directory.
+  let clientModule: String! = root + "/client/app"
+  let clientOutput: String! = root + "/client/out"
+
+  # A client directory that already points @dagger.io/dagger at a local bundle;
+  # regeneration must preserve it.
+  let clientExisting: String! = root + "/client/existing"
+
+  """
+  A snapshot of `ws` holding just the files module discovery reads, re-anchored
+  at `cwd` so a check can stand anywhere in the tree.
+
+  Keeps the workspace config (dagger.toml, whose [modules.<sdk>.as-sdk] list is
+  what discovery resolves the re-anchored workspace against) and every module
+  config, in both filenames. `extra` adds paths a check needs to exist for the
+  cwd itself to be a directory.
+  """
+  let discoverySnapshot(ws: Workspace!, cwd: String!, extra: [String!]! = []): Workspace! {
+    ws
+      .directory("/", include: ["dagger.toml", "**/dagger.json", "**/dagger-module.toml"] + extra)
+      .asWorkspace(cwd: cwd)
+  }
+
+  """
+  Every module this workspace manages under the TypeScript SDK, as recorded in
+  [[modules.typescript-sdk.as-sdk.modules]]. Discovery from the workspace root
+  must return exactly this set.
+  """
+  let managedModules: [String!]! = [
+    generateModule,
+    lookupModule,
+    depsModule,
+    skipModule,
+    managedTomlModule,
+    depAppModule,
+    depLibModule,
+    parentSourceModule,
+  ]
+}

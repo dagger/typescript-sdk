@@ -1,12 +1,18 @@
 """
 TypeScript SDK build configuration stored in a module's package.json
 or deno.json.
+
+Every path resolves against the module's source directory, which is where the
+engine reads these files from — not necessarily the directory holding the
+module's config.
 """
 type ModConfig {
   """
-  Workspace-relative path of the module root.
+  Workspace-root-relative path of the module's source directory — the directory
+  the engine reads these files from, which a `source` field in the module config
+  can move away from the module root.
   """
-  let path: String!
+  let sourcePath: String!
 
   """
   The workspace this module belongs to.
@@ -17,7 +23,7 @@ type ModConfig {
   The Node-standard packageManager field (e.g. "pnpm@8.15.4"), read from
   package.json. Empty when unset, or when the module has no package.json.
   """
-  pub packageManager: String! {
+  packageManager: String! {
     if (runtime == Runtime.DENO) {
       ""
     } else if (hasFile(packageJsonPath)) {
@@ -32,7 +38,7 @@ type ModConfig {
   modules (deno.json present) the value comes from deno.json; otherwise from
   package.json. Empty when no override is set.
   """
-  pub baseImage: String! {
+  baseImage: String! {
     let file = baseImageFile
     if (hasFile(file)) {
       tool(file).withExec(["module-config", "get-base-image", toolPath]).stdout
@@ -54,7 +60,7 @@ type ModConfig {
   Returns a Changeset, so the diff is shown for confirmation before any
   file is written.
   """
-  pub set(packageManager: String! = "", baseImage: String! = ""): Changeset! {
+  set(packageManager: String! = "", baseImage: String! = ""): Changeset! {
     if (packageManager == "" and baseImage == "") {
       raise "config set requires at least one of --package-manager or --base-image"
     } else if (packageManager != "" and runtime != Runtime.NODE) {
@@ -83,7 +89,7 @@ type ModConfig {
   """
   Remove the packageManager field from package.json.
   """
-  pub unsetPackageManager: Changeset! {
+  unsetPackageManager: Changeset! {
     if (runtime == Runtime.DENO) {
       # Deno modules carry no package.json, so there is nothing to unset.
       polyfill.workspace(ws).fork.changes
@@ -96,24 +102,17 @@ type ModConfig {
   Remove the base image override and fall back to the SDK default. Edits
   whichever file currently holds dagger.baseImage.
   """
-  pub unsetBaseImage: Changeset! {
+  unsetBaseImage: Changeset! {
     edit(baseImageFile, ["module-config", "unset-base-image", toolPath])
   }
 
-  let packageJsonPath: String! {
-    if (path == ".") { "package.json" } else { path + "/package.json" }
-  }
+  let packageJsonPath: String! { sourceFile("package.json") }
+  let denoJsonPath: String! { sourceFile("deno.json") }
+  let bunLockPath: String! { sourceFile("bun.lock") }
+  let bunLockbPath: String! { sourceFile("bun.lockb") }
 
-  let denoJsonPath: String! {
-    if (path == ".") { "deno.json" } else { path + "/deno.json" }
-  }
-
-  let bunLockPath: String! {
-    if (path == ".") { "bun.lock" } else { path + "/bun.lock" }
-  }
-
-  let bunLockbPath: String! {
-    if (path == ".") { "bun.lockb" } else { path + "/bun.lockb" }
+  let sourceFile(name: String!): String! {
+    if (sourcePath == ".") { name } else { sourcePath + "/" + name }
   }
 
   """

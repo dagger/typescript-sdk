@@ -80,7 +80,7 @@ func generate(config generator.Config, target string, schema *introspection.Sche
 	//
 	// A standalone client splits *every* module — including the one it binds —
 	// so the bound module (e.g. hello) lands in hello.gen.ts and the core file
-	// (core.gen.ts) holds only core types. Module codegen keeps the module's
+	// (dagger.gen.ts) holds only core types. Module codegen keeps the module's
 	// own types in the core file (client.gen.ts) and splits only dependencies.
 	selfModule := selfModuleName(config)
 	var splitModules []string

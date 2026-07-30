@@ -1,0 +1,64 @@
+"""
+Checks for the SDK-level surface the engine and callers read directly:
+the runtime it targets, the skip marker it honors, and the templates it ships.
+"""
+type SdkChecks {
+  """
+  The SDK should report the builtin runtime it targets. The engine writes this
+  into a new module's `[runtime] source`, so a change here silently repoints
+  every module the SDK creates.
+  """
+  targetRuntimeCheck: Void @check {
+    Asserts.assert(typescriptSdk.targetRuntime == "typescript", "targetRuntime should be typescript")
+
+    null
+  }
+
+  """
+  The helper should expose the generate skip marker used by callers. It is part
+  of the SDK's contract with the repos that drop the file, so renaming it is a
+  breaking change.
+  """
+  skipGenerateFilenameCheck: Void @check {
+    Asserts.assert(
+      typescriptSdk.skipGenerateFilename == ".dagger-typescript-sdk-skip-generate",
+      "skip marker filename changed",
+    )
+
+    null
+  }
+
+  """
+  Every directory under templates/ should be offered to `module init --template`,
+  named after the directory.
+  """
+  templatesCheck: Void @check {
+    let names = typescriptSdk.templates.{{name}}.map { t => t.name }
+
+    Asserts.assert(Asserts.contains(names, "default"), "the default template should be listed")
+    Asserts.assert(Asserts.contains(names, "empty"), "the empty template should be listed")
+
+    null
+  }
+
+  """
+  The Go helpers (codegen, config-updator) must pass their own unit + golden
+  tests. Runs `go test` in a container so `dagger check` covers the codegen
+  logic, not just its end-to-end output.
+  """
+  helperTestsCheck(ws: Workspace!): Void @check {
+    let out = container
+      .from("golang:1.25-alpine")
+      .withoutEntrypoint
+      .withMountedCache("/go/pkg/mod", cacheVolume("go-mod"))
+      .withMountedCache("/root/.cache/go-build", cacheVolume("go-build"))
+      .withDirectory("/helpers", ws.directory("helpers"))
+      .withWorkdir("/helpers/codegen")
+      .withExec(["go", "test", "./..."])
+      .withWorkdir("/helpers/config-updator")
+      .withExec(["go", "test", "./..."])
+      .stdout
+
+    null
+  }
+}

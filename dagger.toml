@@ -31,6 +31,19 @@ path = ".dagger/modules/e2e/fixtures/skip/app"
 [[modules.typescript-sdk.as-sdk.modules]]
 path = ".dagger/modules/e2e/fixtures/managed-toml/app"
 
+# A dependent and its local dependency, both managed, so generate-all has to
+# order the closure itself.
+[[modules.typescript-sdk.as-sdk.modules]]
+path = ".dagger/modules/e2e/fixtures/generate-deps/app"
+
+[[modules.typescript-sdk.as-sdk.modules]]
+path = ".dagger/modules/e2e/fixtures/generate-deps/dep"
+
+# Module config in .dagger/modules/app, implementation source in ci/ — the
+# layout `dagger setup` migration produces.
+[[modules.typescript-sdk.as-sdk.modules]]
+path = ".dagger/modules/e2e/fixtures/parent-source/.dagger/modules/app"
+
 [[modules.typescript-sdk.as-sdk.clients]]
 path = ".dagger/modules/e2e/fixtures/client/out"
 module = ".dagger/modules/e2e/fixtures/client/app"

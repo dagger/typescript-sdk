@@ -3,11 +3,12 @@ A Dagger module that uses the TypeScript SDK.
 """
 type Mod {
   """
-  Workspace-root-relative path of this module root — the module's stable
-  identity, independent of where the client is invoked from. Generate and config
-  operate on this.
+  Workspace-root-relative path of this module root — the directory holding its
+  config, and the module's stable identity, independent of where the client is
+  invoked from. Discovery and generate address the module by this; the files
+  they read and write live under `sourcePath`.
   """
-  pub rootPath: String!
+  rootPath: String!
 
   """
   Workspace containing this module.
@@ -24,7 +25,7 @@ type Mod {
   the module itself, "sub/mod" for a module beneath it, ".." for an enclosing one.
   A cwd-relative view of rootPath, so listings read the way a shell user would.
   """
-  pub path: String! {
+  path: String! {
     let cwd = ws.cwd.trimPrefix("/").trimSuffix("/")
     if (rootPath == cwd) {
       "."
@@ -41,9 +42,23 @@ type Mod {
   }
 
   """
+  Workspace-root-relative path of this module's source directory — where the
+  TypeScript runtime reads package.json / deno.json and the module's code from.
+
+  Usually the module root, but a `source` field in the module config points it
+  elsewhere: workspace migration writes config to .dagger/modules/<name>/ with
+  `source` pointing back at the code (e.g. "../../../ci"), so this is resolved
+  through the engine rather than assumed equal to rootPath.
+  """
+  sourcePath: String! {
+    let subpath = polyfill.workspace(ws).moduleSource("/" + rootPath).core.sourceSubpath
+    if (subpath == "" or subpath == ".") { "." } else { subpath }
+  }
+
+  """
   Whether this module or an ancestor contains the configured generate skip marker.
   """
-  pub skipGenerate(ws: Workspace!): Boolean! {
+  skipGenerate(ws: Workspace!): Boolean! {
     hasMarker(ws, skipGenerateFilename)
   }
 
@@ -51,9 +66,9 @@ type Mod {
   Manage this module's TypeScript SDK build configuration (package.json,
   deno.json).
   """
-  pub config: ModConfig! {
+  config: ModConfig! {
     ModConfig(
-      path: rootPath,
+      sourcePath: sourcePath,
       ws: ws,
     )
   }
@@ -67,10 +82,13 @@ type Mod {
   }
 
   """
-  Generate this module.
-  If the generate skip marker is present, the changeset is empty.
+  Generate this module's SDK bindings, into its source directory.
+
+  Its local dependency closure is staged first so codegen sees up-to-date
+  bindings for every module it imports. If the generate skip marker is present,
+  the changeset is empty.
   """
-  pub generate(ws: Workspace!): Changeset! {
+  generate(ws: Workspace!): Changeset! {
     if (skipGenerate(ws)) {
       polyfill.workspace(ws).fork.changes
     } else {

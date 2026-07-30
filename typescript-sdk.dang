@@ -16,12 +16,12 @@ type TypescriptSdk {
   """
   Marker filename that skips generate when found at or above a TypeScript SDK module root.
   """
-  pub skipGenerateFilename: String! = ".dagger-typescript-sdk-skip-generate"
+  skipGenerateFilename: String! = ".dagger-typescript-sdk-skip-generate"
 
   """
   Runtime source to write into modules created by this SDK.
   """
-  pub targetRuntime: String! {
+  targetRuntime: String! {
     "typescript"
   }
 
@@ -31,6 +31,11 @@ type TypescriptSdk {
   A managed module is discovered by whichever it uses.
   """
   let moduleConfigFilenames: [String!]! = ["dagger-module.toml", "dagger.json"]
+
+  """
+  Starter used by init when none is named.
+  """
+  let defaultTemplate: String! = "default"
 
   """
   Return every TypeScript SDK module this workspace manages that is visible from
@@ -45,16 +50,37 @@ type TypescriptSdk {
   Discovery is the polyfill's cwd-aware findConfigDirs (dagger/dagger#13688);
   this maps its cwd-relative results to workspace-root-relative paths and keeps
   the ones this SDK manages.
+
+  A module is found through the directory holding its config, so one whose
+  `source` field points elsewhere is discovered at its config path and not from
+  inside its own source tree. Address those by path (see `mod`).
   """
-  pub modules(ws: Workspace!): [Mod!]! {
+  modules(ws: Workspace!): [Mod!]! {
     let managed = currentModule.asSDK(workspace: ws).modules.{{path}}
-    let cwd = ws.cwd.trimPrefix("/").trimSuffix("/")
+    let cwd = clientCwd(ws)
     polyfill.workspace(ws)
       .findConfigDirs(moduleConfigFilenames, exclude: ["**/node_modules/**"])
       .map { dir => moduleRelPath(cwd, dir) }
       .uniq
       .filter { path => managed.filter { m => m.path == path }.length > 0 }
       .map { path => Mod(rootPath: path, ws: ws, skipGenerateFilename: skipGenerateFilename) }
+  }
+
+  """
+  The client's current location as a workspace-root-relative path, "." at the
+  root. The anchor every cwd-scoped operation measures against.
+  """
+  let clientCwd(ws: Workspace!): String! {
+    let cwd = ws.cwd.trimPrefix("/").trimSuffix("/")
+    if (cwd == "") { "." } else { cwd }
+  }
+
+  """
+  Whether a workspace-root-relative path is in scope from `cwd`: at or below it,
+  or an ancestor of it — the same cone findConfigDirs walks for modules.
+  """
+  let inCwdScope(cwd: String!, path: String!): Boolean! {
+    cwd == "." or path == cwd or path.hasPrefix(cwd + "/") or cwd.hasPrefix(path + "/")
   }
 
   """
@@ -80,9 +106,21 @@ type TypescriptSdk {
   """
   Return the TypeScript SDK module at or above a workspace path.
 
-  When `findUp` is true, `path` may point inside the module.
+  Resolution is rejected when the module it lands on is owned by another SDK, so
+  a wrong `path` fails loudly instead of running TypeScript codegen over someone
+  else's module.
   """
-  pub mod(ws: Workspace!, path: String! = ".", findUp: Boolean! = true): Mod! {
+  mod(
+    ws: Workspace!,
+    """
+    Workspace-relative path to resolve: any path inside the module with findUp, the module root itself without it.
+    """
+    path: String! = ".",
+    """
+    Walk up from `path` to the nearest enclosing module config. Turn off to address a module root directly.
+    """
+    findUp: Boolean! = true,
+  ): Mod! {
     let modPath = if (findUp) {
       # Nearest enclosing module config, regardless of filename order: the deepest
       # hit wins, so a closer dagger.json is not shadowed by an ancestor
@@ -152,21 +190,39 @@ type TypescriptSdk {
   """
   Initialize TypeScript-owned files for a new Dagger module.
 
-  The engine resolves the destination `path` and owns the module's
-  `dagger.json`; this function only returns the SDK-owned files to layer onto
-  `path` (the rendered template plus runtime-specific config).
-
-  Pass `template` to pick a starter under templates/<template>; it defaults to
-  `default` (a small working module). Use `empty` for a bare `@object` class.
-
-  Pass `packageManager` or `baseImage` to customize the generated config.
-  Defaults leave the template unconfigured: no `packageManager` field is
-  written, and no base image override is set. `packageManager` is only
-  supported with `runtime = NODE`; Bun and Deno bundle their own.
-  `packageManager` accepts the Node-standard `name@version` syntax (e.g.
-  `pnpm@8.15.4`), or just the name if you want the engine's default version.
+  The engine resolves the destination `path` and owns the module's config; this
+  function only returns the SDK-owned files to layer onto `path` — the rendered
+  template plus runtime-specific config. Files already at `path` are merged
+  into, not overwritten, so an existing package.json / tsconfig.json / deno.json
+  keeps its scripts, path aliases, and unstable flags.
   """
-  pub initModule(ws: Workspace!, name: String!, path: String!, template: String! = "default", runtime: Runtime! = Runtime.NODE, packageManager: String! = "", baseImage: String! = ""): Changeset! {
+  initModule(
+    ws: Workspace!,
+    """
+    Module name. Rendered into the template as the module's class name.
+    """
+    name: String!,
+    """
+    Workspace-relative directory to create the module in.
+    """
+    path: String!,
+    """
+    Starter to materialize from templates/<template>: `default` for a small working module, `empty` for a bare @object class.
+    """
+    template: String! = defaultTemplate,
+    """
+    TypeScript runtime the module runs on. The engine picks it back up from the config files this writes.
+    """
+    runtime: Runtime! = Runtime.NODE,
+    """
+    packageManager pin for package.json, as `name@version` or just `name`. Empty writes no field. NODE only; Bun and Deno bundle their own.
+    """
+    packageManager: String! = "",
+    """
+    Base container image the module builds on. Empty keeps the SDK default. Written to deno.json for DENO, package.json otherwise.
+    """
+    baseImage: String! = "",
+  ): Changeset! {
     let rawPath = path.trimPrefix("./").trimPrefix("/")
     let modPath = if (rawPath == "" or rawPath == ".") {
       "."
@@ -178,8 +234,13 @@ type TypescriptSdk {
 
     let fork = polyfill.workspace(ws).fork
 
-    if (currentModule.source.exists("templates/" + template) == false) {
-      raise "unknown init template: " + template
+    # An empty name means "the default", not the templates/ directory itself —
+    # which exists, so it would pass the check below and render every starter as
+    # a subdirectory of the new module.
+    let starter = if (template == "") { defaultTemplate } else { template }
+
+    if (currentModule.source.exists("templates/" + starter) == false) {
+      raise "unknown init template: " + starter
     } else if (packageManager != "" and runtime != Runtime.NODE) {
       raise "packageManager is only supported with --runtime NODE; Bun and Deno bundle their own"
     } else {
@@ -191,7 +252,7 @@ type TypescriptSdk {
         includePrefix + "bun.lock",
       ])
 
-      let renderedSource = renderedTemplate(name, template, runtime, existing, modPath)
+      let renderedSource = renderedTemplate(name, starter, runtime, existing, modPath)
       let templateSource = configuredTemplate(renderedSource, runtime, packageManager, baseImage)
       fork.withDirectory(modPath, templateSource).changes
     }
@@ -201,12 +262,25 @@ type TypescriptSdk {
   Register a typed TypeScript client for `module` at `path`.
 
   The engine resolves `module`, records the client (generator + directory) in
-  workspace config and the target `dagger.json`, and generates the client
-  files itself. The SDK contributes no files of its own, so this returns an
-  empty Changeset. `dev` selects the local development client instead of a
-  pinned release.
+  workspace config, and then calls generateClient to materialize the files. The
+  SDK contributes nothing to the registration itself, so this returns an empty
+  Changeset.
   """
-  pub initClient(ws: Workspace!, path: String!, module: String!, dev: Boolean! = false): Changeset! {
+  initClient(
+    ws: Workspace!,
+    """
+    Workspace-relative directory to generate the client package into.
+    """
+    path: String!,
+    """
+    Module the client binds to: a workspace-relative path or a canonical module ref. A client serves exactly one module.
+    """
+    module: String!,
+    """
+    Bind the local development client instead of a pinned release.
+    """
+    dev: Boolean! = false,
+  ): Changeset! {
     polyfill.workspace(ws).fork.changes
   }
 
@@ -214,9 +288,9 @@ type TypescriptSdk {
   Return init templates tracked by this module.
 
   Templates live under templates/<name> and are materialized into the new
-  module. Passing an empty template to init uses the module default.
+  module. Init picks one by name, or the module default when none is named.
   """
-  pub templates: [Template!]! {
+  templates: [Template!]! {
     if (currentModule.source.exists("templates")) {
       let root = currentModule.source.directory("templates")
       root.entries.map { name =>
@@ -346,7 +420,7 @@ type TypescriptSdk {
   """
   Container with the standalone TypeScript client generator compiled and on
   PATH at /usr/local/bin/codegen. Engine-free: it turns an introspection schema
-  + client meta JSON into client.gen.ts (and per-dependency <dep>.gen.ts files).
+  + client meta JSON into dagger.gen.ts and one <module>.gen.ts per module.
   """
   let codegenBuilder: Container! {
     container
@@ -478,11 +552,24 @@ type TypescriptSdk {
   """
   Generate a typed client for `module` and stage it at workspace-relative `path`.
 
-  The workspace analogue of `mod(ws, path).generate(ws)`: it resolves the bound
-  module in the workspace, generates the client from its client-facing schema,
-  and returns the staged changes.
+  The client analogue of `mod(ws, path).generate(ws)`: it resolves the bound
+  module in the workspace, generates a self-contained scoped npm package from
+  its client-facing schema — dagger.gen.ts for the core types, one
+  <module>.gen.ts per module in the closure, package.json and tsconfig.json —
+  and returns the staged changes. Config files already at `path` are merged
+  into, so a @dagger.io/dagger the user pointed at a local bundle survives.
   """
-  pub generateClient(ws: Workspace!, module: String!, path: String!): Changeset! {
+  generateClient(
+    ws: Workspace!,
+    """
+    Module the client binds to: a workspace-relative path or a canonical module ref.
+    """
+    module: String!,
+    """
+    Workspace-relative directory to generate the client package into.
+    """
+    path: String!,
+  ): Changeset! {
     let pws = polyfill.workspace(ws)
     let modSrc = pws.moduleSource(module).core
     pws.fork.withDirectory(path, clientDirectory(
@@ -506,36 +593,54 @@ type TypescriptSdk {
 
   Modules with the generate skip marker are skipped.
   """
-  pub generateAllModule(ws: Workspace!): Changeset! @generate {
+  generateAllModule(ws: Workspace!): Changeset! @generate {
     let pws = polyfill.workspace(ws)
 
-    modules(ws)
+    let changes = modules(ws)
       .filter { mod => mod.skipGenerate(ws) == false }
-      .reduce(pws.fork) { fork, mod =>
+      .map { mod =>
         # Stage this module's local dependency closure first (leaf-first, possibly
         # across SDKs) so its codegen sees up-to-date dependency bindings. The dep
-        # codegen is ephemeral: it appears in both the fork's before and after, so
-        # it cancels in the merge, leaving only each module's own changes.
+        # codegen is ephemeral: taking the changeset against the staged workspace
+        # cancels it out, leaving only each module's own changes.
         let stagedWs = ws.withChanges(pws.moduleSource("/" + mod.rootPath).core.generateLocalDependencies(ws))
-        fork.merge(polyfill.workspace(stagedWs).moduleSource("/" + mod.rootPath).generate)
+        polyfill.workspace(stagedWs).moduleSource("/" + mod.rootPath).generate.changes
       }
-      .changes
+
+    # Force the per-module codegen to evaluate concurrently: selecting a field on
+    # the whole list resolves every element in one pass, where folding them into
+    # one changeset would walk them one at a time.
+    changes.{{isEmpty}}
+
+    # Fold onto pws.fork.changes (empty), never ws.changes: under the engine's
+    # nested ModuleSource.generateLocalDependencies the incoming ws already has a
+    # dependency closure staged, and re-including it would be re-rooted under the
+    # dependent and octopus-merged against the same files it just generated.
+    pws.fork.changes.withChangesets(changes)
   }
 
   """
-  Regenerate every client this SDK manages in the workspace.
+  Regenerate every client this SDK manages that is visible from the client's
+  current location.
 
   Iterates the workspace-registered clients (currentModule.asSDK.clients),
   resolves each bound module through the engine field
   CurrentModuleAsSDKClient.moduleSource (honoring pin/remote refs), generates
   the client from that module's ModuleSource.clientSchemaIntrospectionJSON, and
   stages the files at the client path.
+
+  Scoped by cwd like generateAllModule: a returned changeset may only carry
+  paths under the caller's location, so regenerating from a subdirectory — or
+  nested under the engine's per-dependency generation, where the cwd is the
+  dependency — skips clients that live elsewhere in the workspace.
   """
-  pub generateAllClient(ws: Workspace!): Changeset! @generate {
+  generateAllClient(ws: Workspace!): Changeset! @generate {
     let pws = polyfill.workspace(ws)
+    let cwd = clientCwd(ws)
 
     currentModule.asSDK(ws).clients
       .{{path, module, moduleSource.{{ clientSchemaIntrospectionJSON.{{ contents }}, moduleOriginalName, engineVersion, kind, pin, asString }} }}
+      .filter { client => inCwdScope(cwd, client.path) }
       .reduce(pws.fork) { fork, client =>
         let m = client.moduleSource
         fork.withDirectory(client.path, clientDirectory(

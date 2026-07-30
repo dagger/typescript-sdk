@@ -1,0 +1,105 @@
+"""
+Checks for `typescriptSdk.mod` — resolving the module that owns a workspace path.
+
+Resolution walks up for either module config filename, then validates that the
+config it landed on declares the TypeScript runtime.
+"""
+type LookupChecks {
+  let fixtures: Fixtures! = Fixtures
+
+  """
+  Return the error raised while resolving a module, or its resolved path when
+  the lookup unexpectedly succeeds — so a check can assert on the message
+  without the raise aborting it.
+  """
+  let lookupFailure(ws: Workspace!, path: String!): String! {
+    typescriptSdk.mod(ws, path: path).rootPath rescue {
+      err: Error => err.message
+    }
+  }
+
+  """
+  Mod lookup should find the owning TypeScript SDK module when called from a
+  nested path, whether the module is configured by dagger.json or the CLI 1.0
+  dagger-module.toml.
+  """
+  moduleLookupCheck(ws: Workspace!): Void @check {
+    # Legacy dagger.json module.
+    let nested = typescriptSdk.mod(ws, path: fixtures.lookupNested)
+    let exact = typescriptSdk.mod(ws, path: fixtures.lookupModule, findUp: false)
+
+    Asserts.assert(nested.rootPath == fixtures.lookupModule, "find-up lookup returned the wrong module path")
+    Asserts.assert(exact.rootPath == fixtures.lookupModule, "exact lookup returned the wrong module path")
+
+    # CLI 1.0 dagger-module.toml module: resolved by walking up to its
+    # dagger-module.toml and validated against its [runtime] source.
+    let tomlNested = typescriptSdk.mod(ws, path: fixtures.managedTomlModule + "/src")
+    let tomlExact = typescriptSdk.mod(ws, path: fixtures.managedTomlModule, findUp: false)
+
+    Asserts.assert(
+      tomlNested.rootPath == fixtures.managedTomlModule,
+      "find-up lookup should resolve a dagger-module.toml module",
+    )
+    Asserts.assert(
+      tomlExact.rootPath == fixtures.managedTomlModule,
+      "exact lookup should resolve a dagger-module.toml module",
+    )
+
+    null
+  }
+
+  """
+  Mod lookup should select the nearest enclosing module config even when the
+  nearer module and its parent use different config filenames — a closer
+  dagger.json must not be shadowed by an ancestor dagger-module.toml.
+  """
+  mixedConfigLookupCheck: Void @check {
+    let ws = directory
+      .withNewFile("parent/dagger-module.toml", "[runtime]\nsource = \"typescript\"\n")
+      .withNewFile("parent/child/dagger.json", "{\"sdk\":{\"source\":\"typescript\"}}")
+      .withNewFile("parent/child/nested/.keep", "")
+      .asWorkspace
+
+    let nested = typescriptSdk.mod(ws, path: "parent/child/nested")
+
+    Asserts.assert(
+      nested.rootPath == "parent/child",
+      "find-up lookup should prefer the nearer dagger.json over an ancestor dagger-module.toml",
+    )
+
+    null
+  }
+
+  """
+  A module owned by another SDK must be rejected rather than silently treated as
+  TypeScript — otherwise generate would run the wrong codegen over it.
+  """
+  nonTypescriptLookupCheck(ws: Workspace!): Void @check {
+    let message = lookupFailure(ws, fixtures.nonTsModule)
+
+    Asserts.stringContains(
+      message,
+      "does not use the TypeScript SDK",
+      "a module using another SDK was not rejected: " + message,
+    )
+
+    null
+  }
+
+  """
+  A path with no module above it should fail with a message naming the path,
+  rather than resolving to some far-away ancestor module.
+  """
+  missingModuleLookupCheck: Void @check {
+    let ws = directory.withNewFile("some/where/.keep", "").asWorkspace
+    let message = lookupFailure(ws, "some/where")
+
+    Asserts.stringContains(
+      message,
+      "no Dagger module found containing path",
+      "a path outside every module was not rejected: " + message,
+    )
+
+    null
+  }
+}
