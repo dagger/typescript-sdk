@@ -13,9 +13,10 @@ type GenerateChecks {
   module without touching unrelated paths.
   """
   generateCheck(ws: Workspace!): Void @check {
-    let changes = typescriptSdk.mod(ws, path: fixtures.generateModule).generate(ws)
+    let tws = fixtures.workspace(ws)
+    let changes = typescriptSdk.mod(tws, path: "/" + fixtures.generateModule).generate(tws)
 
-    Asserts.generated(changes, fixtures.generateModule + "/sdk/index.ts")
+    Asserts.generated(changes, fixtures.changesetPath(fixtures.generateModule) + "/sdk/index.ts")
 
     null
   }
@@ -30,16 +31,17 @@ type GenerateChecks {
   failed with "dir module source does not contain a dagger config file".
   """
   generateDependencyCheck(ws: Workspace!): Void @check {
-    let changes = typescriptSdk.mod(ws, path: fixtures.depAppModule).generate(ws)
+    let tws = fixtures.workspace(ws)
+    let changes = typescriptSdk.mod(tws, path: "/" + fixtures.depAppModule).generate(tws)
 
-    Asserts.generated(changes, fixtures.depAppModule + "/sdk/index.ts")
-    Asserts.generated(changes, fixtures.depAppModule + "/sdk/gendep.gen.ts")
+    Asserts.generated(changes, fixtures.changesetPath(fixtures.depAppModule) + "/sdk/index.ts")
+    Asserts.generated(changes, fixtures.changesetPath(fixtures.depAppModule) + "/sdk/gendep.gen.ts")
 
     # Generating the dependent stages its dependency's codegen only to feed its
     # own; that staging is ephemeral and must not leak into the changeset.
     Asserts.notAdded(
       changes,
-      fixtures.depLibModule + "/sdk/index.ts",
+      fixtures.changesetPath(fixtures.depLibModule) + "/sdk/index.ts",
       "generating a dependent should not also stage its dependency's own files",
     )
 
@@ -56,45 +58,45 @@ type GenerateChecks {
   than conflict over the files the closure staging touched.
   """
   generateAllCheck(ws: Workspace!): Void @check {
-    let changes = typescriptSdk.generateAllModule(ws)
+    let changes = typescriptSdk.generateAllModule(fixtures.workspace(ws))
 
-    Asserts.generated(changes, fixtures.generateModule + "/sdk/index.ts")
+    Asserts.generated(changes, fixtures.changesetPath(fixtures.generateModule) + "/sdk/index.ts")
 
     # Both ends of the dependency edge, plus the dependency's bindings inside
     # the dependent.
-    Asserts.generated(changes, fixtures.depAppModule + "/sdk/index.ts")
-    Asserts.generated(changes, fixtures.depAppModule + "/sdk/gendep.gen.ts")
-    Asserts.generated(changes, fixtures.depLibModule + "/sdk/index.ts")
+    Asserts.generated(changes, fixtures.changesetPath(fixtures.depAppModule) + "/sdk/index.ts")
+    Asserts.generated(changes, fixtures.changesetPath(fixtures.depAppModule) + "/sdk/gendep.gen.ts")
+    Asserts.generated(changes, fixtures.changesetPath(fixtures.depLibModule) + "/sdk/index.ts")
 
     # Skip-marked and unmanaged modules stay untouched.
     Asserts.notAdded(
       changes,
-      fixtures.lookupModule + "/sdk/index.ts",
+      fixtures.changesetPath(fixtures.lookupModule) + "/sdk/index.ts",
       "generate-all generated a lookup fixture that should be skipped",
     )
     Asserts.notAdded(
       changes,
-      fixtures.depsModule + "/sdk/index.ts",
+      fixtures.changesetPath(fixtures.depsModule) + "/sdk/index.ts",
       "generate-all generated dependency fixtures that should be skipped",
     )
     Asserts.notAdded(
       changes,
-      fixtures.skipModule + "/sdk/index.ts",
+      fixtures.changesetPath(fixtures.skipModule) + "/sdk/index.ts",
       "generate-all generated a skipped module",
     )
     Asserts.notAdded(
       changes,
-      fixtures.managedTomlModule + "/sdk/index.ts",
+      fixtures.changesetPath(fixtures.managedTomlModule) + "/sdk/index.ts",
       "generate-all generated a skipped dagger-module.toml module",
     )
     Asserts.notAdded(
       changes,
-      fixtures.parentSourceCode + "/sdk/index.ts",
+      fixtures.changesetPath(fixtures.parentSourceCode) + "/sdk/index.ts",
       "generate-all generated a skipped relocated-source module",
     )
     Asserts.notAdded(
       changes,
-      fixtures.nonTsModule + "/sdk/index.ts",
+      fixtures.changesetPath(fixtures.nonTsModule) + "/sdk/index.ts",
       "generate-all generated a non-TypeScript SDK module",
     )
 
@@ -133,10 +135,11 @@ type GenerateChecks {
   A skip marker above a module should make generate return an empty changeset.
   """
   skipGenerateCheck(ws: Workspace!): Void @check {
-    let mod = typescriptSdk.mod(ws, path: fixtures.skipModule)
-    let changes = mod.generate(ws)
+    let tws = fixtures.workspace(ws)
+    let mod = typescriptSdk.mod(tws, path: "/" + fixtures.skipModule)
+    let changes = mod.generate(tws)
 
-    Asserts.assert(mod.skipGenerate(ws), "skip marker was not detected")
+    Asserts.assert(mod.skipGenerate(tws), "skip marker was not detected")
     Asserts.assert(changes.isEmpty, "generate returned changes for a skipped module")
 
     null

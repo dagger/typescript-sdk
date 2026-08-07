@@ -37,11 +37,12 @@ type DiscoveryChecks {
   nothing that isn't managed by this SDK (e.g. a sibling module using another
   SDK).
 
-  Runs against the real workspace, so it also catches a dagger.toml
-  [[...as-sdk.modules]] entry that no longer matches the fixture tree.
+  Runs against the whole fixture workspace rather than a discovery snapshot, so
+  it also catches a fixtures dagger.toml [[...as-sdk.modules]] entry that no
+  longer matches the fixture tree.
   """
   modulesCheck(ws: Workspace!): Void @check {
-    let roots = typescriptSdk.modules(ws).{{rootPath}}.map { mod => mod.rootPath }
+    let roots = typescriptSdk.modules(fixtures.workspace(ws)).{{rootPath}}.map { mod => mod.rootPath }
 
     fixtures.managedModules.each { want =>
       Asserts.assert(Asserts.contains(roots, want), "managed module should be listed: " + want)
@@ -84,9 +85,11 @@ type DiscoveryChecks {
       "cwd=lookup/app/nested (cwd-relative)",
     )
 
-    # Root cwd: the whole workspace is in scope, so exactly the managed modules
-    # are discovered, whether marked by dagger.json or dagger-module.toml.
-    Asserts.paths(discovered(ws, "/"), fixtures.managedModules, "cwd=/")
+    # Fixture root: every fixture is in scope, so exactly the managed modules are
+    # discovered, whether marked by dagger.json or dagger-module.toml. This is
+    # the widest cwd they can be seen from — the dagger.toml declaring them lives
+    # here.
+    Asserts.paths(discovered(ws, fixtures.root), fixtures.managedModules, "cwd=fixtures")
 
     null
   }
