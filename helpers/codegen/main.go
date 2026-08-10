@@ -1,6 +1,12 @@
-// Command codegen generates a standalone TypeScript client (dagger.gen.ts for
-// the core types, plus one <module>.gen.ts per module in the bound module's
-// closure) from a pre-computed introspection schema.
+// Command codegen generates TypeScript bindings from a pre-computed
+// introspection schema:
+//
+//	codegen module — a module's own embedded bindings (client.gen.ts plus one
+//	                 <dep>.gen.ts per dependency), importing the bundled library
+//	                 from ./core.js.
+//	codegen client — a standalone client (dagger.gen.ts for the core types, plus
+//	                 one <module>.gen.ts per module in the bound module's
+//	                 closure), importing @dagger.io/dagger.
 //
 // It is intentionally engine-free: the schema and the bound module's metadata
 // are supplied as files, so no nested engine session is opened.
@@ -19,7 +25,7 @@ import (
 )
 
 func main() {
-	if err := run(); err != nil {
+	if err := run(os.Args[1:]); err != nil {
 		fmt.Fprintln(os.Stderr, "codegen:", err)
 		os.Exit(1)
 	}
@@ -48,28 +54,73 @@ func validateBoundModuleKind(m generator.BoundModule) error {
 	}
 }
 
-func run() error {
+func run(args []string) error {
+	if len(args) == 0 {
+		return fmt.Errorf("usage: codegen <module|client> [flags]")
+	}
+
+	switch args[0] {
+	case "module":
+		return runModule(args[1:])
+	case "client":
+		return runClient(args[1:])
+	default:
+		return fmt.Errorf("unknown command %q (want module or client)", args[0])
+	}
+}
+
+func runModule(args []string) error {
+	fs := flag.NewFlagSet("module", flag.ExitOnError)
 	var (
-		introspectionPath = flag.String("introspection-json-path", "", "path to the introspection schema JSON")
-		clientMetaPath    = flag.String("client-meta-path", "", "path to the client meta JSON (name, engineVersion, dependencies)")
-		outputDir         = flag.String("output", ".", "output directory for the generated client")
+		introspectionPath = fs.String("introspection-json-path", "", "path to the introspection schema JSON")
+		moduleName        = fs.String("module-name", "", "name of the module to generate bindings for")
+		outputDir         = fs.String("output", ".", "output directory for the generated bindings")
 	)
-	flag.Parse()
-
-	if *introspectionPath == "" {
-		return fmt.Errorf("--introspection-json-path is required")
+	if err := fs.Parse(args); err != nil {
+		return err
+	}
+	if *moduleName == "" {
+		return fmt.Errorf("--module-name is required")
 	}
 
-	introspectionJSON, err := os.ReadFile(*introspectionPath)
+	schema, schemaVersion, err := loadSchema(*introspectionPath)
 	if err != nil {
-		return fmt.Errorf("read introspection json: %w", err)
+		return err
 	}
-	var resp introspection.Response
-	if err := json.Unmarshal(introspectionJSON, &resp); err != nil {
-		return fmt.Errorf("unmarshal introspection json: %w", err)
+
+	cfg := generator.Config{
+		OutputDir:    *outputDir,
+		ModuleConfig: &generator.ModuleGeneratorConfig{ModuleName: *moduleName},
 	}
-	if resp.Schema == nil {
-		return fmt.Errorf("introspection json has no __schema")
+	gen := &typescriptgenerator.TypeScriptGenerator{Config: cfg}
+
+	ctx := context.Background()
+	state, err := gen.GenerateModule(ctx, schema, schemaVersion)
+	if err != nil {
+		return fmt.Errorf("generate module: %w", err)
+	}
+
+	if err := generator.Overlay(ctx, state.Overlay, cfg.OutputDir); err != nil {
+		return fmt.Errorf("write generated module bindings: %w", err)
+	}
+
+	return nil
+}
+
+func runClient(args []string) error {
+	fs := flag.NewFlagSet("client", flag.ExitOnError)
+	var (
+		introspectionPath = fs.String("introspection-json-path", "", "path to the introspection schema JSON")
+		clientMetaPath    = fs.String("client-meta-path", "", "path to the client meta JSON (name, engineVersion, bound module)")
+		outputDir         = fs.String("output", ".", "output directory for the generated client")
+	)
+	if err := fs.Parse(args); err != nil {
+		return err
+	}
+
+	schema, schemaVersion, err := loadSchema(*introspectionPath)
+	if err != nil {
+		return err
 	}
 
 	clientConfig := &generator.ClientGeneratorConfig{}
@@ -92,17 +143,13 @@ func run() error {
 	}
 
 	cfg := generator.Config{
-		Lang:         generator.SDKLangTypeScript,
 		OutputDir:    *outputDir,
 		ClientConfig: clientConfig,
 	}
-
-	generator.SetSchemaParents(resp.Schema)
-
 	gen := &typescriptgenerator.TypeScriptGenerator{Config: cfg}
 
 	ctx := context.Background()
-	state, err := gen.GenerateClient(ctx, resp.Schema, resp.SchemaVersion)
+	state, err := gen.GenerateClient(ctx, schema, schemaVersion)
 	if err != nil {
 		return fmt.Errorf("generate client: %w", err)
 	}
@@ -112,4 +159,29 @@ func run() error {
 	}
 
 	return nil
+}
+
+// loadSchema reads the introspection JSON and prepares it for rendering: the
+// templates walk from a field back to its parent type, a link the JSON does not
+// carry.
+func loadSchema(path string) (*introspection.Schema, string, error) {
+	if path == "" {
+		return nil, "", fmt.Errorf("--introspection-json-path is required")
+	}
+
+	introspectionJSON, err := os.ReadFile(path)
+	if err != nil {
+		return nil, "", fmt.Errorf("read introspection json: %w", err)
+	}
+	var resp introspection.Response
+	if err := json.Unmarshal(introspectionJSON, &resp); err != nil {
+		return nil, "", fmt.Errorf("unmarshal introspection json: %w", err)
+	}
+	if resp.Schema == nil {
+		return nil, "", fmt.Errorf("introspection json has no __schema")
+	}
+
+	generator.SetSchemaParents(resp.Schema)
+
+	return resp.Schema, resp.SchemaVersion, nil
 }

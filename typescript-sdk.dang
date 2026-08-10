@@ -418,9 +418,10 @@ type TypescriptSdk {
   }
 
   """
-  Container with the standalone TypeScript client generator compiled and on
-  PATH at /usr/local/bin/codegen. Engine-free: it turns an introspection schema
-  + client meta JSON into dagger.gen.ts and one <module>.gen.ts per module.
+  Container with the TypeScript bindings generator compiled and on PATH at
+  /usr/local/bin/codegen. Engine-free: it turns an introspection schema into
+  generated bindings, either for a module (`codegen module`) or for a
+  standalone client bound to one (`codegen client`).
   """
   let codegenBuilder: Container! {
     container
@@ -468,7 +469,7 @@ type TypescriptSdk {
       .withNewFile("/schema.json", schemaJSON)
       .withNewFile("/meta.json", metaJson)
       .withExec([
-        "codegen",
+        "codegen", "client",
         "--introspection-json-path", "/schema.json",
         "--client-meta-path", "/meta.json",
         "--output", "/out",

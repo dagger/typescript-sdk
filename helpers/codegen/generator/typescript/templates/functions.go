@@ -2,6 +2,7 @@ package templates
 
 import (
 	"cmp"
+	"fmt"
 	"path/filepath"
 	"regexp"
 	"slices"
@@ -619,24 +620,20 @@ func (funcs typescriptTemplateFuncs) toSingleType(value string) string {
 	return value[:len(value)-2]
 }
 
+// moduleRelPath rewrites a source-map filelink — which is relative to its
+// module's root — to be relative to the generated file that mentions it, so the
+// trailing `// <module> (<file>)` comment stays clickable. Module bindings live
+// one level down in sdk/; a standalone client's live at its own root.
 func (funcs typescriptTemplateFuncs) moduleRelPath(path string) string {
 	if strings.HasPrefix(path, "http://") || strings.HasPrefix(path, "https://") {
 		return path
 	}
 
-	moduleParentPath := ""
-	if funcs.cfg.ModuleConfig != nil {
-		moduleParentPath = funcs.cfg.ModuleConfig.ModuleParentPath
+	if funcs.cfg.ModuleConfig == nil {
+		return path
 	}
 
-	return filepath.Join(
-		// Path to the root of this module (since we're at the codegen root sdk/src/api/).
-		"../../../",
-		// Path to the module's context directory.
-		moduleParentPath,
-		// Path from the context directory to the target path.
-		path,
-	)
+	return filepath.Join("..", path)
 }
 
 func (funcs typescriptTemplateFuncs) formatProtected(s string) string {
@@ -704,8 +701,13 @@ func (funcs typescriptTemplateFuncs) boundModule() generator.BoundModule {
 	return m
 }
 
+// isBundle reports whether the bindings sit next to the bundled SDK library and
+// must import it from ./core.js. That is exactly module codegen: the generated
+// files land in the module's sdk/ directory alongside core.js. A standalone
+// client imports "@dagger.io/dagger" instead, and the library's own bindings
+// import the runtime they ship with.
 func (funcs typescriptTemplateFuncs) isBundle() bool {
-	return funcs.cfg.Bundle
+	return funcs.cfg.ModuleConfig != nil
 }
 
 // DependencyExport describes, for a single dependency, the per-dep generated
@@ -921,14 +923,18 @@ func (funcs typescriptTemplateFuncs) addLegacyIDRefs(depTypes []*introspection.T
 // classes, enum converters) are value-imported via coreValueNames instead — a
 // type-only import used as a value is a hard tsc error (TS1361) and, since type
 // imports are erased under ESM, a runtime ReferenceError.
-func (funcs typescriptTemplateFuncs) coreTypeNames(depTypes []*introspection.Type) []string {
+func (funcs typescriptTemplateFuncs) coreTypeNames(depTypes []*introspection.Type) ([]string, error) {
 	if funcs.fullSchema == nil {
-		return nil
+		return nil, nil
 	}
 
 	depSet := funcs.dependencyNameSet()
 	referenced := funcs.collectReferencedNames(depTypes)
 	funcs.addLegacyIDRefs(depTypes, referenced)
+
+	if err := funcs.checkNoSiblingDepTypes(depTypes, referenced, depSet); err != nil {
+		return nil, err
+	}
 
 	seen := map[string]struct{}{}
 	var names []string
@@ -961,7 +967,61 @@ func (funcs typescriptTemplateFuncs) coreTypeNames(depTypes []*introspection.Typ
 	}
 
 	sort.Strings(names)
-	return names
+	return names, nil
+}
+
+// typeOwner returns the module a type is contributed by, "" for core types.
+func typeOwner(t *introspection.Type) string {
+	if sm := t.Directives.SourceMap(); sm != nil {
+		return sm.Module
+	}
+	return ""
+}
+
+// checkNoSiblingDepTypes fails generation when a dependency's API surfaces a
+// type owned by a *different* dependency.
+//
+// A per-dep file imports core names from client.gen.ts and declares its own; it
+// has no arm for a sibling's, so such a type would be referenced without ever
+// being imported and the module would not compile. The engine does not let a
+// module's API expose a type it does not own or get from core, so this should
+// be unreachable — which is exactly why it is worth asserting rather than
+// leaving as an assumption that emits a broken file the day it stops holding.
+func (funcs typescriptTemplateFuncs) checkNoSiblingDepTypes(
+	depTypes []*introspection.Type,
+	referenced map[string]struct{},
+	depSet map[string]struct{},
+) error {
+	owner := ""
+	for _, t := range depTypes {
+		if o := typeOwner(t); o != "" {
+			owner = o
+			break
+		}
+	}
+	if owner == "" {
+		return nil
+	}
+
+	var foreign []string
+	for name := range referenced {
+		t := funcs.fullSchema.Types.Get(name)
+		if t == nil || !funcs.isDependencyOwned(t, depSet) {
+			continue
+		}
+		if o := typeOwner(t); o != owner {
+			foreign = append(foreign, name+" (owned by "+o+")")
+		}
+	}
+	if len(foreign) == 0 {
+		return nil
+	}
+
+	sort.Strings(foreign)
+	return fmt.Errorf(
+		"dependency %q references types owned by another dependency, which its bindings cannot import: %s",
+		owner, strings.Join(foreign, ", "),
+	)
 }
 
 // coreValueNames returns the core (non-dependency) identifiers the generated
