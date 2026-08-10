@@ -9,6 +9,9 @@
 [modules.e2e]
 source = ".dagger/modules/e2e"
 
+[modules.packager]
+source = ".dagger/modules/packager"
+
 [modules.typescript-sdk]
 source = "."
 check.skip = ["*"]

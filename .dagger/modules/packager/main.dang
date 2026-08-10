@@ -1,0 +1,62 @@
+"""
+Builds the TypeScript SDK library artifacts this repo ships.
+
+The SDK module reads them straight off its own source at generate time, so
+whatever this produces has to be committed. Everything lands under `library/`,
+laid out the way the library source expects it, and is refreshed by
+`dagger generate`.
+"""
+type Packager {
+  """
+  Workspace-relative directory holding the library.
+  """
+  let libraryPath: String! = "library"
+
+  """
+  Directory holding the library's own generated bindings, relative to
+  libraryPath. Matches the layout of the library source they are compiled with,
+  where the runtime they import sits at ../common/context.js.
+  """
+  let bindingsPath: String! = "src/api"
+
+  """
+  Regenerate the TypeScript library's own bindings (client.gen.ts) from the
+  running engine's schema.
+
+  The schema comes from the session rather than from a module: a plain session
+  serves no modules, so introspecting it yields the core API alone — which is
+  exactly what a library binds. That one step is why this opens a nested
+  session; rendering the bindings from the resulting JSON does not.
+  """
+  libraryBindings(ws: Workspace!): Changeset! @generate {
+    let bindings = codegen(ws)
+      .withExec(["codegen", "introspect", "--output", "/schema.json"], experimentalPrivilegedNesting: true)
+      .withExec(["codegen", "library", "--introspection-json-path", "/schema.json", "--output", "/out"])
+      .directory("/out")
+
+    # Stage over the directory's existing contents, not in place of them:
+    # withNewDirectory swaps the whole directory, so staging only what codegen
+    # emits reports everything else there — the .gitattributes marking these
+    # bindings as generated — as deleted.
+    let target = "/" + libraryPath + "/" + bindingsPath
+    ws.withNewDirectory(target, ws.directory(target).withDirectory(".", bindings)).changes(ws)
+  }
+
+  """
+  Container with the codegen helper compiled and on PATH at
+  /usr/local/bin/codegen. Read from the workspace rather than this module's own
+  source: the helper lives at the repo root, outside the module directory. The
+  path is workspace-root-absolute, so generating from a subdirectory still
+  finds it.
+  """
+  let codegen(ws: Workspace!): Container! {
+    container
+      .from("golang:1.25-alpine")
+      .withoutEntrypoint
+      .withMountedCache("/go/pkg/mod", cacheVolume("go-mod"))
+      .withMountedCache("/root/.cache/go-build", cacheVolume("go-build"))
+      .withDirectory("/helper", ws.directory("/helpers/codegen"))
+      .withWorkdir("/helper")
+      .withExec(["go", "build", "-o", "/usr/local/bin/codegen", "."])
+  }
+}

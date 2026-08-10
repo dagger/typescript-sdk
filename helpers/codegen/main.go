@@ -7,9 +7,13 @@
 //	codegen client — a standalone client (dagger.gen.ts for the core types, plus
 //	                 one <module>.gen.ts per module in the bound module's
 //	                 closure), importing @dagger.io/dagger.
+//	codegen library — the SDK library's own bindings, importing the runtime they
+//	                 ship alongside.
 //
-// It is intentionally engine-free: the schema and the bound module's metadata
-// are supplied as files, so no nested engine session is opened.
+// Generation is engine-free: the schema and the bound module's metadata are
+// supplied as files, so no session is opened. `codegen introspect` is the one
+// exception — it dumps the session schema the library bindings are generated
+// from, over plain HTTP, and only runs in this repo's own generate step.
 package main
 
 import (
@@ -64,9 +68,48 @@ func run(args []string) error {
 		return runModule(args[1:])
 	case "client":
 		return runClient(args[1:])
+	case "library":
+		return runLibrary(args[1:])
+	case "introspect":
+		return runIntrospect(args[1:])
 	default:
-		return fmt.Errorf("unknown command %q (want module or client)", args[0])
+		return fmt.Errorf("unknown command %q (want module, client, library or introspect)", args[0])
 	}
+}
+
+// runLibrary regenerates the SDK library's own bindings. They ship inside the
+// library, so they reach the runtime by relative source path rather than
+// through the bundle or the package name — the third import arm. The schema is
+// the plain session schema (see `codegen introspect`): core only, unscrubbed.
+func runLibrary(args []string) error {
+	fs := flag.NewFlagSet("library", flag.ExitOnError)
+	var (
+		introspectionPath = fs.String("introspection-json-path", "", "path to the introspection schema JSON")
+		outputDir         = fs.String("output", ".", "output directory for the generated bindings")
+	)
+	if err := fs.Parse(args); err != nil {
+		return err
+	}
+
+	schema, schemaVersion, err := loadSchema(*introspectionPath)
+	if err != nil {
+		return err
+	}
+
+	cfg := generator.Config{OutputDir: *outputDir}
+	gen := &typescriptgenerator.TypeScriptGenerator{Config: cfg}
+
+	ctx := context.Background()
+	state, err := gen.GenerateLibrary(ctx, schema, schemaVersion)
+	if err != nil {
+		return fmt.Errorf("generate library: %w", err)
+	}
+
+	if err := generator.Overlay(ctx, state.Overlay, cfg.OutputDir); err != nil {
+		return fmt.Errorf("write generated library bindings: %w", err)
+	}
+
+	return nil
 }
 
 func runModule(args []string) error {
