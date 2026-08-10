@@ -300,9 +300,10 @@ maintaining it. Its golden test is "reproduce the vendored file byte-for-byte".
   committed bundle, so a stale artifact fails CI instead of silently shipping.
 - **Marked generated.** `.gitattributes` `linguist-generated` for the bundle
   directory, mirroring what codegen does in user modules.
-- **Cost of carry.** ~3.7 MB of text per bundle refresh in git history
-  (`core.js` 3.5 MB, `core.d.ts` 240 KB), plus the introspector. Acceptable, but
-  it argues for refreshing on engine bumps rather than casually.
+- **Cost of carry.** ~4.6 MB per bundle refresh in git history — measured on
+  `v1.0.0-beta.9`: `core.js` 4.3 MB, `core.d.ts` 329 KB, plus the 466 KB of
+  library bindings and (later) the introspector. Acceptable, but it argues for
+  refreshing on engine bumps rather than casually.
 
 ## 5. Target architecture
 
@@ -401,7 +402,7 @@ scoping, same `changes.{{isEmpty}}` concurrency trick, same fold onto
 One private field resolves the bundle, and it is now trivial:
 
 ```
-let tsBundle: Directory! { currentModule.source.directory("bundle") }
+let tsBundle: Directory! { currentModule.source.directory("library/bundle") }
 ```
 
 Everything downstream takes it as an argument rather than reaching for it, so if

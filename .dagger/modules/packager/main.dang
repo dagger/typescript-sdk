@@ -43,6 +43,56 @@ type Packager {
   }
 
   """
+  Build the bundled library the generated module bindings import as ./core.js.
+
+  Same recipe and same pinned image as the engine's own build
+  (toolchains/engine-dev/build/sdk.go), so a module built against this bundle
+  behaves like one built against the engine's: a single node-targeted JS bundle
+  with the TypeScript compiler left external, plus the rolled-up type
+  declarations for it.
+  """
+  libraryBundle(ws: Workspace!): Changeset! @generate {
+    let built = bun
+      .withDirectory("/src", ws.directory("/" + libraryPath))
+      .withWorkdir("/src")
+      .withExec(["bun", "install", "--frozen-lockfile"])
+      .withExec(["bun", "build", "./src/index.ts", "--external=typescript", "--target=node", "--outfile", "/out/core.js"])
+      # `bun x`, not a global tsc: the declarations we ship have to come from the
+      # compiler the lockfile pins, the same one typescript-version.txt records
+      # below. A globally installed tsc is whatever the registry served that day,
+      # so core.d.ts could move on an unchanged tree.
+      .withExec(["bun", "x", "tsc", "--emitDeclarationOnly"])
+      .withExec(["bun", "x", "rollup", "-c", "rollup.dts.config.mjs", "-o", "/out/core.d.ts"])
+      .directory("/out")
+
+    polyfill.workspace(ws).fork
+      .withDirectory(libraryPath + "/" + bundlePath, built)
+      .changes
+  }
+
+  """
+  Directory holding the built bundle, relative to libraryPath. Committed: the
+  SDK module reads it at generate time, and building it there would put a bun
+  toolchain in every user's `dagger generate`.
+  """
+  let bundlePath: String! = "bundle"
+
+  """
+  Bun toolchain the bundle is built with, pinned to the version and digest the
+  engine builds its own with. NodeJS comes along because the declaration build
+  shells out to tsc.
+
+  No TypeScript here: every step that needs a compiler takes the one the
+  vendored lockfile resolves, so the image stays free of a version nothing pins.
+  """
+  let bun: Container! {
+    container
+      .from("oven/bun:1.3.0-alpine@sha256:37e6b1cbe053939bccf6ae4507977ed957eaa6e7f275670b72ad6348e0d2c11f")
+      .withoutEntrypoint
+      .withExec(["apk", "add", "nodejs"])
+  }
+
+  """
   Container with the codegen helper compiled and on PATH at
   /usr/local/bin/codegen. Read from the workspace rather than this module's own
   source: the helper lives at the repo root, outside the module directory. The
