@@ -243,6 +243,12 @@ repo and owned here, rather than fetched from a pinned upstream ref at build
 time. That makes the packager hermetic and this repo the source of truth for the
 library.
 
+A copy has no merge base git can compute, so the one it would have had is
+recorded by hand in [`library/VENDOR.md`](../library/VENDOR.md): the source tag
+and commit, what was deliberately left behind, the exhaustive list of local
+deltas, and the re-import procedure. Without it a re-vendor is a blind
+overwrite.
+
 It has one consequence worth planning for: the library ships its **own**
 generated bindings at `src/api/client.gen.ts` (418 KB, committed upstream,
 importing `../common/context.js`). Vendoring means eventually owning its

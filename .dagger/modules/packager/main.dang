@@ -50,12 +50,16 @@ type Packager {
   behaves like one built against the engine's: a single node-targeted JS bundle
   with the TypeScript compiler left external, plus the rolled-up type
   declarations for it.
+
+  The install resolves through the vendored yarn.lock, which is load-bearing:
+  letting it resolve freely instead pulls newer transitive versions and grows
+  core.js by roughly a quarter (4.3 MB -> 5.4 MB).
   """
   libraryBundle(ws: Workspace!): Changeset! @generate {
     let built = bun
       .withDirectory("/src", ws.directory("/" + libraryPath))
       .withWorkdir("/src")
-      .withExec(["bun", "install", "--frozen-lockfile"])
+      .withExec(["bun", "install"])
       .withExec(["bun", "build", "./src/index.ts", "--external=typescript", "--target=node", "--outfile", "/out/core.js"])
       # `bun x`, not a global tsc: the declarations we ship have to come from the
       # compiler the lockfile pins, the same one typescript-version.txt records
@@ -65,9 +69,11 @@ type Packager {
       .withExec(["bun", "x", "rollup", "-c", "rollup.dts.config.mjs", "-o", "/out/core.d.ts"])
       .directory("/out")
 
-    polyfill.workspace(ws).fork
-      .withDirectory(libraryPath + "/" + bundlePath, built)
-      .changes
+    # Same overlay as the bindings: the bundle directory also holds the
+    # hand-written index.ts and telemetry.ts wrappers, which this build does not
+    # produce and a straight directory swap would report as deleted.
+    let target = "/" + libraryPath + "/" + bundlePath
+    ws.withNewDirectory(target, ws.directory(target).withDirectory(".", built)).changes(ws)
   }
 
   """

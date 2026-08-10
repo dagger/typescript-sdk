@@ -32936,127 +32936,6 @@ var require_browser = __commonJS((exports, module) => {
   };
 });
 
-// node_modules/has-flag/index.js
-var require_has_flag = __commonJS((exports, module) => {
-  module.exports = (flag, argv = process.argv) => {
-    const prefix = flag.startsWith("-") ? "" : flag.length === 1 ? "-" : "--";
-    const position = argv.indexOf(prefix + flag);
-    const terminatorPosition = argv.indexOf("--");
-    return position !== -1 && (terminatorPosition === -1 || position < terminatorPosition);
-  };
-});
-
-// node_modules/supports-color/index.js
-var require_supports_color = __commonJS((exports, module) => {
-  var os = __require("os");
-  var tty = __require("tty");
-  var hasFlag = require_has_flag();
-  var { env } = process;
-  var flagForceColor;
-  if (hasFlag("no-color") || hasFlag("no-colors") || hasFlag("color=false") || hasFlag("color=never")) {
-    flagForceColor = 0;
-  } else if (hasFlag("color") || hasFlag("colors") || hasFlag("color=true") || hasFlag("color=always")) {
-    flagForceColor = 1;
-  }
-  function envForceColor() {
-    if ("FORCE_COLOR" in env) {
-      if (env.FORCE_COLOR === "true") {
-        return 1;
-      }
-      if (env.FORCE_COLOR === "false") {
-        return 0;
-      }
-      return env.FORCE_COLOR.length === 0 ? 1 : Math.min(Number.parseInt(env.FORCE_COLOR, 10), 3);
-    }
-  }
-  function translateLevel(level) {
-    if (level === 0) {
-      return false;
-    }
-    return {
-      level,
-      hasBasic: true,
-      has256: level >= 2,
-      has16m: level >= 3
-    };
-  }
-  function supportsColor(haveStream, { streamIsTTY, sniffFlags = true } = {}) {
-    const noFlagForceColor = envForceColor();
-    if (noFlagForceColor !== undefined) {
-      flagForceColor = noFlagForceColor;
-    }
-    const forceColor = sniffFlags ? flagForceColor : noFlagForceColor;
-    if (forceColor === 0) {
-      return 0;
-    }
-    if (sniffFlags) {
-      if (hasFlag("color=16m") || hasFlag("color=full") || hasFlag("color=truecolor")) {
-        return 3;
-      }
-      if (hasFlag("color=256")) {
-        return 2;
-      }
-    }
-    if (haveStream && !streamIsTTY && forceColor === undefined) {
-      return 0;
-    }
-    const min = forceColor || 0;
-    if (env.TERM === "dumb") {
-      return min;
-    }
-    if (process.platform === "win32") {
-      const osRelease = os.release().split(".");
-      if (Number(osRelease[0]) >= 10 && Number(osRelease[2]) >= 10586) {
-        return Number(osRelease[2]) >= 14931 ? 3 : 2;
-      }
-      return 1;
-    }
-    if ("CI" in env) {
-      if (["TRAVIS", "CIRCLECI", "APPVEYOR", "GITLAB_CI", "GITHUB_ACTIONS", "BUILDKITE", "DRONE"].some((sign) => (sign in env)) || env.CI_NAME === "codeship") {
-        return 1;
-      }
-      return min;
-    }
-    if ("TEAMCITY_VERSION" in env) {
-      return /^(9\.(0*[1-9]\d*)\.|\d{2,}\.)/.test(env.TEAMCITY_VERSION) ? 1 : 0;
-    }
-    if (env.COLORTERM === "truecolor") {
-      return 3;
-    }
-    if ("TERM_PROGRAM" in env) {
-      const version = Number.parseInt((env.TERM_PROGRAM_VERSION || "").split(".")[0], 10);
-      switch (env.TERM_PROGRAM) {
-        case "iTerm.app":
-          return version >= 3 ? 3 : 2;
-        case "Apple_Terminal":
-          return 2;
-      }
-    }
-    if (/-256(color)?$/i.test(env.TERM)) {
-      return 2;
-    }
-    if (/^screen|^xterm|^vt100|^vt220|^rxvt|color|ansi|cygwin|linux/i.test(env.TERM)) {
-      return 1;
-    }
-    if ("COLORTERM" in env) {
-      return 1;
-    }
-    return min;
-  }
-  function getSupportLevel(stream, options = {}) {
-    const level = supportsColor(stream, {
-      streamIsTTY: stream && stream.isTTY,
-      ...options
-    });
-    return translateLevel(level);
-  }
-  module.exports = {
-    supportsColor: getSupportLevel,
-    stdout: getSupportLevel({ isTTY: tty.isatty(1) }),
-    stderr: getSupportLevel({ isTTY: tty.isatty(2) })
-  };
-});
-
 // node_modules/debug/src/node.js
 var require_node6 = __commonJS((exports, module) => {
   var tty = __require("tty");
@@ -33070,7 +32949,7 @@ var require_node6 = __commonJS((exports, module) => {
   exports.destroy = util.deprecate(() => {}, "Instance method `debug.destroy()` is deprecated and no longer does anything. It will be removed in the next major version of `debug`.");
   exports.colors = [6, 2, 3, 4, 5, 1];
   try {
-    const supportsColor = require_supports_color();
+    const supportsColor = (()=>{throw new Error("Cannot require module "+"supports-color");})();
     if (supportsColor && (supportsColor.stderr || supportsColor).level >= 2) {
       exports.colors = [
         20,
@@ -33237,7 +33116,7 @@ var require_src14 = __commonJS((exports, module) => {
   }
 });
 
-// node_modules/module-details-from-path/index.js
+// node_modules/require-in-the-middle/node_modules/module-details-from-path/index.js
 var require_module_details_from_path = __commonJS((exports, module) => {
   var path = __require("path");
   module.exports = function(file) {
@@ -33599,7 +33478,7 @@ var require_RequireInTheMiddleSingleton = __commonJS((exports) => {
   }
 });
 
-// node_modules/import-in-the-middle/node_modules/module-details-from-path/index.js
+// node_modules/module-details-from-path/index.js
 var require_module_details_from_path2 = __commonJS((exports, module) => {
   var sep = __require("path").sep;
   module.exports = function(file) {
@@ -88017,7 +87896,7 @@ var init_escape = __esm(() => {
   NO_ESCAPE_REGEXP = /^[\w./-]+$/;
 });
 
-// node_modules/figures/node_modules/is-unicode-supported/index.js
+// node_modules/is-unicode-supported/index.js
 import process4 from "node:process";
 function isUnicodeSupported() {
   if (process4.platform !== "win32") {
@@ -99590,6 +99469,9 @@ __export(exports_client_gen, {
   RegistryProtocolNameToValue: () => RegistryProtocolNameToValue,
   RegistryProtocol: () => RegistryProtocol,
   Port: () => Port,
+  PatchConflictValueToName: () => PatchConflictValueToName,
+  PatchConflictNameToValue: () => PatchConflictNameToValue,
+  PatchConflict: () => PatchConflict,
   ObjectTypeDef: () => ObjectTypeDef,
   NetworkProtocolValueToName: () => NetworkProtocolValueToName,
   NetworkProtocolNameToValue: () => NetworkProtocolNameToValue,
@@ -99606,6 +99488,7 @@ __export(exports_client_gen, {
   ListTypeDef: () => ListTypeDef,
   Label: () => Label,
   LLMTokenUsage: () => LLMTokenUsage,
+  LLMSkill: () => LLMSkill,
   LLMMessageRoleValueToName: () => LLMMessageRoleValueToName,
   LLMMessageRoleNameToValue: () => LLMMessageRoleNameToValue,
   LLMMessageRole: () => LLMMessageRole,
@@ -99629,6 +99512,7 @@ __export(exports_client_gen, {
   HTTPState: () => HTTPState,
   GitRepository: () => GitRepository,
   GitRef: () => GitRef,
+  GitCommit: () => GitCommit,
   GeneratorGroup: () => GeneratorGroup,
   Generator: () => Generator,
   GeneratedCode: () => GeneratedCode,
@@ -99651,7 +99535,6 @@ __export(exports_client_gen, {
   Error: () => Error2,
   EnvVariable: () => EnvVariable,
   EnvFile: () => EnvFile,
-  Env: () => Env,
   EnumValueTypeDef: () => EnumValueTypeDef,
   EnumTypeDef: () => EnumTypeDef,
   EngineCacheEntrySet: () => EngineCacheEntrySet,
@@ -99684,8 +99567,9 @@ __export(exports_client_gen, {
   CacheSharingModeValueToName: () => CacheSharingModeValueToName,
   CacheSharingModeNameToValue: () => CacheSharingModeNameToValue,
   CacheSharingMode: () => CacheSharingMode,
-  Binding: () => Binding,
   BaseClient: () => BaseClient,
+  AgentGroup: () => AgentGroup,
+  Agent: () => Agent,
   Address: () => Address
 });
 
@@ -100318,6 +100202,31 @@ function NetworkProtocolNameToValue(name) {
       return name;
   }
 }
+var PatchConflict;
+((PatchConflict2) => {
+  PatchConflict2["Fail"] = "FAIL";
+  PatchConflict2["LeaveConflictMarkers"] = "LEAVE_CONFLICT_MARKERS";
+})(PatchConflict ||= {});
+function PatchConflictValueToName(value) {
+  switch (value) {
+    case "FAIL" /* Fail */:
+      return "FAIL";
+    case "LEAVE_CONFLICT_MARKERS" /* LeaveConflictMarkers */:
+      return "LEAVE_CONFLICT_MARKERS";
+    default:
+      return value;
+  }
+}
+function PatchConflictNameToValue(name) {
+  switch (name) {
+    case "FAIL":
+      return "FAIL" /* Fail */;
+    case "LEAVE_CONFLICT_MARKERS":
+      return "LEAVE_CONFLICT_MARKERS" /* LeaveConflictMarkers */;
+    default:
+      return name;
+  }
+}
 var RegistryProtocol;
 ((RegistryProtocol2) => {
   RegistryProtocol2["Http"] = "HTTP";
@@ -100517,21 +100426,15 @@ class Address extends BaseClient {
   };
 }
 
-class Binding extends BaseClient {
+class Agent extends BaseClient {
   _id = undefined;
-  _asString = undefined;
-  _digest = undefined;
-  _isNull = undefined;
+  _description = undefined;
   _name = undefined;
-  _typeName = undefined;
-  constructor(ctx, _id, _asString, _digest, _isNull, _name, _typeName) {
+  constructor(ctx, _id, _description, _name) {
     super(ctx);
     this._id = _id;
-    this._asString = _asString;
-    this._digest = _digest;
-    this._isNull = _isNull;
+    this._description = _description;
     this._name = _name;
-    this._typeName = _typeName;
   }
   id = async () => {
     if (this._id) {
@@ -100541,199 +100444,11 @@ class Binding extends BaseClient {
     const response = await ctx.execute();
     return response;
   };
-  asAddress = () => {
-    const ctx = this._ctx.select("asAddress");
-    return new Address(ctx);
-  };
-  asCacheVolume = () => {
-    const ctx = this._ctx.select("asCacheVolume");
-    return new CacheVolume(ctx);
-  };
-  asChangeset = () => {
-    const ctx = this._ctx.select("asChangeset");
-    return new Changeset(ctx);
-  };
-  asCheck = () => {
-    const ctx = this._ctx.select("asCheck");
-    return new Check(ctx);
-  };
-  asCheckGroup = () => {
-    const ctx = this._ctx.select("asCheckGroup");
-    return new CheckGroup(ctx);
-  };
-  asCloud = () => {
-    const ctx = this._ctx.select("asCloud");
-    return new Cloud(ctx);
-  };
-  asContainer = () => {
-    const ctx = this._ctx.select("asContainer");
-    return new Container(ctx);
-  };
-  asCurrentModuleAsSDK = () => {
-    const ctx = this._ctx.select("asCurrentModuleAsSDK");
-    return new CurrentModuleAsSDK(ctx);
-  };
-  asCurrentModuleAsSDKClient = () => {
-    const ctx = this._ctx.select("asCurrentModuleAsSDKClient");
-    return new CurrentModuleAsSDKClient(ctx);
-  };
-  asCurrentModuleAsSDKModule = () => {
-    const ctx = this._ctx.select("asCurrentModuleAsSDKModule");
-    return new CurrentModuleAsSDKModule(ctx);
-  };
-  asDiffStat = () => {
-    const ctx = this._ctx.select("asDiffStat");
-    return new DiffStat(ctx);
-  };
-  asDirectory = () => {
-    const ctx = this._ctx.select("asDirectory");
-    return new Directory(ctx);
-  };
-  asEnv = () => {
-    const ctx = this._ctx.select("asEnv");
-    return new Env(ctx);
-  };
-  asEnvFile = () => {
-    const ctx = this._ctx.select("asEnvFile");
-    return new EnvFile(ctx);
-  };
-  asFile = () => {
-    const ctx = this._ctx.select("asFile");
-    return new File(ctx);
-  };
-  asGenerator = () => {
-    const ctx = this._ctx.select("asGenerator");
-    return new Generator(ctx);
-  };
-  asGeneratorGroup = () => {
-    const ctx = this._ctx.select("asGeneratorGroup");
-    return new GeneratorGroup(ctx);
-  };
-  asGitRef = () => {
-    const ctx = this._ctx.select("asGitRef");
-    return new GitRef(ctx);
-  };
-  asGitRepository = () => {
-    const ctx = this._ctx.select("asGitRepository");
-    return new GitRepository(ctx);
-  };
-  asHTTPState = () => {
-    const ctx = this._ctx.select("asHTTPState");
-    return new HTTPState(ctx);
-  };
-  asJSONValue = () => {
-    const ctx = this._ctx.select("asJSONValue");
-    return new JSONValue(ctx);
-  };
-  asLLMContentBlock = () => {
-    const ctx = this._ctx.select("asLLMContentBlock");
-    return new LLMContentBlock(ctx);
-  };
-  asLLMMessage = () => {
-    const ctx = this._ctx.select("asLLMMessage");
-    return new LLMMessage(ctx);
-  };
-  asModule = () => {
-    const ctx = this._ctx.select("asModule");
-    return new Module_(ctx);
-  };
-  asModuleConfigClient = () => {
-    const ctx = this._ctx.select("asModuleConfigClient");
-    return new ModuleConfigClient(ctx);
-  };
-  asModuleSource = () => {
-    const ctx = this._ctx.select("asModuleSource");
-    return new ModuleSource(ctx);
-  };
-  asSchema = () => {
-    const ctx = this._ctx.select("asSchema");
-    return new Schema(ctx);
-  };
-  asSearchResult = () => {
-    const ctx = this._ctx.select("asSearchResult");
-    return new SearchResult(ctx);
-  };
-  asSearchSubmatch = () => {
-    const ctx = this._ctx.select("asSearchSubmatch");
-    return new SearchSubmatch(ctx);
-  };
-  asSecret = () => {
-    const ctx = this._ctx.select("asSecret");
-    return new Secret(ctx);
-  };
-  asService = () => {
-    const ctx = this._ctx.select("asService");
-    return new Service(ctx);
-  };
-  asSocket = () => {
-    const ctx = this._ctx.select("asSocket");
-    return new Socket(ctx);
-  };
-  asStat = () => {
-    const ctx = this._ctx.select("asStat");
-    return new Stat(ctx);
-  };
-  asString = async () => {
-    if (this._asString) {
-      return this._asString;
+  description = async () => {
+    if (this._description) {
+      return this._description;
     }
-    const ctx = this._ctx.select("asString");
-    const response = await ctx.execute();
-    return response;
-  };
-  asUp = () => {
-    const ctx = this._ctx.select("asUp");
-    return new Up(ctx);
-  };
-  asUpGroup = () => {
-    const ctx = this._ctx.select("asUpGroup");
-    return new UpGroup(ctx);
-  };
-  asVolume = () => {
-    const ctx = this._ctx.select("asVolume");
-    return new Volume(ctx);
-  };
-  asWorkspace = () => {
-    const ctx = this._ctx.select("asWorkspace");
-    return new Workspace(ctx);
-  };
-  asWorkspaceGit = () => {
-    const ctx = this._ctx.select("asWorkspaceGit");
-    return new WorkspaceGit(ctx);
-  };
-  asWorkspaceMigration = () => {
-    const ctx = this._ctx.select("asWorkspaceMigration");
-    return new WorkspaceMigration(ctx);
-  };
-  asWorkspaceMigrationStep = () => {
-    const ctx = this._ctx.select("asWorkspaceMigrationStep");
-    return new WorkspaceMigrationStep(ctx);
-  };
-  asWorkspaceModule = () => {
-    const ctx = this._ctx.select("asWorkspaceModule");
-    return new WorkspaceModule(ctx);
-  };
-  asWorkspaceModuleSetting = () => {
-    const ctx = this._ctx.select("asWorkspaceModuleSetting");
-    return new WorkspaceModuleSetting(ctx);
-  };
-  asWorkspaceSDK = () => {
-    const ctx = this._ctx.select("asWorkspaceSDK");
-    return new WorkspaceSDK(ctx);
-  };
-  digest = async () => {
-    if (this._digest) {
-      return this._digest;
-    }
-    const ctx = this._ctx.select("digest");
-    const response = await ctx.execute();
-    return response;
-  };
-  isNull = async () => {
-    if (this._isNull) {
-      return this._isNull;
-    }
-    const ctx = this._ctx.select("isNull");
+    const ctx = this._ctx.select("description");
     const response = await ctx.execute();
     return response;
   };
@@ -100745,13 +100460,39 @@ class Binding extends BaseClient {
     const response = await ctx.execute();
     return response;
   };
-  typeName = async () => {
-    if (this._typeName) {
-      return this._typeName;
-    }
-    const ctx = this._ctx.select("typeName");
+  originalModule = () => {
+    const ctx = this._ctx.select("originalModule");
+    return new Module_(ctx);
+  };
+  path = async () => {
+    const ctx = this._ctx.select("path");
     const response = await ctx.execute();
     return response;
+  };
+}
+
+class AgentGroup extends BaseClient {
+  _id = undefined;
+  constructor(ctx, _id) {
+    super(ctx);
+    this._id = _id;
+  }
+  id = async () => {
+    if (this._id) {
+      return this._id;
+    }
+    const ctx = this._ctx.select("id");
+    const response = await ctx.execute();
+    return response;
+  };
+  compose = (opts) => {
+    const ctx = this._ctx.select("compose", { ...opts });
+    return new LLM(ctx);
+  };
+  list = async () => {
+    const ctx = this._ctx.select("list").select("id");
+    const response = await ctx.execute();
+    return response.map((r) => new Agent(ctx.copy().selectNode(r.id, "Agent")));
   };
 }
 
@@ -101544,8 +101285,8 @@ class CurrentModule extends BaseClient {
     const response = await ctx.execute();
     return response;
   };
-  asSDK = (opts) => {
-    const ctx = this._ctx.select("asSDK", { ...opts });
+  asSDK = (workspace) => {
+    const ctx = this._ctx.select("asSDK", { workspace });
     return new CurrentModuleAsSDK(ctx);
   };
   dependencies = async () => {
@@ -101930,12 +101671,18 @@ class Directory extends BaseClient {
     const ctx = this._ctx.select("withNewFile", { path, contents, ...opts });
     return new Directory(ctx);
   };
-  withPatch = (patch) => {
-    const ctx = this._ctx.select("withPatch", { patch });
+  withPatch = (patch, opts) => {
+    const metadata = {
+      onConflict: { is_enum: true, value_to_name: PatchConflictValueToName }
+    };
+    const ctx = this._ctx.select("withPatch", { patch, ...opts, __metadata: metadata });
     return new Directory(ctx);
   };
-  withPatchFile = (patch) => {
-    const ctx = this._ctx.select("withPatchFile", { patch });
+  withPatchFile = (patch, opts) => {
+    const metadata = {
+      onConflict: { is_enum: true, value_to_name: PatchConflictValueToName }
+    };
+    const ctx = this._ctx.select("withPatchFile", { patch, ...opts, __metadata: metadata });
     return new Directory(ctx);
   };
   withSymlink = (target, linkName) => {
@@ -102316,435 +102063,6 @@ class EnumValueTypeDef extends BaseClient {
     const ctx = this._ctx.select("value");
     const response = await ctx.execute();
     return response;
-  };
-}
-
-class Env extends BaseClient {
-  _id = undefined;
-  constructor(ctx, _id) {
-    super(ctx);
-    this._id = _id;
-  }
-  id = async () => {
-    if (this._id) {
-      return this._id;
-    }
-    const ctx = this._ctx.select("id");
-    const response = await ctx.execute();
-    return response;
-  };
-  check = (name) => {
-    const ctx = this._ctx.select("check", { name });
-    return new Check(ctx);
-  };
-  checks = (opts) => {
-    const ctx = this._ctx.select("checks", { ...opts });
-    return new CheckGroup(ctx);
-  };
-  input = (name) => {
-    const ctx = this._ctx.select("input", { name });
-    return new Binding(ctx);
-  };
-  inputs = async () => {
-    const ctx = this._ctx.select("inputs").select("id");
-    const response = await ctx.execute();
-    return response.map((r) => new Binding(ctx.copy().selectNode(r.id, "Binding")));
-  };
-  output = (name) => {
-    const ctx = this._ctx.select("output", { name });
-    return new Binding(ctx);
-  };
-  outputs = async () => {
-    const ctx = this._ctx.select("outputs").select("id");
-    const response = await ctx.execute();
-    return response.map((r) => new Binding(ctx.copy().selectNode(r.id, "Binding")));
-  };
-  services = (opts) => {
-    const ctx = this._ctx.select("services", { ...opts });
-    return new UpGroup(ctx);
-  };
-  withAddressInput = (name, value, description) => {
-    const ctx = this._ctx.select("withAddressInput", { name, value, description });
-    return new Env(ctx);
-  };
-  withAddressOutput = (name, description) => {
-    const ctx = this._ctx.select("withAddressOutput", { name, description });
-    return new Env(ctx);
-  };
-  withCacheVolumeInput = (name, value, description) => {
-    const ctx = this._ctx.select("withCacheVolumeInput", { name, value, description });
-    return new Env(ctx);
-  };
-  withCacheVolumeOutput = (name, description) => {
-    const ctx = this._ctx.select("withCacheVolumeOutput", { name, description });
-    return new Env(ctx);
-  };
-  withChangesetInput = (name, value, description) => {
-    const ctx = this._ctx.select("withChangesetInput", { name, value, description });
-    return new Env(ctx);
-  };
-  withChangesetOutput = (name, description) => {
-    const ctx = this._ctx.select("withChangesetOutput", { name, description });
-    return new Env(ctx);
-  };
-  withCheckGroupInput = (name, value, description) => {
-    const ctx = this._ctx.select("withCheckGroupInput", { name, value, description });
-    return new Env(ctx);
-  };
-  withCheckGroupOutput = (name, description) => {
-    const ctx = this._ctx.select("withCheckGroupOutput", { name, description });
-    return new Env(ctx);
-  };
-  withCheckInput = (name, value, description) => {
-    const ctx = this._ctx.select("withCheckInput", { name, value, description });
-    return new Env(ctx);
-  };
-  withCheckOutput = (name, description) => {
-    const ctx = this._ctx.select("withCheckOutput", { name, description });
-    return new Env(ctx);
-  };
-  withCloudInput = (name, value, description) => {
-    const ctx = this._ctx.select("withCloudInput", { name, value, description });
-    return new Env(ctx);
-  };
-  withCloudOutput = (name, description) => {
-    const ctx = this._ctx.select("withCloudOutput", { name, description });
-    return new Env(ctx);
-  };
-  withContainerInput = (name, value, description) => {
-    const ctx = this._ctx.select("withContainerInput", { name, value, description });
-    return new Env(ctx);
-  };
-  withContainerOutput = (name, description) => {
-    const ctx = this._ctx.select("withContainerOutput", { name, description });
-    return new Env(ctx);
-  };
-  withCurrentModule = () => {
-    const ctx = this._ctx.select("withCurrentModule");
-    return new Env(ctx);
-  };
-  withCurrentModuleAsSDKClientInput = (name, value, description) => {
-    const ctx = this._ctx.select("withCurrentModuleAsSDKClientInput", { name, value, description });
-    return new Env(ctx);
-  };
-  withCurrentModuleAsSDKClientOutput = (name, description) => {
-    const ctx = this._ctx.select("withCurrentModuleAsSDKClientOutput", { name, description });
-    return new Env(ctx);
-  };
-  withCurrentModuleAsSDKInput = (name, value, description) => {
-    const ctx = this._ctx.select("withCurrentModuleAsSDKInput", { name, value, description });
-    return new Env(ctx);
-  };
-  withCurrentModuleAsSDKModuleInput = (name, value, description) => {
-    const ctx = this._ctx.select("withCurrentModuleAsSDKModuleInput", { name, value, description });
-    return new Env(ctx);
-  };
-  withCurrentModuleAsSDKModuleOutput = (name, description) => {
-    const ctx = this._ctx.select("withCurrentModuleAsSDKModuleOutput", { name, description });
-    return new Env(ctx);
-  };
-  withCurrentModuleAsSDKOutput = (name, description) => {
-    const ctx = this._ctx.select("withCurrentModuleAsSDKOutput", { name, description });
-    return new Env(ctx);
-  };
-  withDiffStatInput = (name, value, description) => {
-    const ctx = this._ctx.select("withDiffStatInput", { name, value, description });
-    return new Env(ctx);
-  };
-  withDiffStatOutput = (name, description) => {
-    const ctx = this._ctx.select("withDiffStatOutput", { name, description });
-    return new Env(ctx);
-  };
-  withDirectoryInput = (name, value, description) => {
-    const ctx = this._ctx.select("withDirectoryInput", { name, value, description });
-    return new Env(ctx);
-  };
-  withDirectoryOutput = (name, description) => {
-    const ctx = this._ctx.select("withDirectoryOutput", { name, description });
-    return new Env(ctx);
-  };
-  withEnvFileInput = (name, value, description) => {
-    const ctx = this._ctx.select("withEnvFileInput", { name, value, description });
-    return new Env(ctx);
-  };
-  withEnvFileOutput = (name, description) => {
-    const ctx = this._ctx.select("withEnvFileOutput", { name, description });
-    return new Env(ctx);
-  };
-  withEnvInput = (name, value, description) => {
-    const ctx = this._ctx.select("withEnvInput", { name, value, description });
-    return new Env(ctx);
-  };
-  withEnvOutput = (name, description) => {
-    const ctx = this._ctx.select("withEnvOutput", { name, description });
-    return new Env(ctx);
-  };
-  withFileInput = (name, value, description) => {
-    const ctx = this._ctx.select("withFileInput", { name, value, description });
-    return new Env(ctx);
-  };
-  withFileOutput = (name, description) => {
-    const ctx = this._ctx.select("withFileOutput", { name, description });
-    return new Env(ctx);
-  };
-  withGeneratorGroupInput = (name, value, description) => {
-    const ctx = this._ctx.select("withGeneratorGroupInput", { name, value, description });
-    return new Env(ctx);
-  };
-  withGeneratorGroupOutput = (name, description) => {
-    const ctx = this._ctx.select("withGeneratorGroupOutput", { name, description });
-    return new Env(ctx);
-  };
-  withGeneratorInput = (name, value, description) => {
-    const ctx = this._ctx.select("withGeneratorInput", { name, value, description });
-    return new Env(ctx);
-  };
-  withGeneratorOutput = (name, description) => {
-    const ctx = this._ctx.select("withGeneratorOutput", { name, description });
-    return new Env(ctx);
-  };
-  withGitRefInput = (name, value, description) => {
-    const ctx = this._ctx.select("withGitRefInput", { name, value, description });
-    return new Env(ctx);
-  };
-  withGitRefOutput = (name, description) => {
-    const ctx = this._ctx.select("withGitRefOutput", { name, description });
-    return new Env(ctx);
-  };
-  withGitRepositoryInput = (name, value, description) => {
-    const ctx = this._ctx.select("withGitRepositoryInput", { name, value, description });
-    return new Env(ctx);
-  };
-  withGitRepositoryOutput = (name, description) => {
-    const ctx = this._ctx.select("withGitRepositoryOutput", { name, description });
-    return new Env(ctx);
-  };
-  withHTTPStateInput = (name, value, description) => {
-    const ctx = this._ctx.select("withHTTPStateInput", { name, value, description });
-    return new Env(ctx);
-  };
-  withHTTPStateOutput = (name, description) => {
-    const ctx = this._ctx.select("withHTTPStateOutput", { name, description });
-    return new Env(ctx);
-  };
-  withJSONValueInput = (name, value, description) => {
-    const ctx = this._ctx.select("withJSONValueInput", { name, value, description });
-    return new Env(ctx);
-  };
-  withJSONValueOutput = (name, description) => {
-    const ctx = this._ctx.select("withJSONValueOutput", { name, description });
-    return new Env(ctx);
-  };
-  withLLMContentBlockInput = (name, value, description) => {
-    const ctx = this._ctx.select("withLLMContentBlockInput", { name, value, description });
-    return new Env(ctx);
-  };
-  withLLMContentBlockOutput = (name, description) => {
-    const ctx = this._ctx.select("withLLMContentBlockOutput", { name, description });
-    return new Env(ctx);
-  };
-  withLLMMessageInput = (name, value, description) => {
-    const ctx = this._ctx.select("withLLMMessageInput", { name, value, description });
-    return new Env(ctx);
-  };
-  withLLMMessageOutput = (name, description) => {
-    const ctx = this._ctx.select("withLLMMessageOutput", { name, description });
-    return new Env(ctx);
-  };
-  withMainModule = (module_) => {
-    const ctx = this._ctx.select("withMainModule", {
-      module: module_
-    });
-    return new Env(ctx);
-  };
-  withModule = (module_) => {
-    const ctx = this._ctx.select("withModule", {
-      module: module_
-    });
-    return new Env(ctx);
-  };
-  withModuleConfigClientInput = (name, value, description) => {
-    const ctx = this._ctx.select("withModuleConfigClientInput", { name, value, description });
-    return new Env(ctx);
-  };
-  withModuleConfigClientOutput = (name, description) => {
-    const ctx = this._ctx.select("withModuleConfigClientOutput", { name, description });
-    return new Env(ctx);
-  };
-  withModuleInput = (name, value, description) => {
-    const ctx = this._ctx.select("withModuleInput", { name, value, description });
-    return new Env(ctx);
-  };
-  withModuleOutput = (name, description) => {
-    const ctx = this._ctx.select("withModuleOutput", { name, description });
-    return new Env(ctx);
-  };
-  withModuleSourceInput = (name, value, description) => {
-    const ctx = this._ctx.select("withModuleSourceInput", { name, value, description });
-    return new Env(ctx);
-  };
-  withModuleSourceOutput = (name, description) => {
-    const ctx = this._ctx.select("withModuleSourceOutput", { name, description });
-    return new Env(ctx);
-  };
-  withSchemaInput = (name, value, description) => {
-    const ctx = this._ctx.select("withSchemaInput", { name, value, description });
-    return new Env(ctx);
-  };
-  withSchemaOutput = (name, description) => {
-    const ctx = this._ctx.select("withSchemaOutput", { name, description });
-    return new Env(ctx);
-  };
-  withSearchResultInput = (name, value, description) => {
-    const ctx = this._ctx.select("withSearchResultInput", { name, value, description });
-    return new Env(ctx);
-  };
-  withSearchResultOutput = (name, description) => {
-    const ctx = this._ctx.select("withSearchResultOutput", { name, description });
-    return new Env(ctx);
-  };
-  withSearchSubmatchInput = (name, value, description) => {
-    const ctx = this._ctx.select("withSearchSubmatchInput", { name, value, description });
-    return new Env(ctx);
-  };
-  withSearchSubmatchOutput = (name, description) => {
-    const ctx = this._ctx.select("withSearchSubmatchOutput", { name, description });
-    return new Env(ctx);
-  };
-  withSecretInput = (name, value, description) => {
-    const ctx = this._ctx.select("withSecretInput", { name, value, description });
-    return new Env(ctx);
-  };
-  withSecretOutput = (name, description) => {
-    const ctx = this._ctx.select("withSecretOutput", { name, description });
-    return new Env(ctx);
-  };
-  withServiceInput = (name, value, description) => {
-    const ctx = this._ctx.select("withServiceInput", { name, value, description });
-    return new Env(ctx);
-  };
-  withServiceOutput = (name, description) => {
-    const ctx = this._ctx.select("withServiceOutput", { name, description });
-    return new Env(ctx);
-  };
-  withSocketInput = (name, value, description) => {
-    const ctx = this._ctx.select("withSocketInput", { name, value, description });
-    return new Env(ctx);
-  };
-  withSocketOutput = (name, description) => {
-    const ctx = this._ctx.select("withSocketOutput", { name, description });
-    return new Env(ctx);
-  };
-  withStatInput = (name, value, description) => {
-    const ctx = this._ctx.select("withStatInput", { name, value, description });
-    return new Env(ctx);
-  };
-  withStatOutput = (name, description) => {
-    const ctx = this._ctx.select("withStatOutput", { name, description });
-    return new Env(ctx);
-  };
-  withStringInput = (name, value, description) => {
-    const ctx = this._ctx.select("withStringInput", { name, value, description });
-    return new Env(ctx);
-  };
-  withStringOutput = (name, description) => {
-    const ctx = this._ctx.select("withStringOutput", { name, description });
-    return new Env(ctx);
-  };
-  withUpGroupInput = (name, value, description) => {
-    const ctx = this._ctx.select("withUpGroupInput", { name, value, description });
-    return new Env(ctx);
-  };
-  withUpGroupOutput = (name, description) => {
-    const ctx = this._ctx.select("withUpGroupOutput", { name, description });
-    return new Env(ctx);
-  };
-  withUpInput = (name, value, description) => {
-    const ctx = this._ctx.select("withUpInput", { name, value, description });
-    return new Env(ctx);
-  };
-  withUpOutput = (name, description) => {
-    const ctx = this._ctx.select("withUpOutput", { name, description });
-    return new Env(ctx);
-  };
-  withVolumeInput = (name, value, description) => {
-    const ctx = this._ctx.select("withVolumeInput", { name, value, description });
-    return new Env(ctx);
-  };
-  withVolumeOutput = (name, description) => {
-    const ctx = this._ctx.select("withVolumeOutput", { name, description });
-    return new Env(ctx);
-  };
-  withWorkspace = (workspace) => {
-    const ctx = this._ctx.select("withWorkspace", { workspace });
-    return new Env(ctx);
-  };
-  withWorkspaceGitInput = (name, value, description) => {
-    const ctx = this._ctx.select("withWorkspaceGitInput", { name, value, description });
-    return new Env(ctx);
-  };
-  withWorkspaceGitOutput = (name, description) => {
-    const ctx = this._ctx.select("withWorkspaceGitOutput", { name, description });
-    return new Env(ctx);
-  };
-  withWorkspaceInput = (name, value, description) => {
-    const ctx = this._ctx.select("withWorkspaceInput", { name, value, description });
-    return new Env(ctx);
-  };
-  withWorkspaceMigrationInput = (name, value, description) => {
-    const ctx = this._ctx.select("withWorkspaceMigrationInput", { name, value, description });
-    return new Env(ctx);
-  };
-  withWorkspaceMigrationOutput = (name, description) => {
-    const ctx = this._ctx.select("withWorkspaceMigrationOutput", { name, description });
-    return new Env(ctx);
-  };
-  withWorkspaceMigrationStepInput = (name, value, description) => {
-    const ctx = this._ctx.select("withWorkspaceMigrationStepInput", { name, value, description });
-    return new Env(ctx);
-  };
-  withWorkspaceMigrationStepOutput = (name, description) => {
-    const ctx = this._ctx.select("withWorkspaceMigrationStepOutput", { name, description });
-    return new Env(ctx);
-  };
-  withWorkspaceModuleInput = (name, value, description) => {
-    const ctx = this._ctx.select("withWorkspaceModuleInput", { name, value, description });
-    return new Env(ctx);
-  };
-  withWorkspaceModuleOutput = (name, description) => {
-    const ctx = this._ctx.select("withWorkspaceModuleOutput", { name, description });
-    return new Env(ctx);
-  };
-  withWorkspaceModuleSettingInput = (name, value, description) => {
-    const ctx = this._ctx.select("withWorkspaceModuleSettingInput", { name, value, description });
-    return new Env(ctx);
-  };
-  withWorkspaceModuleSettingOutput = (name, description) => {
-    const ctx = this._ctx.select("withWorkspaceModuleSettingOutput", { name, description });
-    return new Env(ctx);
-  };
-  withWorkspaceOutput = (name, description) => {
-    const ctx = this._ctx.select("withWorkspaceOutput", { name, description });
-    return new Env(ctx);
-  };
-  withWorkspaceSDKInput = (name, value, description) => {
-    const ctx = this._ctx.select("withWorkspaceSDKInput", { name, value, description });
-    return new Env(ctx);
-  };
-  withWorkspaceSDKOutput = (name, description) => {
-    const ctx = this._ctx.select("withWorkspaceSDKOutput", { name, description });
-    return new Env(ctx);
-  };
-  withoutOutputs = () => {
-    const ctx = this._ctx.select("withoutOutputs");
-    return new Env(ctx);
-  };
-  workspace = () => {
-    const ctx = this._ctx.select("workspace");
-    return new Directory(ctx);
-  };
-  with = (arg) => {
-    return arg(this);
   };
 }
 
@@ -103174,6 +102492,10 @@ class Function_ extends BaseClient {
     const response = await ctx.execute();
     return response;
   };
+  withAgent = () => {
+    const ctx = this._ctx.select("withAgent");
+    return new Function_(ctx);
+  };
   withArg = (name, typeDef, opts) => {
     const ctx = this._ctx.select("withArg", { name, typeDef, ...opts });
     return new Function_(ctx);
@@ -103575,14 +102897,161 @@ class GeneratorGroup extends BaseClient {
   };
 }
 
+class GitCommit extends BaseClient {
+  _id = undefined;
+  _authorEmail = undefined;
+  _authorName = undefined;
+  _authoredDate = undefined;
+  _committedDate = undefined;
+  _committerEmail = undefined;
+  _committerName = undefined;
+  _message = undefined;
+  _messageBody = undefined;
+  _messageHeadline = undefined;
+  _sha = undefined;
+  _shortSha = undefined;
+  constructor(ctx, _id, _authorEmail, _authorName, _authoredDate, _committedDate, _committerEmail, _committerName, _message, _messageBody, _messageHeadline, _sha, _shortSha) {
+    super(ctx);
+    this._id = _id;
+    this._authorEmail = _authorEmail;
+    this._authorName = _authorName;
+    this._authoredDate = _authoredDate;
+    this._committedDate = _committedDate;
+    this._committerEmail = _committerEmail;
+    this._committerName = _committerName;
+    this._message = _message;
+    this._messageBody = _messageBody;
+    this._messageHeadline = _messageHeadline;
+    this._sha = _sha;
+    this._shortSha = _shortSha;
+  }
+  id = async () => {
+    if (this._id) {
+      return this._id;
+    }
+    const ctx = this._ctx.select("id");
+    const response = await ctx.execute();
+    return response;
+  };
+  ancestorReleaseTag = (opts) => {
+    const ctx = this._ctx.select("ancestorReleaseTag", { ...opts });
+    return new GitRef(ctx);
+  };
+  authorEmail = async () => {
+    if (this._authorEmail) {
+      return this._authorEmail;
+    }
+    const ctx = this._ctx.select("authorEmail");
+    const response = await ctx.execute();
+    return response;
+  };
+  authorName = async () => {
+    if (this._authorName) {
+      return this._authorName;
+    }
+    const ctx = this._ctx.select("authorName");
+    const response = await ctx.execute();
+    return response;
+  };
+  authoredDate = async () => {
+    if (this._authoredDate) {
+      return this._authoredDate;
+    }
+    const ctx = this._ctx.select("authoredDate");
+    const response = await ctx.execute();
+    return response;
+  };
+  committedDate = async () => {
+    if (this._committedDate) {
+      return this._committedDate;
+    }
+    const ctx = this._ctx.select("committedDate");
+    const response = await ctx.execute();
+    return response;
+  };
+  committerEmail = async () => {
+    if (this._committerEmail) {
+      return this._committerEmail;
+    }
+    const ctx = this._ctx.select("committerEmail");
+    const response = await ctx.execute();
+    return response;
+  };
+  committerName = async () => {
+    if (this._committerName) {
+      return this._committerName;
+    }
+    const ctx = this._ctx.select("committerName");
+    const response = await ctx.execute();
+    return response;
+  };
+  message = async () => {
+    if (this._message) {
+      return this._message;
+    }
+    const ctx = this._ctx.select("message");
+    const response = await ctx.execute();
+    return response;
+  };
+  messageBody = async () => {
+    if (this._messageBody) {
+      return this._messageBody;
+    }
+    const ctx = this._ctx.select("messageBody");
+    const response = await ctx.execute();
+    return response;
+  };
+  messageHeadline = async () => {
+    if (this._messageHeadline) {
+      return this._messageHeadline;
+    }
+    const ctx = this._ctx.select("messageHeadline");
+    const response = await ctx.execute();
+    return response;
+  };
+  parentShas = async () => {
+    const ctx = this._ctx.select("parentShas");
+    const response = await ctx.execute();
+    return response;
+  };
+  releaseTag = (opts) => {
+    const ctx = this._ctx.select("releaseTag", { ...opts });
+    return new GitRef(ctx);
+  };
+  sha = async () => {
+    if (this._sha) {
+      return this._sha;
+    }
+    const ctx = this._ctx.select("sha");
+    const response = await ctx.execute();
+    return response;
+  };
+  shortSha = async () => {
+    if (this._shortSha) {
+      return this._shortSha;
+    }
+    const ctx = this._ctx.select("shortSha");
+    const response = await ctx.execute();
+    return response;
+  };
+  tree = (opts) => {
+    const ctx = this._ctx.select("tree", { ...opts });
+    return new Directory(ctx);
+  };
+}
+
 class GitRef extends BaseClient {
   _id = undefined;
   _commit = undefined;
+  _commitSHA = undefined;
+  _name = undefined;
   _ref = undefined;
-  constructor(ctx, _id, _commit, _ref) {
+  constructor(ctx, _id, _commit, _commitSHA, _name, _ref) {
     super(ctx);
     this._id = _id;
     this._commit = _commit;
+    this._commitSHA = _commitSHA;
+    this._name = _name;
     this._ref = _ref;
   }
   id = async () => {
@@ -103605,9 +103074,30 @@ class GitRef extends BaseClient {
     const response = await ctx.execute();
     return response;
   };
+  commitSHA = async () => {
+    if (this._commitSHA) {
+      return this._commitSHA;
+    }
+    const ctx = this._ctx.select("commitSHA");
+    const response = await ctx.execute();
+    return response;
+  };
   commonAncestor = (other) => {
     const ctx = this._ctx.select("commonAncestor", { other });
     return new GitRef(ctx);
+  };
+  log = async (opts) => {
+    const ctx = this._ctx.select("log", { ...opts }).select("id");
+    const response = await ctx.execute();
+    return response.map((r) => new GitCommit(ctx.copy().selectNode(r.id, "GitCommit")));
+  };
+  name = async () => {
+    if (this._name) {
+      return this._name;
+    }
+    const ctx = this._ctx.select("name");
+    const response = await ctx.execute();
+    return response;
   };
   ref = async () => {
     if (this._ref) {
@@ -103616,6 +103106,10 @@ class GitRef extends BaseClient {
     const ctx = this._ctx.select("ref");
     const response = await ctx.execute();
     return response;
+  };
+  targetCommit = () => {
+    const ctx = this._ctx.select("targetCommit");
+    return new GitCommit(ctx);
   };
   tree = (opts) => {
     const ctx = this._ctx.select("tree", { ...opts });
@@ -103657,7 +103151,7 @@ class GitRepository extends BaseClient {
   };
   commit = (id) => {
     const ctx = this._ctx.select("commit", { id });
-    return new GitRef(ctx);
+    return new GitCommit(ctx);
   };
   head = () => {
     const ctx = this._ctx.select("head");
@@ -104022,25 +103516,29 @@ class JSONValue extends BaseClient {
 
 class LLM extends BaseClient {
   _id = undefined;
+  _contextTokens = undefined;
   _contextWindow = undefined;
   _hasPending = undefined;
   _lastReply = undefined;
   _model = undefined;
   _portableID = undefined;
   _provider = undefined;
+  _reasoningEffort = undefined;
   _replay = undefined;
   _sync = undefined;
   _tools = undefined;
   _transcript = undefined;
-  constructor(ctx, _id, _contextWindow, _hasPending, _lastReply, _model, _portableID, _provider, _replay, _sync, _tools, _transcript) {
+  constructor(ctx, _id, _contextTokens, _contextWindow, _hasPending, _lastReply, _model, _portableID, _provider, _reasoningEffort, _replay, _sync, _tools, _transcript) {
     super(ctx);
     this._id = _id;
+    this._contextTokens = _contextTokens;
     this._contextWindow = _contextWindow;
     this._hasPending = _hasPending;
     this._lastReply = _lastReply;
     this._model = _model;
     this._portableID = _portableID;
     this._provider = _provider;
+    this._reasoningEffort = _reasoningEffort;
     this._replay = _replay;
     this._sync = _sync;
     this._tools = _tools;
@@ -104054,9 +103552,13 @@ class LLM extends BaseClient {
     const response = await ctx.execute();
     return response;
   };
-  bindResult = (name) => {
-    const ctx = this._ctx.select("bindResult", { name });
-    return new Binding(ctx);
+  contextTokens = async () => {
+    if (this._contextTokens) {
+      return this._contextTokens;
+    }
+    const ctx = this._ctx.select("contextTokens");
+    const response = await ctx.execute();
+    return response;
   };
   contextWindow = async () => {
     if (this._contextWindow) {
@@ -104065,10 +103567,6 @@ class LLM extends BaseClient {
     const ctx = this._ctx.select("contextWindow");
     const response = await ctx.execute();
     return response;
-  };
-  env = () => {
-    const ctx = this._ctx.select("env");
-    return new Env(ctx);
   };
   fork = (label) => {
     const ctx = this._ctx.select("fork", { label });
@@ -104123,10 +103621,23 @@ class LLM extends BaseClient {
     const response = await ctx.execute();
     return response;
   };
+  reasoningEffort = async () => {
+    if (this._reasoningEffort) {
+      return this._reasoningEffort;
+    }
+    const ctx = this._ctx.select("reasoningEffort");
+    const response = await ctx.execute();
+    return response;
+  };
   replay = async () => {
     const ctx = this._ctx.select("replay");
     const response = await ctx.execute();
     return new LLM(ctx.copy().selectNode(response, "LLM"));
+  };
+  skills = async () => {
+    const ctx = this._ctx.select("skills").select("id");
+    const response = await ctx.execute();
+    return response.map((r) => new LLMSkill(ctx.copy().selectNode(r.id, "LLMSkill")));
   };
   step = (opts) => {
     const ctx = this._ctx.select("step", { ...opts });
@@ -104157,27 +103668,12 @@ class LLM extends BaseClient {
     const response = await ctx.execute();
     return response;
   };
-  withBlockedFunction = (typeName, function_) => {
-    const ctx = this._ctx.select("withBlockedFunction", {
-      typeName,
-      function: function_
-    });
-    return new LLM(ctx);
-  };
-  withEnv = (env) => {
-    const ctx = this._ctx.select("withEnv", { env });
-    return new LLM(ctx);
-  };
   withMCPServer = (name, service) => {
     const ctx = this._ctx.select("withMCPServer", { name, service });
     return new LLM(ctx);
   };
   withModel = (model, opts) => {
     const ctx = this._ctx.select("withModel", { model, ...opts });
-    return new LLM(ctx);
-  };
-  withObject = (tag, object) => {
-    const ctx = this._ctx.select("withObject", { tag, object });
     return new LLM(ctx);
   };
   withPrompt = (prompt) => {
@@ -104188,12 +103684,16 @@ class LLM extends BaseClient {
     const ctx = this._ctx.select("withPromptFile", { file });
     return new LLM(ctx);
   };
+  withReasoningEffort = (effort) => {
+    const ctx = this._ctx.select("withReasoningEffort", { effort });
+    return new LLM(ctx);
+  };
   withResponse = (content, opts) => {
     const ctx = this._ctx.select("withResponse", { content, ...opts });
     return new LLM(ctx);
   };
-  withStaticTools = () => {
-    const ctx = this._ctx.select("withStaticTools");
+  withSkills = (directory) => {
+    const ctx = this._ctx.select("withSkills", { directory });
     return new LLM(ctx);
   };
   withSystemPrompt = (prompt) => {
@@ -104202,6 +103702,14 @@ class LLM extends BaseClient {
   };
   withToolResult = (callId, content, errored) => {
     const ctx = this._ctx.select("withToolResult", { callId, content, errored });
+    return new LLM(ctx);
+  };
+  withTools = (object, opts) => {
+    const ctx = this._ctx.select("withTools", { object, ...opts });
+    return new LLM(ctx);
+  };
+  withWorkspace = (workspace) => {
+    const ctx = this._ctx.select("withWorkspace", { workspace });
     return new LLM(ctx);
   };
   withoutDefaultSystemPrompt = () => {
@@ -104215,6 +103723,10 @@ class LLM extends BaseClient {
   withoutSystemPrompts = () => {
     const ctx = this._ctx.select("withoutSystemPrompts");
     return new LLM(ctx);
+  };
+  workspace = () => {
+    const ctx = this._ctx.select("workspace");
+    return new Workspace(ctx);
   };
   with = (arg) => {
     return arg(this);
@@ -104339,6 +103851,42 @@ class LLMMessage extends BaseClient {
   tokenUsage = () => {
     const ctx = this._ctx.select("tokenUsage");
     return new LLMTokenUsage(ctx);
+  };
+}
+
+class LLMSkill extends BaseClient {
+  _id = undefined;
+  _description = undefined;
+  _name = undefined;
+  constructor(ctx, _id, _description, _name) {
+    super(ctx);
+    this._id = _id;
+    this._description = _description;
+    this._name = _name;
+  }
+  id = async () => {
+    if (this._id) {
+      return this._id;
+    }
+    const ctx = this._ctx.select("id");
+    const response = await ctx.execute();
+    return response;
+  };
+  description = async () => {
+    if (this._description) {
+      return this._description;
+    }
+    const ctx = this._ctx.select("description");
+    const response = await ctx.execute();
+    return response;
+  };
+  name = async () => {
+    if (this._name) {
+      return this._name;
+    }
+    const ctx = this._ctx.select("name");
+    const response = await ctx.execute();
+    return response;
   };
 }
 
@@ -104767,6 +104315,10 @@ class ModuleSource extends BaseClient {
     const response = await ctx.execute();
     return response;
   };
+  generate = (workspace) => {
+    const ctx = this._ctx.select("generate", { workspace });
+    return new Workspace(ctx);
+  };
   generateLocalDependencies = (workspace) => {
     const ctx = this._ctx.select("generateLocalDependencies", { workspace });
     return new Changeset(ctx);
@@ -105169,10 +104721,6 @@ class Client extends BaseClient {
     const ctx = this._ctx.select("container", { ...opts });
     return new Container(ctx);
   };
-  currentEnv = () => {
-    const ctx = this._ctx.select("currentEnv");
-    return new Env(ctx);
-  };
   currentFunctionCall = () => {
     const ctx = this._ctx.select("currentFunctionCall");
     return new FunctionCall(ctx);
@@ -105180,6 +104728,10 @@ class Client extends BaseClient {
   currentModule = () => {
     const ctx = this._ctx.select("currentModule");
     return new CurrentModule(ctx);
+  };
+  currentNode = () => {
+    const ctx = this._ctx.select("currentNode");
+    return new _NodeClient(ctx);
   };
   currentTypeDefs = async (opts) => {
     const ctx = this._ctx.select("currentTypeDefs", { ...opts }).select("id");
@@ -105203,9 +104755,9 @@ class Client extends BaseClient {
     const ctx = this._ctx.select("engine");
     return new Engine(ctx);
   };
-  env = (opts) => {
-    const ctx = this._ctx.select("env", { ...opts });
-    return new Env(ctx);
+  engineVolume = (name, opts) => {
+    const ctx = this._ctx.select("engineVolume", { name, ...opts });
+    return new Volume(ctx);
   };
   envFile = (opts) => {
     const ctx = this._ctx.select("envFile", { ...opts });
@@ -106101,8 +105653,12 @@ class Workspace extends BaseClient {
     const response = await ctx.execute();
     return response;
   };
-  changes = () => {
-    const ctx = this._ctx.select("changes");
+  agents = (opts) => {
+    const ctx = this._ctx.select("agents", { ...opts });
+    return new AgentGroup(ctx);
+  };
+  changes = (opts) => {
+    const ctx = this._ctx.select("changes", { ...opts });
     return new Changeset(ctx);
   };
   checks = (opts) => {
@@ -106153,6 +105709,11 @@ class Workspace extends BaseClient {
     const ctx = this._ctx.select("file", { path });
     return new File(ctx);
   };
+  findRoots = async (opts) => {
+    const ctx = this._ctx.select("findRoots", { ...opts });
+    const response = await ctx.execute();
+    return response;
+  };
   findUp = async (name, opts) => {
     if (this._findUp) {
       return this._findUp;
@@ -106190,6 +105751,10 @@ class Workspace extends BaseClient {
     const ctx = this._ctx.select("modules").select("id");
     const response = await ctx.execute();
     return response.map((r) => new WorkspaceModule(ctx.copy().selectNode(r.id, "WorkspaceModule")));
+  };
+  reloaded = () => {
+    const ctx = this._ctx.select("reloaded");
+    return new Workspace(ctx);
   };
   sdk = (name) => {
     const ctx = this._ctx.select("sdk", { name });
@@ -106238,6 +105803,14 @@ class Workspace extends BaseClient {
     const ctx = this._ctx.select("withModule", { ref, ...opts });
     return new Workspace(ctx);
   };
+  withMountedDirectory = (path, source) => {
+    const ctx = this._ctx.select("withMountedDirectory", { path, source });
+    return new Workspace(ctx);
+  };
+  withMountedFile = (path, source) => {
+    const ctx = this._ctx.select("withMountedFile", { path, source });
+    return new Workspace(ctx);
+  };
   withNewDirectory = (path, source) => {
     const ctx = this._ctx.select("withNewDirectory", { path, source });
     return new Workspace(ctx);
@@ -106264,6 +105837,14 @@ class Workspace extends BaseClient {
   };
   withoutConfigValue = (key, opts) => {
     const ctx = this._ctx.select("withoutConfigValue", { key, ...opts });
+    return new Workspace(ctx);
+  };
+  withoutDirectory = (path) => {
+    const ctx = this._ctx.select("withoutDirectory", { path });
+    return new Workspace(ctx);
+  };
+  withoutFile = (path) => {
+    const ctx = this._ctx.select("withoutFile", { path });
     return new Workspace(ctx);
   };
   withoutModule = (name, opts) => {
@@ -108832,6 +108413,9 @@ export {
   RegistryProtocolNameToValue,
   RegistryProtocol,
   Port,
+  PatchConflictValueToName,
+  PatchConflictNameToValue,
+  PatchConflict,
   ObjectTypeDef,
   NotAwaitedRequestError,
   NetworkProtocolValueToName,
@@ -108849,6 +108433,7 @@ export {
   ListTypeDef,
   Label,
   LLMTokenUsage,
+  LLMSkill,
   LLMMessageRoleValueToName,
   LLMMessageRoleNameToValue,
   LLMMessageRole,
@@ -108876,6 +108461,7 @@ export {
   GraphQLClient,
   GitRepository,
   GitRef,
+  GitCommit,
   GeneratorGroup,
   Generator,
   GeneratedCode,
@@ -108900,7 +108486,6 @@ export {
   Error2 as Error,
   EnvVariable,
   EnvFile,
-  Env,
   EnumValueTypeDef,
   EnumTypeDef,
   EngineSessionError,
@@ -108940,7 +108525,8 @@ export {
   CacheSharingModeValueToName,
   CacheSharingModeNameToValue,
   CacheSharingMode,
-  Binding,
   BaseClient,
+  AgentGroup,
+  Agent,
   Address
 };
