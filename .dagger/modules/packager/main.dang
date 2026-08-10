@@ -67,6 +67,23 @@ type Packager {
       # so core.d.ts could move on an unchanged tree.
       .withExec(["bun", "x", "tsc", "--emitDeclarationOnly"])
       .withExec(["bun", "x", "rollup", "-c", "rollup.dts.config.mjs", "-o", "/out/core.d.ts"])
+      # The scanner module codegen runs over a user's source. Bundled rather
+      # than `bun build --compile`d as the engine does: a compiled binary is
+      # ~100MB and per-platform, where this is a few MB of portable JS.
+      .withExec([
+        "bun", "build", "src/module/entrypoint/introspection_entrypoint.ts",
+        "--external=typescript", "--target=node", "--outfile", "/out/introspector.js",
+      ])
+      # The scanner reads the user's code through the TypeScript compiler API,
+      # which stays external to its bundle. The compiler is not shipped here —
+      # it is a build-time dependency of ours (a different version from the one
+      # a module declares for its own runtime), so codegen installs it instead
+      # of this repo carrying 9MB of third-party blob per engine bump. Record
+      # which version to install, derived from the vendored lockfile so
+      # re-vendoring cannot silently move the scanner off the API it was
+      # written against.
+      .withExec(["sh", "-c",
+        "node -p \"require('./node_modules/typescript/package.json').version\" > /out/typescript-version.txt"])
       .directory("/out")
 
     # Same overlay as the bindings: the bundle directory also holds the

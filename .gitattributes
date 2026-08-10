@@ -1,1 +1,4 @@
-/library/bundle/** linguist-generated
+/library/bundle/core.js linguist-generated
+/library/bundle/core.d.ts linguist-generated
+/library/bundle/introspector.js linguist-generated
+/library/bundle/typescript-version.txt linguist-generated

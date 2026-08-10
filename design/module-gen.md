@@ -221,19 +221,30 @@ Two deliberate differences from upstream:
   committed ~100 MB platform-specific binary is a non-starter for git; a bundled
   JS file is a few MB, platform-independent, and runs the same way
   (`bun introspector.js <name> src sdk/client.gen.ts`).
-- **`typescript` ships in the bundle, not inlined.** The scanner does
-  `import ts from "typescript"`, and upstream keeps it external only because the
-  engine mounts `/typescript-library`; we have no such mount. Inlining it into
-  the bundle (dropping `--external=typescript`) has been tried before and hit a
-  pile of issues, so: the packager installs `typescript@<pinned>` and commits it
-  as `bundle/typescript/`, and the introspector exec mounts it at
-  `node_modules/typescript` — the same thing the engine does, from our tree
-  instead of its image. The full npm package is 24 MB; the scanner needs
-  `package.json` + `lib/typescript.js` (9.1 MB), so trim to those and verify
-  resolution (the package's `exports` map lists more entries than `main`).
-  The alternative — a pinned `npm install` exec at generate time, content-addressed
-  so it runs once per engine cache — stays available behind the same seam (§5.4)
-  if 9 MB in git proves worse than a cold-cache fetch.
+- **`typescript` is installed at generate time, not committed.** The scanner
+  does `import ts from "typescript"`, and upstream keeps it external only
+  because the engine mounts `/typescript-library`; we have no such mount. But
+  the compiler is *our build-time dependency*, not the user's: the scanner is
+  written against the API of the version the vendored library locks (6.0.3),
+  which is a different version from the one a module declares for its own
+  runtime (5.9.3, mirroring `tsdistconsts.DefaultTypeScriptVersion`). Carrying
+  9.1 MB of third-party blob in git, re-committed on every engine bump, to
+  serve one exec is the wrong trade. Codegen installs it instead, pinned so the
+  layer is content-addressed on the version alone and shared across every
+  module's generate.
+
+  The version is **derived, not hand-written**: the packager reads it off the
+  resolved install and writes `bundle/typescript-version.txt`, so re-vendoring
+  cannot silently move the scanner onto a compiler API it was not written
+  against. The cost is a registry fetch on a cold cache; if offline generation
+  ever matters, committing the compiler again is one line behind the same seam
+  (§5.4).
+
+Both halves were validated end to end before anything depended on them: the
+plain `bun build` scanner, run over a fixture module with our own `core.js` and
+a module-style `client.gen.ts`, produced a `typedef.json` carrying the
+per-declaration `location` data the entrypoint renderer needs — first with the
+compiler copied in, then again with it installed from the pinned version.
 
 ### 4.2 The library sources: vendored in-tree
 
@@ -306,10 +317,12 @@ maintaining it. Its golden test is "reproduce the vendored file byte-for-byte".
   committed bundle, so a stale artifact fails CI instead of silently shipping.
 - **Marked generated.** `.gitattributes` `linguist-generated` for the bundle
   directory, mirroring what codegen does in user modules.
-- **Cost of carry.** ~4.6 MB per bundle refresh in git history — measured on
-  `v1.0.0-beta.9`: `core.js` 4.3 MB, `core.d.ts` 329 KB, plus the 466 KB of
-  library bindings and (later) the introspector. Acceptable, but it argues for
-  refreshing on engine bumps rather than casually.
+- **Cost of carry.** The committed bundle is **~9.5 MB**, measured on
+  `v1.0.0-beta.9`: `core.js` 4.3 MB, `introspector.js` 4.3 MB, `core.d.ts`
+  329 KB, plus 466 KB of library bindings. Everything in it is built from the
+  vendored source; the one third-party piece, the TypeScript compiler, is
+  installed at generate time instead (§4.1). Still worth refreshing on engine
+  bumps rather than casually.
 
 ## 5. Target architecture
 
@@ -605,17 +618,19 @@ Nothing is open on the design any more. What is left is empirical, and cheap to
 settle before writing the real implementation (§7 would otherwise discover it
 late):
 
-1. **Does the introspector run from a plain `bun build` bundle** (not
-   `--compile`d) with `typescript` mounted at `node_modules/typescript`, and does
-   the trimmed `package.json` + `lib/typescript.js` resolve? Everything about the
-   entrypoint step rests on this.
+1. ~~**Does the introspector run from a plain `bun build` bundle**~~ — **yes.**
+   Bundled without `--compile`, with the trimmed compiler at
+   `node_modules/typescript`, it scans a fixture module and emits a
+   `typedef.json` with the `location` data the entrypoint needs.
 2. **Does our `module` mode reproduce the engine's `sdk/client.gen.ts`
    byte-for-byte** for a fixture, given `ModuleSource.introspectionSchemaJSON`?
    This is the differential check of §7 Phase 2, run by hand once, first.
-3. **Is `bun build` output reproducible enough** across runs to commit without
-   churn, with the image pinned by digest and the lockfile committed?
+3. ~~**Is `bun build` output reproducible enough**~~ — **yes**, with the image
+   pinned by digest and the vendored lockfile in place: a second packager run
+   over an unchanged tree reports no changes. Dropping the lockfile is what
+   breaks it (§4.2).
 
-If those three come back clean, the rest of the design is mechanical.
+Only the differential check is left, and it belongs to Phase 2 anyway.
 (For the record on the fetch alternative in §4.1: dang does support
 `@cache(policy:, ttl:)` → `withCachePolicy`, but a plain container exec is
 already content-addressed by the engine, so the decorator would mostly buy a TTL
