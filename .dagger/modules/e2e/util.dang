@@ -130,6 +130,12 @@ type Fixtures {
   let depAppModule: String! = root + "/generate-deps/app"
   let depLibModule: String! = root + "/generate-deps/dep"
 
+  # The same edge in the legacy format: a dagger.json module with a local
+  # dagger.json dependency. Generation routes to the engine here, and its
+  # dependency staging is what a changeset must not carry back.
+  let legacyDepAppModule: String! = root + "/generate-legacy-deps/app"
+  let legacyDepLibModule: String! = root + "/generate-legacy-deps/dep"
+
   # Module config in <root>/.dagger/modules/app, implementation source in
   # <root>/ci — the split layout `dagger setup` migration produces.
   let parentSourceRoot: String! = root + "/parent-source"
@@ -185,6 +191,8 @@ type Fixtures {
     managedTomlModule,
     depAppModule,
     depLibModule,
+    legacyDepAppModule,
+    legacyDepLibModule,
     parentSourceModule,
   ]
 }

@@ -559,15 +559,40 @@ engine builds its own from whatever it resolves.
 
 This is the cutover's safety net and it is cheap while both paths exist.
 
-**Phase 3 — cutover, for `dagger-module.toml` modules only.** Flip
-`Mod.generate` to the local path when the module's config is
-`dagger-module.toml`; keep delegating to `polyfill.moduleSource(...).generate`
-for `dagger.json` ones (§8). Keep `generateLocalDependencies` staging (still
-required: a dependent's schema can only be built if its local deps' generated
-files exist, and dep generation may cross SDKs). Update the e2e assertions from
-`sdk/index.ts` to the full expected tree, and add `__dagger.entrypoint.ts` +
-`sdk/core.js` assertions. Verify `dagger call` on a generated fixture actually
-runs — the runtime contract in §2.2 is only really proven by executing a module.
+**Phase 3 — cutover, for `dagger-module.toml` modules only.** ✅ Done.
+`Mod.generate` takes the local path when the module's config is
+`dagger-module.toml` and keeps delegating to
+`polyfill.moduleSource(...).generate` for `dagger.json` ones (§8).
+`generateLocalDependencies` staging is kept for both: a dependent's schema can
+only be loaded once its local deps' generated files exist, and dep generation
+may cross SDKs.
+
+Validated three ways rather than one:
+
+- **Byte-for-byte against the engine.** Generating the same fixture both ways
+  produces identical `client.gen.ts`, `__dagger.entrypoint.ts`, `index.ts`,
+  `telemetry.ts`, `core.d.ts`, `package.json` and `tsconfig.json`. The one
+  exception is `core.js`, which is *ours* by construction: built from the
+  vendored lockfile at 4.3 MB against the engine's unpinned 5.4 MB (§4.2).
+  Getting there required three generator fixes the diff surfaced (§ the
+  generator was ported from an older upstream commit than the engine we pin).
+- **By running a module.** A `dagger call` on a generated fixture returns its
+  value, exercising our bindings, bundle and entrypoint through the engine
+  runtime, dependency bindings included. The runtime contract in §2.2 is only
+  really proven by executing a module.
+- **By an e2e check** asserting the whole tree contract, not one marker file.
+
+**VCS files are not written** (decided): no `.gitignore`, no `.gitattributes`.
+The engine appends to both around codegen, but for a workspace module the
+ignore list is reduced to `node_modules`/`.pnpm-store` anyway, which is the
+user's business rather than codegen's.
+
+Worth knowing, since it looks like our bug when it happens: a module whose
+`.gitignore` still ignores `sdk/` — a legacy `dagger.json` module migrated to
+`.toml` — fails to load with *"committed generated file sdk/client.gen.ts is
+missing"* even though the file is on disk, because the ignore keeps it out of
+the module context. The engine has the same problem: it only avoids *adding*
+generated paths for toml modules, it never removes one already there.
 
 **Phase 4 — upstream cleanup** (separate `dagger/dagger` PR, §9).
 
@@ -650,15 +675,16 @@ late):
    Bundled without `--compile`, with the trimmed compiler at
    `node_modules/typescript`, it scans a fixture module and emits a
    `typedef.json` with the `location` data the entrypoint needs.
-2. **Does our `module` mode reproduce the engine's `sdk/client.gen.ts`
-   byte-for-byte** for a fixture, given `ModuleSource.introspectionSchemaJSON`?
-   This is the differential check of §7 Phase 2, run by hand once, first.
+2. ~~**Does our `module` mode reproduce the engine's `sdk/client.gen.ts`
+   byte-for-byte**~~ — **yes**, once the generator was synced with the engine
+   it targets (§7 Phase 3). It did not before: enum members were miscased,
+   `arguments` went unescaped, and the entrypoint carried no source maps.
 3. ~~**Is `bun build` output reproducible enough**~~ — **yes**, with the image
    pinned by digest and the vendored lockfile in place: a second packager run
    over an unchanged tree reports no changes. Dropping the lockfile is what
    breaks it (§4.2).
 
-Only the differential check is left, and it belongs to Phase 2 anyway.
+All three are now answered; the work they were guarding is done.
 (For the record on the fetch alternative in §4.1: dang does support
 `@cache(policy:, ttl:)` → `withCachePolicy`, but a plain container exec is
 already content-addressed by the engine, so the decorator would mostly buy a TTL

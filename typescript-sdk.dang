@@ -591,26 +591,102 @@ type TypescriptSdk {
   }
 
   """
-  Generate a module's SDK files in this SDK rather than through the engine's
-  built-in TypeScript runtime.
+  Generate a module's files and stage them at its source directory.
 
-  Staged behind `Mod.generate` while the two are compared: see
-  e2e:generate:local-matches-engine-check, which generates a fixture both ways
-  and diffs everything but the bundle.
+  Takes the module's paths rather than a Mod so it can be called with a
+  workspace that already has the module's dependency closure staged — resolving
+  the module afresh from that workspace is what makes its schema loadable.
+  """
+  let moduleFiles(ws: Workspace!, rootPath: String!, sourcePath: String!, base: Workspace!): Changeset! {
+    let modSrc = ws.moduleSource("/" + rootPath)
+    let sourcePrefix = if (sourcePath == ".") { "" } else { sourcePath + "/" }
+
+    # Everything the module is generated *from* reads the staged workspace, so
+    # dependency bindings are current. Everything the changeset is measured
+    # *against* reads the unstaged one: the engine may have just generated this
+    # module while staging it for a dependent, and diffing against that would
+    # report its own output as already present and emit nothing.
+    let existingSource = if (sourcePath == ".") { base.directory("/") } else { base.directory("/" + sourcePath) }
+    let existing = existingSource.withoutFiles(moduleBindings(base, sourcePath).map { entry => "sdk/" + entry })
+
+    let generated = moduleDirectory(
+      modSrc.introspectionSchemaJSON.contents,
+      modSrc.moduleOriginalName,
+      base.directory("/" + sourcePrefix + "src"),
+      existingModuleConfig(base, sourcePath),
+      moduleRuntime(base, sourcePath),
+    )
+
+    # Stage the generated files over the module's existing tree, not in place of
+    # it. withNewDirectory swaps the whole directory, so staging only what we
+    # generate says everything else — the module's config and its source — was
+    # deleted. Applying to disk hides that, but staging into a workspace does
+    # not: the engine generates a dependency by running this against a workspace
+    # it then reuses, and the next module's dependency resolution finds the
+    # dependency's config gone.
+    withoutModuleBindings(base, sourcePath)
+      .withNewDirectory("/" + sourcePath, existing.withDirectory(".", generated))
+      .changes(base)
+  }
+
+  """
+  Workspace-relative path of a module's generated sdk/ directory.
+  """
+  let moduleSdkPath(sourcePath: String!): String! {
+    if (sourcePath == ".") { "sdk" } else { sourcePath + "/sdk" }
+  }
+
+  """
+  The `*.gen.ts` bindings sitting in a module's sdk/ directory, by name.
+
+  Regeneration owns that set and nothing else: a dependency that has left the
+  module's closure must lose its file, while the rest of sdk/ — the bundle and
+  the wrappers — is rewritten in place every time.
+  """
+  let moduleBindings(ws: Workspace!, sourcePath: String!): [String!]! {
+    existingDir(ws, moduleSdkPath(sourcePath)).entries
+      .filter { entry => entry.trimSuffix(".gen.ts") != entry }
+  }
+
+  """
+  The workspace with a module's generated bindings removed.
+
+  Layering the generated tree over the existing one is what keeps the module's
+  own source and config in the changeset, but it also means a file we no longer
+  generate is simply left behind — so a dependency dropped from the config keeps
+  its <dep>.gen.ts, exporting an API against a module that is no longer served,
+  and a default tsc compiles the whole directory and rejects it.
+
+  Pruned in both places for the same reason client generation is (see
+  withoutClientBindings): withNewDirectory replaces the directory it writes on a
+  local-directory workspace and merges into it on a git-loaded one, so taking
+  the bindings out of the baseline covers the first and out of the workspace the
+  second.
+  """
+  let withoutModuleBindings(ws: Workspace!, sourcePath: String!): Workspace! {
+    let sdkPath = moduleSdkPath(sourcePath)
+    moduleBindings(ws, sourcePath).reduce(ws) { pruned, entry =>
+      pruned.withoutFile("/" + sdkPath + "/" + entry)
+    }
+  }
+
+  """
+  Which TypeScript runtime a module's source directory is configured for,
+  detected from the files it carries — the same rule the engine applies when it
+  loads the module.
+  """
+  let moduleRuntime(ws: Workspace!, sourcePath: String!): Runtime! {
+    ModConfig(sourcePath: sourcePath, ws: ws).runtime
+  }
+
+  """
+  Generate a module's files through this SDK, bypassing `Mod.generate`'s choice
+  of path. Exists so a check can generate the same module both ways and compare
+  the results; `Mod.generate` is what callers should use.
   """
   generateModuleLocal(ws: Workspace!, path: String!): Changeset! {
     let mod = mod(ws, path: path, findUp: false)
-    let modSrc = ws.moduleSource("/" + mod.rootPath)
-    let sourcePath = mod.sourcePath
-    let sourcePrefix = if (sourcePath == ".") { "" } else { sourcePath + "/" }
-
-    ws.withNewDirectory("/" + sourcePath, moduleDirectory(
-      modSrc.introspectionSchemaJSON.contents,
-      modSrc.moduleOriginalName,
-      ws.directory("/" + sourcePrefix + "src"),
-      existingModuleConfig(ws, sourcePath),
-      mod.config.runtime,
-    )).changes(ws)
+    moduleFiles(ws, mod.rootPath, mod.sourcePath, ws)
   }
 
   """
@@ -797,7 +873,19 @@ type TypescriptSdk {
   generateAllModule(ws: Workspace!): Changeset! @generate {
     let changes = modules(ws)
       .filter { mod => mod.skipGenerate(ws) == false }
-      .map { mod => ws.moduleSource("/" + mod.rootPath).generate(ws).changes(ws) }
+      .map { mod =>
+        # Stage this module's local dependency closure first (leaf-first, possibly
+        # across SDKs) so its codegen sees up-to-date dependency bindings. The dep
+        # codegen is ephemeral: taking the changeset against the staged workspace
+        # cancels it out, leaving only each module's own changes.
+        let stagedWs = ws.withChanges(ws.moduleSource("/" + mod.rootPath).generateLocalDependencies(ws))
+
+        # Generate through Mod so this and `mod generate` cannot pick different
+        # generators — but only its staged half: Mod.generate would stage a
+        # second time, and the engine already re-enters this function under each
+        # dependency's own staging.
+        mod.generateStaged(stagedWs, ws)
+      }
 
     # Force the per-module codegen to evaluate concurrently: selecting a field on
     # the whole list resolves every element in one pass, where folding them into

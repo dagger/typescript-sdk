@@ -43,6 +43,15 @@ path = ".dagger/modules/e2e/fixtures/generate-deps/app"
 [[modules.typescript-sdk.as-sdk.modules]]
 path = ".dagger/modules/e2e/fixtures/generate-deps/dep"
 
+# The legacy-format counterpart of generate-deps: a dagger.json module with a
+# local dagger.json dependency. Generation routes to the engine for these, the
+# one path where the SDK hands back a workspace it did not assemble itself.
+[[modules.typescript-sdk.as-sdk.modules]]
+path = ".dagger/modules/e2e/fixtures/generate-legacy-deps/app"
+
+[[modules.typescript-sdk.as-sdk.modules]]
+path = ".dagger/modules/e2e/fixtures/generate-legacy-deps/dep"
+
 [[modules.typescript-sdk.as-sdk.modules]]
 path = ".dagger/modules/e2e/fixtures/parent-source/.dagger/modules/app"
 
