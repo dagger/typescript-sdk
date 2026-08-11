@@ -1,0 +1,199 @@
+{
+    "enums": {},
+    "interfaces": {},
+    "name": "Smoke",
+    "objects": {
+        "Smoke": {
+            "constructor": {
+                "arguments": [
+                    {
+                        "description": "",
+                        "isNullable": false,
+                        "isOptional": false,
+                        "isVariadic": false,
+                        "location": {
+                            "column": 15,
+                            "filepath": "src/index.ts",
+                            "line": 17
+                        },
+                        "name": "source",
+                        "type": {
+                            "kind": "OBJECT_KIND",
+                            "name": "Directory"
+                        }
+                    },
+                    {
+                        "defaultValue": "hello",
+                        "description": "",
+                        "isNullable": false,
+                        "isOptional": false,
+                        "isVariadic": false,
+                        "location": {
+                            "column": 34,
+                            "filepath": "src/index.ts",
+                            "line": 17
+                        },
+                        "name": "greeting",
+                        "type": {
+                            "kind": "STRING_KIND"
+                        }
+                    }
+                ],
+                "name": ""
+            },
+            "description": "A module covering the shapes the entrypoint has to dispatch.",
+            "isDefaultExport": false,
+            "isExported": true,
+            "kind": "class",
+            "location": {
+                "column": 14,
+                "filepath": "src/index.ts",
+                "line": 7
+            },
+            "methods": {
+                "ctr": {
+                    "arguments": [],
+                    "description": "",
+                    "isCheck": false,
+                    "isGenerator": false,
+                    "isUp": false,
+                    "location": {
+                        "column": 3,
+                        "filepath": "src/index.ts",
+                        "line": 31
+                    },
+                    "name": "ctr",
+                    "returnType": {
+                        "kind": "OBJECT_KIND",
+                        "name": "Container"
+                    }
+                },
+                "greet": {
+                    "arguments": [
+                        {
+                            "description": "",
+                            "isNullable": false,
+                            "isOptional": false,
+                            "isVariadic": false,
+                            "location": {
+                                "column": 9,
+                                "filepath": "src/index.ts",
+                                "line": 26
+                            },
+                            "name": "name",
+                            "type": {
+                                "kind": "STRING_KIND"
+                            }
+                        },
+                        {
+                            "description": "",
+                            "isNullable": false,
+                            "isOptional": true,
+                            "isVariadic": false,
+                            "location": {
+                                "column": 23,
+                                "filepath": "src/index.ts",
+                                "line": 26
+                            },
+                            "name": "loud",
+                            "type": {
+                                "kind": "BOOLEAN_KIND"
+                            }
+                        }
+                    ],
+                    "description": "Greet someone.",
+                    "isCheck": false,
+                    "isGenerator": false,
+                    "isUp": false,
+                    "location": {
+                        "column": 3,
+                        "filepath": "src/index.ts",
+                        "line": 26
+                    },
+                    "name": "greet",
+                    "returnType": {
+                        "kind": "STRING_KIND"
+                    }
+                },
+                "nothing": {
+                    "arguments": [],
+                    "description": "",
+                    "isCheck": false,
+                    "isGenerator": false,
+                    "isUp": false,
+                    "location": {
+                        "column": 3,
+                        "filepath": "src/index.ts",
+                        "line": 41
+                    },
+                    "name": "nothing",
+                    "returnType": {
+                        "kind": "VOID_KIND"
+                    }
+                },
+                "read": {
+                    "arguments": [
+                        {
+                            "description": "",
+                            "isNullable": false,
+                            "isOptional": false,
+                            "isVariadic": false,
+                            "location": {
+                                "column": 14,
+                                "filepath": "src/index.ts",
+                                "line": 36
+                            },
+                            "name": "path",
+                            "type": {
+                                "kind": "STRING_KIND"
+                            }
+                        }
+                    ],
+                    "description": "",
+                    "isCheck": false,
+                    "isGenerator": false,
+                    "isUp": false,
+                    "location": {
+                        "column": 9,
+                        "filepath": "src/index.ts",
+                        "line": 36
+                    },
+                    "name": "read",
+                    "returnType": {
+                        "kind": "STRING_KIND"
+                    }
+                }
+            },
+            "name": "Smoke",
+            "properties": {
+                "greeting": {
+                    "description": "",
+                    "isExposed": true,
+                    "location": {
+                        "column": 3,
+                        "filepath": "src/index.ts",
+                        "line": 15
+                    },
+                    "name": "greeting",
+                    "type": {
+                        "kind": "STRING_KIND"
+                    }
+                },
+                "source": {
+                    "description": "Where the source lives.",
+                    "isExposed": true,
+                    "location": {
+                        "column": 3,
+                        "filepath": "src/index.ts",
+                        "line": 12
+                    },
+                    "name": "source",
+                    "type": {
+                        "kind": "OBJECT_KIND",
+                        "name": "Directory"
+                    }
+                }
+            }
+        }
+    }
+}

@@ -243,8 +243,26 @@ Two deliberate differences from upstream:
 Both halves were validated end to end before anything depended on them: the
 plain `bun build` scanner, run over a fixture module with our own `core.js` and
 a module-style `client.gen.ts`, produced a `typedef.json` carrying the
-per-declaration `location` data the entrypoint renderer needs — first with the
-compiler copied in, then again with it installed from the pinned version.
+per-declaration `location` data the entrypoint renderer needs.
+
+**Two constraints on how the compiler is provided — both found the hard way,
+and both must hold in the Phase 2 codegen container:**
+
+1. **It must be the full package, not a trimmed one.** An earlier revision of
+   this design proposed shipping `package.json` + `lib/typescript.js` (9.1 MB of
+   the package's 24 MB). That loads, and scans trivial signatures, but the
+   checker silently loses every *global* type: `lib/lib.*.d.ts` is missing, so
+   `Promise`, `Array` and friends do not resolve. A module with
+   `async foo(): Promise<string>` — i.e. most modules — fails with the
+   misleading `could not resolve type reference for string`. Installing the
+   package (§4.1) avoids this by construction.
+2. **It must be resolvable from `introspector.js`'s own directory**, not the
+   module's. Bare-import resolution walks up from the *importing file*, so
+   putting the compiler in the module's `node_modules` does nothing for a
+   scanner that lives elsewhere. Upstream sidesteps this by bundling the
+   compiler into its `--compile`d binary and mounting the package only for the
+   `lib.*.d.ts` files; we keep the compiler external, so the scanner and its
+   `node_modules/typescript` have to sit together.
 
 ### 4.2 The library sources: vendored in-tree
 
