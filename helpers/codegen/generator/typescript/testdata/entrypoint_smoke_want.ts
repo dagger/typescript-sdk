@@ -65,14 +65,14 @@ async function serializeSmoke(__obj: Smoke): Promise<any> {
 
 async function register(): Promise<string> {
   let mod = dag.module_()
-  let obj_Smoke = dag.typeDef().withObject("Smoke", { description: "A module covering the shapes the entrypoint has to dispatch." })
-  obj_Smoke = obj_Smoke.withFunction(dag.function_("ctr", dag.typeDef().withObject("Container")))
-  obj_Smoke = obj_Smoke.withFunction(dag.function_("greet", dag.typeDef().withKind(TypeDefKind.StringKind)).withDescription("Greet someone.").withArg("name", dag.typeDef().withKind(TypeDefKind.StringKind)).withArg("loud", dag.typeDef().withKind(TypeDefKind.BooleanKind).withOptional(true)))
-  obj_Smoke = obj_Smoke.withFunction(dag.function_("nothing", dag.typeDef().withKind(TypeDefKind.VoidKind).withOptional(true)))
-  obj_Smoke = obj_Smoke.withFunction(dag.function_("read", dag.typeDef().withKind(TypeDefKind.StringKind)).withArg("path", dag.typeDef().withKind(TypeDefKind.StringKind)))
-  obj_Smoke = obj_Smoke.withField("greeting", dag.typeDef().withKind(TypeDefKind.StringKind))
-  obj_Smoke = obj_Smoke.withField("source", dag.typeDef().withObject("Directory"), { description: "Where the source lives." })
-  obj_Smoke = obj_Smoke.withConstructor(dag.function_("", obj_Smoke).withArg("source", dag.typeDef().withObject("Directory")).withArg("greeting", dag.typeDef().withKind(TypeDefKind.StringKind), { defaultValue: JSON.stringify("hello") as string & { __JSON: never } }))
+  let obj_Smoke = dag.typeDef().withObject("Smoke", { description: "A module covering the shapes the entrypoint has to dispatch.", sourceMap: dag.sourceMap("src/index.ts", 7, 14) })
+  obj_Smoke = obj_Smoke.withFunction(dag.function_("ctr", dag.typeDef().withObject("Container")).withSourceMap(dag.sourceMap("src/index.ts", 31, 3)))
+  obj_Smoke = obj_Smoke.withFunction(dag.function_("greet", dag.typeDef().withKind(TypeDefKind.StringKind)).withDescription("Greet someone.").withSourceMap(dag.sourceMap("src/index.ts", 26, 3)).withArg("name", dag.typeDef().withKind(TypeDefKind.StringKind), { sourceMap: dag.sourceMap("src/index.ts", 26, 9) }).withArg("loud", dag.typeDef().withKind(TypeDefKind.BooleanKind).withOptional(true), { sourceMap: dag.sourceMap("src/index.ts", 26, 23) }))
+  obj_Smoke = obj_Smoke.withFunction(dag.function_("nothing", dag.typeDef().withKind(TypeDefKind.VoidKind).withOptional(true)).withSourceMap(dag.sourceMap("src/index.ts", 41, 3)))
+  obj_Smoke = obj_Smoke.withFunction(dag.function_("read", dag.typeDef().withKind(TypeDefKind.StringKind)).withSourceMap(dag.sourceMap("src/index.ts", 36, 9)).withArg("path", dag.typeDef().withKind(TypeDefKind.StringKind), { sourceMap: dag.sourceMap("src/index.ts", 36, 14) }))
+  obj_Smoke = obj_Smoke.withField("greeting", dag.typeDef().withKind(TypeDefKind.StringKind), { sourceMap: dag.sourceMap("src/index.ts", 15, 3) })
+  obj_Smoke = obj_Smoke.withField("source", dag.typeDef().withObject("Directory"), { description: "Where the source lives.", sourceMap: dag.sourceMap("src/index.ts", 12, 3) })
+  obj_Smoke = obj_Smoke.withConstructor(dag.function_("", obj_Smoke).withArg("source", dag.typeDef().withObject("Directory"), { sourceMap: dag.sourceMap("src/index.ts", 17, 15) }).withArg("greeting", dag.typeDef().withKind(TypeDefKind.StringKind), { defaultValue: JSON.stringify("hello") as string & { __JSON: never }, sourceMap: dag.sourceMap("src/index.ts", 17, 34) }))
   mod = mod.withObject(obj_Smoke)
   return await mod.id()
 }

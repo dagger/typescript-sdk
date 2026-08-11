@@ -1920,8 +1920,8 @@ export type ID = string & {__ID: never}
  * Compression algorithm to use for image layers.
  */
 export enum ImageLayerCompression {
-  EstarGz = "EStarGZ",
-  Estargz = ImageLayerCompression.EstarGz,
+  EStarGz = "EStarGZ",
+  Estargz = ImageLayerCompression.EStarGz,
   Gzip = "Gzip",
   Uncompressed = "Uncompressed",
   Zstd = "Zstd",
@@ -1933,7 +1933,7 @@ export enum ImageLayerCompression {
  */
 export function ImageLayerCompressionValueToName(value: ImageLayerCompression): string {
   switch (value) {
-    case ImageLayerCompression.EstarGz:
+    case ImageLayerCompression.EStarGz:
       return "EStarGZ"
     case ImageLayerCompression.Gzip:
       return "Gzip"
@@ -1953,7 +1953,7 @@ export function ImageLayerCompressionValueToName(value: ImageLayerCompression): 
 export function ImageLayerCompressionNameToValue(name: string): ImageLayerCompression {
   switch (name) {
     case "EStarGZ":
-      return ImageLayerCompression.EstarGz
+      return ImageLayerCompression.EStarGz
     case "Gzip":
       return ImageLayerCompression.Gzip
     case "Uncompressed":
@@ -1971,7 +1971,7 @@ export enum ImageMediaTypes {
   Docker = "DockerMediaTypes",
   DockerMediaTypes = ImageMediaTypes.Docker,
   Oci = "OCIMediaTypes",
-  OcimediaTypes = ImageMediaTypes.Oci,
+  OciMediaTypes = ImageMediaTypes.Oci,
 }
 
 /**
@@ -12337,7 +12337,7 @@ export class LLMContentBlock extends BaseClient {
   /**
    * The arguments passed to the tool, JSON-encoded (for TOOL_CALL kind).
    */
-  arguments = async (): Promise<JSON> => {
+  arguments_ = async (): Promise<JSON> => {
     if (this._arguments) {
       return this._arguments
     }

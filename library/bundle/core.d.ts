@@ -1567,7 +1567,7 @@ type ID = string & {
  * Compression algorithm to use for image layers.
  */
 declare enum ImageLayerCompression {
-    EstarGz = "EStarGZ",
+    EStarGz = "EStarGZ",
     Estargz = "EStarGZ",
     Gzip = "Gzip",
     Uncompressed = "Uncompressed",
@@ -1590,7 +1590,7 @@ declare enum ImageMediaTypes {
     Docker = "DockerMediaTypes",
     DockerMediaTypes = "DockerMediaTypes",
     Oci = "OCIMediaTypes",
-    OcimediaTypes = "OCIMediaTypes"
+    OciMediaTypes = "OCIMediaTypes"
 }
 /**
  * Utility function to convert a ImageMediaTypes value to its name so
@@ -5715,7 +5715,7 @@ declare class LLMContentBlock extends BaseClient {
     /**
      * The arguments passed to the tool, JSON-encoded (for TOOL_CALL kind).
      */
-    arguments: () => Promise<JSON>;
+    arguments_: () => Promise<JSON>;
     /**
      * The unique ID of a tool call (for TOOL_CALL or TOOL_RESULT kinds).
      */

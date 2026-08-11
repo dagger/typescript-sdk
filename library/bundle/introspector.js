@@ -99585,7 +99585,7 @@ function FunctionCachePolicyValueToName(value) {
 }
 function ImageLayerCompressionValueToName(value) {
   switch (value) {
-    case "EStarGZ" /* EstarGz */:
+    case "EStarGZ" /* EStarGz */:
       return "EStarGZ";
     case "Gzip" /* Gzip */:
       return "Gzip";
@@ -103102,7 +103102,7 @@ class LLMContentBlock extends BaseClient {
     const response = await ctx.execute();
     return response;
   };
-  arguments = async () => {
+  arguments_ = async () => {
     if (this._arguments) {
       return this._arguments;
     }

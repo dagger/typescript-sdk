@@ -427,19 +427,20 @@ func (funcs typescriptTemplateFuncs) queryToClient(s string) string {
 // in practice, many of these work just fine as e.g. method
 // names, like 'export' and 'from'.
 var jsKeywords = map[string]struct{}{
-	"await":    {},
-	"break":    {},
-	"case":     {},
-	"catch":    {},
-	"class":    {},
-	"const":    {},
-	"continue": {},
-	"debugger": {},
-	"default":  {},
-	"delete":   {},
-	"do":       {},
-	"else":     {},
-	"enum":     {},
+	"arguments": {},
+	"await":     {},
+	"break":     {},
+	"case":      {},
+	"catch":     {},
+	"class":     {},
+	"const":     {},
+	"continue":  {},
+	"debugger":  {},
+	"default":   {},
+	"delete":    {},
+	"do":        {},
+	"else":      {},
+	"enum":      {},
 	// "export":     {}, // containr.export
 	"extends":    {},
 	"false":      {},
@@ -493,8 +494,12 @@ var jsKeywords = map[string]struct{}{
 }
 
 // formatEnum formats a GraphQL enum into a TS equivalent
+// formatEnum names an enum member. It uses the same PascalCase rule as the rest
+// of the generator rather than strcase.ToCamel, which mangles consecutive
+// capitals ("EStarGZ" -> "EstarGz" instead of "EStarGz") and would leave a
+// module's bindings incompatible with code written against the engine's.
 func (funcs typescriptTemplateFuncs) formatEnum(s string) string {
-	return strcase.ToCamel(s)
+	return toPascalCase(s)
 }
 
 // isArgOptional checks if some arg are optional.

@@ -99998,7 +99998,7 @@ function FunctionCachePolicyNameToValue(name) {
 }
 var ImageLayerCompression;
 ((ImageLayerCompression2) => {
-  ImageLayerCompression2["EstarGz"] = "EStarGZ";
+  ImageLayerCompression2["EStarGz"] = "EStarGZ";
   ImageLayerCompression2["Estargz"] = "EStarGZ";
   ImageLayerCompression2["Gzip"] = "Gzip";
   ImageLayerCompression2["Uncompressed"] = "Uncompressed";
@@ -100006,7 +100006,7 @@ var ImageLayerCompression;
 })(ImageLayerCompression ||= {});
 function ImageLayerCompressionValueToName(value) {
   switch (value) {
-    case "EStarGZ" /* EstarGz */:
+    case "EStarGZ" /* EStarGz */:
       return "EStarGZ";
     case "Gzip" /* Gzip */:
       return "Gzip";
@@ -100021,7 +100021,7 @@ function ImageLayerCompressionValueToName(value) {
 function ImageLayerCompressionNameToValue(name) {
   switch (name) {
     case "EStarGZ":
-      return "EStarGZ" /* EstarGz */;
+      return "EStarGZ" /* EStarGz */;
     case "Gzip":
       return "Gzip" /* Gzip */;
     case "Uncompressed":
@@ -100037,7 +100037,7 @@ var ImageMediaTypes;
   ImageMediaTypes2["Docker"] = "DockerMediaTypes";
   ImageMediaTypes2["DockerMediaTypes"] = "DockerMediaTypes";
   ImageMediaTypes2["Oci"] = "OCIMediaTypes";
-  ImageMediaTypes2["OcimediaTypes"] = "OCIMediaTypes";
+  ImageMediaTypes2["OciMediaTypes"] = "OCIMediaTypes";
 })(ImageMediaTypes ||= {});
 function ImageMediaTypesValueToName(value) {
   switch (value) {
@@ -103761,7 +103761,7 @@ class LLMContentBlock extends BaseClient {
     const response = await ctx.execute();
     return response;
   };
-  arguments = async () => {
+  arguments_ = async () => {
     if (this._arguments) {
       return this._arguments;
     }
