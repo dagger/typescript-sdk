@@ -82,13 +82,17 @@ func run(args []string) error {
 		return fmt.Errorf("%s: %w", subcommand, err)
 	}
 
-	out := []byte(updated)
-	// Client config is emitted fresh into a scoped package, so pretty-print it
-	// (indented, key order preserved) instead of a single minified line. Module
-	// variants edit user files in place and keep sjson's format-preserving output.
-	if strings.HasPrefix(subcommand, "client-") {
-		out = pretty.PrettyOptions(out, &pretty.Options{Indent: "  "})
-	}
+	// Indent every config we write, key order preserved. sjson edits in place,
+	// which reads as "preserve the user's formatting" but only holds for the
+	// parts it does not touch: keys it adds are appended compactly, and a file
+	// created from scratch comes out as a single line. Committed config that
+	// people read and edit is worth a whole-file reformat.
+	//
+	// Width is pretty's own default, not zero, which is what keeps a short array
+	// on one line. Zero explodes `"@dagger.io/dagger": ["./sdk/index.ts"]` across
+	// three lines, so the tsconfig.json we write stops matching the engine's byte
+	// for byte — for two generators that are supposed to agree.
+	out := pretty.PrettyOptions([]byte(updated), &pretty.Options{Indent: "  ", Width: 80})
 
 	return os.WriteFile(outputPath, out, 0o644)
 }
@@ -114,6 +118,15 @@ func updatePackageJSON(packageJSON string) (string, error) {
 		return "", fmt.Errorf("set type=module: %w", err)
 	}
 
+	// Pin typescript unless the module already chose a version. The runtime
+	// mounts its own prebuilt copy — and skips dependency installation for an
+	// otherwise dependency-free module — only when the pin matches the engine's
+	// default, so drifting from it silently turns every call into an install.
+	packageJSON, err = pinTypeScript(packageJSON)
+	if err != nil {
+		return "", err
+	}
+
 	// Remove legacy in-tree @dagger.io/dagger deps so we transition cleanly to
 	// the engine-managed bundle. Matches dagger/dagger UpdatePackageJSONForModule.
 	for _, key := range []string{
@@ -131,6 +144,26 @@ func updatePackageJSON(packageJSON string) (string, error) {
 
 // defaultTypeScriptVersion mirrors dagger/dagger tsdistconsts.DefaultTypeScriptVersion.
 const defaultTypeScriptVersion = "5.9.3"
+
+// pinTypeScript adds the default typescript pin unless the module already
+// declares one, in either dependency section. devDependencies is the normal
+// place to put a compiler, so writing dependencies.typescript without looking
+// there leaves the module declaring two versions of the same package — npm
+// resolves that to the runtime one, quietly overriding the compiler the user
+// chose.
+func pinTypeScript(packageJSON string) (string, error) {
+	for _, section := range []string{"dependencies", "devDependencies"} {
+		if gjson.Get(packageJSON, section+".typescript").Exists() {
+			return packageJSON, nil
+		}
+	}
+
+	packageJSON, err := sjson.Set(packageJSON, "dependencies.typescript", defaultTypeScriptVersion)
+	if err != nil {
+		return "", fmt.Errorf("set typescript dependency: %w", err)
+	}
+	return packageJSON, nil
+}
 
 // updateClientPackageJSON turns the client output dir's package.json into a
 // self-contained scoped package: it pins @dagger.io/dagger to the module's
@@ -164,9 +197,9 @@ func updateClientPackageJSON(packageJSON, engineVersion, moduleName string) (str
 		}
 	}
 
-	packageJSON, err = setIfNotExists(packageJSON, "dependencies.typescript", defaultTypeScriptVersion)
+	packageJSON, err = pinTypeScript(packageJSON)
 	if err != nil {
-		return "", fmt.Errorf("set typescript dependency: %w", err)
+		return "", err
 	}
 
 	return packageJSON, nil
@@ -307,7 +340,14 @@ func updateTSConfig(tsConfig string) (string, error) {
 }
 
 func updateDenoConfig(denoConfig string) (string, error) {
-	denoConfig, err := sjson.Set(denoConfig, "nodeModulesDir", "auto")
+	// Deno resolves dependencies through this map rather than node_modules, so
+	// the compiler the module's own code needs has to be declared here.
+	denoConfig, err := setIfNotExists(denoConfig, "imports.typescript", "npm:typescript@"+defaultTypeScriptVersion)
+	if err != nil {
+		return "", fmt.Errorf("set typescript import: %w", err)
+	}
+
+	denoConfig, err = sjson.Set(denoConfig, "nodeModulesDir", "auto")
 	if err != nil {
 		return "", fmt.Errorf("set nodeModulesDir: %w", err)
 	}
