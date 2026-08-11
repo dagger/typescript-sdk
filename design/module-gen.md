@@ -582,6 +582,15 @@ Validated three ways rather than one:
   really proven by executing a module.
 - **By an e2e check** asserting the whole tree contract, not one marker file.
 
+**Freshness is enforced already, without a bespoke check.** The engine surfaces
+each `@generate` function as a check that fails when running it would produce
+changes — so `packager:library-bindings` and `packager:library-bundle` are the
+staleness check, with a better message than a hand-written one:
+*"generate function packager:library-bindings produced changes; run
+'dagger generate packager:library-bindings' to apply"*. Verified by tampering
+with the committed bindings and watching it fail. An engine bump therefore
+shows up as a failing check rather than silent drift.
+
 **VCS files are not written** (decided): no `.gitignore`, no `.gitattributes`.
 The engine appends to both around codegen, but for a workspace module the
 ignore list is reduced to `node_modules`/`.pnpm-store` anyway, which is the

@@ -37,6 +37,11 @@ path = ".dagger/modules/e2e/fixtures/skip/app"
 [[modules.typescript-sdk.as-sdk.modules]]
 path = ".dagger/modules/e2e/fixtures/managed-toml/app"
 
+# A Deno module: same bindings and entrypoint as node/bun, but its config lives
+# in deno.json, the only part of generation that branches on runtime.
+[[modules.typescript-sdk.as-sdk.modules]]
+path = ".dagger/modules/e2e/fixtures/generate-deno/app"
+
 [[modules.typescript-sdk.as-sdk.modules]]
 path = ".dagger/modules/e2e/fixtures/generate-deps/app"
 

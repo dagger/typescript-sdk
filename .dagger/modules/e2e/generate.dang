@@ -213,6 +213,55 @@ type GenerateChecks {
   }
 
   """
+  A Deno module gets the same bindings, bundle and entrypoint as any other —
+  only its config differs, because Deno resolves imports through deno.json
+  rather than node_modules plus tsconfig paths.
+
+  The failure this guards against is generating a Deno module as if it were a
+  Node one: the tree would look complete while the runtime had no way to
+  resolve @dagger.io/dagger at all.
+  """
+  generateDenoModuleCheck(ws: Workspace!): Void @check {
+    let path = fixtures.denoModule
+    let changes = typescriptSdk.mod(ws, path: path).generate(ws)
+    let tree = changes.after.directory(path)
+
+    Asserts.generated(changes, path + "/sdk/client.gen.ts")
+    Asserts.generated(changes, path + "/__dagger.entrypoint.ts")
+    Asserts.generated(changes, path + "/deno.json")
+
+    Asserts.notAdded(
+      changes,
+      path + "/package.json",
+      "a Deno module should not be given a package.json",
+    )
+    Asserts.notAdded(
+      changes,
+      path + "/tsconfig.json",
+      "a Deno module resolves through deno.json, not tsconfig paths",
+    )
+
+    let denoConfig = tree.file("deno.json").contents
+    Asserts.stringContains(
+      denoConfig,
+      "./sdk/index.ts",
+      "deno.json should import @dagger.io/dagger from the generated sdk",
+    )
+    Asserts.stringContains(
+      denoConfig,
+      "experimentalDecorators",
+      "deno.json should enable the decorators modules are written with",
+    )
+    Asserts.stringContains(
+      denoConfig,
+      "\"dev\"",
+      "generation should preserve the user's own deno.json entries",
+    )
+
+    null
+  }
+
+  """
   Generating a module with a local dependency must resolve that dependency and
   emit its typed bindings alongside the module's own — otherwise the module's
   source cannot import it and the generated tree does not type-check.

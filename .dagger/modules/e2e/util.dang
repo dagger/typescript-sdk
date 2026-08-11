@@ -152,6 +152,12 @@ type Fixtures {
   let configModule: String! = root + "/config/app"
   let configuredModule: String! = root + "/config/configured"
   let configuredDenoModule: String! = root + "/config/configured-deno"
+
+  """
+  A Deno module managed by this SDK: exercises the one branch in generation
+  that depends on the runtime, deno.json instead of package.json + tsconfig.
+  """
+  let denoModule: String! = root + "/generate-deno/app"
   let configBareModule: String! = root + "/config/bare"
 
   # A client binds to client/app (which depends on client/dep) and is generated
@@ -193,6 +199,7 @@ type Fixtures {
     depLibModule,
     legacyDepAppModule,
     legacyDepLibModule,
+    denoModule,
     parentSourceModule,
   ]
 }
