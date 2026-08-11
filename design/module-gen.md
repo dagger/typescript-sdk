@@ -543,11 +543,21 @@ reproduce the vendored file. Not on the critical path for module codegen — it 
 what makes the vendored library maintainable, and what we need the day upstream
 stops regenerating it.
 
-**Phase 2 — dang implementation, behind a differential check.** Implement
-`moduleDirectory` and friends, but keep `Mod.generate` delegating to the engine.
-Add an e2e check that generates the same fixture **both ways** and asserts the
-trees are identical (modulo the known drops: lockfile, re-shipped sources). This
-is the cutover's safety net and it is cheap while both paths exist.
+**Phase 2 — dang implementation, behind a differential check.** ✅ Done.
+`moduleDirectory` and friends, plus `generateModuleLocal` — which generates
+through this SDK regardless of which path `Mod.generate` would route to, so the
+same fixture can be produced both ways and compared. `Mod.generate` still
+delegates to the engine.
+
+The comparison is `e2e:generate:local-matches-engine-check`: the bindings, the
+wrappers, the entrypoint and both config files, byte for byte. It is scoped to
+those rather than the whole directory because the two changesets are different
+shapes — ours layers onto the module's existing files, the engine's carries only
+what it staged. Only `core.js` and `core.d.ts` are excluded, both because they
+are bundler and compiler output built from the vendored lockfile where the
+engine builds its own from whatever it resolves.
+
+This is the cutover's safety net and it is cheap while both paths exist.
 
 **Phase 3 — cutover, for `dagger-module.toml` modules only.** Flip
 `Mod.generate` to the local path when the module's config is

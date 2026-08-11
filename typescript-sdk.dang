@@ -320,19 +320,14 @@ type TypescriptSdk {
     let existingPrefix = if (modPath == ".") { "/existing/" } else { "/existing/" + modPath + "/" }
     let wsPrefix = if (modPath == ".") { "" } else { modPath + "/" }
 
-    let builder = container
-      .from("golang:1.25-alpine")
-      .withoutEntrypoint
-      .withMountedCache("/go/pkg/mod", cacheVolume("go-mod"))
-      .withMountedCache("/root/.cache/go-build", cacheVolume("go-build"))
-      .withDirectory("/helpers/render-template", currentModule.source.directory("helpers/render-template"))
-      .withDirectory("/helpers/config-updator", currentModule.source.directory("helpers/config-updator"))
+    # Two helpers in one container, layered onto the shared config-updator build
+    # so it is computed once for both this and configUpdatorBuilder.
+    let builder = configUpdatorBuilder
+      .withDirectory("/render-template", currentModule.source.directory("helpers/render-template"))
+      .withWorkdir("/render-template")
+      .withExec(["go", "build", "-o", "/usr/local/bin/render-template", "."])
       .withDirectory("/template", currentModule.source.directory("templates/" + template))
       .withDirectory("/existing", existing)
-      .withWorkdir("/helpers/render-template")
-      .withExec(["go", "build", "-o", "/usr/local/bin/render-template", "."])
-      .withWorkdir("/helpers/config-updator")
-      .withExec(["go", "build", "-o", "/usr/local/bin/config-updator", "."])
       .withExec(["render-template", name, "/template", "/rendered"])
 
     let withConfig = if (runtime == Runtime.NODE) {
@@ -399,54 +394,223 @@ type TypescriptSdk {
   }
 
   """
-  Container with the module-config helper compiled and on PATH at
-  /usr/local/bin/module-config.
+  Container with the Go helper at helpers/<name> compiled and on PATH at
+  /usr/local/bin/<name>.
+
+  The helpers differ only in which directory they build, so they share one
+  recipe: a copy per helper is a copy per helper of the toolchain version, the
+  cache mounts and the output path, each free to drift from the others.
+  """
+  let goHelper(name: String!): Container! {
+    container
+      .from("golang:1.25-alpine")
+      .withoutEntrypoint
+      .withMountedCache("/go/pkg/mod", cacheVolume("go-mod"))
+      .withMountedCache("/root/.cache/go-build", cacheVolume("go-build"))
+      .withDirectory("/helper", currentModule.source.directory("helpers/" + name))
+      .withWorkdir("/helper")
+      .withExec(["go", "build", "-o", "/usr/local/bin/" + name, "."])
+  }
+
+  """
+  Container with the module-config helper compiled and on PATH.
 
   Shared by init's template configuration (configuredTemplate) and ModConfig's
-  per-file edits (ModConfig.tool) so the Go build recipe lives in one place
-  rather than being duplicated across both call sites.
+  per-file edits (ModConfig.tool).
   """
   let moduleConfigBuilder: Container! {
-    container
-      .from("golang:1.25-alpine")
-      .withoutEntrypoint
-      .withMountedCache("/go/pkg/mod", cacheVolume("go-mod"))
-      .withMountedCache("/root/.cache/go-build", cacheVolume("go-build"))
-      .withDirectory("/helper", currentModule.source.directory("helpers/module-config"))
-      .withWorkdir("/helper")
-      .withExec(["go", "build", "-o", "/usr/local/bin/module-config", "."])
+    goHelper("module-config")
   }
 
   """
-  Container with the TypeScript bindings generator compiled and on PATH at
-  /usr/local/bin/codegen. Engine-free: it turns an introspection schema into
-  generated bindings, either for a module (`codegen module`) or for a
-  standalone client bound to one (`codegen client`).
+  Container with the TypeScript bindings generator compiled and on PATH.
+  Engine-free: it turns an introspection schema into generated bindings, either
+  for a module (`codegen module`) or for a standalone client bound to one
+  (`codegen client`).
   """
   let codegenBuilder: Container! {
-    container
-      .from("golang:1.25-alpine")
-      .withoutEntrypoint
-      .withMountedCache("/go/pkg/mod", cacheVolume("go-mod"))
-      .withMountedCache("/root/.cache/go-build", cacheVolume("go-build"))
-      .withDirectory("/helper", currentModule.source.directory("helpers/codegen"))
-      .withWorkdir("/helper")
-      .withExec(["go", "build", "-o", "/usr/local/bin/codegen", "."])
+    goHelper("codegen")
   }
 
   """
-  Container with the config-updator helper compiled and on PATH at
-  /usr/local/bin/config-updator.
+  Container with the config-updator helper compiled and on PATH.
   """
   let configUpdatorBuilder: Container! {
-    container
-      .from("golang:1.25-alpine")
+    goHelper("config-updator")
+  }
+
+  """
+  The prebuilt TypeScript library this SDK ships: core.js and its declarations,
+  the module-facing index.ts/telemetry.ts wrappers, the module introspector, and
+  the compiler version the introspector must be run with.
+
+  Built from the vendored library sources by .dagger/modules/packager and
+  committed, so generating a module needs no bun toolchain and no network.
+  """
+  let tsBundle: Directory! {
+    currentModule.source.directory("library/bundle")
+  }
+
+  """
+  Generate a module's own bindings (client.gen.ts plus one <dep>.gen.ts per
+  dependency) from its module-facing introspection schema.
+
+  Engine-free: the schema arrives as data, so this is a plain container exec.
+  """
+  let generateModuleBindings(schemaJSON: String!, moduleName: String!): Directory! {
+    codegenBuilder
+      .withNewFile("/schema.json", schemaJSON)
+      .withExec([
+        "codegen", "module",
+        "--introspection-json-path", "/schema.json",
+        "--module-name", moduleName,
+        "--output", "/out",
+      ])
+      .directory("/out")
+  }
+
+  """
+  Assemble a module's sdk/ directory: the shipped bundle plus the module's
+  generated bindings.
+
+  This directory is what the engine runtime mounts as
+  node_modules/@dagger.io/dagger, so its layout is the runtime's contract, not
+  ours: index.ts re-exports the decorators from core.js and `export *`s
+  client.gen.ts, which has to sit beside it.
+  """
+  let moduleSdkDirectory(bindings: Directory!): Directory! {
+    directory
+      .withFile("core.js", tsBundle.file("core.js"))
+      .withFile("core.d.ts", tsBundle.file("core.d.ts"))
+      .withFile("index.ts", tsBundle.file("index.ts"))
+      .withFile("telemetry.ts", tsBundle.file("telemetry.ts"))
+      .withDirectory(".", bindings)
+  }
+
+  """
+  Render a module's static dispatch entrypoint.
+
+  Two steps: the introspector scans the module's own TypeScript into a typedef
+  JSON, then codegen renders the dispatcher from it. The scan is the only part
+  of module generation that reads the user's source rather than the schema —
+  the dispatcher imports each @object class from the file it was declared in,
+  which only the scan knows.
+
+  The compiler is installed beside the introspector rather than in the module
+  tree: a bare import resolves from the importing file's directory, so putting
+  it next to the module would leave the scanner unable to find it.
+  """
+  let generateModuleEntrypoint(moduleName: String!, source: Directory!, sdk: Directory!): File! {
+    let tsVersion = tsBundle.file("typescript-version.txt").contents.trimSuffix("\n")
+
+    let typedef = container
+      .from("oven/bun:1.3.0-alpine@sha256:37e6b1cbe053939bccf6ae4507977ed957eaa6e7f275670b72ad6348e0d2c11f")
       .withoutEntrypoint
-      .withMountedCache("/go/pkg/mod", cacheVolume("go-mod"))
-      .withMountedCache("/root/.cache/go-build", cacheVolume("go-build"))
-      .withDirectory("/helper", currentModule.source.directory("helpers/config-updator"))
-      .withWorkdir("/helper")
-      .withExec(["go", "build", "-o", "/usr/local/bin/config-updator", "."])
+      .withMountedCache("/root/.bun/install/cache", cacheVolume("bun-install"))
+      .withWorkdir("/introspector")
+      .withFile("/introspector/introspector.js", tsBundle.file("introspector.js"))
+      .withExec(["bun", "add", "--no-save", "typescript@" + tsVersion])
+      .withWorkdir("/work")
+      .withDirectory("/work/src", source)
+      .withDirectory("/work/sdk", sdk)
+      .withEnvVariable("EMIT_TYPEDEF_JSON_FILE", "/work/typedef.json")
+      .withExec(["bun", "/introspector/introspector.js", moduleName, "src", "sdk/client.gen.ts"])
+      .file("/work/typedef.json")
+      .contents
+
+    codegenBuilder
+      .withNewFile("/typedef.json", typedef)
+      .withExec([
+        "codegen", "entrypoint",
+        "--typedef-json-path", "/typedef.json",
+        "--output", "/out",
+        "--module-root", "/work",
+        "--source-dir", "src",
+      ])
+      .file("/out/__dagger.entrypoint.ts")
+  }
+
+  """
+  Build the complete set of generated files for a module: its sdk/ directory,
+  the dispatch entrypoint, and the config the runtime reads.
+
+  `existing` supplies the module's current config files so user settings
+  survive; `runtime` selects which config files are written. The result is
+  rooted at the module's source directory.
+  """
+  let moduleDirectory(
+    schemaJSON: String!,
+    moduleName: String!,
+    source: Directory!,
+    existing: Directory!,
+    runtime: Runtime!,
+  ): Directory! {
+    let sdk = moduleSdkDirectory(generateModuleBindings(schemaJSON, moduleName))
+    let entrypoint = generateModuleEntrypoint(moduleName, source, sdk)
+
+    let configUpdator = configUpdatorBuilder
+      .withDirectory("/existing", existing)
+      .withDirectory("/out", directory)
+
+    let config = if (runtime == Runtime.DENO) {
+      configUpdator
+        .withExec(["config-updator", "deno-config", "/existing/deno.json", "/out/deno.json"])
+        .directory("/out")
+    } else {
+      configUpdator
+        .withExec(["config-updator", "package-json", "/existing/package.json", "/out/package.json"])
+        .withExec(["config-updator", "tsconfig", "/existing/tsconfig.json", "/out/tsconfig.json"])
+        .directory("/out")
+    }
+
+    directory
+      .withDirectory("sdk", sdk)
+      .withFile("__dagger.entrypoint.ts", entrypoint)
+      .withDirectory(".", config)
+  }
+
+  """
+  Read a module's current config files so regeneration preserves user settings
+  rather than resetting them. Filtered from the workspace root so a module
+  without any of them simply yields an empty directory.
+  """
+  let existingModuleConfig(ws: Workspace!, sourcePath: String!): Directory! {
+    let prefix = if (sourcePath == ".") { "" } else { sourcePath + "/" }
+    let filtered = ws.directory("/", include: [
+      prefix + "package.json",
+      prefix + "tsconfig.json",
+      prefix + "deno.json",
+    ])
+    if (sourcePath == ".") {
+      filtered
+    } else if (filtered.exists(sourcePath)) {
+      filtered.directory(sourcePath)
+    } else {
+      directory
+    }
+  }
+
+  """
+  Generate a module's SDK files in this SDK rather than through the engine's
+  built-in TypeScript runtime.
+
+  Staged behind `Mod.generate` while the two are compared: see
+  e2e:generate:local-matches-engine-check, which generates a fixture both ways
+  and diffs everything but the bundle.
+  """
+  generateModuleLocal(ws: Workspace!, path: String!): Changeset! {
+    let mod = mod(ws, path: path, findUp: false)
+    let modSrc = ws.moduleSource("/" + mod.rootPath)
+    let sourcePath = mod.sourcePath
+    let sourcePrefix = if (sourcePath == ".") { "" } else { sourcePath + "/" }
+
+    ws.withNewDirectory("/" + sourcePath, moduleDirectory(
+      modSrc.introspectionSchemaJSON.contents,
+      modSrc.moduleOriginalName,
+      ws.directory("/" + sourcePrefix + "src"),
+      existingModuleConfig(ws, sourcePath),
+      mod.config.runtime,
+    )).changes(ws)
   }
 
   """
