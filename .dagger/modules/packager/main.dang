@@ -51,15 +51,19 @@ type Packager {
   with the TypeScript compiler left external, plus the rolled-up type
   declarations for it.
 
-  The install resolves through the vendored yarn.lock, which is load-bearing:
-  letting it resolve freely instead pulls newer transitive versions and grows
-  core.js by roughly a quarter (4.3 MB -> 5.4 MB).
+  The install is frozen against the committed bun.lock. Both lockfiles matter and
+  neither is redundant: yarn.lock is what the vendored sources came with, and
+  dropping it lets resolution pull newer transitives that grow core.js by roughly
+  a quarter (4.3 MB -> 5.4 MB); but it is a yarn v1 file that does not pin
+  everything bun resolves, so without bun.lock a rebuild days later can still
+  drift — observed as a bundle quietly gaining transitive modules on an unchanged
+  tree. Freezing makes that drift a failed install instead of a silent diff.
   """
   libraryBundle(ws: Workspace!): Changeset! @generate {
     let built = bun
       .withDirectory("/src", ws.directory("/" + libraryPath))
       .withWorkdir("/src")
-      .withExec(["bun", "install"])
+      .withExec(["bun", "install", "--frozen-lockfile"])
       .withExec(["bun", "build", "./src/index.ts", "--external=typescript", "--target=node", "--outfile", "/out/core.js"])
       # `bun x`, not a global tsc: the declarations we ship have to come from the
       # compiler the lockfile pins, the same one typescript-version.txt records
@@ -113,6 +117,31 @@ type Packager {
       .from("oven/bun:1.3.0-alpine@sha256:37e6b1cbe053939bccf6ae4507977ed957eaa6e7f275670b72ad6348e0d2c11f")
       .withoutEntrypoint
       .withExec(["apk", "add", "nodejs"])
+  }
+
+  """
+  Run the vendored library's own test suite.
+
+  Mostly the introspector's: it scans the fixture modules under testdata and
+  compares the result against a recorded expectation. That is the contract
+  entrypoint generation is built on — the scanner's output is what the
+  dispatcher is rendered from — and nothing else here would notice it drifting,
+  since our own golden pins the renderer given a typedef, not the typedef given
+  a module.
+
+  The specs that need a live session (invoke, registry, api, connect) are not
+  vendored: they would need an engine inside this container, and what they cover
+  is the library's runtime rather than anything this SDK generates.
+  """
+  libraryTests(ws: Workspace!): Void @check {
+    bun
+      .withDirectory("/src", ws.directory("/" + libraryPath))
+      .withWorkdir("/src")
+      .withExec(["bun", "install"])
+      .withExec(["bun", "run", "--bun", "mocha"])
+      .sync
+
+    null
   }
 
   """
