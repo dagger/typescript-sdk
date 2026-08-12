@@ -42,6 +42,27 @@ function formatError(e: unknown): DaggerError {
   }
 }
 
+
+class __Iface_Greeter {
+  constructor(public _ctx: Context) {}
+
+  static fromID(id: string): __Iface_Greeter {
+    return new __Iface_Greeter(new Context().selectNode(id, "SmokeGreeter"))
+  }
+
+  async id(): Promise<string> {
+    return await this._ctx.select("id").execute()
+  }
+
+async greet(name: any): Promise<any> {
+    const __args: Record<string, any> = {}
+    if (name !== undefined) __args["name"] = name
+    return await this._ctx.select("greet", __args).execute()
+  }
+}
+
+
+
 function rebuildSmoke(state: any): Smoke {
   const __obj = Object.assign(Object.create(Smoke.prototype), state ?? {})
   if (state) {
@@ -65,15 +86,24 @@ async function serializeSmoke(__obj: Smoke): Promise<any> {
 
 async function register(): Promise<string> {
   let mod = dag.module_()
-  let obj_Smoke = dag.typeDef().withObject("Smoke", { description: "A module covering the shapes the entrypoint has to dispatch.", sourceMap: dag.sourceMap("src/index.ts", 7, 14) })
-  obj_Smoke = obj_Smoke.withFunction(dag.function_("ctr", dag.typeDef().withObject("Container")).withSourceMap(dag.sourceMap("src/index.ts", 31, 3)))
-  obj_Smoke = obj_Smoke.withFunction(dag.function_("greet", dag.typeDef().withKind(TypeDefKind.StringKind)).withDescription("Greet someone.").withSourceMap(dag.sourceMap("src/index.ts", 26, 3)).withArg("name", dag.typeDef().withKind(TypeDefKind.StringKind), { sourceMap: dag.sourceMap("src/index.ts", 26, 9) }).withArg("loud", dag.typeDef().withKind(TypeDefKind.BooleanKind).withOptional(true), { sourceMap: dag.sourceMap("src/index.ts", 26, 23) }))
-  obj_Smoke = obj_Smoke.withFunction(dag.function_("nothing", dag.typeDef().withKind(TypeDefKind.VoidKind).withOptional(true)).withSourceMap(dag.sourceMap("src/index.ts", 41, 3)))
-  obj_Smoke = obj_Smoke.withFunction(dag.function_("read", dag.typeDef().withKind(TypeDefKind.StringKind)).withSourceMap(dag.sourceMap("src/index.ts", 36, 9)).withArg("path", dag.typeDef().withKind(TypeDefKind.StringKind), { sourceMap: dag.sourceMap("src/index.ts", 36, 14) }))
-  obj_Smoke = obj_Smoke.withField("greeting", dag.typeDef().withKind(TypeDefKind.StringKind), { sourceMap: dag.sourceMap("src/index.ts", 15, 3) })
-  obj_Smoke = obj_Smoke.withField("source", dag.typeDef().withObject("Directory"), { description: "Where the source lives.", sourceMap: dag.sourceMap("src/index.ts", 12, 3) })
-  obj_Smoke = obj_Smoke.withConstructor(dag.function_("", obj_Smoke).withArg("source", dag.typeDef().withObject("Directory"), { sourceMap: dag.sourceMap("src/index.ts", 17, 15) }).withArg("greeting", dag.typeDef().withKind(TypeDefKind.StringKind), { defaultValue: JSON.stringify("hello") as string & { __JSON: never }, sourceMap: dag.sourceMap("src/index.ts", 17, 34) }))
+  let obj_Smoke = dag.typeDef().withObject("Smoke", { description: "A module covering the shapes the entrypoint has to dispatch.", sourceMap: dag.sourceMap("src/index.ts", 27, 14) })
+  obj_Smoke = obj_Smoke.withFunction(dag.function_("ctr", dag.typeDef().withObject("Container")).withSourceMap(dag.sourceMap("src/index.ts", 64, 3)))
+  obj_Smoke = obj_Smoke.withFunction(dag.function_("greet", dag.typeDef().withKind(TypeDefKind.StringKind)).withDescription("Greet someone.").withSourceMap(dag.sourceMap("src/index.ts", 46, 3)).withArg("name", dag.typeDef().withKind(TypeDefKind.StringKind), { sourceMap: dag.sourceMap("src/index.ts", 46, 9) }).withArg("volume", dag.typeDef().withEnum("Volume"), { sourceMap: dag.sourceMap("src/index.ts", 46, 23) }).withArg("loud", dag.typeDef().withKind(TypeDefKind.BooleanKind).withOptional(true), { sourceMap: dag.sourceMap("src/index.ts", 46, 39) }))
+  obj_Smoke = obj_Smoke.withFunction(dag.function_("greetAll", dag.typeDef().withKind(TypeDefKind.StringKind)).withDescription("Greet everyone.").withSourceMap(dag.sourceMap("src/index.ts", 54, 3)).withArg("names", dag.typeDef().withListOf(dag.typeDef().withKind(TypeDefKind.StringKind)).withOptional(true), { sourceMap: dag.sourceMap("src/index.ts", 54, 15) }))
+  obj_Smoke = obj_Smoke.withFunction(dag.function_("nothing", dag.typeDef().withKind(TypeDefKind.VoidKind).withOptional(true)).withSourceMap(dag.sourceMap("src/index.ts", 74, 3)))
+  obj_Smoke = obj_Smoke.withFunction(dag.function_("read", dag.typeDef().withKind(TypeDefKind.StringKind)).withSourceMap(dag.sourceMap("src/index.ts", 69, 9)).withArg("path", dag.typeDef().withKind(TypeDefKind.StringKind), { sourceMap: dag.sourceMap("src/index.ts", 69, 14) }))
+  obj_Smoke = obj_Smoke.withFunction(dag.function_("withGreeter", dag.typeDef().withInterface("Greeter")).withSourceMap(dag.sourceMap("src/index.ts", 59, 3)).withArg("greeter", dag.typeDef().withInterface("Greeter"), { sourceMap: dag.sourceMap("src/index.ts", 59, 15) }))
+  obj_Smoke = obj_Smoke.withField("greeting", dag.typeDef().withKind(TypeDefKind.StringKind), { sourceMap: dag.sourceMap("src/index.ts", 35, 3) })
+  obj_Smoke = obj_Smoke.withField("source", dag.typeDef().withObject("Directory"), { description: "Where the source lives.", sourceMap: dag.sourceMap("src/index.ts", 32, 3) })
+  obj_Smoke = obj_Smoke.withConstructor(dag.function_("", obj_Smoke).withArg("source", dag.typeDef().withObject("Directory"), { sourceMap: dag.sourceMap("src/index.ts", 37, 15) }).withArg("greeting", dag.typeDef().withKind(TypeDefKind.StringKind), { defaultValue: JSON.stringify("hello") as string & { __JSON: never }, sourceMap: dag.sourceMap("src/index.ts", 37, 34) }))
   mod = mod.withObject(obj_Smoke)
+  let enum_Volume = dag.typeDef().withEnum("Volume", { description: "How loudly to greet.", sourceMap: dag.sourceMap("src/index.ts", 7, 14) })
+  enum_Volume = enum_Volume.withEnumMember("Loud", { description: "Shout it.", sourceMap: dag.sourceMap("src/index.ts", 13, 19), value: "LOUD" })
+  enum_Volume = enum_Volume.withEnumMember("Quiet", { sourceMap: dag.sourceMap("src/index.ts", 8, 19), value: "QUIET" })
+  mod = mod.withEnum(enum_Volume)
+  let iface_Greeter = dag.typeDef().withInterface("Greeter", { description: "Anything that can greet.", sourceMap: dag.sourceMap("src/index.ts", 19, 18) })
+  iface_Greeter = iface_Greeter.withFunction(dag.function_("greet", dag.typeDef().withKind(TypeDefKind.StringKind)).withSourceMap(dag.sourceMap("src/index.ts", 20, 3)).withArg("name", dag.typeDef().withKind(TypeDefKind.StringKind), { sourceMap: dag.sourceMap("src/index.ts", 20, 11) }))
+  mod = mod.withInterface(iface_Greeter)
   return await mod.id()
 }
 
@@ -103,8 +133,16 @@ async function invoke(
         case "greet": {
           const __parent = rebuildSmoke(parentJson)
           const __arg_name = args["name"] === undefined || args["name"] === null ? args["name"] : args["name"]
+          const __arg_volume = args["volume"] === undefined || args["volume"] === null ? args["volume"] : ({ "Loud": "LOUD", "Quiet": "QUIET" } as Record<string, string>)[args["volume"]] ?? args["volume"]
           const __arg_loud = args["loud"] === undefined || args["loud"] === null ? args["loud"] : args["loud"]
-          const __result = await __parent.greet(__arg_name, __arg_loud)
+          const __result = await __parent.greet(__arg_name, __arg_volume, __arg_loud)
+          return __result
+        }
+
+        case "greetAll": {
+          const __parent = rebuildSmoke(parentJson)
+          const __arg_names = args["names"] === undefined || args["names"] === null ? [] : (args["names"] as any[]).map((__v) => __v)
+          const __result = await __parent.greetAll(...__arg_names)
           return __result
         }
 
@@ -119,6 +157,13 @@ async function invoke(
           const __arg_path = args["path"] === undefined || args["path"] === null ? args["path"] : args["path"]
           const __result = await __parent.read(__arg_path)
           return __result
+        }
+
+        case "withGreeter": {
+          const __parent = rebuildSmoke(parentJson)
+          const __arg_greeter = args["greeter"] === undefined || args["greeter"] === null ? args["greeter"] : __Iface_Greeter.fromID(args["greeter"])
+          const __result = await __parent.withGreeter(__arg_greeter)
+          return await (__result).id()
         }
         default:
           throw new Error(`unknown function ${fnName} on Smoke`)

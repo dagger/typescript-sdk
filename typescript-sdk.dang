@@ -452,6 +452,14 @@ type TypescriptSdk {
   }
 
   """
+  A file from the prebuilt library this SDK ships, so callers can tell what a
+  generated module was built against.
+  """
+  libraryBundleFile(name: String!): File! {
+    tsBundle.file(name)
+  }
+
+  """
   Generate a module's own bindings (client.gen.ts plus one <dep>.gen.ts per
   dependency) from its module-facing introspection schema.
 

@@ -1,6 +1,82 @@
 {
-    "enums": {},
-    "interfaces": {},
+    "enums": {
+        "Volume": {
+            "description": "How loudly to greet.",
+            "location": {
+                "column": 14,
+                "filepath": "src/index.ts",
+                "line": 7
+            },
+            "name": "Volume",
+            "values": {
+                "Loud": {
+                    "description": "Shout it.",
+                    "location": {
+                        "column": 19,
+                        "filepath": "src/index.ts",
+                        "line": 13
+                    },
+                    "name": "Loud",
+                    "value": "LOUD"
+                },
+                "Quiet": {
+                    "description": "",
+                    "location": {
+                        "column": 19,
+                        "filepath": "src/index.ts",
+                        "line": 8
+                    },
+                    "name": "Quiet",
+                    "value": "QUIET"
+                }
+            }
+        }
+    },
+    "interfaces": {
+        "Greeter": {
+            "description": "Anything that can greet.",
+            "functions": {
+                "greet": {
+                    "arguments": [
+                        {
+                            "description": "",
+                            "isNullable": false,
+                            "isOptional": false,
+                            "isVariadic": false,
+                            "location": {
+                                "column": 11,
+                                "filepath": "src/index.ts",
+                                "line": 20
+                            },
+                            "name": "name",
+                            "type": {
+                                "kind": "STRING_KIND"
+                            }
+                        }
+                    ],
+                    "description": "",
+                    "isCheck": false,
+                    "isGenerator": false,
+                    "isUp": false,
+                    "location": {
+                        "column": 3,
+                        "filepath": "src/index.ts",
+                        "line": 20
+                    },
+                    "name": "greet",
+                    "returnType": {
+                        "kind": "STRING_KIND"
+                    }
+                }
+            },
+            "location": {
+                "column": 18,
+                "filepath": "src/index.ts",
+                "line": 19
+            },
+            "name": "Greeter"
+        }
+    },
     "name": "Smoke",
     "objects": {
         "Smoke": {
@@ -14,7 +90,7 @@
                         "location": {
                             "column": 15,
                             "filepath": "src/index.ts",
-                            "line": 17
+                            "line": 37
                         },
                         "name": "source",
                         "type": {
@@ -31,7 +107,7 @@
                         "location": {
                             "column": 34,
                             "filepath": "src/index.ts",
-                            "line": 17
+                            "line": 37
                         },
                         "name": "greeting",
                         "type": {
@@ -48,7 +124,7 @@
             "location": {
                 "column": 14,
                 "filepath": "src/index.ts",
-                "line": 7
+                "line": 27
             },
             "methods": {
                 "ctr": {
@@ -60,7 +136,7 @@
                     "location": {
                         "column": 3,
                         "filepath": "src/index.ts",
-                        "line": 31
+                        "line": 64
                     },
                     "name": "ctr",
                     "returnType": {
@@ -78,7 +154,7 @@
                             "location": {
                                 "column": 9,
                                 "filepath": "src/index.ts",
-                                "line": 26
+                                "line": 46
                             },
                             "name": "name",
                             "type": {
@@ -88,12 +164,28 @@
                         {
                             "description": "",
                             "isNullable": false,
-                            "isOptional": true,
+                            "isOptional": false,
                             "isVariadic": false,
                             "location": {
                                 "column": 23,
                                 "filepath": "src/index.ts",
-                                "line": 26
+                                "line": 46
+                            },
+                            "name": "volume",
+                            "type": {
+                                "kind": "ENUM_KIND",
+                                "name": "Volume"
+                            }
+                        },
+                        {
+                            "description": "",
+                            "isNullable": false,
+                            "isOptional": true,
+                            "isVariadic": false,
+                            "location": {
+                                "column": 39,
+                                "filepath": "src/index.ts",
+                                "line": 46
                             },
                             "name": "loud",
                             "type": {
@@ -108,9 +200,44 @@
                     "location": {
                         "column": 3,
                         "filepath": "src/index.ts",
-                        "line": 26
+                        "line": 46
                     },
                     "name": "greet",
+                    "returnType": {
+                        "kind": "STRING_KIND"
+                    }
+                },
+                "greetAll": {
+                    "arguments": [
+                        {
+                            "description": "",
+                            "isNullable": false,
+                            "isOptional": true,
+                            "isVariadic": true,
+                            "location": {
+                                "column": 15,
+                                "filepath": "src/index.ts",
+                                "line": 54
+                            },
+                            "name": "names",
+                            "type": {
+                                "kind": "LIST_KIND",
+                                "typeDef": {
+                                    "kind": "STRING_KIND"
+                                }
+                            }
+                        }
+                    ],
+                    "description": "Greet everyone.",
+                    "isCheck": false,
+                    "isGenerator": false,
+                    "isUp": false,
+                    "location": {
+                        "column": 3,
+                        "filepath": "src/index.ts",
+                        "line": 54
+                    },
+                    "name": "greetAll",
                     "returnType": {
                         "kind": "STRING_KIND"
                     }
@@ -124,7 +251,7 @@
                     "location": {
                         "column": 3,
                         "filepath": "src/index.ts",
-                        "line": 41
+                        "line": 74
                     },
                     "name": "nothing",
                     "returnType": {
@@ -141,7 +268,7 @@
                             "location": {
                                 "column": 14,
                                 "filepath": "src/index.ts",
-                                "line": 36
+                                "line": 69
                             },
                             "name": "path",
                             "type": {
@@ -156,11 +283,45 @@
                     "location": {
                         "column": 9,
                         "filepath": "src/index.ts",
-                        "line": 36
+                        "line": 69
                     },
                     "name": "read",
                     "returnType": {
                         "kind": "STRING_KIND"
+                    }
+                },
+                "withGreeter": {
+                    "arguments": [
+                        {
+                            "description": "",
+                            "isNullable": false,
+                            "isOptional": false,
+                            "isVariadic": false,
+                            "location": {
+                                "column": 15,
+                                "filepath": "src/index.ts",
+                                "line": 59
+                            },
+                            "name": "greeter",
+                            "type": {
+                                "kind": "INTERFACE_KIND",
+                                "name": "Greeter"
+                            }
+                        }
+                    ],
+                    "description": "",
+                    "isCheck": false,
+                    "isGenerator": false,
+                    "isUp": false,
+                    "location": {
+                        "column": 3,
+                        "filepath": "src/index.ts",
+                        "line": 59
+                    },
+                    "name": "withGreeter",
+                    "returnType": {
+                        "kind": "INTERFACE_KIND",
+                        "name": "Greeter"
                     }
                 }
             },
@@ -172,7 +333,7 @@
                     "location": {
                         "column": 3,
                         "filepath": "src/index.ts",
-                        "line": 15
+                        "line": 35
                     },
                     "name": "greeting",
                     "type": {
@@ -185,7 +346,7 @@
                     "location": {
                         "column": 3,
                         "filepath": "src/index.ts",
-                        "line": 12
+                        "line": 32
                     },
                     "name": "source",
                     "type": {
