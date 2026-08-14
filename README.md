@@ -9,7 +9,7 @@ This module implements the Dagger CLI 1.0 SDK contract: the engine calls its
 generate`. It also exposes `targetRuntime` (`"typescript"`), so modules it
 creates run on the built-in TypeScript runtime.
 
-Backed by [`github.com/dagger/polyfill`](https://github.com/dagger/polyfill).
+It uses the engine's native `Workspace` and `ModuleSource` APIs directly.
 
 ## Install
 
@@ -205,11 +205,9 @@ dagger call dagger-typescript-sdk generate-all-module
 dagger call dagger-typescript-sdk generate-all-client
 ```
 
-`modules` returns the modules this SDK manages — the
-`[[modules.<sdk>.as-sdk.modules]]` entries the engine owns — intersected with
-the ones visible from your current directory. A module is discovered through the
-directory holding its config, so a module whose `source` points elsewhere is
-found at its config path, not from inside its source tree.
+`modules` returns the registered modules this SDK manages that are in scope from
+your current directory: every module at or below it, plus the nearest enclosing
+module when the current directory itself is not registered.
 
 ## Skipping generation
 

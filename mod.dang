@@ -51,7 +51,7 @@ type Mod {
   through the engine rather than assumed equal to rootPath.
   """
   sourcePath: String! {
-    let subpath = polyfill.workspace(ws).moduleSource("/" + rootPath).core.sourceSubpath
+    let subpath = ws.moduleSource("/" + rootPath).sourceSubpath
     if (subpath == "" or subpath == ".") { "." } else { subpath }
   }
 
@@ -90,12 +90,9 @@ type Mod {
   """
   generate(ws: Workspace!): Changeset! {
     if (skipGenerate(ws)) {
-      polyfill.workspace(ws).fork.changes
+      ws.changes(ws)
     } else {
-      # Stage the local dependency closure so this module's codegen sees
-      # up-to-date dependency bindings before generating it.
-      let stagedWs = ws.withChanges(polyfill.workspace(ws).moduleSource("/" + rootPath).core.generateLocalDependencies(ws))
-      polyfill.workspace(stagedWs).moduleSource("/" + rootPath).generate.changes
+      ws.moduleSource("/" + rootPath).generate(ws).changes(ws)
     }
   }
 }

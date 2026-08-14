@@ -1,7 +1,7 @@
 """
 Checks for `typescriptSdk.modules` — which managed modules are in scope.
 
-Discovery intersects two things: the config directories the polyfill finds from
+Discovery intersects two things: the config directories findConfigDirs finds from
 the client's cwd, and the engine-owned list of modules this SDK manages
 (`currentModule.asSDK.modules`). So the workspace decides *what* is a module of
 ours and the cwd decides *how much of it* a command acts on.
