@@ -329,8 +329,15 @@ maintaining it. Its golden test is "reproduce the vendored file byte-for-byte".
 - **It must be a dang module.** A TypeScript module here would need the bundle
   that the packager produces — a bootstrap loop.
 - **Determinism.** `dagger generate` in this repo re-runs it, so a non-reproducible
-  build means a diff on every run. Pin the bun image by digest (as upstream
-  does), pin the source ref, and commit the lockfile used for `bun install`.
+  build means a diff on every run. That needs the bun image pinned by digest,
+  the source ref pinned, and **both** lockfiles committed — they do different
+  jobs. `yarn.lock` is what the vendored sources came with; without it,
+  resolution pulls newer transitives and `core.js` grows by roughly a quarter
+  (4.3 MB -> 5.4 MB). But it is a yarn v1 file that does not pin everything bun
+  resolves, so with it alone a rebuild days later still drifted — observed as
+  the bundle quietly gaining transitive modules on an unchanged tree. `bun.lock`
+  pins what bun actually installs, and the install is frozen against it so drift
+  fails the install instead of changing the bundle silently.
 - **Staleness check.** A `dagger check` that rebuilds and diffs against the
   committed bundle, so a stale artifact fails CI instead of silently shipping.
 - **Marked generated.** `.gitattributes` `linguist-generated` for the bundle
@@ -688,10 +695,12 @@ late):
    byte-for-byte**~~ — **yes**, once the generator was synced with the engine
    it targets (§7 Phase 3). It did not before: enum members were miscased,
    `arguments` went unescaped, and the entrypoint carried no source maps.
-3. ~~**Is `bun build` output reproducible enough**~~ — **yes**, with the image
-   pinned by digest and the vendored lockfile in place: a second packager run
-   over an unchanged tree reports no changes. Dropping the lockfile is what
-   breaks it (§4.2).
+3. ~~**Is `bun build` output reproducible enough**~~ — **yes, but only once
+   pinned properly.** With the image pinned by digest and both lockfiles
+   committed, a second packager run over an unchanged tree reports no changes.
+   Neither lockfile alone is sufficient: dropping `yarn.lock` changes the
+   resolved versions outright, and `yarn.lock` on its own still let a rebuild
+   drift days later (§4.3).
 
 All three are now answered; the work they were guarding is done.
 (For the record on the fetch alternative in §4.1: dang does support
