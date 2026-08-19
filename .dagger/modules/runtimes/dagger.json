@@ -1,0 +1,13 @@
+{
+  "name": "runtimes",
+  "engineVersion": "v1.0.0-0",
+  "sdk": {
+    "source": "dang"
+  },
+  "dependencies": [
+    {
+      "name": "typescript-sdk",
+      "source": "../../../"
+    }
+  ]
+}

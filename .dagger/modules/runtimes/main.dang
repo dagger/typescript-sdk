@@ -1,0 +1,77 @@
+"""
+Execution checks: does a module this SDK generates actually run?
+
+Every other check in this repo inspects what generation *writes*. These load
+the result, which for a dagger-module.toml module means the engine builds the
+runtime container and executes the generated entrypoint to discover its types —
+there is no codegen at call time to paper over a bad tree.
+
+That makes them the only checks covering the contract the whole move rests on:
+sdk/ resolving as @dagger.io/dagger, the bundle it holds being loadable, the
+entrypoint importing the user's classes and registering them. A break here is a
+module that generates cleanly and then fails at `dagger call`.
+
+One fixture per TypeScript runtime, because this is where they stop being
+interchangeable: generation differs only in which config file it writes, but
+node, bun and deno each run the entrypoint in a different container, with a
+different interpreter, resolving @dagger.io/dagger a different way.
+"""
+type Runtimes {
+  let fixtures: String! = ".dagger/modules/runtimes/fixtures"
+
+  """
+  A node module should generate and run.
+  """
+  nodeRunsCheck(ws: Workspace!): Void @check {
+    assertRuns(ws, "node", "RuntimeNode")
+  }
+
+  """
+  A bun module should generate and run.
+
+  The engine picks bun over node by finding a lockfile next to package.json, so
+  the generated tree is byte-identical to the node one — only the container it
+  is executed in differs. Nothing else in this repo has ever run bun.
+  """
+  bunRunsCheck(ws: Workspace!): Void @check {
+    assertRuns(ws, "bun", "RuntimeBun")
+  }
+
+  """
+  A deno module should generate and run.
+
+  Deno has no node_modules to fall back on: if generation writes the wrong
+  config, the runtime cannot resolve @dagger.io/dagger at all.
+  """
+  denoRunsCheck(ws: Workspace!): Void @check {
+    assertRuns(ws, "deno", "RuntimeDeno")
+  }
+
+  """
+  Generate a fixture, stage the result, and load the module from it.
+
+  Staging through withChanges rather than writing to disk keeps the generated
+  tree out of the fixture entirely — which also sidesteps the trap that a
+  module whose .gitignore covers sdk/ hides its own generated files from the
+  engine's module context.
+
+  Reading the module's objects is what forces execution: the TypeScript SDK has
+  no ModuleTypes function, so type discovery goes through the runtime and the
+  committed entrypoint's register().
+  """
+  let assertRuns(ws: Workspace!, runtime: String!, objectName: String!): Void {
+    let path = fixtures + "/" + runtime
+    let staged = ws.withChanges(typescriptSdk.mod(ws, path: path).generate(ws))
+
+    let objects = staged.moduleSource("/" + path).asModule.objects
+      .{{ asObject.{{ name }} }}
+      .map { o => o.asObject.name }
+
+    if (objects.filter { name => name == objectName }.length == 0) {
+      raise runtime + " module did not load: expected object " + objectName +
+        ", got [" + objects.join(", ") + "]"
+    }
+
+    null
+  }
+}
