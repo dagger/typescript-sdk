@@ -8,6 +8,10 @@
     {
       "name": "typescript-sdk",
       "source": "../../../"
+    },
+    {
+      "name": "sdk-sdk",
+      "source": "github.com/dagger/sdk-sdk"
     }
   ]
 }

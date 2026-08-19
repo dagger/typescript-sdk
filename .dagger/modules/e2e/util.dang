@@ -158,6 +158,16 @@ type Fixtures {
   that depends on the runtime, deno.json instead of package.json + tsconfig.
   """
   let denoModule: String! = root + "/generate-deno/app"
+
+  """
+  The runtime execution fixtures, managed so `dagger generate` keeps them
+  current, and registered by the engine when the runtimes module loads them.
+  """
+  let runtimeFixtures: [String!]! = [
+    ".dagger/modules/runtimes/fixtures/bun",
+    ".dagger/modules/runtimes/fixtures/deno",
+    ".dagger/modules/runtimes/fixtures/node",
+  ]
   let configBareModule: String! = root + "/config/bare"
 
   # A client binds to client/app (which depends on client/dep) and is generated
@@ -201,5 +211,5 @@ type Fixtures {
     legacyDepLibModule,
     denoModule,
     parentSourceModule,
-  ]
+  ] + runtimeFixtures
 }

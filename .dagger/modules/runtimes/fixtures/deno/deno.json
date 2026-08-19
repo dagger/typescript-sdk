@@ -1,5 +1,20 @@
 {
   "tasks": {
     "dev": "deno run main.ts"
+  },
+  "imports": {
+    "typescript": "npm:typescript@5.9.3",
+    "@dagger.io/dagger": "./sdk/index.ts",
+    "@dagger.io/dagger/telemetry": "./sdk/telemetry.ts"
+  },
+  "nodeModulesDir": "auto",
+  "unstable": [
+    "bare-node-builtins",
+    "sloppy-imports",
+    "node-globals",
+    "byonm"
+  ],
+  "compilerOptions": {
+    "experimentalDecorators": true
   }
 }

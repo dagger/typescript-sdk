@@ -48,6 +48,32 @@ type Runtimes {
   }
 
   """
+  A scaffolded module should answer a function call.
+
+  Loading a module proves the entrypoint registers its types; this proves the
+  other half of the dispatcher — that a call reaches the user's code and its
+  return value comes back. It goes through sdk-sdk's harness, which builds a
+  scratch workspace and drives a release CLI the way a user would: `sdk
+  install`, `module init`, `generate`, then the call.
+
+  The function is the default template's `baseImageAddress`, whose value is set
+  by the module's constructor, so a passing call also means the constructor ran
+  and its default was applied.
+  """
+  invokesFunctionCheck(ws: Workspace!): Void @check {
+    let target = sdkSdk.target(ws.directory("/"), ".")
+    let run = target.run(["call", target.moduleName, "base-image-address"])
+
+    run.assertSuccess
+
+    if (run.stdout.contains("alpine") == false) {
+      raise "calling a scaffolded module returned unexpected output: " + run.stdout
+    }
+
+    null
+  }
+
+  """
   Generate a fixture, stage the result, and load the module from it.
 
   Staging through withChanges rather than writing to disk keeps the generated
