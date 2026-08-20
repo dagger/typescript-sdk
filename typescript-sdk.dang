@@ -41,29 +41,22 @@ type TypescriptSdk {
   Return every TypeScript SDK module this workspace manages that is visible from
   the client's current location.
 
-  Discovery is anchored at the client's cwd (never the workspace root): the
-  nearest enclosing module plus every module at or below the cwd, intersected
-  with the SDK's engine-owned list of managed modules
-  (currentModule.asSDK.modules). So running from a subdirectory acts on the
-  project you're in — and the projects beneath it — not the whole workspace.
+  The engine owns both the list and the cwd policy: currentModule.asSDK returns
+  the modules registered to this SDK that sit at or below the client's cwd, plus
+  the nearest enclosing one when the cwd is not itself registered. So running
+  from a subdirectory acts on the project you're in — and the projects beneath
+  it — not the whole workspace. Paths come back workspace-root-relative, the
+  currency Mod.rootPath uses.
 
-  Discovery is the polyfill's cwd-aware findConfigDirs (dagger/dagger#13688);
-  this maps its cwd-relative results to workspace-root-relative paths and keeps
-  the ones this SDK manages.
-
-  A module is found through the directory holding its config, so one whose
-  `source` field points elsewhere is discovered at its config path and not from
+  A module is registered by the directory holding its config, so one whose
+  `source` field points elsewhere is listed at its config path and not from
   inside its own source tree. Address those by path (see `mod`).
   """
   modules(ws: Workspace!): [Mod!]! {
-    let managed = currentModule.asSDK(workspace: ws).modules.{{path}}
-    let cwd = clientCwd(ws)
-    polyfill.workspace(ws)
-      .findConfigDirs(moduleConfigFilenames, exclude: ["**/node_modules/**"])
-      .map { dir => moduleRelPath(cwd, dir) }
-      .uniq
-      .filter { path => managed.filter { m => m.path == path }.length > 0 }
-      .map { path => Mod(rootPath: path, ws: ws, skipGenerateFilename: skipGenerateFilename) }
+    currentModule
+      .asSDK(workspace: ws)
+      .modules.{{path}}
+      .map { module => Mod(rootPath: module.path, ws: ws, skipGenerateFilename: skipGenerateFilename) }
   }
 
   """
@@ -77,30 +70,11 @@ type TypescriptSdk {
 
   """
   Whether a workspace-root-relative path is in scope from `cwd`: at or below it,
-  or an ancestor of it — the same cone findConfigDirs walks for modules.
+  or an ancestor of it — the same cone the engine narrows managed modules to.
+  Clients are not narrowed by the engine, so they are filtered with this.
   """
   let inCwdScope(cwd: String!, path: String!): Boolean! {
     cwd == "." or path == cwd or path.hasPrefix(cwd + "/") or cwd.hasPrefix(path + "/")
-  }
-
-  """
-  Resolve a findConfigDirs result — a cwd-relative path, at or below the cwd
-  ("." , "sub/dir") or a strict ancestor (".." , "../..") — against the cwd into a
-  workspace-root-relative path, the format both asSDK module paths and
-  Mod.rootPath use.
-  """
-  let moduleRelPath(cwd: String!, dir: String!): String! {
-    let base = if (cwd == "" or cwd == ".") { [] } else { cwd.split("/") }
-    let segs = dir.split("/").reduce(base) { acc, seg =>
-      if (seg == "..") {
-        acc.dropLast(1)
-      } else if (seg == "." or seg == "") {
-        acc
-      } else {
-        acc + [seg]
-      }
-    }
-    if (segs.length == 0) { "." } else { segs.join("/") }
   }
 
   """
@@ -124,7 +98,7 @@ type TypescriptSdk {
     let modPath = if (findUp) {
       # Nearest enclosing module config, regardless of filename order: the deepest
       # hit wins, so a closer dagger.json is not shadowed by an ancestor
-      # dagger-module.toml (and vice versa) — matching polyfill findConfigDirs.
+      # dagger-module.toml (and vice versa) — matching Workspace.findRoots.
       let foundConfigPath = moduleConfigFilenames.reduce(null) { acc, name =>
         let found = ws.findUp(name, path)
         if (configHitDepth(found) > configHitDepth(acc)) { found } else { acc }
@@ -232,8 +206,6 @@ type TypescriptSdk {
       rawPath.trimSuffix("/")
     }
 
-    let fork = polyfill.workspace(ws).fork
-
     # An empty name means "the default", not the templates/ directory itself —
     # which exists, so it would pass the check below and render every starter as
     # a subdirectory of the new module.
@@ -254,7 +226,10 @@ type TypescriptSdk {
 
       let renderedSource = renderedTemplate(name, starter, runtime, existing, modPath)
       let templateSource = configuredTemplate(renderedSource, runtime, packageManager, baseImage)
-      fork.withDirectory(modPath, templateSource).changes
+      # `modPath` is workspace-root-relative, so anchor it: a relative workspace
+      # path resolves from ws.cwd and would be prefixed again when initModule is
+      # called directly from a subdirectory rather than driven by the engine.
+      ws.withNewDirectory("/" + modPath, templateSource).changes(ws)
     }
   }
 
@@ -281,7 +256,7 @@ type TypescriptSdk {
     """
     dev: Boolean! = false,
   ): Changeset! {
-    polyfill.workspace(ws).fork.changes
+    ws.changes(ws)
   }
 
   """
@@ -570,9 +545,8 @@ type TypescriptSdk {
     """
     path: String!,
   ): Changeset! {
-    let pws = polyfill.workspace(ws)
-    let modSrc = pws.moduleSource(module).core
-    pws.fork.withDirectory(path, clientDirectory(
+    let modSrc = ws.moduleSource(module)
+    ws.withNewDirectory("/" + path, clientDirectory(
       modSrc.clientSchemaIntrospectionJSON.contents,
       modSrc.moduleOriginalName,
       modSrc.engineVersion,
@@ -583,7 +557,7 @@ type TypescriptSdk {
       modSrc.asString,
       modSrc.pin,
       existingClientConfig(ws, path)
-    )).changes
+    )).changes(ws)
   }
 
   """
@@ -594,29 +568,17 @@ type TypescriptSdk {
   Modules with the generate skip marker are skipped.
   """
   generateAllModule(ws: Workspace!): Changeset! @generate {
-    let pws = polyfill.workspace(ws)
-
-    let changes = modules(ws)
+    # Each module generates onto the workspace the previous one produced, so the
+    # results accumulate by overlay and one diff at the end carries them all.
+    # Folding per-module changesets instead would mean measuring each one
+    # against `ws` — the engine measures those from the cwd, which is not the
+    # frame Workspace.withChanges applies them in.
+    modules(ws)
       .filter { mod => mod.skipGenerate(ws) == false }
-      .map { mod =>
-        # Stage this module's local dependency closure first (leaf-first, possibly
-        # across SDKs) so its codegen sees up-to-date dependency bindings. The dep
-        # codegen is ephemeral: taking the changeset against the staged workspace
-        # cancels it out, leaving only each module's own changes.
-        let stagedWs = ws.withChanges(pws.moduleSource("/" + mod.rootPath).core.generateLocalDependencies(ws))
-        polyfill.workspace(stagedWs).moduleSource("/" + mod.rootPath).generate.changes
+      .reduce(ws) { stagedWs, mod =>
+        stagedWs.moduleSource("/" + mod.rootPath).generate(stagedWs)
       }
-
-    # Force the per-module codegen to evaluate concurrently: selecting a field on
-    # the whole list resolves every element in one pass, where folding them into
-    # one changeset would walk them one at a time.
-    changes.{{isEmpty}}
-
-    # Fold onto pws.fork.changes (empty), never ws.changes: under the engine's
-    # nested ModuleSource.generateLocalDependencies the incoming ws already has a
-    # dependency closure staged, and re-including it would be re-rooted under the
-    # dependent and octopus-merged against the same files it just generated.
-    pws.fork.changes.withChangesets(changes)
+      .changes(ws)
   }
 
   """
@@ -635,15 +597,14 @@ type TypescriptSdk {
   dependency — skips clients that live elsewhere in the workspace.
   """
   generateAllClient(ws: Workspace!): Changeset! @generate {
-    let pws = polyfill.workspace(ws)
     let cwd = clientCwd(ws)
 
     currentModule.asSDK(ws).clients
       .{{path, module, moduleSource.{{ clientSchemaIntrospectionJSON.{{ contents }}, moduleOriginalName, engineVersion, kind, pin, asString }} }}
       .filter { client => inCwdScope(cwd, client.path) }
-      .reduce(pws.fork) { fork, client =>
+      .reduce(ws) { stagedWs, client =>
         let m = client.moduleSource
-        fork.withDirectory(client.path, clientDirectory(
+        stagedWs.withNewDirectory("/" + client.path, clientDirectory(
           m.clientSchemaIntrospectionJSON.contents,
           m.moduleOriginalName,
           m.engineVersion,
@@ -656,6 +617,6 @@ type TypescriptSdk {
           existingClientConfig(ws, client.path)
         ))
       }
-      .changes
+      .changes(ws)
   }
 }

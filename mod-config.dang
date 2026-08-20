@@ -82,7 +82,7 @@ type ModConfig {
         withPm.withExec(["module-config", "set-base-image", toolPath, baseImage])
       }
       let edited = withImg.file(toolPath).contents
-      polyfill.workspace(ws).fork.withNewFile(targetFile, edited).changes
+      ws.withNewFile("/" + targetFile, edited).changes(ws)
     }
   }
 
@@ -92,7 +92,7 @@ type ModConfig {
   unsetPackageManager: Changeset! {
     if (runtime == Runtime.DENO) {
       # Deno modules carry no package.json, so there is nothing to unset.
-      polyfill.workspace(ws).fork.changes
+      ws.changes(ws)
     } else {
       edit(packageJsonPath, ["module-config", "unset-package-manager", toolPath])
     }
@@ -176,13 +176,13 @@ type ModConfig {
   let edit(file: String!, args: [String!]!): Changeset! {
     if (hasFile(file)) {
       let edited = tool(file).withExec(args).file(toolPath).contents
-      polyfill.workspace(ws).fork.withNewFile(file, edited).changes
+      ws.withNewFile("/" + file, edited).changes(ws)
     } else {
       # Nothing to unset when the target file is absent. Routing through tool()
       # would seed the missing file as "{}", making the unset a no-op, and then
       # write that empty file back as a stray addition (e.g. an empty
       # package.json in a Deno module). Return an empty Changeset instead.
-      polyfill.workspace(ws).fork.changes
+      ws.changes(ws)
     }
   }
 }

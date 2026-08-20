@@ -25,9 +25,9 @@ type GenerateChecks {
   emit its typed bindings alongside the module's own — otherwise the module's
   source cannot import it and the generated tree does not type-check.
 
-  Both sides here are dagger-module.toml modules, the CLI 1.0 format: before the
-  polyfill included dagger-module.toml dir deps in the generated context this
-  failed with "dir module source does not contain a dagger config file".
+  Both sides here are dagger-module.toml modules, the CLI 1.0 format: before
+  dagger-module.toml dir deps were included in the generated context this failed
+  with "dir module source does not contain a dagger config file".
   """
   generateDependencyCheck(ws: Workspace!): Void @check {
     let changes = typescriptSdk.mod(ws, path: fixtures.depAppModule).generate(ws)
@@ -110,8 +110,8 @@ type GenerateChecks {
   workspace (generateLocalDependencies fails with "workspace has no client ID"
   on a re-anchored snapshot), so generating from a subdirectory for real cannot
   run as a check. Which modules a cwd selects is covered by
-  `discovery:modules-cwd-check`, and re-rooting the result into cwd coordinates
-  belongs to the polyfill, which checks it in its own generate-from-subdir case.
+  `discovery:modules-cwd-check`, and measuring the result from the cwd belongs
+  to the engine, which owns it past the changeset cwd cutover.
   """
   generateAllScopeCheck(ws: Workspace!): Void @check {
     let outside = fixtures.discoverySnapshot(
