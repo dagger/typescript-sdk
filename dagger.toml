@@ -21,6 +21,10 @@ check.skip = ["*"]
 
 [modules.sdk-sdk]
 source = "github.com/dagger/sdk-sdk"
+# The contract suite drives a real CLI through the whole user path. It pins its
+# own release, which has to match the engine this SDK's committed bundle is
+# built for — otherwise the checks pair our library with an older engine.
+settings.daggerCliVersion = "1.0.0-beta.10"
 
 [modules.typescript-sdk.as-sdk]
 name = "typescript"

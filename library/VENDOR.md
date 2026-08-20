@@ -17,8 +17,8 @@ noticing.
 |---|---|
 | Repository | `github.com/dagger/dagger` |
 | Path | `sdk/typescript` |
-| Tag | `v1.0.0-beta.9` |
-| Commit | `1c6e07b197327c57e9db8584deb36e5166278677` |
+| Tag | `v1.0.0-beta.10` |
+| Commit | `0e19eba6d38d7fd7e9781a1a3df5fc37208d252a` |
 
 The tag is not incidental. This repo ships a library *built* for one engine
 release, so the vendored sources, the bindings generated from them, the
@@ -46,8 +46,10 @@ either a new upstream change (fine) or a delta being dropped (not fine).
 | File | Delta | Why |
 |---|---|---|
 | `package.json` | `scripts` removed | All pointed at things this repo does not have (mocha/eslint/tsx wiring, `../../docs/current_docs`). The packager owns how the bundle is built; see `.dagger/modules/packager/main.dang`. |
-| `package.json` | `devDependencies` and `resolutions` trimmed | Kept to what the bundle build actually uses: `rollup`, `rollup-plugin-dts`, and the `@types` the declaration build needs. |
+| `package.json` | `devDependencies` and `resolutions` trimmed | Kept to what the bundle build and the vendored test suite actually use: `rollup`, `rollup-plugin-dts`, the `@types` the declaration build needs, and `mocha`/`ts-node`/`@types/mocha` for `library-tests`. |
 | `package.json` | `version`, `author`, `license`, package metadata | **Tracks upstream.** Nothing here is published, so a local value is a delta that buys nothing and costs an import. Leave them alone. |
+| `bun.lock` | Added (not upstream) | `yarn.lock` is a yarn v1 file that does not pin everything bun resolves; without `bun.lock` a rebuild days later drifts. Both are load-bearing — see `libraryBundle`'s doc comment. |
+| `.mocharc.json` | Added (not upstream) | Runs the vendored introspector suite against `src/`. |
 | `bundle/` | Built here, committed | Not upstream at all. Produced by `packager:library-bundle`. |
 
 ## What has to move with upstream
@@ -77,4 +79,11 @@ has to change the other:
    `dagger generate packager:library-bundle`. Both are `@generate` functions, so
    the engine surfaces them as checks that fail when the committed output is
    stale.
-5. Update the **Current source** table and any row of the delta table that moved.
+5. Run `packager:library-tests` and the runtime checks. The runtimes group is the
+   only thing that executes a generated module end to end.
+6. Update the **Current source** table and any row of the delta table that moved.
+
+Yarn-style scoped `resolutions` (`mocha/minimatch`, `mocha/serialize-javascript`)
+were dropped on this import and are *not* restored: bun does not honor that
+spelling — only the flat keys reach `bun.lock`'s `overrides` — and the lock
+already resolves the versions they were reaching for.

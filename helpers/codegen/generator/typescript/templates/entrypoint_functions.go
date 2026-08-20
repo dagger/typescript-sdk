@@ -364,6 +364,15 @@ func (c *entrypointFuncCtx) resolveDefaultValue(arg *TypedefArgument) (any, bool
 	return nil, false
 }
 
+// renderFunctionExpr turns a scanned function into the engine registration call
+// that declares it.
+//
+// The vendored library's Register.addFunction
+// (library/src/module/entrypoint/register.ts) does the same translation at
+// runtime, from the same typedef. Both are live — the introspector registers
+// through the TypeScript one — and nothing enforces that they agree, so a new
+// decorator has to be taught to both. beta.10's `agent` needed exactly that.
+// Keep the two in step when adding a case here.
 func (c *entrypointFuncCtx) renderFunctionExpr(fn *TypedefFunction) string {
 	fnName := fn.Alias
 	if fnName == "" {
@@ -400,6 +409,9 @@ func (c *entrypointFuncCtx) renderFunctionExpr(fn *TypedefFunction) string {
 	}
 	if fn.IsUp {
 		parts = append(parts, ".withUp()")
+	}
+	if fn.IsAgent {
+		parts = append(parts, ".withAgent()")
 	}
 	return strings.Join(parts, "")
 }

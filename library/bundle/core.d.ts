@@ -2828,7 +2828,7 @@ declare class Check extends BaseClient {
     /**
      * If the check failed, this is the error
      */
-    error: () => Error$1;
+    error: () => Promise<Error$1 | null>;
     /**
      * Return the fully qualified name of the check
      */
@@ -3002,7 +3002,7 @@ declare class Container extends BaseClient {
     /**
      * Retrieves this container's configured docker healthcheck.
      */
-    dockerHealthcheck: () => HealthcheckConfig;
+    dockerHealthcheck: () => Promise<HealthcheckConfig | null>;
     /**
      * Return the container's OCI entrypoint.
      */
@@ -3184,7 +3184,7 @@ declare class Container extends BaseClient {
      * @param path Path to check (e.g., "/file.txt").
      * @param opts.doNotFollowSymlinks If specified, do not follow symlinks.
      */
-    stat: (path: string, opts?: ContainerStatOpts) => Stat;
+    stat: (path: string, opts?: ContainerStatOpts) => Promise<Stat | null>;
     /**
      * The buffered standard error stream of the last executed command
      *
@@ -3966,7 +3966,7 @@ declare class Directory extends BaseClient {
      * @param path Path to stat (e.g., "/file.txt").
      * @param opts.doNotFollowSymlinks If specified, do not follow symlinks.
      */
-    stat: (path: string, opts?: DirectoryStatOpts) => Stat;
+    stat: (path: string, opts?: DirectoryStatOpts) => Promise<Stat | null>;
     /**
      * Force evaluation in the engine.
      */
@@ -4274,7 +4274,7 @@ declare class EnumTypeDef extends BaseClient {
     /**
      * The location of this enum declaration.
      */
-    sourceMap: () => SourceMap;
+    sourceMap: () => Promise<SourceMap | null>;
     /**
      * If this EnumTypeDef is associated with a Module, the name of the module. Unset otherwise.
      */
@@ -4317,7 +4317,7 @@ declare class EnumValueTypeDef extends BaseClient {
     /**
      * The location of this enum member declaration.
      */
-    sourceMap: () => SourceMap;
+    sourceMap: () => Promise<SourceMap | null>;
     /**
      * The value of the enum member
      */
@@ -4510,7 +4510,7 @@ declare class FieldTypeDef extends BaseClient {
     /**
      * The location of this field declaration.
      */
-    sourceMap: () => SourceMap;
+    sourceMap: () => Promise<SourceMap | null>;
     /**
      * The type of the field.
      */
@@ -4596,7 +4596,7 @@ declare class File extends BaseClient {
     /**
      * Return file status
      */
-    stat: () => Stat;
+    stat: () => Promise<Stat | null>;
     /**
      * Force evaluation in the engine.
      */
@@ -4678,7 +4678,7 @@ declare class Function_ extends BaseClient {
     /**
      * The location of this function declaration.
      */
-    sourceMap: () => SourceMap;
+    sourceMap: () => Promise<SourceMap | null>;
     /**
      * If this function is provided by a module, the name of the module. Unset otherwise.
      */
@@ -4791,7 +4791,7 @@ declare class FunctionArg extends BaseClient {
     /**
      * The location of this arg declaration.
      */
-    sourceMap: () => SourceMap;
+    sourceMap: () => Promise<SourceMap | null>;
     /**
      * The type of the argument.
      */
@@ -5032,7 +5032,7 @@ declare class GitCommit extends BaseClient {
      * The latest semver release tag reachable from this commit.
      * @param opts.includePreRelease Include pre-release tags when choosing the latest tag.
      */
-    ancestorReleaseTag: (opts?: GitCommitAncestorReleaseTagOpts) => GitRef;
+    ancestorReleaseTag: (opts?: GitCommitAncestorReleaseTagOpts) => Promise<GitRef | null>;
     /**
      * Git author email.
      */
@@ -5077,7 +5077,7 @@ declare class GitCommit extends BaseClient {
      * The latest semver release tag that points directly at this commit.
      * @param opts.includePreRelease Include pre-release tags when choosing the latest tag.
      */
-    releaseTag: (opts?: GitCommitReleaseTagOpts) => GitRef;
+    releaseTag: (opts?: GitCommitReleaseTagOpts) => Promise<GitRef | null>;
     /**
      * The full commit SHA.
      */
@@ -5419,7 +5419,7 @@ declare class InterfaceTypeDef extends BaseClient {
     /**
      * The location of this interface declaration.
      */
-    sourceMap: () => SourceMap;
+    sourceMap: () => Promise<SourceMap | null>;
     /**
      * If this InterfaceTypeDef is associated with a Module, the name of the module. Unset otherwise.
      */
@@ -5954,11 +5954,11 @@ declare class Module_ extends BaseClient {
     /**
      * The container that runs the module's entrypoint. It will fail to execute if the module doesn't compile.
      */
-    runtime: () => Container;
+    runtime: () => Promise<Container | null>;
     /**
      * The SDK config used by this module.
      */
-    sdk: () => SDKConfig;
+    sdk: () => Promise<SDKConfig | null>;
     /**
      * Serve a module's API in the current session.
      *
@@ -5976,7 +5976,7 @@ declare class Module_ extends BaseClient {
     /**
      * The source for the module.
      */
-    source: () => ModuleSource;
+    source: () => Promise<ModuleSource | null>;
     /**
      * Forces evaluation of the module, including any loading into the engine and associated validation.
      */
@@ -6190,7 +6190,7 @@ declare class ModuleSource extends BaseClient {
     /**
      * The SDK configuration of the module.
      */
-    sdk: () => SDKConfig;
+    sdk: () => Promise<SDKConfig | null>;
     /**
      * The path, relative to the context directory, that contains the module config.
      */
@@ -6363,7 +6363,7 @@ declare class ObjectTypeDef extends BaseClient {
     /**
      * The function used to construct new instances of this object, if any.
      */
-    constructor_: () => Function_;
+    constructor_: () => Promise<Function_ | null>;
     /**
      * The reason this enum member is deprecated, if any.
      */
@@ -6387,7 +6387,7 @@ declare class ObjectTypeDef extends BaseClient {
     /**
      * The location of this object declaration.
      */
-    sourceMap: () => SourceMap;
+    sourceMap: () => Promise<SourceMap | null>;
     /**
      * If this ObjectTypeDef is associated with a Module, the name of the module. Unset otherwise.
      */
@@ -6606,7 +6606,7 @@ declare class Client extends BaseClient {
     /**
      * Load any object by its ID.
      */
-    node: (id: ID) => Node;
+    node: (id: ID) => Promise<Node | null>;
     /**
      * Load a GraphQL introspection schema for merging.
      * @param json The introspection schema JSON to load.
@@ -7063,27 +7063,27 @@ declare class TypeDef extends BaseClient {
     /**
      * If kind is ENUM, the enum-specific type definition. If kind is not ENUM, this will be null.
      */
-    asEnum: () => EnumTypeDef;
+    asEnum: () => Promise<EnumTypeDef | null>;
     /**
      * If kind is INPUT, the input-specific type definition. If kind is not INPUT, this will be null.
      */
-    asInput: () => InputTypeDef;
+    asInput: () => Promise<InputTypeDef | null>;
     /**
      * If kind is INTERFACE, the interface-specific type definition. If kind is not INTERFACE, this will be null.
      */
-    asInterface: () => InterfaceTypeDef;
+    asInterface: () => Promise<InterfaceTypeDef | null>;
     /**
      * If kind is LIST, the list-specific type definition. If kind is not LIST, this will be null.
      */
-    asList: () => ListTypeDef;
+    asList: () => Promise<ListTypeDef | null>;
     /**
      * If kind is OBJECT, the object-specific type definition. If kind is not OBJECT, this will be null.
      */
-    asObject: () => ObjectTypeDef;
+    asObject: () => Promise<ObjectTypeDef | null>;
     /**
      * If kind is SCALAR, the scalar-specific type definition. If kind is not SCALAR, this will be null.
      */
-    asScalar: () => ScalarTypeDef;
+    asScalar: () => Promise<ScalarTypeDef | null>;
     /**
      * The kind of type this is (e.g. primitive, list, object).
      */
@@ -8192,6 +8192,15 @@ declare const generate: () => ((target: object, propertyKey: string | symbol, de
  */
 declare const up: () => ((target: object, propertyKey: string, descriptor: PropertyDescriptor) => PropertyDescriptor);
 /**
+ * The definition of @agent decorator that marks a function as an agent
+ * middleware: it takes a base LLM and returns an LLM with the module's tools
+ * and prompting folded onto it. `dagger agent` discovers and composes these.
+ *
+ * Besides the base LLM, an agent function may not declare any other required
+ * argument.
+ */
+declare const agent: () => ((target: object, propertyKey: string | symbol, descriptor?: PropertyDescriptor) => void);
+/**
  * The definition of @field decorator that should be on top of any
  * class' property that must be exposed to the Dagger API.
  *
@@ -8226,5 +8235,5 @@ declare const argument: (opts?: ArgumentOptions) => ((target: object, propertyKe
 
 declare function entrypoint(files: string[]): Promise<void>;
 
-export { Address, Agent, AgentGroup, BaseClient, CacheSharingMode, CacheSharingModeNameToValue, CacheSharingModeValueToName, CacheVolume, Changeset, ChangesetMergeConflict, ChangesetMergeConflictNameToValue, ChangesetMergeConflictValueToName, ChangesetsMergeConflict, ChangesetsMergeConflictNameToValue, ChangesetsMergeConflictValueToName, Check, CheckGroup, Client, ClientFilesyncMirror, Cloud, Container, Context, CurrentModule, CurrentModuleAsSDK, CurrentModuleAsSDKClient, CurrentModuleAsSDKModule, DaggerSDKError, DiffStat, DiffStatKind, DiffStatKindNameToValue, DiffStatKindValueToName, Directory, DockerImageRefValidationError, ERROR_CODES, Engine, EngineCache, EngineCacheEntry, EngineCacheEntrySet, EngineSessionConnectParamsParseError, EngineSessionConnectionTimeoutError, EngineSessionError, EnumTypeDef, EnumValueTypeDef, EnvFile, EnvVariable, Error$1 as Error, ErrorValue, ExecError, ExistsType, ExistsTypeNameToValue, ExistsTypeValueToName, FieldTypeDef, File, FileType, FileTypeNameToValue, FileTypeValueToName, FunctionArg, FunctionCachePolicy, FunctionCachePolicyNameToValue, FunctionCachePolicyValueToName, FunctionCall, FunctionCallArgValue, FunctionNotFound, Function_, GeneratedCode, Generator, GeneratorGroup, GitCommit, GitRef, GitRepository, GraphQLRequestError, HTTPState, HealthcheckConfig, Host, ImageLayerCompression, ImageLayerCompressionNameToValue, ImageLayerCompressionValueToName, ImageMediaTypes, ImageMediaTypesNameToValue, ImageMediaTypesValueToName, InitEngineSessionBinaryError, InputTypeDef, InterfaceTypeDef, IntrospectionError, JSONValue, LLM, LLMContentBlock, LLMContentBlockKind, LLMContentBlockKindNameToValue, LLMContentBlockKindValueToName, LLMMessage, LLMMessageRole, LLMMessageRoleNameToValue, LLMMessageRoleValueToName, LLMSkill, LLMTokenUsage, Label, ListTypeDef, ModuleConfigClient, ModuleSource, ModuleSourceExperimentalFeature, ModuleSourceExperimentalFeatureNameToValue, ModuleSourceExperimentalFeatureValueToName, ModuleSourceKind, ModuleSourceKindNameToValue, ModuleSourceKindValueToName, Module_, NetworkProtocol, NetworkProtocolNameToValue, NetworkProtocolValueToName, NotAwaitedRequestError, ObjectTypeDef, PatchConflict, PatchConflictNameToValue, PatchConflictValueToName, Port, RegistryProtocol, RegistryProtocolNameToValue, RegistryProtocolValueToName, RemoteGitMirror, ReturnType, ReturnTypeNameToValue, ReturnTypeValueToName, SDKConfig, ScalarTypeDef, Schema, SearchResult, SearchSubmatch, Secret, Service, Socket, SourceMap, Stat, Terminal, TooManyNestedObjectsError, TypeDef, TypeDefKind, TypeDefKindNameToValue, TypeDefKindValueToName, UnknownDaggerError, Up, UpGroup, Volume, Workspace, WorkspaceGit, WorkspaceMigration, WorkspaceMigrationStep, WorkspaceModule, WorkspaceModuleSetting, WorkspaceSDK, _ExportableClient, _NodeClient, _SyncerClient, argument, check, connect, connection, dag, entrypoint, enumType, field, func, generate, getRegisteredClass, getTracer, object, up };
+export { Address, Agent, AgentGroup, BaseClient, CacheSharingMode, CacheSharingModeNameToValue, CacheSharingModeValueToName, CacheVolume, Changeset, ChangesetMergeConflict, ChangesetMergeConflictNameToValue, ChangesetMergeConflictValueToName, ChangesetsMergeConflict, ChangesetsMergeConflictNameToValue, ChangesetsMergeConflictValueToName, Check, CheckGroup, Client, ClientFilesyncMirror, Cloud, Container, Context, CurrentModule, CurrentModuleAsSDK, CurrentModuleAsSDKClient, CurrentModuleAsSDKModule, DaggerSDKError, DiffStat, DiffStatKind, DiffStatKindNameToValue, DiffStatKindValueToName, Directory, DockerImageRefValidationError, ERROR_CODES, Engine, EngineCache, EngineCacheEntry, EngineCacheEntrySet, EngineSessionConnectParamsParseError, EngineSessionConnectionTimeoutError, EngineSessionError, EnumTypeDef, EnumValueTypeDef, EnvFile, EnvVariable, Error$1 as Error, ErrorValue, ExecError, ExistsType, ExistsTypeNameToValue, ExistsTypeValueToName, FieldTypeDef, File, FileType, FileTypeNameToValue, FileTypeValueToName, FunctionArg, FunctionCachePolicy, FunctionCachePolicyNameToValue, FunctionCachePolicyValueToName, FunctionCall, FunctionCallArgValue, FunctionNotFound, Function_, GeneratedCode, Generator, GeneratorGroup, GitCommit, GitRef, GitRepository, GraphQLRequestError, HTTPState, HealthcheckConfig, Host, ImageLayerCompression, ImageLayerCompressionNameToValue, ImageLayerCompressionValueToName, ImageMediaTypes, ImageMediaTypesNameToValue, ImageMediaTypesValueToName, InitEngineSessionBinaryError, InputTypeDef, InterfaceTypeDef, IntrospectionError, JSONValue, LLM, LLMContentBlock, LLMContentBlockKind, LLMContentBlockKindNameToValue, LLMContentBlockKindValueToName, LLMMessage, LLMMessageRole, LLMMessageRoleNameToValue, LLMMessageRoleValueToName, LLMSkill, LLMTokenUsage, Label, ListTypeDef, ModuleConfigClient, ModuleSource, ModuleSourceExperimentalFeature, ModuleSourceExperimentalFeatureNameToValue, ModuleSourceExperimentalFeatureValueToName, ModuleSourceKind, ModuleSourceKindNameToValue, ModuleSourceKindValueToName, Module_, NetworkProtocol, NetworkProtocolNameToValue, NetworkProtocolValueToName, NotAwaitedRequestError, ObjectTypeDef, PatchConflict, PatchConflictNameToValue, PatchConflictValueToName, Port, RegistryProtocol, RegistryProtocolNameToValue, RegistryProtocolValueToName, RemoteGitMirror, ReturnType, ReturnTypeNameToValue, ReturnTypeValueToName, SDKConfig, ScalarTypeDef, Schema, SearchResult, SearchSubmatch, Secret, Service, Socket, SourceMap, Stat, Terminal, TooManyNestedObjectsError, TypeDef, TypeDefKind, TypeDefKindNameToValue, TypeDefKindValueToName, UnknownDaggerError, Up, UpGroup, Volume, Workspace, WorkspaceGit, WorkspaceMigration, WorkspaceMigrationStep, WorkspaceModule, WorkspaceModuleSetting, WorkspaceSDK, _ExportableClient, _NodeClient, _SyncerClient, agent, argument, check, connect, connection, dag, entrypoint, enumType, field, func, generate, getRegisteredClass, getTracer, object, up };
 export type { AddressDirectoryOpts, AddressFileOpts, AgentGroupComposeOpts, BuildArg, CallbackFct, ChangesetWithChangesetOpts, ChangesetWithChangesetsOpts, CheckGroupRunOpts, ClientCacheVolumeOpts, ClientContainerOpts, ClientCurrentTypeDefsOpts, ClientEngineVolumeOpts, ClientEnvFileOpts, ClientFileOpts, ClientGitOpts, ClientHttpOpts, ClientLLMOpts, ClientModuleSourceOpts, ClientSecretOpts, ClientSshfsVolumeOpts, ConnectOpts, ContainerAsServiceOpts, ContainerAsTarballOpts, ContainerDirectoryOpts, ContainerExistsOpts, ContainerExportImageOpts, ContainerExportOpts, ContainerFileOpts, ContainerFromOpts, ContainerImportOpts, ContainerLayerOpts, ContainerManifestOpts, ContainerPublishOpts, ContainerStatOpts, ContainerTerminalOpts, ContainerUpOpts, ContainerWithDefaultTerminalCmdOpts, ContainerWithDirectoryOpts, ContainerWithDockerHealthcheckOpts, ContainerWithEntrypointOpts, ContainerWithEnvVariableOpts, ContainerWithExecOpts, ContainerWithExposedPortOpts, ContainerWithFileOpts, ContainerWithFilesOpts, ContainerWithMountedCacheOpts, ContainerWithMountedDirectoryOpts, ContainerWithMountedFileOpts, ContainerWithMountedSecretOpts, ContainerWithMountedTempOpts, ContainerWithMountedVolumeOpts, ContainerWithNewFileOpts, ContainerWithSymlinkOpts, ContainerWithUnixSocketOpts, ContainerWithWorkdirOpts, ContainerWithoutDirectoryOpts, ContainerWithoutEntrypointOpts, ContainerWithoutExposedPortOpts, ContainerWithoutFileOpts, ContainerWithoutFilesOpts, ContainerWithoutMountOpts, ContainerWithoutUnixSocketOpts, CurrentModuleGeneratorsOpts, CurrentModuleWorkdirOpts, DirectoryAsModuleOpts, DirectoryAsModuleSourceOpts, DirectoryAsWorkspaceOpts, DirectoryDockerBuildOpts, DirectoryEntriesOpts, DirectoryExistsOpts, DirectoryExportOpts, DirectoryFilterOpts, DirectorySearchOpts, DirectoryStatOpts, DirectoryTerminalOpts, DirectoryWithDirectoryOpts, DirectoryWithFileOpts, DirectoryWithFilesOpts, DirectoryWithNewDirectoryOpts, DirectoryWithNewFileOpts, DirectoryWithPatchFileOpts, DirectoryWithPatchOpts, EngineCacheEntrySetOpts, EngineCachePruneOpts, EnvFileGetOpts, EnvFileVariablesOpts, Exportable, FileAsEnvFileOpts, FileContentsOpts, FileDigestOpts, FileExportOpts, FileSearchOpts, FileWithReplacedOpts, FunctionWithArgOpts, FunctionWithCachePolicyOpts, FunctionWithDeprecatedOpts, GeneratorGroupChangesOpts, GitCommitAncestorReleaseTagOpts, GitCommitReleaseTagOpts, GitCommitTreeOpts, GitRefAsWorkspaceOpts, GitRefLogOpts, GitRefTreeOpts, GitRepositoryAsWorkspaceOpts, GitRepositoryBranchesOpts, GitRepositoryTagsOpts, HostDirectoryOpts, HostFileOpts, HostFindUpOpts, HostServiceOpts, HostTunnelOpts, ID, JSON, JSONValueContentsOpts, LLMContentBlockInput, LLMLoopOpts, LLMStepOpts, LLMWithModelOpts, LLMWithResponseOpts, LLMWithToolsOpts, ModuleChecksOpts, ModuleGeneratorsOpts, ModuleServeOpts, ModuleServicesOpts, Node, PipelineLabel, Platform, PortForward, ServiceEndpointOpts, ServiceStopOpts, ServiceTerminalOpts, ServiceUpOpts, Syncer, TypeDefWithEnumMemberOpts, TypeDefWithEnumOpts, TypeDefWithEnumValueOpts, TypeDefWithFieldOpts, TypeDefWithInterfaceOpts, TypeDefWithObjectOpts, TypeDefWithScalarOpts, Void, WorkspaceAgentsOpts, WorkspaceChangesOpts, WorkspaceChecksOpts, WorkspaceConfigReadOpts, WorkspaceDirectoryOpts, WorkspaceFindRootsOpts, WorkspaceFindUpOpts, WorkspaceGeneratorsOpts, WorkspaceSearchOpts, WorkspaceServicesOpts, WorkspaceWithConfigEnvOpts, WorkspaceWithConfigValueOpts, WorkspaceWithInitClientOpts, WorkspaceWithInitModuleOpts, WorkspaceWithModuleOpts, WorkspaceWithNewFileOpts, WorkspaceWithSdkOpts, WorkspaceWithoutConfigEnvOpts, WorkspaceWithoutConfigValueOpts, WorkspaceWithoutModuleOpts, WorkspaceWithoutSdkOpts, __DirectiveArgsOpts, __FieldArgsOpts, __TypeEnumValuesOpts, __TypeFieldsOpts, __TypeInputFieldsOpts, float };

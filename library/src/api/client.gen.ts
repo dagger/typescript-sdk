@@ -4132,12 +4132,17 @@ export class Check extends BaseClient {
   /**
    * If the check failed, this is the error
    */
-  error = (): Error => {
-
+  error = async (): Promise<Error | null> => {
     const ctx = this._ctx.select(
       "error",
-    )
-    return new Error(ctx)
+    ).select("id")
+
+    const response: Awaited<string | null> = await ctx.execute()
+
+    if (response === null) {
+      return null
+    }
+    return new Error(ctx.copy().selectNode(response, "Error"))
   }
 
   /**
@@ -4608,12 +4613,17 @@ export class Container extends BaseClient {
   /**
    * Retrieves this container's configured docker healthcheck.
    */
-  dockerHealthcheck = (): HealthcheckConfig => {
-
+  dockerHealthcheck = async (): Promise<HealthcheckConfig | null> => {
     const ctx = this._ctx.select(
       "dockerHealthcheck",
-    )
-    return new HealthcheckConfig(ctx)
+    ).select("id")
+
+    const response: Awaited<string | null> = await ctx.execute()
+
+    if (response === null) {
+      return null
+    }
+    return new HealthcheckConfig(ctx.copy().selectNode(response, "HealthcheckConfig"))
   }
 
   /**
@@ -5090,13 +5100,19 @@ export class Container extends BaseClient {
    * @param path Path to check (e.g., "/file.txt").
    * @param opts.doNotFollowSymlinks If specified, do not follow symlinks.
    */
-  stat = (path: string, opts?: ContainerStatOpts): Stat => {
-
+  stat = async (path: string, 
+    opts?: ContainerStatOpts): Promise<Stat | null> => {
     const ctx = this._ctx.select(
       "stat",
-      { path, ...opts },
-    )
-    return new Stat(ctx)
+      { path, ...opts},
+    ).select("id")
+
+    const response: Awaited<string | null> = await ctx.execute()
+
+    if (response === null) {
+      return null
+    }
+    return new Stat(ctx.copy().selectNode(response, "Stat"))
   }
 
   /**
@@ -6988,13 +7004,19 @@ export class Directory extends BaseClient {
    * @param path Path to stat (e.g., "/file.txt").
    * @param opts.doNotFollowSymlinks If specified, do not follow symlinks.
    */
-  stat = (path: string, opts?: DirectoryStatOpts): Stat => {
-
+  stat = async (path: string, 
+    opts?: DirectoryStatOpts): Promise<Stat | null> => {
     const ctx = this._ctx.select(
       "stat",
-      { path, ...opts },
-    )
-    return new Stat(ctx)
+      { path, ...opts},
+    ).select("id")
+
+    const response: Awaited<string | null> = await ctx.execute()
+
+    if (response === null) {
+      return null
+    }
+    return new Stat(ctx.copy().selectNode(response, "Stat"))
   }
 
   /**
@@ -7898,12 +7920,17 @@ export class EnumTypeDef extends BaseClient {
   /**
    * The location of this enum declaration.
    */
-  sourceMap = (): SourceMap => {
-
+  sourceMap = async (): Promise<SourceMap | null> => {
     const ctx = this._ctx.select(
       "sourceMap",
-    )
-    return new SourceMap(ctx)
+    ).select("id")
+
+    const response: Awaited<string | null> = await ctx.execute()
+
+    if (response === null) {
+      return null
+    }
+    return new SourceMap(ctx.copy().selectNode(response, "SourceMap"))
   }
 
   /**
@@ -8049,12 +8076,17 @@ export class EnumValueTypeDef extends BaseClient {
   /**
    * The location of this enum member declaration.
    */
-  sourceMap = (): SourceMap => {
-
+  sourceMap = async (): Promise<SourceMap | null> => {
     const ctx = this._ctx.select(
       "sourceMap",
-    )
-    return new SourceMap(ctx)
+    ).select("id")
+
+    const response: Awaited<string | null> = await ctx.execute()
+
+    if (response === null) {
+      return null
+    }
+    return new SourceMap(ctx.copy().selectNode(response, "SourceMap"))
   }
 
   /**
@@ -8659,12 +8691,17 @@ export class FieldTypeDef extends BaseClient {
   /**
    * The location of this field declaration.
    */
-  sourceMap = (): SourceMap => {
-
+  sourceMap = async (): Promise<SourceMap | null> => {
     const ctx = this._ctx.select(
       "sourceMap",
-    )
-    return new SourceMap(ctx)
+    ).select("id")
+
+    const response: Awaited<string | null> = await ctx.execute()
+
+    if (response === null) {
+      return null
+    }
+    return new SourceMap(ctx.copy().selectNode(response, "SourceMap"))
   }
 
   /**
@@ -8909,12 +8946,17 @@ export class File extends BaseClient {
   /**
    * Return file status
    */
-  stat = (): Stat => {
-
+  stat = async (): Promise<Stat | null> => {
     const ctx = this._ctx.select(
       "stat",
-    )
-    return new Stat(ctx)
+    ).select("id")
+
+    const response: Awaited<string | null> = await ctx.execute()
+
+    if (response === null) {
+      return null
+    }
+    return new Stat(ctx.copy().selectNode(response, "Stat"))
   }
 
   /**
@@ -9133,12 +9175,17 @@ export class Function_ extends BaseClient {
   /**
    * The location of this function declaration.
    */
-  sourceMap = (): SourceMap => {
-
+  sourceMap = async (): Promise<SourceMap | null> => {
     const ctx = this._ctx.select(
       "sourceMap",
-    )
-    return new SourceMap(ctx)
+    ).select("id")
+
+    const response: Awaited<string | null> = await ctx.execute()
+
+    if (response === null) {
+      return null
+    }
+    return new SourceMap(ctx.copy().selectNode(response, "SourceMap"))
   }
 
   /**
@@ -9471,12 +9518,17 @@ export class FunctionArg extends BaseClient {
   /**
    * The location of this arg declaration.
    */
-  sourceMap = (): SourceMap => {
-
+  sourceMap = async (): Promise<SourceMap | null> => {
     const ctx = this._ctx.select(
       "sourceMap",
-    )
-    return new SourceMap(ctx)
+    ).select("id")
+
+    const response: Awaited<string | null> = await ctx.execute()
+
+    if (response === null) {
+      return null
+    }
+    return new SourceMap(ctx.copy().selectNode(response, "SourceMap"))
   }
 
   /**
@@ -10222,13 +10274,19 @@ export class GitCommit extends BaseClient {
    * The latest semver release tag reachable from this commit.
    * @param opts.includePreRelease Include pre-release tags when choosing the latest tag.
    */
-  ancestorReleaseTag = (opts?: GitCommitAncestorReleaseTagOpts): GitRef => {
-
+  ancestorReleaseTag = async (
+    opts?: GitCommitAncestorReleaseTagOpts): Promise<GitRef | null> => {
     const ctx = this._ctx.select(
       "ancestorReleaseTag",
-      { ...opts },
-    )
-    return new GitRef(ctx)
+      { ...opts},
+    ).select("id")
+
+    const response: Awaited<string | null> = await ctx.execute()
+
+    if (response === null) {
+      return null
+    }
+    return new GitRef(ctx.copy().selectNode(response, "GitRef"))
   }
 
   /**
@@ -10411,13 +10469,19 @@ export class GitCommit extends BaseClient {
    * The latest semver release tag that points directly at this commit.
    * @param opts.includePreRelease Include pre-release tags when choosing the latest tag.
    */
-  releaseTag = (opts?: GitCommitReleaseTagOpts): GitRef => {
-
+  releaseTag = async (
+    opts?: GitCommitReleaseTagOpts): Promise<GitRef | null> => {
     const ctx = this._ctx.select(
       "releaseTag",
-      { ...opts },
-    )
-    return new GitRef(ctx)
+      { ...opts},
+    ).select("id")
+
+    const response: Awaited<string | null> = await ctx.execute()
+
+    if (response === null) {
+      return null
+    }
+    return new GitRef(ctx.copy().selectNode(response, "GitRef"))
   }
 
   /**
@@ -11431,12 +11495,17 @@ export class InterfaceTypeDef extends BaseClient {
   /**
    * The location of this interface declaration.
    */
-  sourceMap = (): SourceMap => {
-
+  sourceMap = async (): Promise<SourceMap | null> => {
     const ctx = this._ctx.select(
       "sourceMap",
-    )
-    return new SourceMap(ctx)
+    ).select("id")
+
+    const response: Awaited<string | null> = await ctx.execute()
+
+    if (response === null) {
+      return null
+    }
+    return new SourceMap(ctx.copy().selectNode(response, "SourceMap"))
   }
 
   /**
@@ -13142,23 +13211,33 @@ export class Module_ extends BaseClient {
   /**
    * The container that runs the module's entrypoint. It will fail to execute if the module doesn't compile.
    */
-  runtime = (): Container => {
-
+  runtime = async (): Promise<Container | null> => {
     const ctx = this._ctx.select(
       "runtime",
-    )
-    return new Container(ctx)
+    ).select("id")
+
+    const response: Awaited<string | null> = await ctx.execute()
+
+    if (response === null) {
+      return null
+    }
+    return new Container(ctx.copy().selectNode(response, "Container"))
   }
 
   /**
    * The SDK config used by this module.
    */
-  sdk = (): SDKConfig => {
-
+  sdk = async (): Promise<SDKConfig | null> => {
     const ctx = this._ctx.select(
       "sdk",
-    )
-    return new SDKConfig(ctx)
+    ).select("id")
+
+    const response: Awaited<string | null> = await ctx.execute()
+
+    if (response === null) {
+      return null
+    }
+    return new SDKConfig(ctx.copy().selectNode(response, "SDKConfig"))
   }
 
   /**
@@ -13201,12 +13280,17 @@ export class Module_ extends BaseClient {
   /**
    * The source for the module.
    */
-  source = (): ModuleSource => {
-
+  source = async (): Promise<ModuleSource | null> => {
     const ctx = this._ctx.select(
       "source",
-    )
-    return new ModuleSource(ctx)
+    ).select("id")
+
+    const response: Awaited<string | null> = await ctx.execute()
+
+    if (response === null) {
+      return null
+    }
+    return new ModuleSource(ctx.copy().selectNode(response, "ModuleSource"))
   }
 
   /**
@@ -13901,12 +13985,17 @@ export class ModuleSource extends BaseClient {
   /**
    * The SDK configuration of the module.
    */
-  sdk = (): SDKConfig => {
-
+  sdk = async (): Promise<SDKConfig | null> => {
     const ctx = this._ctx.select(
       "sdk",
-    )
-    return new SDKConfig(ctx)
+    ).select("id")
+
+    const response: Awaited<string | null> = await ctx.execute()
+
+    if (response === null) {
+      return null
+    }
+    return new SDKConfig(ctx.copy().selectNode(response, "SDKConfig"))
   }
 
   /**
@@ -14374,12 +14463,17 @@ export class ObjectTypeDef extends BaseClient {
   /**
    * The function used to construct new instances of this object, if any.
    */
-  constructor_ = (): Function_ => {
-
+  constructor_ = async (): Promise<Function_ | null> => {
     const ctx = this._ctx.select(
       "constructor",
-    )
-    return new Function_(ctx)
+    ).select("id")
+
+    const response: Awaited<string | null> = await ctx.execute()
+
+    if (response === null) {
+      return null
+    }
+    return new Function_(ctx.copy().selectNode(response, "Function"))
   }
 
   /**
@@ -14475,12 +14569,17 @@ export class ObjectTypeDef extends BaseClient {
   /**
    * The location of this object declaration.
    */
-  sourceMap = (): SourceMap => {
-
+  sourceMap = async (): Promise<SourceMap | null> => {
     const ctx = this._ctx.select(
       "sourceMap",
-    )
-    return new SourceMap(ctx)
+    ).select("id")
+
+    const response: Awaited<string | null> = await ctx.execute()
+
+    if (response === null) {
+      return null
+    }
+    return new SourceMap(ctx.copy().selectNode(response, "SourceMap"))
   }
 
   /**
@@ -15050,13 +15149,18 @@ export class Client extends BaseClient {
   /**
    * Load any object by its ID.
    */
-  node = (id: ID): Node => {
-
+  node = async (id: ID): Promise<Node | null> => {
     const ctx = this._ctx.select(
       "node",
-      { id },
-    )
-    return new _NodeClient(ctx)
+      { id},
+    ).select("id")
+
+    const response: Awaited<string | null> = await ctx.execute()
+
+    if (response === null) {
+      return null
+    }
+    return new _NodeClient(ctx.copy().selectNode(response, "Node"))
   }
 
   /**
@@ -16476,67 +16580,97 @@ export class TypeDef extends BaseClient {
   /**
    * If kind is ENUM, the enum-specific type definition. If kind is not ENUM, this will be null.
    */
-  asEnum = (): EnumTypeDef => {
-
+  asEnum = async (): Promise<EnumTypeDef | null> => {
     const ctx = this._ctx.select(
       "asEnum",
-    )
-    return new EnumTypeDef(ctx)
+    ).select("id")
+
+    const response: Awaited<string | null> = await ctx.execute()
+
+    if (response === null) {
+      return null
+    }
+    return new EnumTypeDef(ctx.copy().selectNode(response, "EnumTypeDef"))
   }
 
   /**
    * If kind is INPUT, the input-specific type definition. If kind is not INPUT, this will be null.
    */
-  asInput = (): InputTypeDef => {
-
+  asInput = async (): Promise<InputTypeDef | null> => {
     const ctx = this._ctx.select(
       "asInput",
-    )
-    return new InputTypeDef(ctx)
+    ).select("id")
+
+    const response: Awaited<string | null> = await ctx.execute()
+
+    if (response === null) {
+      return null
+    }
+    return new InputTypeDef(ctx.copy().selectNode(response, "InputTypeDef"))
   }
 
   /**
    * If kind is INTERFACE, the interface-specific type definition. If kind is not INTERFACE, this will be null.
    */
-  asInterface = (): InterfaceTypeDef => {
-
+  asInterface = async (): Promise<InterfaceTypeDef | null> => {
     const ctx = this._ctx.select(
       "asInterface",
-    )
-    return new InterfaceTypeDef(ctx)
+    ).select("id")
+
+    const response: Awaited<string | null> = await ctx.execute()
+
+    if (response === null) {
+      return null
+    }
+    return new InterfaceTypeDef(ctx.copy().selectNode(response, "InterfaceTypeDef"))
   }
 
   /**
    * If kind is LIST, the list-specific type definition. If kind is not LIST, this will be null.
    */
-  asList = (): ListTypeDef => {
-
+  asList = async (): Promise<ListTypeDef | null> => {
     const ctx = this._ctx.select(
       "asList",
-    )
-    return new ListTypeDef(ctx)
+    ).select("id")
+
+    const response: Awaited<string | null> = await ctx.execute()
+
+    if (response === null) {
+      return null
+    }
+    return new ListTypeDef(ctx.copy().selectNode(response, "ListTypeDef"))
   }
 
   /**
    * If kind is OBJECT, the object-specific type definition. If kind is not OBJECT, this will be null.
    */
-  asObject = (): ObjectTypeDef => {
-
+  asObject = async (): Promise<ObjectTypeDef | null> => {
     const ctx = this._ctx.select(
       "asObject",
-    )
-    return new ObjectTypeDef(ctx)
+    ).select("id")
+
+    const response: Awaited<string | null> = await ctx.execute()
+
+    if (response === null) {
+      return null
+    }
+    return new ObjectTypeDef(ctx.copy().selectNode(response, "ObjectTypeDef"))
   }
 
   /**
    * If kind is SCALAR, the scalar-specific type definition. If kind is not SCALAR, this will be null.
    */
-  asScalar = (): ScalarTypeDef => {
-
+  asScalar = async (): Promise<ScalarTypeDef | null> => {
     const ctx = this._ctx.select(
       "asScalar",
-    )
-    return new ScalarTypeDef(ctx)
+    ).select("id")
+
+    const response: Awaited<string | null> = await ctx.execute()
+
+    if (response === null) {
+      return null
+    }
+    return new ScalarTypeDef(ctx.copy().selectNode(response, "ScalarTypeDef"))
   }
 
   /**

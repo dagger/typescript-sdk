@@ -59351,12 +59351,1381 @@ var require_src27 = __commonJS((exports) => {
   } });
 });
 
+// node_modules/@opentelemetry/propagator-jaeger/node_modules/@opentelemetry/core/build/src/trace/suppress-tracing.js
+var require_suppress_tracing2 = __commonJS((exports) => {
+  Object.defineProperty(exports, "__esModule", { value: true });
+  exports.isTracingSuppressed = exports.unsuppressTracing = exports.suppressTracing = undefined;
+  var api_1 = require_src();
+  var SUPPRESS_TRACING_KEY = (0, api_1.createContextKey)("OpenTelemetry SDK Context Key SUPPRESS_TRACING");
+  function suppressTracing(context) {
+    return context.setValue(SUPPRESS_TRACING_KEY, true);
+  }
+  exports.suppressTracing = suppressTracing;
+  function unsuppressTracing(context) {
+    return context.deleteValue(SUPPRESS_TRACING_KEY);
+  }
+  exports.unsuppressTracing = unsuppressTracing;
+  function isTracingSuppressed(context) {
+    return context.getValue(SUPPRESS_TRACING_KEY) === true;
+  }
+  exports.isTracingSuppressed = isTracingSuppressed;
+});
+
+// node_modules/@opentelemetry/propagator-jaeger/node_modules/@opentelemetry/core/build/src/baggage/constants.js
+var require_constants4 = __commonJS((exports) => {
+  Object.defineProperty(exports, "__esModule", { value: true });
+  exports.BAGGAGE_MAX_TOTAL_LENGTH = exports.BAGGAGE_MAX_PER_NAME_VALUE_PAIRS = exports.BAGGAGE_MAX_NAME_VALUE_PAIRS = exports.BAGGAGE_HEADER = exports.BAGGAGE_ITEMS_SEPARATOR = exports.BAGGAGE_PROPERTIES_SEPARATOR = exports.BAGGAGE_KEY_PAIR_SEPARATOR = undefined;
+  exports.BAGGAGE_KEY_PAIR_SEPARATOR = "=";
+  exports.BAGGAGE_PROPERTIES_SEPARATOR = ";";
+  exports.BAGGAGE_ITEMS_SEPARATOR = ",";
+  exports.BAGGAGE_HEADER = "baggage";
+  exports.BAGGAGE_MAX_NAME_VALUE_PAIRS = 180;
+  exports.BAGGAGE_MAX_PER_NAME_VALUE_PAIRS = 4096;
+  exports.BAGGAGE_MAX_TOTAL_LENGTH = 8192;
+});
+
+// node_modules/@opentelemetry/propagator-jaeger/node_modules/@opentelemetry/core/build/src/baggage/utils.js
+var require_utils13 = __commonJS((exports) => {
+  Object.defineProperty(exports, "__esModule", { value: true });
+  exports.parseKeyPairsIntoRecord = exports.parseBaggageHeaderString = exports.parsePairKeyValue = exports.getKeyPairs = exports.serializeKeyPairs = undefined;
+  var api_1 = require_src();
+  var constants_1 = require_constants4();
+  function serializeKeyPairs(keyPairs) {
+    return keyPairs.reduce((hValue, current) => {
+      const value = `${hValue}${hValue !== "" ? constants_1.BAGGAGE_ITEMS_SEPARATOR : ""}${current}`;
+      return value.length > constants_1.BAGGAGE_MAX_TOTAL_LENGTH ? hValue : value;
+    }, "");
+  }
+  exports.serializeKeyPairs = serializeKeyPairs;
+  function getKeyPairs(baggage) {
+    return baggage.getAllEntries().map(([key, value]) => {
+      let entry = `${encodeURIComponent(key)}=${encodeURIComponent(value.value)}`;
+      if (value.metadata !== undefined) {
+        entry += constants_1.BAGGAGE_PROPERTIES_SEPARATOR + value.metadata.toString();
+      }
+      return entry;
+    });
+  }
+  exports.getKeyPairs = getKeyPairs;
+  function parsePairKeyValue(entry) {
+    if (!entry)
+      return;
+    const metadataSeparatorIndex = entry.indexOf(constants_1.BAGGAGE_PROPERTIES_SEPARATOR);
+    const keyPairPart = metadataSeparatorIndex === -1 ? entry : entry.substring(0, metadataSeparatorIndex);
+    const separatorIndex = keyPairPart.indexOf(constants_1.BAGGAGE_KEY_PAIR_SEPARATOR);
+    if (separatorIndex <= 0)
+      return;
+    const rawKey = keyPairPart.substring(0, separatorIndex).trim();
+    const rawValue = keyPairPart.substring(separatorIndex + 1).trim();
+    if (!rawKey || !rawValue)
+      return;
+    let key;
+    let value;
+    try {
+      key = decodeURIComponent(rawKey);
+      value = decodeURIComponent(rawValue);
+    } catch {
+      return;
+    }
+    let metadata;
+    if (metadataSeparatorIndex !== -1 && metadataSeparatorIndex < entry.length - 1) {
+      const metadataString = entry.substring(metadataSeparatorIndex + 1);
+      metadata = (0, api_1.baggageEntryMetadataFromString)(metadataString);
+    }
+    return { key, value, metadata };
+  }
+  exports.parsePairKeyValue = parsePairKeyValue;
+  function parseBaggageHeaderString(value, baggage, count, totalSize) {
+    let start = 0;
+    while (start < value.length && count < constants_1.BAGGAGE_MAX_NAME_VALUE_PAIRS) {
+      const end = value.indexOf(constants_1.BAGGAGE_ITEMS_SEPARATOR, start);
+      const entryEnd = end === -1 ? value.length : end;
+      const entryLength = entryEnd - start;
+      if (entryLength <= constants_1.BAGGAGE_MAX_PER_NAME_VALUE_PAIRS) {
+        const keyPair = parsePairKeyValue(value.substring(start, entryEnd));
+        if (keyPair) {
+          const entrySize = (count === 0 ? 0 : 1) + entryLength;
+          if (totalSize + entrySize > constants_1.BAGGAGE_MAX_TOTAL_LENGTH)
+            break;
+          baggage[keyPair.key] = keyPair.metadata ? { value: keyPair.value, metadata: keyPair.metadata } : { value: keyPair.value };
+          count++;
+          totalSize += entrySize;
+        }
+      }
+      if (end === -1)
+        break;
+      start = end + 1;
+    }
+    return [count, totalSize];
+  }
+  exports.parseBaggageHeaderString = parseBaggageHeaderString;
+  function parseKeyPairsIntoRecord(value) {
+    const result = {};
+    if (typeof value === "string" && value.length > 0) {
+      value.split(constants_1.BAGGAGE_ITEMS_SEPARATOR).forEach((entry) => {
+        const keyPair = parsePairKeyValue(entry);
+        if (keyPair !== undefined && keyPair.value.length > 0) {
+          result[keyPair.key] = keyPair.value;
+        }
+      });
+    }
+    return result;
+  }
+  exports.parseKeyPairsIntoRecord = parseKeyPairsIntoRecord;
+});
+
+// node_modules/@opentelemetry/propagator-jaeger/node_modules/@opentelemetry/core/build/src/baggage/propagation/W3CBaggagePropagator.js
+var require_W3CBaggagePropagator2 = __commonJS((exports) => {
+  Object.defineProperty(exports, "__esModule", { value: true });
+  exports.W3CBaggagePropagator = undefined;
+  var api_1 = require_src();
+  var suppress_tracing_1 = require_suppress_tracing2();
+  var constants_1 = require_constants4();
+  var utils_1 = require_utils13();
+
+  class W3CBaggagePropagator {
+    inject(context, carrier, setter) {
+      const baggage = api_1.propagation.getBaggage(context);
+      if (!baggage || (0, suppress_tracing_1.isTracingSuppressed)(context))
+        return;
+      const keyPairs = (0, utils_1.getKeyPairs)(baggage).filter((pair) => {
+        return pair.length <= constants_1.BAGGAGE_MAX_PER_NAME_VALUE_PAIRS;
+      }).slice(0, constants_1.BAGGAGE_MAX_NAME_VALUE_PAIRS);
+      const headerValue = (0, utils_1.serializeKeyPairs)(keyPairs);
+      if (headerValue.length > 0) {
+        setter.set(carrier, constants_1.BAGGAGE_HEADER, headerValue);
+      }
+    }
+    extract(context, carrier, getter) {
+      const headerValue = getter.get(carrier, constants_1.BAGGAGE_HEADER);
+      if (!headerValue) {
+        return context;
+      }
+      const baggage = {};
+      let count = 0;
+      let totalSize = 0;
+      if (Array.isArray(headerValue)) {
+        for (let i = 0;i < headerValue.length; i++) {
+          [count, totalSize] = (0, utils_1.parseBaggageHeaderString)(headerValue[i], baggage, count, totalSize);
+        }
+      } else {
+        [count] = (0, utils_1.parseBaggageHeaderString)(headerValue, baggage, count, totalSize);
+      }
+      if (count === 0) {
+        return context;
+      }
+      return api_1.propagation.setBaggage(context, api_1.propagation.createBaggage(baggage));
+    }
+    fields() {
+      return [constants_1.BAGGAGE_HEADER];
+    }
+  }
+  exports.W3CBaggagePropagator = W3CBaggagePropagator;
+});
+
+// node_modules/@opentelemetry/propagator-jaeger/node_modules/@opentelemetry/core/build/src/common/anchored-clock.js
+var require_anchored_clock2 = __commonJS((exports) => {
+  Object.defineProperty(exports, "__esModule", { value: true });
+  exports.AnchoredClock = undefined;
+
+  class AnchoredClock {
+    _monotonicClock;
+    _epochMillis;
+    _performanceMillis;
+    constructor(systemClock, monotonicClock) {
+      this._monotonicClock = monotonicClock;
+      this._epochMillis = systemClock.now();
+      this._performanceMillis = monotonicClock.now();
+    }
+    now() {
+      const delta = this._monotonicClock.now() - this._performanceMillis;
+      return this._epochMillis + delta;
+    }
+  }
+  exports.AnchoredClock = AnchoredClock;
+});
+
+// node_modules/@opentelemetry/propagator-jaeger/node_modules/@opentelemetry/core/build/src/common/attributes.js
+var require_attributes2 = __commonJS((exports) => {
+  Object.defineProperty(exports, "__esModule", { value: true });
+  exports.isAttributeValue = exports.isAttributeKey = exports.sanitizeAttributes = undefined;
+  var api_1 = require_src();
+  function sanitizeAttributes(attributes) {
+    const out = {};
+    if (typeof attributes !== "object" || attributes == null) {
+      return out;
+    }
+    for (const key in attributes) {
+      if (!Object.prototype.hasOwnProperty.call(attributes, key)) {
+        continue;
+      }
+      if (!isAttributeKey(key)) {
+        api_1.diag.warn(`Invalid attribute key: ${key}`);
+        continue;
+      }
+      const val = attributes[key];
+      if (!isAttributeValue(val)) {
+        api_1.diag.warn(`Invalid attribute value set for key: ${key}`);
+        continue;
+      }
+      if (Array.isArray(val)) {
+        out[key] = val.slice();
+      } else {
+        out[key] = val;
+      }
+    }
+    return out;
+  }
+  exports.sanitizeAttributes = sanitizeAttributes;
+  function isAttributeKey(key) {
+    return typeof key === "string" && key !== "";
+  }
+  exports.isAttributeKey = isAttributeKey;
+  function isAttributeValue(val) {
+    if (val == null) {
+      return true;
+    }
+    if (Array.isArray(val)) {
+      return isHomogeneousAttributeValueArray(val);
+    }
+    return isValidPrimitiveAttributeValueType(typeof val);
+  }
+  exports.isAttributeValue = isAttributeValue;
+  function isHomogeneousAttributeValueArray(arr) {
+    let type;
+    for (const element of arr) {
+      if (element == null)
+        continue;
+      const elementType = typeof element;
+      if (elementType === type) {
+        continue;
+      }
+      if (!type) {
+        if (isValidPrimitiveAttributeValueType(elementType)) {
+          type = elementType;
+          continue;
+        }
+        return false;
+      }
+      return false;
+    }
+    return true;
+  }
+  function isValidPrimitiveAttributeValueType(valType) {
+    switch (valType) {
+      case "number":
+      case "boolean":
+      case "string":
+        return true;
+    }
+    return false;
+  }
+});
+
+// node_modules/@opentelemetry/propagator-jaeger/node_modules/@opentelemetry/core/build/src/common/logging-error-handler.js
+var require_logging_error_handler2 = __commonJS((exports) => {
+  Object.defineProperty(exports, "__esModule", { value: true });
+  exports.loggingErrorHandler = undefined;
+  var api_1 = require_src();
+  function loggingErrorHandler() {
+    return (ex) => {
+      api_1.diag.error(stringifyException(ex));
+    };
+  }
+  exports.loggingErrorHandler = loggingErrorHandler;
+  function stringifyException(ex) {
+    if (typeof ex === "string") {
+      return ex;
+    } else {
+      return JSON.stringify(flattenException(ex));
+    }
+  }
+  function flattenException(ex) {
+    const result = {};
+    let current = ex;
+    while (current !== null) {
+      Object.getOwnPropertyNames(current).forEach((propertyName) => {
+        if (result[propertyName])
+          return;
+        const value = current[propertyName];
+        if (value) {
+          result[propertyName] = String(value);
+        }
+      });
+      current = Object.getPrototypeOf(current);
+    }
+    return result;
+  }
+});
+
+// node_modules/@opentelemetry/propagator-jaeger/node_modules/@opentelemetry/core/build/src/common/global-error-handler.js
+var require_global_error_handler2 = __commonJS((exports) => {
+  Object.defineProperty(exports, "__esModule", { value: true });
+  exports.globalErrorHandler = exports.setGlobalErrorHandler = undefined;
+  var logging_error_handler_1 = require_logging_error_handler2();
+  var delegateHandler = (0, logging_error_handler_1.loggingErrorHandler)();
+  function setGlobalErrorHandler(handler) {
+    delegateHandler = handler;
+  }
+  exports.setGlobalErrorHandler = setGlobalErrorHandler;
+  function globalErrorHandler(ex) {
+    try {
+      delegateHandler(ex);
+    } catch {}
+  }
+  exports.globalErrorHandler = globalErrorHandler;
+});
+
+// node_modules/@opentelemetry/propagator-jaeger/node_modules/@opentelemetry/core/build/src/platform/node/environment.js
+var require_environment3 = __commonJS((exports) => {
+  Object.defineProperty(exports, "__esModule", { value: true });
+  exports.getStringListFromEnv = exports.getBooleanFromEnv = exports.getStringFromEnv = exports.getNumberFromEnv = undefined;
+  var api_1 = require_src();
+  var util_1 = __require("util");
+  function getNumberFromEnv(key) {
+    const raw = process.env[key];
+    if (raw == null || raw.trim() === "") {
+      return;
+    }
+    const value = Number(raw);
+    if (isNaN(value)) {
+      api_1.diag.warn(`Unknown value ${(0, util_1.inspect)(raw)} for ${key}, expected a number, using defaults`);
+      return;
+    }
+    return value;
+  }
+  exports.getNumberFromEnv = getNumberFromEnv;
+  function getStringFromEnv(key) {
+    const raw = process.env[key];
+    if (raw == null || raw.trim() === "") {
+      return;
+    }
+    return raw;
+  }
+  exports.getStringFromEnv = getStringFromEnv;
+  function getBooleanFromEnv(key) {
+    const raw = process.env[key]?.trim().toLowerCase();
+    if (raw == null || raw === "") {
+      return false;
+    }
+    if (raw === "true") {
+      return true;
+    } else if (raw === "false") {
+      return false;
+    } else {
+      api_1.diag.warn(`Unknown value ${(0, util_1.inspect)(raw)} for ${key}, expected 'true' or 'false', falling back to 'false' (default)`);
+      return false;
+    }
+  }
+  exports.getBooleanFromEnv = getBooleanFromEnv;
+  function getStringListFromEnv(key) {
+    return getStringFromEnv(key)?.split(",").map((v) => v.trim()).filter((s) => s !== "");
+  }
+  exports.getStringListFromEnv = getStringListFromEnv;
+});
+
+// node_modules/@opentelemetry/propagator-jaeger/node_modules/@opentelemetry/core/build/src/common/globalThis.js
+var require_globalThis2 = __commonJS((exports) => {
+  Object.defineProperty(exports, "__esModule", { value: true });
+  exports._globalThis = undefined;
+  exports._globalThis = globalThis;
+});
+
+// node_modules/@opentelemetry/propagator-jaeger/node_modules/@opentelemetry/core/build/src/version.js
+var require_version9 = __commonJS((exports) => {
+  Object.defineProperty(exports, "__esModule", { value: true });
+  exports.VERSION = undefined;
+  exports.VERSION = "2.9.0";
+});
+
+// node_modules/@opentelemetry/propagator-jaeger/node_modules/@opentelemetry/core/build/src/semconv.js
+var require_semconv7 = __commonJS((exports) => {
+  Object.defineProperty(exports, "__esModule", { value: true });
+  exports.ATTR_PROCESS_RUNTIME_NAME = undefined;
+  exports.ATTR_PROCESS_RUNTIME_NAME = "process.runtime.name";
+});
+
+// node_modules/@opentelemetry/propagator-jaeger/node_modules/@opentelemetry/core/build/src/platform/node/sdk-info.js
+var require_sdk_info2 = __commonJS((exports) => {
+  Object.defineProperty(exports, "__esModule", { value: true });
+  exports.SDK_INFO = undefined;
+  var version_1 = require_version9();
+  var semantic_conventions_1 = require_src2();
+  var semconv_1 = require_semconv7();
+  exports.SDK_INFO = {
+    [semantic_conventions_1.ATTR_TELEMETRY_SDK_NAME]: "opentelemetry",
+    [semconv_1.ATTR_PROCESS_RUNTIME_NAME]: "node",
+    [semantic_conventions_1.ATTR_TELEMETRY_SDK_LANGUAGE]: semantic_conventions_1.TELEMETRY_SDK_LANGUAGE_VALUE_NODEJS,
+    [semantic_conventions_1.ATTR_TELEMETRY_SDK_VERSION]: version_1.VERSION
+  };
+});
+
+// node_modules/@opentelemetry/propagator-jaeger/node_modules/@opentelemetry/core/build/src/platform/node/index.js
+var require_node12 = __commonJS((exports) => {
+  Object.defineProperty(exports, "__esModule", { value: true });
+  exports.otperformance = exports.SDK_INFO = exports._globalThis = exports.getStringListFromEnv = exports.getNumberFromEnv = exports.getBooleanFromEnv = exports.getStringFromEnv = undefined;
+  var environment_1 = require_environment3();
+  Object.defineProperty(exports, "getStringFromEnv", { enumerable: true, get: function() {
+    return environment_1.getStringFromEnv;
+  } });
+  Object.defineProperty(exports, "getBooleanFromEnv", { enumerable: true, get: function() {
+    return environment_1.getBooleanFromEnv;
+  } });
+  Object.defineProperty(exports, "getNumberFromEnv", { enumerable: true, get: function() {
+    return environment_1.getNumberFromEnv;
+  } });
+  Object.defineProperty(exports, "getStringListFromEnv", { enumerable: true, get: function() {
+    return environment_1.getStringListFromEnv;
+  } });
+  var globalThis_1 = require_globalThis2();
+  Object.defineProperty(exports, "_globalThis", { enumerable: true, get: function() {
+    return globalThis_1._globalThis;
+  } });
+  var sdk_info_1 = require_sdk_info2();
+  Object.defineProperty(exports, "SDK_INFO", { enumerable: true, get: function() {
+    return sdk_info_1.SDK_INFO;
+  } });
+  exports.otperformance = performance;
+});
+
+// node_modules/@opentelemetry/propagator-jaeger/node_modules/@opentelemetry/core/build/src/platform/index.js
+var require_platform11 = __commonJS((exports) => {
+  Object.defineProperty(exports, "__esModule", { value: true });
+  exports.getStringListFromEnv = exports.getNumberFromEnv = exports.getStringFromEnv = exports.getBooleanFromEnv = exports.otperformance = exports._globalThis = exports.SDK_INFO = undefined;
+  var node_1 = require_node12();
+  Object.defineProperty(exports, "SDK_INFO", { enumerable: true, get: function() {
+    return node_1.SDK_INFO;
+  } });
+  Object.defineProperty(exports, "_globalThis", { enumerable: true, get: function() {
+    return node_1._globalThis;
+  } });
+  Object.defineProperty(exports, "otperformance", { enumerable: true, get: function() {
+    return node_1.otperformance;
+  } });
+  Object.defineProperty(exports, "getBooleanFromEnv", { enumerable: true, get: function() {
+    return node_1.getBooleanFromEnv;
+  } });
+  Object.defineProperty(exports, "getStringFromEnv", { enumerable: true, get: function() {
+    return node_1.getStringFromEnv;
+  } });
+  Object.defineProperty(exports, "getNumberFromEnv", { enumerable: true, get: function() {
+    return node_1.getNumberFromEnv;
+  } });
+  Object.defineProperty(exports, "getStringListFromEnv", { enumerable: true, get: function() {
+    return node_1.getStringListFromEnv;
+  } });
+});
+
+// node_modules/@opentelemetry/propagator-jaeger/node_modules/@opentelemetry/core/build/src/common/time.js
+var require_time2 = __commonJS((exports) => {
+  Object.defineProperty(exports, "__esModule", { value: true });
+  exports.addHrTimes = exports.isTimeInput = exports.isTimeInputHrTime = exports.hrTimeToSeconds = exports.hrTimeToMilliseconds = exports.hrTimeToMicroseconds = exports.hrTimeToNanoseconds = exports.hrTimeToTimeStamp = exports.hrTimeDuration = exports.timeInputToHrTime = exports.hrTime = exports.getTimeOrigin = exports.millisToHrTime = undefined;
+  var platform_1 = require_platform11();
+  var NANOSECOND_DIGITS = 9;
+  var NANOSECOND_DIGITS_IN_MILLIS = 6;
+  var MILLISECONDS_TO_NANOSECONDS = Math.pow(10, NANOSECOND_DIGITS_IN_MILLIS);
+  var SECOND_TO_NANOSECONDS = Math.pow(10, NANOSECOND_DIGITS);
+  function millisToHrTime(epochMillis) {
+    const epochSeconds = epochMillis / 1000;
+    const seconds = Math.trunc(epochSeconds);
+    const nanos = Math.round(epochMillis % 1000 * MILLISECONDS_TO_NANOSECONDS);
+    return [seconds, nanos];
+  }
+  exports.millisToHrTime = millisToHrTime;
+  function getTimeOrigin() {
+    return platform_1.otperformance.timeOrigin;
+  }
+  exports.getTimeOrigin = getTimeOrigin;
+  function hrTime(performanceNow) {
+    const timeOrigin = millisToHrTime(platform_1.otperformance.timeOrigin);
+    const now = millisToHrTime(typeof performanceNow === "number" ? performanceNow : platform_1.otperformance.now());
+    return addHrTimes(timeOrigin, now);
+  }
+  exports.hrTime = hrTime;
+  function timeInputToHrTime(time) {
+    if (isTimeInputHrTime(time)) {
+      return time;
+    } else if (typeof time === "number") {
+      if (time < platform_1.otperformance.timeOrigin / 2) {
+        return hrTime(time);
+      } else {
+        return millisToHrTime(time);
+      }
+    } else if (time instanceof Date) {
+      return millisToHrTime(time.getTime());
+    } else {
+      throw TypeError("Invalid input type");
+    }
+  }
+  exports.timeInputToHrTime = timeInputToHrTime;
+  function hrTimeDuration(startTime, endTime) {
+    let seconds = endTime[0] - startTime[0];
+    let nanos = endTime[1] - startTime[1];
+    if (nanos < 0) {
+      seconds -= 1;
+      nanos += SECOND_TO_NANOSECONDS;
+    }
+    return [seconds, nanos];
+  }
+  exports.hrTimeDuration = hrTimeDuration;
+  function hrTimeToTimeStamp(time) {
+    const precision = NANOSECOND_DIGITS;
+    const tmp = `${"0".repeat(precision)}${time[1]}Z`;
+    const nanoString = tmp.substring(tmp.length - precision - 1);
+    const date = new Date(time[0] * 1000).toISOString();
+    return date.replace("000Z", nanoString);
+  }
+  exports.hrTimeToTimeStamp = hrTimeToTimeStamp;
+  function hrTimeToNanoseconds(time) {
+    return time[0] * SECOND_TO_NANOSECONDS + time[1];
+  }
+  exports.hrTimeToNanoseconds = hrTimeToNanoseconds;
+  function hrTimeToMicroseconds(time) {
+    return time[0] * 1e6 + time[1] / 1000;
+  }
+  exports.hrTimeToMicroseconds = hrTimeToMicroseconds;
+  function hrTimeToMilliseconds(time) {
+    return time[0] * 1000 + time[1] / 1e6;
+  }
+  exports.hrTimeToMilliseconds = hrTimeToMilliseconds;
+  function hrTimeToSeconds(time) {
+    return time[0] + time[1] / SECOND_TO_NANOSECONDS;
+  }
+  exports.hrTimeToSeconds = hrTimeToSeconds;
+  function isTimeInputHrTime(value) {
+    return Array.isArray(value) && value.length === 2 && typeof value[0] === "number" && typeof value[1] === "number";
+  }
+  exports.isTimeInputHrTime = isTimeInputHrTime;
+  function isTimeInput(value) {
+    return isTimeInputHrTime(value) || typeof value === "number" || value instanceof Date;
+  }
+  exports.isTimeInput = isTimeInput;
+  function addHrTimes(time1, time2) {
+    const out = [time1[0] + time2[0], time1[1] + time2[1]];
+    if (out[1] >= SECOND_TO_NANOSECONDS) {
+      out[1] -= SECOND_TO_NANOSECONDS;
+      out[0] += 1;
+    }
+    return out;
+  }
+  exports.addHrTimes = addHrTimes;
+});
+
+// node_modules/@opentelemetry/propagator-jaeger/node_modules/@opentelemetry/core/build/src/common/timer-util.js
+var require_timer_util2 = __commonJS((exports) => {
+  Object.defineProperty(exports, "__esModule", { value: true });
+  exports.unrefTimer = undefined;
+  function unrefTimer(timer) {
+    if (typeof timer !== "number") {
+      timer.unref();
+    }
+  }
+  exports.unrefTimer = unrefTimer;
+});
+
+// node_modules/@opentelemetry/propagator-jaeger/node_modules/@opentelemetry/core/build/src/ExportResult.js
+var require_ExportResult2 = __commonJS((exports) => {
+  Object.defineProperty(exports, "__esModule", { value: true });
+  exports.ExportResultCode = undefined;
+  var ExportResultCode;
+  (function(ExportResultCode2) {
+    ExportResultCode2[ExportResultCode2["SUCCESS"] = 0] = "SUCCESS";
+    ExportResultCode2[ExportResultCode2["FAILED"] = 1] = "FAILED";
+  })(ExportResultCode = exports.ExportResultCode || (exports.ExportResultCode = {}));
+});
+
+// node_modules/@opentelemetry/propagator-jaeger/node_modules/@opentelemetry/core/build/src/propagation/composite.js
+var require_composite2 = __commonJS((exports) => {
+  Object.defineProperty(exports, "__esModule", { value: true });
+  exports.CompositePropagator = undefined;
+  var api_1 = require_src();
+
+  class CompositePropagator {
+    _propagators;
+    _fields;
+    constructor(config = {}) {
+      this._propagators = config.propagators ?? [];
+      const fields = new Set;
+      for (const propagator of this._propagators) {
+        const propagatorFields = typeof propagator.fields === "function" ? propagator.fields() : [];
+        for (const field of propagatorFields) {
+          fields.add(field);
+        }
+      }
+      this._fields = Array.from(fields);
+    }
+    inject(context, carrier, setter) {
+      for (const propagator of this._propagators) {
+        try {
+          propagator.inject(context, carrier, setter);
+        } catch (err) {
+          api_1.diag.warn(`Failed to inject with ${propagator.constructor.name}. Err: ${err.message}`);
+        }
+      }
+    }
+    extract(context, carrier, getter) {
+      return this._propagators.reduce((ctx, propagator) => {
+        try {
+          return propagator.extract(ctx, carrier, getter);
+        } catch (err) {
+          api_1.diag.warn(`Failed to extract with ${propagator.constructor.name}. Err: ${err.message}`);
+        }
+        return ctx;
+      }, context);
+    }
+    fields() {
+      return this._fields.slice();
+    }
+  }
+  exports.CompositePropagator = CompositePropagator;
+});
+
+// node_modules/@opentelemetry/propagator-jaeger/node_modules/@opentelemetry/core/build/src/internal/validators.js
+var require_validators2 = __commonJS((exports) => {
+  Object.defineProperty(exports, "__esModule", { value: true });
+  exports.validateValue = exports.validateKey = undefined;
+  var VALID_KEY_CHAR_RANGE = "[_0-9a-z-*/]";
+  var VALID_KEY = `[a-z]${VALID_KEY_CHAR_RANGE}{0,255}`;
+  var VALID_VENDOR_KEY = `[a-z0-9]${VALID_KEY_CHAR_RANGE}{0,240}@[a-z]${VALID_KEY_CHAR_RANGE}{0,13}`;
+  var VALID_KEY_REGEX = new RegExp(`^(?:${VALID_KEY}|${VALID_VENDOR_KEY})$`);
+  var VALID_VALUE_BASE_REGEX = /^[ -~]{0,255}[!-~]$/;
+  var INVALID_VALUE_COMMA_EQUAL_REGEX = /,|=/;
+  function validateKey(key) {
+    return VALID_KEY_REGEX.test(key);
+  }
+  exports.validateKey = validateKey;
+  function validateValue(value) {
+    return VALID_VALUE_BASE_REGEX.test(value) && !INVALID_VALUE_COMMA_EQUAL_REGEX.test(value);
+  }
+  exports.validateValue = validateValue;
+});
+
+// node_modules/@opentelemetry/propagator-jaeger/node_modules/@opentelemetry/core/build/src/trace/TraceState.js
+var require_TraceState2 = __commonJS((exports) => {
+  Object.defineProperty(exports, "__esModule", { value: true });
+  exports.TraceState = undefined;
+  var validators_1 = require_validators2();
+  var MAX_TRACE_STATE_ITEMS = 32;
+  var MAX_TRACE_STATE_LEN = 512;
+  var LIST_MEMBERS_SEPARATOR = ",";
+  var LIST_MEMBER_KEY_VALUE_SPLITTER = "=";
+
+  class TraceState {
+    _length;
+    _rawTraceState;
+    _internalState;
+    constructor(rawTraceState) {
+      this._rawTraceState = typeof rawTraceState === "string" ? rawTraceState : "";
+      this._length = this._rawTraceState.length;
+    }
+    set(key, value) {
+      if (!(0, validators_1.validateKey)(key) || !(0, validators_1.validateValue)(value)) {
+        return this;
+      }
+      const currState = this._getState();
+      const currValue = currState.get(key);
+      let newLength = this._length;
+      if (typeof currValue === "string") {
+        newLength += value.length - currValue.length;
+      } else {
+        newLength += key.length + value.length + (currState.size > 0 ? 2 : 1);
+      }
+      if (newLength > MAX_TRACE_STATE_LEN) {
+        return this;
+      }
+      const newState = new Map(currState);
+      newState.delete(key);
+      newState.set(key, value);
+      return this._fromState(newState, newLength);
+    }
+    unset(key) {
+      const currState = this._getState();
+      const currValue = currState.get(key);
+      if (typeof currValue !== "string") {
+        return this;
+      }
+      let newLength = this._length - (key.length + currValue.length + 1);
+      if (currState.size > 1) {
+        newLength = newLength - 1;
+      }
+      const newState = new Map(currState);
+      newState.delete(key);
+      return this._fromState(newState, newLength);
+    }
+    get(key) {
+      const currState = this._getState();
+      return currState.get(key);
+    }
+    serialize() {
+      let serialized = "";
+      let index = 0;
+      for (const entry of this._getState()) {
+        if (index > 0) {
+          serialized = LIST_MEMBERS_SEPARATOR + serialized;
+        }
+        serialized = `${entry[0]}${LIST_MEMBER_KEY_VALUE_SPLITTER}${entry[1]}` + serialized;
+        index++;
+      }
+      return serialized;
+    }
+    _getState() {
+      if (this._internalState) {
+        return this._internalState;
+      }
+      const vendorMembers = this._rawTraceState.split(LIST_MEMBERS_SEPARATOR);
+      const vendorEntries = new Map;
+      let currentLength = 0;
+      for (const member of vendorMembers) {
+        const m = member.trim();
+        const idx = m.indexOf(LIST_MEMBER_KEY_VALUE_SPLITTER);
+        if (idx === -1) {
+          continue;
+        }
+        const key = m.slice(0, idx);
+        const value = m.slice(idx + 1);
+        if (!(0, validators_1.validateKey)(key) || !(0, validators_1.validateValue)(value)) {
+          continue;
+        }
+        const futureLength = currentLength + m.length + (vendorEntries.size > 0 ? 1 : 0);
+        if (futureLength > MAX_TRACE_STATE_LEN) {
+          continue;
+        }
+        vendorEntries.set(key, value);
+        currentLength = futureLength;
+        if (vendorEntries.size >= MAX_TRACE_STATE_ITEMS) {
+          break;
+        }
+      }
+      this._length = currentLength;
+      this._internalState = new Map(Array.from(vendorEntries.entries()).reverse());
+      return this._internalState;
+    }
+    _fromState(state, length) {
+      const traceState = Object.create(TraceState.prototype);
+      traceState._internalState = state;
+      traceState._length = length;
+      return traceState;
+    }
+  }
+  exports.TraceState = TraceState;
+});
+
+// node_modules/@opentelemetry/propagator-jaeger/node_modules/@opentelemetry/core/build/src/trace/W3CTraceContextPropagator.js
+var require_W3CTraceContextPropagator2 = __commonJS((exports) => {
+  Object.defineProperty(exports, "__esModule", { value: true });
+  exports.W3CTraceContextPropagator = exports.parseTraceParent = exports.TRACE_STATE_HEADER = exports.TRACE_PARENT_HEADER = undefined;
+  var api_1 = require_src();
+  var suppress_tracing_1 = require_suppress_tracing2();
+  var TraceState_1 = require_TraceState2();
+  exports.TRACE_PARENT_HEADER = "traceparent";
+  exports.TRACE_STATE_HEADER = "tracestate";
+  var VERSION = "00";
+  var VERSION_PART = "(?!ff)[\\da-f]{2}";
+  var TRACE_ID_PART = "(?![0]{32})[\\da-f]{32}";
+  var PARENT_ID_PART = "(?![0]{16})[\\da-f]{16}";
+  var FLAGS_PART = "[\\da-f]{2}";
+  var TRACE_PARENT_REGEX = new RegExp(`^\\s?(${VERSION_PART})-(${TRACE_ID_PART})-(${PARENT_ID_PART})-(${FLAGS_PART})(-.*)?\\s?$`);
+  function parseTraceParent(traceParent) {
+    const match = TRACE_PARENT_REGEX.exec(traceParent);
+    if (!match)
+      return null;
+    if (match[1] === "00" && match[5])
+      return null;
+    return {
+      traceId: match[2],
+      spanId: match[3],
+      traceFlags: parseInt(match[4], 16)
+    };
+  }
+  exports.parseTraceParent = parseTraceParent;
+
+  class W3CTraceContextPropagator {
+    inject(context, carrier, setter) {
+      const spanContext = api_1.trace.getSpanContext(context);
+      if (!spanContext || (0, suppress_tracing_1.isTracingSuppressed)(context) || !(0, api_1.isSpanContextValid)(spanContext))
+        return;
+      const traceParent = `${VERSION}-${spanContext.traceId}-${spanContext.spanId}-0${Number(spanContext.traceFlags || api_1.TraceFlags.NONE).toString(16)}`;
+      setter.set(carrier, exports.TRACE_PARENT_HEADER, traceParent);
+      if (spanContext.traceState) {
+        setter.set(carrier, exports.TRACE_STATE_HEADER, spanContext.traceState.serialize());
+      }
+    }
+    extract(context, carrier, getter) {
+      const traceParentHeader = getter.get(carrier, exports.TRACE_PARENT_HEADER);
+      if (!traceParentHeader)
+        return context;
+      const traceParent = Array.isArray(traceParentHeader) ? traceParentHeader[0] : traceParentHeader;
+      if (typeof traceParent !== "string")
+        return context;
+      const spanContext = parseTraceParent(traceParent);
+      if (!spanContext)
+        return context;
+      spanContext.isRemote = true;
+      const traceStateHeader = getter.get(carrier, exports.TRACE_STATE_HEADER);
+      if (traceStateHeader) {
+        const state = Array.isArray(traceStateHeader) ? traceStateHeader.join(",") : traceStateHeader;
+        spanContext.traceState = new TraceState_1.TraceState(typeof state === "string" ? state : undefined);
+      }
+      return api_1.trace.setSpanContext(context, spanContext);
+    }
+    fields() {
+      return [exports.TRACE_PARENT_HEADER, exports.TRACE_STATE_HEADER];
+    }
+  }
+  exports.W3CTraceContextPropagator = W3CTraceContextPropagator;
+});
+
+// node_modules/@opentelemetry/propagator-jaeger/node_modules/@opentelemetry/core/build/src/trace/rpc-metadata.js
+var require_rpc_metadata2 = __commonJS((exports) => {
+  Object.defineProperty(exports, "__esModule", { value: true });
+  exports.getRPCMetadata = exports.deleteRPCMetadata = exports.setRPCMetadata = exports.RPCType = undefined;
+  var api_1 = require_src();
+  var RPC_METADATA_KEY = (0, api_1.createContextKey)("OpenTelemetry SDK Context Key RPC_METADATA");
+  var RPCType;
+  (function(RPCType2) {
+    RPCType2["HTTP"] = "http";
+  })(RPCType = exports.RPCType || (exports.RPCType = {}));
+  function setRPCMetadata(context, meta) {
+    return context.setValue(RPC_METADATA_KEY, meta);
+  }
+  exports.setRPCMetadata = setRPCMetadata;
+  function deleteRPCMetadata(context) {
+    return context.deleteValue(RPC_METADATA_KEY);
+  }
+  exports.deleteRPCMetadata = deleteRPCMetadata;
+  function getRPCMetadata(context) {
+    return context.getValue(RPC_METADATA_KEY);
+  }
+  exports.getRPCMetadata = getRPCMetadata;
+});
+
+// node_modules/@opentelemetry/propagator-jaeger/node_modules/@opentelemetry/core/build/src/utils/lodash.merge.js
+var require_lodash_merge2 = __commonJS((exports) => {
+  Object.defineProperty(exports, "__esModule", { value: true });
+  exports.isPlainObject = undefined;
+  var objectTag = "[object Object]";
+  var nullTag = "[object Null]";
+  var undefinedTag = "[object Undefined]";
+  var funcProto = Function.prototype;
+  var funcToString = funcProto.toString;
+  var objectCtorString = funcToString.call(Object);
+  var getPrototypeOf = Object.getPrototypeOf;
+  var objectProto = Object.prototype;
+  var hasOwnProperty = objectProto.hasOwnProperty;
+  var symToStringTag = Symbol ? Symbol.toStringTag : undefined;
+  var nativeObjectToString = objectProto.toString;
+  function isPlainObject2(value) {
+    if (!isObjectLike(value) || baseGetTag(value) !== objectTag) {
+      return false;
+    }
+    const proto = getPrototypeOf(value);
+    if (proto === null) {
+      return true;
+    }
+    const Ctor = hasOwnProperty.call(proto, "constructor") && proto.constructor;
+    return typeof Ctor == "function" && Ctor instanceof Ctor && funcToString.call(Ctor) === objectCtorString;
+  }
+  exports.isPlainObject = isPlainObject2;
+  function isObjectLike(value) {
+    return value != null && typeof value == "object";
+  }
+  function baseGetTag(value) {
+    if (value == null) {
+      return value === undefined ? undefinedTag : nullTag;
+    }
+    return symToStringTag && symToStringTag in Object(value) ? getRawTag(value) : objectToString(value);
+  }
+  function getRawTag(value) {
+    const isOwn = hasOwnProperty.call(value, symToStringTag), tag = value[symToStringTag];
+    let unmasked = false;
+    try {
+      value[symToStringTag] = undefined;
+      unmasked = true;
+    } catch {}
+    const result = nativeObjectToString.call(value);
+    if (unmasked) {
+      if (isOwn) {
+        value[symToStringTag] = tag;
+      } else {
+        delete value[symToStringTag];
+      }
+    }
+    return result;
+  }
+  function objectToString(value) {
+    return nativeObjectToString.call(value);
+  }
+});
+
+// node_modules/@opentelemetry/propagator-jaeger/node_modules/@opentelemetry/core/build/src/utils/merge.js
+var require_merge2 = __commonJS((exports) => {
+  Object.defineProperty(exports, "__esModule", { value: true });
+  exports.merge = undefined;
+  var lodash_merge_1 = require_lodash_merge2();
+  var MAX_LEVEL = 20;
+  function merge(...args) {
+    let result = args.shift();
+    const objects = new WeakMap;
+    while (args.length > 0) {
+      result = mergeTwoObjects(result, args.shift(), 0, objects);
+    }
+    return result;
+  }
+  exports.merge = merge;
+  function takeValue(value) {
+    if (isArray(value)) {
+      return value.slice();
+    }
+    return value;
+  }
+  function mergeTwoObjects(one, two, level = 0, objects) {
+    let result;
+    if (level > MAX_LEVEL) {
+      return;
+    }
+    level++;
+    if (isPrimitive(one) || isPrimitive(two) || isFunction(two)) {
+      result = takeValue(two);
+    } else if (isArray(one)) {
+      result = one.slice();
+      if (isArray(two)) {
+        for (let i = 0, j = two.length;i < j; i++) {
+          result.push(takeValue(two[i]));
+        }
+      } else if (isObject(two)) {
+        const keys = Object.keys(two);
+        for (let i = 0, j = keys.length;i < j; i++) {
+          const key = keys[i];
+          if (key === "__proto__" || key === "constructor" || key === "prototype") {
+            continue;
+          }
+          result[key] = takeValue(two[key]);
+        }
+      }
+    } else if (isObject(one)) {
+      if (isObject(two)) {
+        if (!shouldMerge(one, two)) {
+          return two;
+        }
+        result = Object.assign({}, one);
+        const keys = Object.keys(two);
+        for (let i = 0, j = keys.length;i < j; i++) {
+          const key = keys[i];
+          if (key === "__proto__" || key === "constructor" || key === "prototype") {
+            continue;
+          }
+          const twoValue = two[key];
+          if (isPrimitive(twoValue)) {
+            if (typeof twoValue === "undefined") {
+              delete result[key];
+            } else {
+              result[key] = twoValue;
+            }
+          } else {
+            const obj1 = result[key];
+            const obj2 = twoValue;
+            if (wasObjectReferenced(one, key, objects) || wasObjectReferenced(two, key, objects)) {
+              delete result[key];
+            } else {
+              if (isObject(obj1) && isObject(obj2)) {
+                const arr1 = objects.get(obj1) || [];
+                const arr2 = objects.get(obj2) || [];
+                arr1.push({ obj: one, key });
+                arr2.push({ obj: two, key });
+                objects.set(obj1, arr1);
+                objects.set(obj2, arr2);
+              }
+              result[key] = mergeTwoObjects(result[key], twoValue, level, objects);
+            }
+          }
+        }
+      } else {
+        result = two;
+      }
+    }
+    return result;
+  }
+  function wasObjectReferenced(obj, key, objects) {
+    const arr = objects.get(obj[key]) || [];
+    for (let i = 0, j = arr.length;i < j; i++) {
+      const info = arr[i];
+      if (info.key === key && info.obj === obj) {
+        return true;
+      }
+    }
+    return false;
+  }
+  function isArray(value) {
+    return Array.isArray(value);
+  }
+  function isFunction(value) {
+    return typeof value === "function";
+  }
+  function isObject(value) {
+    return !isPrimitive(value) && !isArray(value) && !isFunction(value) && typeof value === "object";
+  }
+  function isPrimitive(value) {
+    return typeof value === "string" || typeof value === "number" || typeof value === "boolean" || typeof value === "undefined" || value instanceof Date || value instanceof RegExp || value === null;
+  }
+  function shouldMerge(one, two) {
+    if (!(0, lodash_merge_1.isPlainObject)(one) || !(0, lodash_merge_1.isPlainObject)(two)) {
+      return false;
+    }
+    return true;
+  }
+});
+
+// node_modules/@opentelemetry/propagator-jaeger/node_modules/@opentelemetry/core/build/src/utils/timeout.js
+var require_timeout2 = __commonJS((exports) => {
+  Object.defineProperty(exports, "__esModule", { value: true });
+  exports.callWithTimeout = exports.TimeoutError = undefined;
+
+  class TimeoutError extends Error {
+    constructor(message) {
+      super(message);
+      Object.setPrototypeOf(this, TimeoutError.prototype);
+    }
+  }
+  exports.TimeoutError = TimeoutError;
+  function callWithTimeout(promise, timeout) {
+    let timeoutHandle;
+    const timeoutPromise = new Promise(function timeoutFunction(_resolve, reject) {
+      timeoutHandle = setTimeout(function timeoutHandler() {
+        reject(new TimeoutError("Operation timed out."));
+      }, timeout);
+    });
+    return Promise.race([promise, timeoutPromise]).then((result) => {
+      clearTimeout(timeoutHandle);
+      return result;
+    }, (reason) => {
+      clearTimeout(timeoutHandle);
+      throw reason;
+    });
+  }
+  exports.callWithTimeout = callWithTimeout;
+});
+
+// node_modules/@opentelemetry/propagator-jaeger/node_modules/@opentelemetry/core/build/src/utils/url.js
+var require_url2 = __commonJS((exports) => {
+  Object.defineProperty(exports, "__esModule", { value: true });
+  exports.isUrlIgnored = exports.urlMatches = undefined;
+  function urlMatches(url, urlToMatch) {
+    if (typeof urlToMatch === "string") {
+      return url === urlToMatch;
+    } else {
+      return !!url.match(urlToMatch);
+    }
+  }
+  exports.urlMatches = urlMatches;
+  function isUrlIgnored(url, ignoredUrls) {
+    if (!ignoredUrls) {
+      return false;
+    }
+    for (const ignoreUrl of ignoredUrls) {
+      if (urlMatches(url, ignoreUrl)) {
+        return true;
+      }
+    }
+    return false;
+  }
+  exports.isUrlIgnored = isUrlIgnored;
+});
+
+// node_modules/@opentelemetry/propagator-jaeger/node_modules/@opentelemetry/core/build/src/utils/promise.js
+var require_promise2 = __commonJS((exports) => {
+  Object.defineProperty(exports, "__esModule", { value: true });
+  exports.Deferred = undefined;
+
+  class Deferred {
+    _promise;
+    _resolve;
+    _reject;
+    constructor() {
+      this._promise = new Promise((resolve, reject) => {
+        this._resolve = resolve;
+        this._reject = reject;
+      });
+    }
+    get promise() {
+      return this._promise;
+    }
+    resolve(val) {
+      this._resolve(val);
+    }
+    reject(err) {
+      this._reject(err);
+    }
+  }
+  exports.Deferred = Deferred;
+});
+
+// node_modules/@opentelemetry/propagator-jaeger/node_modules/@opentelemetry/core/build/src/utils/callback.js
+var require_callback2 = __commonJS((exports) => {
+  Object.defineProperty(exports, "__esModule", { value: true });
+  exports.BindOnceFuture = undefined;
+  var promise_1 = require_promise2();
+
+  class BindOnceFuture {
+    _isCalled = false;
+    _deferred = new promise_1.Deferred;
+    _callback;
+    _that;
+    constructor(callback, that) {
+      this._callback = callback;
+      this._that = that;
+    }
+    get isCalled() {
+      return this._isCalled;
+    }
+    get promise() {
+      return this._deferred.promise;
+    }
+    call(...args) {
+      if (!this._isCalled) {
+        this._isCalled = true;
+        try {
+          Promise.resolve(this._callback.call(this._that, ...args)).then((val) => this._deferred.resolve(val), (err) => this._deferred.reject(err));
+        } catch (err) {
+          this._deferred.reject(err);
+        }
+      }
+      return this._deferred.promise;
+    }
+  }
+  exports.BindOnceFuture = BindOnceFuture;
+});
+
+// node_modules/@opentelemetry/propagator-jaeger/node_modules/@opentelemetry/core/build/src/utils/configuration.js
+var require_configuration2 = __commonJS((exports) => {
+  Object.defineProperty(exports, "__esModule", { value: true });
+  exports.diagLogLevelFromString = undefined;
+  var api_1 = require_src();
+  var logLevelMap = {
+    ALL: api_1.DiagLogLevel.ALL,
+    VERBOSE: api_1.DiagLogLevel.VERBOSE,
+    DEBUG: api_1.DiagLogLevel.DEBUG,
+    INFO: api_1.DiagLogLevel.INFO,
+    WARN: api_1.DiagLogLevel.WARN,
+    ERROR: api_1.DiagLogLevel.ERROR,
+    NONE: api_1.DiagLogLevel.NONE
+  };
+  function diagLogLevelFromString(value) {
+    if (value == null) {
+      return;
+    }
+    const resolvedLogLevel = logLevelMap[value.toUpperCase()];
+    if (resolvedLogLevel == null) {
+      api_1.diag.warn(`Unknown log level "${value}", expected one of ${Object.keys(logLevelMap)}, using default`);
+      return api_1.DiagLogLevel.INFO;
+    }
+    return resolvedLogLevel;
+  }
+  exports.diagLogLevelFromString = diagLogLevelFromString;
+});
+
+// node_modules/@opentelemetry/propagator-jaeger/node_modules/@opentelemetry/core/build/src/internal/exporter.js
+var require_exporter2 = __commonJS((exports) => {
+  Object.defineProperty(exports, "__esModule", { value: true });
+  exports._export = undefined;
+  var api_1 = require_src();
+  var suppress_tracing_1 = require_suppress_tracing2();
+  function _export(exporter, arg) {
+    return new Promise((resolve) => {
+      api_1.context.with((0, suppress_tracing_1.suppressTracing)(api_1.context.active()), () => {
+        exporter.export(arg, resolve);
+      });
+    });
+  }
+  exports._export = _export;
+});
+
+// node_modules/@opentelemetry/propagator-jaeger/node_modules/@opentelemetry/core/build/src/index.js
+var require_src28 = __commonJS((exports) => {
+  Object.defineProperty(exports, "__esModule", { value: true });
+  exports.diagLogLevelFromString = exports.BindOnceFuture = exports.urlMatches = exports.isUrlIgnored = exports.callWithTimeout = exports.TimeoutError = exports.merge = exports.TraceState = exports.unsuppressTracing = exports.suppressTracing = exports.isTracingSuppressed = exports.setRPCMetadata = exports.getRPCMetadata = exports.deleteRPCMetadata = exports.RPCType = exports.parseTraceParent = exports.W3CTraceContextPropagator = exports.TRACE_STATE_HEADER = exports.TRACE_PARENT_HEADER = exports.CompositePropagator = exports.otperformance = exports.getStringListFromEnv = exports.getNumberFromEnv = exports.getBooleanFromEnv = exports.getStringFromEnv = exports._globalThis = exports.SDK_INFO = exports.parseKeyPairsIntoRecord = exports.ExportResultCode = exports.unrefTimer = exports.timeInputToHrTime = exports.millisToHrTime = exports.isTimeInputHrTime = exports.isTimeInput = exports.hrTimeToTimeStamp = exports.hrTimeToSeconds = exports.hrTimeToNanoseconds = exports.hrTimeToMilliseconds = exports.hrTimeToMicroseconds = exports.hrTimeDuration = exports.hrTime = exports.getTimeOrigin = exports.addHrTimes = exports.loggingErrorHandler = exports.setGlobalErrorHandler = exports.globalErrorHandler = exports.sanitizeAttributes = exports.isAttributeValue = exports.AnchoredClock = exports.W3CBaggagePropagator = undefined;
+  exports.internal = undefined;
+  var W3CBaggagePropagator_1 = require_W3CBaggagePropagator2();
+  Object.defineProperty(exports, "W3CBaggagePropagator", { enumerable: true, get: function() {
+    return W3CBaggagePropagator_1.W3CBaggagePropagator;
+  } });
+  var anchored_clock_1 = require_anchored_clock2();
+  Object.defineProperty(exports, "AnchoredClock", { enumerable: true, get: function() {
+    return anchored_clock_1.AnchoredClock;
+  } });
+  var attributes_1 = require_attributes2();
+  Object.defineProperty(exports, "isAttributeValue", { enumerable: true, get: function() {
+    return attributes_1.isAttributeValue;
+  } });
+  Object.defineProperty(exports, "sanitizeAttributes", { enumerable: true, get: function() {
+    return attributes_1.sanitizeAttributes;
+  } });
+  var global_error_handler_1 = require_global_error_handler2();
+  Object.defineProperty(exports, "globalErrorHandler", { enumerable: true, get: function() {
+    return global_error_handler_1.globalErrorHandler;
+  } });
+  Object.defineProperty(exports, "setGlobalErrorHandler", { enumerable: true, get: function() {
+    return global_error_handler_1.setGlobalErrorHandler;
+  } });
+  var logging_error_handler_1 = require_logging_error_handler2();
+  Object.defineProperty(exports, "loggingErrorHandler", { enumerable: true, get: function() {
+    return logging_error_handler_1.loggingErrorHandler;
+  } });
+  var time_1 = require_time2();
+  Object.defineProperty(exports, "addHrTimes", { enumerable: true, get: function() {
+    return time_1.addHrTimes;
+  } });
+  Object.defineProperty(exports, "getTimeOrigin", { enumerable: true, get: function() {
+    return time_1.getTimeOrigin;
+  } });
+  Object.defineProperty(exports, "hrTime", { enumerable: true, get: function() {
+    return time_1.hrTime;
+  } });
+  Object.defineProperty(exports, "hrTimeDuration", { enumerable: true, get: function() {
+    return time_1.hrTimeDuration;
+  } });
+  Object.defineProperty(exports, "hrTimeToMicroseconds", { enumerable: true, get: function() {
+    return time_1.hrTimeToMicroseconds;
+  } });
+  Object.defineProperty(exports, "hrTimeToMilliseconds", { enumerable: true, get: function() {
+    return time_1.hrTimeToMilliseconds;
+  } });
+  Object.defineProperty(exports, "hrTimeToNanoseconds", { enumerable: true, get: function() {
+    return time_1.hrTimeToNanoseconds;
+  } });
+  Object.defineProperty(exports, "hrTimeToSeconds", { enumerable: true, get: function() {
+    return time_1.hrTimeToSeconds;
+  } });
+  Object.defineProperty(exports, "hrTimeToTimeStamp", { enumerable: true, get: function() {
+    return time_1.hrTimeToTimeStamp;
+  } });
+  Object.defineProperty(exports, "isTimeInput", { enumerable: true, get: function() {
+    return time_1.isTimeInput;
+  } });
+  Object.defineProperty(exports, "isTimeInputHrTime", { enumerable: true, get: function() {
+    return time_1.isTimeInputHrTime;
+  } });
+  Object.defineProperty(exports, "millisToHrTime", { enumerable: true, get: function() {
+    return time_1.millisToHrTime;
+  } });
+  Object.defineProperty(exports, "timeInputToHrTime", { enumerable: true, get: function() {
+    return time_1.timeInputToHrTime;
+  } });
+  var timer_util_1 = require_timer_util2();
+  Object.defineProperty(exports, "unrefTimer", { enumerable: true, get: function() {
+    return timer_util_1.unrefTimer;
+  } });
+  var ExportResult_1 = require_ExportResult2();
+  Object.defineProperty(exports, "ExportResultCode", { enumerable: true, get: function() {
+    return ExportResult_1.ExportResultCode;
+  } });
+  var utils_1 = require_utils13();
+  Object.defineProperty(exports, "parseKeyPairsIntoRecord", { enumerable: true, get: function() {
+    return utils_1.parseKeyPairsIntoRecord;
+  } });
+  var platform_1 = require_platform11();
+  Object.defineProperty(exports, "SDK_INFO", { enumerable: true, get: function() {
+    return platform_1.SDK_INFO;
+  } });
+  Object.defineProperty(exports, "_globalThis", { enumerable: true, get: function() {
+    return platform_1._globalThis;
+  } });
+  Object.defineProperty(exports, "getStringFromEnv", { enumerable: true, get: function() {
+    return platform_1.getStringFromEnv;
+  } });
+  Object.defineProperty(exports, "getBooleanFromEnv", { enumerable: true, get: function() {
+    return platform_1.getBooleanFromEnv;
+  } });
+  Object.defineProperty(exports, "getNumberFromEnv", { enumerable: true, get: function() {
+    return platform_1.getNumberFromEnv;
+  } });
+  Object.defineProperty(exports, "getStringListFromEnv", { enumerable: true, get: function() {
+    return platform_1.getStringListFromEnv;
+  } });
+  Object.defineProperty(exports, "otperformance", { enumerable: true, get: function() {
+    return platform_1.otperformance;
+  } });
+  var composite_1 = require_composite2();
+  Object.defineProperty(exports, "CompositePropagator", { enumerable: true, get: function() {
+    return composite_1.CompositePropagator;
+  } });
+  var W3CTraceContextPropagator_1 = require_W3CTraceContextPropagator2();
+  Object.defineProperty(exports, "TRACE_PARENT_HEADER", { enumerable: true, get: function() {
+    return W3CTraceContextPropagator_1.TRACE_PARENT_HEADER;
+  } });
+  Object.defineProperty(exports, "TRACE_STATE_HEADER", { enumerable: true, get: function() {
+    return W3CTraceContextPropagator_1.TRACE_STATE_HEADER;
+  } });
+  Object.defineProperty(exports, "W3CTraceContextPropagator", { enumerable: true, get: function() {
+    return W3CTraceContextPropagator_1.W3CTraceContextPropagator;
+  } });
+  Object.defineProperty(exports, "parseTraceParent", { enumerable: true, get: function() {
+    return W3CTraceContextPropagator_1.parseTraceParent;
+  } });
+  var rpc_metadata_1 = require_rpc_metadata2();
+  Object.defineProperty(exports, "RPCType", { enumerable: true, get: function() {
+    return rpc_metadata_1.RPCType;
+  } });
+  Object.defineProperty(exports, "deleteRPCMetadata", { enumerable: true, get: function() {
+    return rpc_metadata_1.deleteRPCMetadata;
+  } });
+  Object.defineProperty(exports, "getRPCMetadata", { enumerable: true, get: function() {
+    return rpc_metadata_1.getRPCMetadata;
+  } });
+  Object.defineProperty(exports, "setRPCMetadata", { enumerable: true, get: function() {
+    return rpc_metadata_1.setRPCMetadata;
+  } });
+  var suppress_tracing_1 = require_suppress_tracing2();
+  Object.defineProperty(exports, "isTracingSuppressed", { enumerable: true, get: function() {
+    return suppress_tracing_1.isTracingSuppressed;
+  } });
+  Object.defineProperty(exports, "suppressTracing", { enumerable: true, get: function() {
+    return suppress_tracing_1.suppressTracing;
+  } });
+  Object.defineProperty(exports, "unsuppressTracing", { enumerable: true, get: function() {
+    return suppress_tracing_1.unsuppressTracing;
+  } });
+  var TraceState_1 = require_TraceState2();
+  Object.defineProperty(exports, "TraceState", { enumerable: true, get: function() {
+    return TraceState_1.TraceState;
+  } });
+  var merge_1 = require_merge2();
+  Object.defineProperty(exports, "merge", { enumerable: true, get: function() {
+    return merge_1.merge;
+  } });
+  var timeout_1 = require_timeout2();
+  Object.defineProperty(exports, "TimeoutError", { enumerable: true, get: function() {
+    return timeout_1.TimeoutError;
+  } });
+  Object.defineProperty(exports, "callWithTimeout", { enumerable: true, get: function() {
+    return timeout_1.callWithTimeout;
+  } });
+  var url_1 = require_url2();
+  Object.defineProperty(exports, "isUrlIgnored", { enumerable: true, get: function() {
+    return url_1.isUrlIgnored;
+  } });
+  Object.defineProperty(exports, "urlMatches", { enumerable: true, get: function() {
+    return url_1.urlMatches;
+  } });
+  var callback_1 = require_callback2();
+  Object.defineProperty(exports, "BindOnceFuture", { enumerable: true, get: function() {
+    return callback_1.BindOnceFuture;
+  } });
+  var configuration_1 = require_configuration2();
+  Object.defineProperty(exports, "diagLogLevelFromString", { enumerable: true, get: function() {
+    return configuration_1.diagLogLevelFromString;
+  } });
+  var exporter_1 = require_exporter2();
+  exports.internal = {
+    _export: exporter_1._export
+  };
+});
+
 // node_modules/@opentelemetry/propagator-jaeger/build/src/JaegerPropagator.js
 var require_JaegerPropagator = __commonJS((exports) => {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.JaegerPropagator = exports.UBER_BAGGAGE_HEADER_PREFIX = exports.UBER_TRACE_ID_HEADER = undefined;
   var api_1 = require_src();
-  var core_1 = require_src3();
+  var core_1 = require_src28();
   exports.UBER_TRACE_ID_HEADER = "uber-trace-id";
   exports.UBER_BAGGAGE_HEADER_PREFIX = "uberctx";
 
@@ -59408,8 +60777,14 @@ var require_JaegerPropagator = __commonJS((exports) => {
       for (const baggageEntry of baggageValues) {
         if (baggageEntry.value === undefined)
           continue;
+        let decodedValue;
+        try {
+          decodedValue = decodeURIComponent(baggageEntry.value);
+        } catch {
+          continue;
+        }
         currentBaggage = currentBaggage.setEntry(baggageEntry.key, {
-          value: decodeURIComponent(baggageEntry.value)
+          value: decodedValue
         });
       }
       newContext = api_1.propagation.setBaggage(newContext, currentBaggage);
@@ -59422,7 +60797,13 @@ var require_JaegerPropagator = __commonJS((exports) => {
   exports.JaegerPropagator = JaegerPropagator;
   var VALID_HEX_RE = /^[0-9a-f]{1,2}$/i;
   function deserializeSpanContext(serializedString) {
-    const headers = decodeURIComponent(serializedString).split(":");
+    let decoded;
+    try {
+      decoded = decodeURIComponent(serializedString);
+    } catch {
+      return null;
+    }
+    const headers = decoded.split(":");
     if (headers.length !== 4) {
       return null;
     }
@@ -59435,7 +60816,7 @@ var require_JaegerPropagator = __commonJS((exports) => {
 });
 
 // node_modules/@opentelemetry/propagator-jaeger/build/src/index.js
-var require_src28 = __commonJS((exports) => {
+var require_src29 = __commonJS((exports) => {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.UBER_TRACE_ID_HEADER = exports.UBER_BAGGAGE_HEADER_PREFIX = exports.JaegerPropagator = undefined;
   var JaegerPropagator_1 = require_JaegerPropagator();
@@ -59570,7 +60951,7 @@ var require_OTLPMetricExporter = __commonJS((exports) => {
 });
 
 // node_modules/@opentelemetry/exporter-metrics-otlp-http/build/src/platform/node/index.js
-var require_node12 = __commonJS((exports) => {
+var require_node13 = __commonJS((exports) => {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.OTLPMetricExporter = undefined;
   var OTLPMetricExporter_1 = require_OTLPMetricExporter();
@@ -59580,20 +60961,20 @@ var require_node12 = __commonJS((exports) => {
 });
 
 // node_modules/@opentelemetry/exporter-metrics-otlp-http/build/src/platform/index.js
-var require_platform11 = __commonJS((exports) => {
+var require_platform12 = __commonJS((exports) => {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.OTLPMetricExporter = undefined;
-  var node_1 = require_node12();
+  var node_1 = require_node13();
   Object.defineProperty(exports, "OTLPMetricExporter", { enumerable: true, get: function() {
     return node_1.OTLPMetricExporter;
   } });
 });
 
 // node_modules/@opentelemetry/exporter-metrics-otlp-http/build/src/index.js
-var require_src29 = __commonJS((exports) => {
+var require_src30 = __commonJS((exports) => {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.OTLPMetricExporterBase = exports.LowMemoryTemporalitySelector = exports.DeltaTemporalitySelector = exports.CumulativeTemporalitySelector = exports.AggregationTemporalityPreference = exports.OTLPMetricExporter = undefined;
-  var platform_1 = require_platform11();
+  var platform_1 = require_platform12();
   Object.defineProperty(exports, "OTLPMetricExporter", { enumerable: true, get: function() {
     return platform_1.OTLPMetricExporter;
   } });
@@ -59620,7 +61001,7 @@ var require_src29 = __commonJS((exports) => {
 var require_OTLPMetricExporter2 = __commonJS((exports) => {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.OTLPMetricExporter = undefined;
-  var exporter_metrics_otlp_http_1 = require_src29();
+  var exporter_metrics_otlp_http_1 = require_src30();
   var otlp_grpc_exporter_base_1 = require_src20();
   var otlp_transformer_1 = require_src8();
 
@@ -59633,7 +61014,7 @@ var require_OTLPMetricExporter2 = __commonJS((exports) => {
 });
 
 // node_modules/@opentelemetry/exporter-metrics-otlp-grpc/build/src/index.js
-var require_src30 = __commonJS((exports) => {
+var require_src31 = __commonJS((exports) => {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.OTLPMetricExporter = undefined;
   var OTLPMetricExporter_1 = require_OTLPMetricExporter2();
@@ -59646,7 +61027,7 @@ var require_src30 = __commonJS((exports) => {
 var require_OTLPMetricExporter3 = __commonJS((exports) => {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.OTLPMetricExporter = undefined;
-  var exporter_metrics_otlp_http_1 = require_src29();
+  var exporter_metrics_otlp_http_1 = require_src30();
   var otlp_transformer_1 = require_src8();
   var node_http_1 = require_index_node_http();
 
@@ -59661,7 +61042,7 @@ var require_OTLPMetricExporter3 = __commonJS((exports) => {
 });
 
 // node_modules/@opentelemetry/exporter-metrics-otlp-proto/build/src/platform/node/index.js
-var require_node13 = __commonJS((exports) => {
+var require_node14 = __commonJS((exports) => {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.OTLPMetricExporter = undefined;
   var OTLPMetricExporter_1 = require_OTLPMetricExporter3();
@@ -59671,27 +61052,27 @@ var require_node13 = __commonJS((exports) => {
 });
 
 // node_modules/@opentelemetry/exporter-metrics-otlp-proto/build/src/platform/index.js
-var require_platform12 = __commonJS((exports) => {
+var require_platform13 = __commonJS((exports) => {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.OTLPMetricExporter = undefined;
-  var node_1 = require_node13();
+  var node_1 = require_node14();
   Object.defineProperty(exports, "OTLPMetricExporter", { enumerable: true, get: function() {
     return node_1.OTLPMetricExporter;
   } });
 });
 
 // node_modules/@opentelemetry/exporter-metrics-otlp-proto/build/src/index.js
-var require_src31 = __commonJS((exports) => {
+var require_src32 = __commonJS((exports) => {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.OTLPMetricExporter = undefined;
-  var platform_1 = require_platform12();
+  var platform_1 = require_platform13();
   Object.defineProperty(exports, "OTLPMetricExporter", { enumerable: true, get: function() {
     return platform_1.OTLPMetricExporter;
   } });
 });
 
 // node_modules/@opentelemetry/sdk-node/build/src/utils.js
-var require_utils13 = __commonJS((exports) => {
+var require_utils14 = __commonJS((exports) => {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.buildSamplerFromConfig = exports.getInstanceID = exports.getMeterViewsFromConfiguration = exports.getAggregationType = exports.getInstrumentType = exports.getMeterReadersFromConfiguration = exports.getSpanLimitsFromConfiguration = exports.getSpanProcessorsFromConfiguration = exports.getSpanExporter = exports.getHttpAgentOptionsFromTls = exports.getHeadersFromConfiguration = exports.getLogRecordProcessorsFromConfiguration = exports.getLogRecordExporter = exports.getBatchLogRecordProcessorFromEnv = exports.getBatchLogRecordProcessorConfigFromEnv = exports.getLoggerProviderConfigFromEnv = exports.getPeriodicMetricReaderFromConfiguration = exports.getOtlpMetricExporterFromEnv = exports.getPeriodicExportingMetricReaderFromEnv = exports.getNonNegativeNumberFromEnv = exports.getKeyListFromObjectArray = exports.setupPropagator = exports.setupContextManager = exports.getPropagatorFromConfiguration = exports.getPropagatorFromEnv = exports.getSpanProcessorsFromEnv = exports.getOtlpProtocolFromEnv = exports.getResourceDetectorsFromConfiguration = exports.getResourceDetectorsFromEnv = exports.getResourceFromConfiguration = undefined;
   var api_1 = require_src();
@@ -59703,7 +61084,7 @@ var require_utils13 = __commonJS((exports) => {
   var resources_1 = require_src6();
   var sdk_trace_base_1 = require_src12();
   var propagator_b3_1 = require_src27();
-  var propagator_jaeger_1 = require_src28();
+  var propagator_jaeger_1 = require_src29();
   var context_async_hooks_1 = require_src11();
   var exporter_logs_otlp_http_1 = require_src16();
   var exporter_logs_otlp_grpc_1 = require_src21();
@@ -59711,9 +61092,9 @@ var require_utils13 = __commonJS((exports) => {
   var otlp_exporter_base_1 = require_src4();
   var otlp_grpc_exporter_base_1 = require_src20();
   var sdk_metrics_1 = require_src7();
-  var exporter_metrics_otlp_grpc_1 = require_src30();
-  var exporter_metrics_otlp_http_1 = require_src29();
-  var exporter_metrics_otlp_proto_1 = require_src31();
+  var exporter_metrics_otlp_grpc_1 = require_src31();
+  var exporter_metrics_otlp_http_1 = require_src30();
+  var exporter_metrics_otlp_proto_1 = require_src32();
   var sdk_logs_1 = require_src10();
   var fs = __require("fs");
   var RESOURCE_DETECTOR_ENVIRONMENT = "env";
@@ -60524,7 +61905,7 @@ var require_sdk = __commonJS((exports) => {
   var sdk_trace_node_1 = require_src13();
   var semantic_conventions_1 = require_src2();
   var core_1 = require_src3();
-  var utils_1 = require_utils13();
+  var utils_1 = require_utils14();
   function getMetricReadersFromEnv() {
     const metricReaders = [];
     const enabledExporters = Array.from(new Set((0, core_1.getStringListFromEnv)("OTEL_METRICS_EXPORTER") ?? []));
@@ -62342,7 +63723,7 @@ var require_log = __commonJS((exports) => {
 });
 
 // node_modules/yaml/dist/schema/yaml-1.1/merge.js
-var require_merge2 = __commonJS((exports) => {
+var require_merge3 = __commonJS((exports) => {
   var identity = require_identity();
   var Scalar = require_Scalar();
   var MERGE_KEY = "<<";
@@ -62398,7 +63779,7 @@ var require_merge2 = __commonJS((exports) => {
 // node_modules/yaml/dist/nodes/addPairToJSMap.js
 var require_addPairToJSMap = __commonJS((exports) => {
   var log = require_log();
-  var merge = require_merge2();
+  var merge = require_merge3();
   var stringify = require_stringify();
   var identity = require_identity();
   var toJS = require_toJS();
@@ -63675,7 +65056,7 @@ var require_schema4 = __commonJS((exports) => {
   var bool = require_bool2();
   var float = require_float3();
   var int = require_int2();
-  var merge = require_merge2();
+  var merge = require_merge3();
   var omap = require_omap();
   var pairs = require_pairs();
   var set = require_set();
@@ -63718,7 +65099,7 @@ var require_tags = __commonJS((exports) => {
   var schema = require_schema2();
   var schema$1 = require_schema3();
   var binary = require_binary();
-  var merge = require_merge2();
+  var merge = require_merge3();
   var omap = require_omap();
   var pairs = require_pairs();
   var schema$2 = require_schema4();
@@ -67709,7 +69090,7 @@ var require_dist = __commonJS((exports) => {
 });
 
 // node_modules/@opentelemetry/configuration/build/src/utils.js
-var require_utils14 = __commonJS((exports) => {
+var require_utils15 = __commonJS((exports) => {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.getHttpTlsConfig = exports.initializeDefaultLoggerProviderConfiguration = exports.initializeDefaultMeterProviderConfiguration = exports.initializeDefaultTracerProviderConfiguration = exports.initializeDefaultConfiguration = exports.getGrpcTlsConfig = exports.substituteEnvVars = undefined;
   var yaml = require_dist();
@@ -67952,7 +69333,7 @@ var require_EnvironmentConfigFactory = __commonJS((exports) => {
   exports.setLoggerProvider = exports.setMeterProvider = exports.setTracerProvider = exports.setSampler = exports.setPropagators = exports.setAttributeLimits = exports.setResources = exports.EnvironmentConfigFactory = undefined;
   var core_1 = require_src3();
   var api_1 = require_src();
-  var utils_1 = require_utils14();
+  var utils_1 = require_utils15();
   var EnvReader_1 = require_EnvReader();
   var EnvDefinition_1 = require_EnvDefinition();
 
@@ -78168,7 +79549,7 @@ var require_FileConfigFactory = __commonJS((exports) => {
   var core_1 = require_src3();
   var fs = __require("fs");
   var yaml = require_dist();
-  var utils_1 = require_utils14();
+  var utils_1 = require_utils15();
   var validateConfig = require_validator();
 
   class FileConfigFactory {
@@ -78341,7 +79722,7 @@ var require_ConfigFactory = __commonJS((exports) => {
 });
 
 // node_modules/@opentelemetry/configuration/build/src/index.js
-var require_src32 = __commonJS((exports) => {
+var require_src33 = __commonJS((exports) => {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.createConfigFactory = undefined;
   var ConfigFactory_1 = require_ConfigFactory();
@@ -78351,7 +79732,7 @@ var require_src32 = __commonJS((exports) => {
 });
 
 // node_modules/@opentelemetry/sdk-node/build/src/semconv.js
-var require_semconv7 = __commonJS((exports) => {
+var require_semconv8 = __commonJS((exports) => {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.ATTR_SERVICE_NAMESPACE = exports.ATTR_SERVICE_INSTANCE_ID = exports.ATTR_PROCESS_PID = exports.ATTR_HOST_NAME = undefined;
   exports.ATTR_HOST_NAME = "host.name";
@@ -78418,16 +79799,16 @@ var require_diag2 = __commonJS((exports) => {
 var require_start = __commonJS((exports) => {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.setupResource = exports.startNodeSDK = exports.NOOP_SDK = undefined;
-  var configuration_1 = require_src32();
+  var configuration_1 = require_src33();
   var api_1 = require_src();
-  var utils_1 = require_utils13();
+  var utils_1 = require_utils14();
   var instrumentation_1 = require_src15();
   var sdk_logs_1 = require_src10();
   var sdk_metrics_1 = require_src7();
   var api_logs_1 = require_src5();
   var resources_1 = require_src6();
   var context_async_hooks_1 = require_src11();
-  var semconv_1 = require_semconv7();
+  var semconv_1 = require_semconv8();
   var sdk_trace_base_1 = require_src12();
   var diag_1 = require_diag2();
   exports.NOOP_SDK = {
@@ -78551,7 +79932,7 @@ var require_start = __commonJS((exports) => {
 });
 
 // node_modules/@opentelemetry/sdk-node/build/src/index.js
-var require_src33 = __commonJS((exports) => {
+var require_src34 = __commonJS((exports) => {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.startNodeSDK = exports.NodeSDK = exports.tracing = exports.resources = exports.node = exports.metrics = exports.logs = exports.core = exports.contextBase = exports.api = undefined;
   exports.api = require_src();
@@ -85284,7 +86665,7 @@ var init_client = __esm(() => {
 });
 
 // node_modules/adm-zip/util/constants.js
-var require_constants4 = __commonJS((exports, module) => {
+var require_constants5 = __commonJS((exports, module) => {
   module.exports = {
     LOCHDR: 30,
     LOCSIG: 67324752,
@@ -85452,10 +86833,10 @@ var require_errors2 = __commonJS((exports) => {
 });
 
 // node_modules/adm-zip/util/utils.js
-var require_utils15 = __commonJS((exports, module) => {
+var require_utils16 = __commonJS((exports, module) => {
   var fsystem = __require("fs");
   var pth = __require("path");
-  var Constants = require_constants4();
+  var Constants = require_constants5();
   var Errors = require_errors2();
   var isWin = typeof process === "object" && process.platform === "win32";
   var is_Obj = (obj) => typeof obj === "object" && obj !== null;
@@ -85544,38 +86925,42 @@ var require_utils15 = __commonJS((exports, module) => {
       if (exist && !overwrite)
         return callback(false);
       self2.fs.stat(path, function(err, stat2) {
-        if (exist && stat2.isDirectory()) {
+        if (exist && stat2 && stat2.isDirectory()) {
           return callback(false);
         }
         var folder = pth.dirname(path);
         self2.fs.exists(folder, function(exists) {
-          if (!exists)
-            self2.makeDir(folder);
+          if (!exists) {
+            try {
+              self2.makeDir(folder);
+            } catch (e2) {
+              return callback(false);
+            }
+          }
+          const writeToFd = function(fd) {
+            self2.fs.write(fd, content, 0, content.length, 0, function(writeErr) {
+              self2.fs.close(fd, function() {
+                if (writeErr)
+                  return callback(false);
+                self2.fs.chmod(path, attr || 438, function() {
+                  callback(true);
+                });
+              });
+            });
+          };
           self2.fs.open(path, "w", 438, function(err2, fd) {
             if (err2) {
               self2.fs.chmod(path, 438, function() {
-                self2.fs.open(path, "w", 438, function(err3, fd2) {
-                  self2.fs.write(fd2, content, 0, content.length, 0, function() {
-                    self2.fs.close(fd2, function() {
-                      self2.fs.chmod(path, attr || 438, function() {
-                        callback(true);
-                      });
-                    });
-                  });
+                self2.fs.open(path, "w", 438, function(retryErr, fd2) {
+                  if (retryErr || !fd2)
+                    return callback(false);
+                  writeToFd(fd2);
                 });
               });
             } else if (fd) {
-              self2.fs.write(fd, content, 0, content.length, 0, function() {
-                self2.fs.close(fd, function() {
-                  self2.fs.chmod(path, attr || 438, function() {
-                    callback(true);
-                  });
-                });
-              });
+              writeToFd(fd);
             } else {
-              self2.fs.chmod(path, attr || 438, function() {
-                callback(true);
-              });
+              callback(false);
             }
           });
         });
@@ -85584,7 +86969,7 @@ var require_utils15 = __commonJS((exports, module) => {
   };
   Utils.prototype.findFiles = function(path) {
     const self2 = this;
-    function findSync(dir, pattern, recursive) {
+    function findSync(dir, pattern, recursive, visited) {
       if (typeof pattern === "boolean") {
         recursive = pattern;
         pattern = undefined;
@@ -85596,44 +86981,75 @@ var require_utils15 = __commonJS((exports, module) => {
         if (!pattern || pattern.test(path2)) {
           files2.push(pth.normalize(path2) + (stat2.isDirectory() ? self2.sep : ""));
         }
-        if (stat2.isDirectory() && recursive)
-          files2 = files2.concat(findSync(path2, pattern, recursive));
+        if (stat2.isDirectory() && recursive) {
+          const realDir = self2.fs.realpathSync(path2);
+          if (!visited.has(realDir)) {
+            visited.add(realDir);
+            files2 = files2.concat(findSync(path2, pattern, recursive, visited));
+          }
+        }
       });
       return files2;
     }
-    return findSync(path, undefined, true);
+    return findSync(path, undefined, true, new Set([self2.fs.realpathSync(path)]));
   };
   Utils.prototype.findFilesAsync = function(dir, cb) {
     const self2 = this;
-    let results = [];
-    self2.fs.readdir(dir, function(err, list) {
-      if (err)
-        return cb(err);
-      let list_length = list.length;
-      if (!list_length)
-        return cb(null, results);
-      list.forEach(function(file) {
-        file = pth.join(dir, file);
-        self2.fs.stat(file, function(err2, stat2) {
-          if (err2)
-            return cb(err2);
-          if (stat2) {
-            results.push(pth.normalize(file) + (stat2.isDirectory() ? self2.sep : ""));
-            if (stat2.isDirectory()) {
-              self2.findFilesAsync(file, function(err3, res) {
-                if (err3)
-                  return cb(err3);
-                results = results.concat(res);
-                if (!--list_length)
-                  cb(null, results);
-              });
-            } else {
-              if (!--list_length)
-                cb(null, results);
+    const results = [];
+    let finished = false;
+    const finish = function(err) {
+      if (finished)
+        return;
+      finished = true;
+      cb(err, err ? undefined : results);
+    };
+    const walk = function(dir2, visited, done) {
+      self2.fs.readdir(dir2, function(err, list) {
+        if (err)
+          return done(err);
+        let pending = list.length;
+        if (!pending)
+          return done();
+        list.forEach(function(name) {
+          const file = pth.join(dir2, name);
+          self2.fs.stat(file, function(err2, stat2) {
+            if (err2)
+              return done(err2);
+            if (!stat2) {
+              if (!--pending)
+                done();
+              return;
             }
-          }
+            results.push(pth.normalize(file) + (stat2.isDirectory() ? self2.sep : ""));
+            if (!stat2.isDirectory()) {
+              if (!--pending)
+                done();
+              return;
+            }
+            self2.fs.realpath(file, function(err3, realDir) {
+              if (err3)
+                return done(err3);
+              if (visited.has(realDir)) {
+                if (!--pending)
+                  done();
+                return;
+              }
+              visited.add(realDir);
+              walk(file, visited, function(err4) {
+                if (err4)
+                  return done(err4);
+                if (!--pending)
+                  done();
+              });
+            });
+          });
         });
       });
+    };
+    self2.fs.realpath(dir, function(err, realDir) {
+      if (err)
+        return finish(err);
+      walk(dir, new Set([realDir]), finish);
     });
   };
   Utils.prototype.getAttributes = function() {};
@@ -85807,8 +87223,8 @@ var require_decoder2 = __commonJS((exports, module) => {
 
 // node_modules/adm-zip/util/index.js
 var require_util6 = __commonJS((exports, module) => {
-  module.exports = require_utils15();
-  module.exports.Constants = require_constants4();
+  module.exports = require_utils16();
+  module.exports.Constants = require_constants5();
   module.exports.Errors = require_errors2();
   module.exports.FileAttr = require_fattr();
   module.exports.decoder = require_decoder2();
@@ -86418,35 +87834,8 @@ var require_zipEntry = __commonJS((exports, module) => {
       return input.slice(_centralHeader.realDataOffset, _centralHeader.realDataOffset + _centralHeader.compressedSize);
     }
     function crc32OK(data) {
-      if (!_centralHeader.flags_desc && !_centralHeader.localHeader.flags_desc) {
-        if (Utils.crc32(data) !== _centralHeader.localHeader.crc) {
-          return false;
-        }
-      } else {
-        const descriptor = {};
-        const dataEndOffset = _centralHeader.realDataOffset + _centralHeader.compressedSize;
-        if (input.readUInt32LE(dataEndOffset) == Constants.LOCSIG || input.readUInt32LE(dataEndOffset) == Constants.CENSIG) {
-          throw Utils.Errors.DESCRIPTOR_NOT_EXIST();
-        }
-        if (input.readUInt32LE(dataEndOffset) == Constants.EXTSIG) {
-          descriptor.crc = input.readUInt32LE(dataEndOffset + Constants.EXTCRC);
-          descriptor.compressedSize = input.readUInt32LE(dataEndOffset + Constants.EXTSIZ);
-          descriptor.size = input.readUInt32LE(dataEndOffset + Constants.EXTLEN);
-        } else if (input.readUInt16LE(dataEndOffset + 12) === 19280) {
-          descriptor.crc = input.readUInt32LE(dataEndOffset + Constants.EXTCRC - 4);
-          descriptor.compressedSize = input.readUInt32LE(dataEndOffset + Constants.EXTSIZ - 4);
-          descriptor.size = input.readUInt32LE(dataEndOffset + Constants.EXTLEN - 4);
-        } else {
-          throw Utils.Errors.DESCRIPTOR_UNKNOWN();
-        }
-        if (descriptor.compressedSize !== _centralHeader.compressedSize || descriptor.size !== _centralHeader.size || descriptor.crc !== _centralHeader.crc) {
-          throw Utils.Errors.DESCRIPTOR_FAULTY();
-        }
-        if (Utils.crc32(data) !== descriptor.crc) {
-          return false;
-        }
-      }
-      return true;
+      const expectedCrc = _centralHeader.flags_desc || _centralHeader.localHeader.flags_desc ? _centralHeader.crc : _centralHeader.localHeader.crc;
+      return Utils.crc32(data) === expectedCrc;
     }
     function decompress(async, callback, pass) {
       if (typeof callback === "undefined" && typeof async === "string") {
@@ -86471,9 +87860,10 @@ var require_zipEntry = __commonJS((exports, module) => {
         }
         compressedData = Methods.ZipCrypto.decrypt(compressedData, _centralHeader, pass);
       }
-      var data = Buffer.alloc(_centralHeader.size);
+      var data;
       switch (_centralHeader.method) {
         case Utils.Constants.STORED:
+          data = Buffer.alloc(compressedData.length);
           compressedData.copy(data);
           if (!crc32OK(data)) {
             if (async && callback)
@@ -86487,15 +87877,13 @@ var require_zipEntry = __commonJS((exports, module) => {
         case Utils.Constants.DEFLATED:
           var inflater = new Methods.Inflater(compressedData, _centralHeader.size);
           if (!async) {
-            const result = inflater.inflate(data);
-            result.copy(data, 0);
+            data = inflater.inflate();
             if (!crc32OK(data)) {
               throw Utils.Errors.BAD_CRC(`"${decoder.decode(_entryName)}"`);
             }
             return data;
           } else {
             inflater.inflateAsync(function(result) {
-              result.copy(result, 0);
               if (callback) {
                 if (!crc32OK(result)) {
                   callback(result, Utils.Errors.BAD_CRC());
@@ -86639,8 +88027,8 @@ var require_zipEntry = __commonJS((exports, module) => {
           throw Utils.Errors.COMMENT_TOO_LONG();
       },
       get name() {
-        var n = decoder.decode(_entryName);
-        return _isDirectory ? n.substr(n.length - 1).split("/").pop() : n.split("/").pop();
+        const n = decoder.decode(_entryName);
+        return _isDirectory ? n.replace(/[/\\]$/, "").split("/").pop() : n.split("/").pop();
       },
       get isDirectory() {
         return _isDirectory;
@@ -86741,7 +88129,7 @@ var require_zipFile = __commonJS((exports, module) => {
   var Headers3 = require_headers();
   var Utils = require_util6();
   module.exports = function(inBuffer, options) {
-    var entryList = [], entryTable = {}, _comment = Buffer.alloc(0), mainHeader = new Headers3.MainHeader, loadedEntries = false;
+    var entryList = [], entryTable = Object.create(null), _comment = Buffer.alloc(0), mainHeader = new Headers3.MainHeader, loadedEntries = false;
     var password = null;
     const temporary = new Set;
     const opts = options;
@@ -86777,7 +88165,7 @@ var require_zipFile = __commonJS((exports, module) => {
     }
     function readEntries() {
       loadedEntries = true;
-      entryTable = {};
+      entryTable = Object.create(null);
       if (mainHeader.diskEntries > (inBuffer.length - mainHeader.offset) / Utils.Constants.CENHDR) {
         throw Utils.Errors.DISK_ENTRY_TOO_LARGE();
       }
@@ -86835,7 +88223,7 @@ var require_zipFile = __commonJS((exports, module) => {
     }
     function sortEntries() {
       if (entryList.length > 1 && !noSort) {
-        entryList.sort((a, b) => a.entryName.toLowerCase().localeCompare(b.entryName.toLowerCase()));
+        entryList = entryList.map((entry) => ({ entry, key: entry.entryName.toLowerCase() })).sort((a, b) => a.key.localeCompare(b.key)).map((pair) => pair.entry);
       }
     }
     return {
@@ -87071,6 +88459,9 @@ var require_adm_zip = __commonJS((exports, module) => {
     }
     Object.assign(opts, options);
     const filetools = new Utils(opts);
+    const applyDirAttributes = (dirEntries) => {
+      dirEntries.filter((d) => d.attr).sort((a, b) => b.path.length - a.path.length).forEach((d) => filetools.fs.chmodSync(d.path, d.attr));
+    };
     if (typeof opts.decoder !== "object" || typeof opts.decoder.encode !== "function" || typeof opts.decoder.decode !== "function") {
       opts.decoder = Utils.decoder;
     }
@@ -87435,8 +88826,8 @@ var require_adm_zip = __commonJS((exports, module) => {
             if (!content2) {
               throw Utils.Errors.CANT_EXTRACT_FILE();
             }
-            var name = canonical(child.entryName);
-            var childName = sanitize(targetPath, maintainEntryPath ? name : pth.basename(name));
+            var name = canonical(maintainEntryPath ? child.entryName : child.entryName.substring(item.entryName.length));
+            var childName = sanitize(targetPath, name);
             const fileAttr2 = keepOriginalPermission ? child.header.fileAttr : undefined;
             filetools.writeFileTo(childName, content2, overwrite, fileAttr2);
           });
@@ -87461,7 +88852,7 @@ var require_adm_zip = __commonJS((exports, module) => {
             if (entry.isDirectory) {
               continue;
             }
-            var content = _zip.entries[entry].getData(pass);
+            var content = entry.getData(pass);
             if (!content) {
               return false;
             }
@@ -87477,10 +88868,13 @@ var require_adm_zip = __commonJS((exports, module) => {
         overwrite = get_Bool(false, overwrite);
         if (!_zip)
           throw Utils.Errors.NO_ZIP();
+        const dirEntries = [];
         _zip.entries.forEach(function(entry) {
           var entryName = sanitize(targetPath, canonical(entry.entryName));
           if (entry.isDirectory) {
             filetools.makeDir(entryName);
+            if (keepOriginalPermission)
+              dirEntries.push({ path: entryName, attr: entry.header.fileAttr });
             return;
           }
           var content = entry.getData(pass);
@@ -87491,10 +88885,9 @@ var require_adm_zip = __commonJS((exports, module) => {
           filetools.writeFileTo(entryName, content, overwrite, fileAttr);
           try {
             filetools.fs.utimesSync(entryName, entry.header.time, entry.header.time);
-          } catch (err) {
-            throw Utils.Errors.CANT_EXTRACT_FILE();
-          }
+          } catch (err) {}
         });
+        applyDirAttributes(dirEntries);
       },
       extractAllToAsync: function(targetPath, overwrite, keepOriginalPermission, callback) {
         callback = get_Fun(overwrite, keepOriginalPermission, callback);
@@ -87527,18 +88920,32 @@ var require_adm_zip = __commonJS((exports, module) => {
             fileEntries.push(e2);
           }
         });
+        const deferredDirAttr = [];
         for (const entry of dirEntries) {
           const dirPath = getPath(entry);
           const dirAttr = keepOriginalPermission ? entry.header.fileAttr : undefined;
           try {
             filetools.makeDir(dirPath);
-            if (dirAttr)
-              filetools.fs.chmodSync(dirPath, dirAttr);
-            filetools.fs.utimesSync(dirPath, entry.header.time, entry.header.time);
           } catch (er) {
             callback(getError("Unable to create folder", dirPath));
+            continue;
           }
+          if (dirAttr)
+            deferredDirAttr.push({ path: dirPath, attr: dirAttr });
+          try {
+            filetools.fs.utimesSync(dirPath, entry.header.time, entry.header.time);
+          } catch (er) {}
         }
+        const done = (err) => {
+          if (!err) {
+            try {
+              applyDirAttributes(deferredDirAttr);
+            } catch (er) {
+              return callback(getError("Unable to set folder permissions", er.path || ""));
+            }
+          }
+          callback(err);
+        };
         fileEntries.reverse().reduce(function(next, entry) {
           return function(err) {
             if (err) {
@@ -87555,21 +88962,17 @@ var require_adm_zip = __commonJS((exports, module) => {
                   const fileAttr = keepOriginalPermission ? entry.header.fileAttr : undefined;
                   filetools.writeFileToAsync(filePath, content, overwrite, fileAttr, function(succ) {
                     if (!succ) {
-                      next(getError("Unable to write file", filePath));
+                      return next(getError("Unable to write file", filePath));
                     }
-                    filetools.fs.utimes(filePath, entry.header.time, entry.header.time, function(err_2) {
-                      if (err_2) {
-                        next(getError("Unable to set times", filePath));
-                      } else {
-                        next();
-                      }
+                    filetools.fs.utimes(filePath, entry.header.time, entry.header.time, function() {
+                      next();
                     });
                   });
                 }
               });
             }
           };
-        }, callback)();
+        }, done)();
       },
       writeZip: function(targetFileName, callback) {
         if (arguments.length === 1) {
@@ -98394,7 +99797,7 @@ var init_bin = __esm(() => {
 });
 
 // src/provisioning/default.ts
-var CLI_VERSION = "1.0.0-beta.9";
+var CLI_VERSION = "1.0.0-beta.10";
 
 // src/provisioning/index.ts
 var exports_provisioning = {};
@@ -99421,7 +100824,7 @@ var opentelemetry2 = __toESM(require_src(), 1);
 // src/telemetry/init.ts
 var import_core = __toESM(require_src3(), 1);
 var import_exporter_trace_otlp_proto = __toESM(require_src9(), 1);
-var import_sdk_node = __toESM(require_src33(), 1);
+var import_sdk_node = __toESM(require_src34(), 1);
 var import_sdk_trace_base2 = __toESM(require_src12(), 1);
 
 // src/telemetry/live_processor.ts
@@ -100779,9 +102182,13 @@ class Check extends BaseClient {
     const response = await ctx.execute();
     return response;
   };
-  error = () => {
-    const ctx = this._ctx.select("error");
-    return new Error2(ctx);
+  error = async () => {
+    const ctx = this._ctx.select("error").select("id");
+    const response = await ctx.execute();
+    if (response === null) {
+      return null;
+    }
+    return new Error2(ctx.copy().selectNode(response, "Error"));
   };
   name = async () => {
     if (this._name) {
@@ -100974,9 +102381,13 @@ class Container extends BaseClient {
     const ctx = this._ctx.select("directory", { path, ...opts });
     return new Directory(ctx);
   };
-  dockerHealthcheck = () => {
-    const ctx = this._ctx.select("dockerHealthcheck");
-    return new HealthcheckConfig(ctx);
+  dockerHealthcheck = async () => {
+    const ctx = this._ctx.select("dockerHealthcheck").select("id");
+    const response = await ctx.execute();
+    if (response === null) {
+      return null;
+    }
+    return new HealthcheckConfig(ctx.copy().selectNode(response, "HealthcheckConfig"));
   };
   entrypoint = async () => {
     const ctx = this._ctx.select("entrypoint");
@@ -101133,9 +102544,13 @@ class Container extends BaseClient {
     const ctx = this._ctx.select("rootfs");
     return new Directory(ctx);
   };
-  stat = (path, opts) => {
-    const ctx = this._ctx.select("stat", { path, ...opts });
-    return new Stat(ctx);
+  stat = async (path, opts) => {
+    const ctx = this._ctx.select("stat", { path, ...opts }).select("id");
+    const response = await ctx.execute();
+    if (response === null) {
+      return null;
+    }
+    return new Stat(ctx.copy().selectNode(response, "Stat"));
   };
   stderr = async () => {
     if (this._stderr) {
@@ -101751,9 +103166,13 @@ class Directory extends BaseClient {
     const response = await ctx.execute();
     return response.map((r) => new SearchResult(ctx.copy().selectNode(r.id, "SearchResult")));
   };
-  stat = (path, opts) => {
-    const ctx = this._ctx.select("stat", { path, ...opts });
-    return new Stat(ctx);
+  stat = async (path, opts) => {
+    const ctx = this._ctx.select("stat", { path, ...opts }).select("id");
+    const response = await ctx.execute();
+    if (response === null) {
+      return null;
+    }
+    return new Stat(ctx.copy().selectNode(response, "Stat"));
   };
   sync = async () => {
     const ctx = this._ctx.select("sync");
@@ -102108,9 +103527,13 @@ class EnumTypeDef extends BaseClient {
     const response = await ctx.execute();
     return response;
   };
-  sourceMap = () => {
-    const ctx = this._ctx.select("sourceMap");
-    return new SourceMap(ctx);
+  sourceMap = async () => {
+    const ctx = this._ctx.select("sourceMap").select("id");
+    const response = await ctx.execute();
+    if (response === null) {
+      return null;
+    }
+    return new SourceMap(ctx.copy().selectNode(response, "SourceMap"));
   };
   sourceModuleName = async () => {
     if (this._sourceModuleName) {
@@ -102173,9 +103596,13 @@ class EnumValueTypeDef extends BaseClient {
     const response = await ctx.execute();
     return response;
   };
-  sourceMap = () => {
-    const ctx = this._ctx.select("sourceMap");
-    return new SourceMap(ctx);
+  sourceMap = async () => {
+    const ctx = this._ctx.select("sourceMap").select("id");
+    const response = await ctx.execute();
+    if (response === null) {
+      return null;
+    }
+    return new SourceMap(ctx.copy().selectNode(response, "SourceMap"));
   };
   value = async () => {
     if (this._value) {
@@ -102427,9 +103854,13 @@ class FieldTypeDef extends BaseClient {
     const response = await ctx.execute();
     return response;
   };
-  sourceMap = () => {
-    const ctx = this._ctx.select("sourceMap");
-    return new SourceMap(ctx);
+  sourceMap = async () => {
+    const ctx = this._ctx.select("sourceMap").select("id");
+    const response = await ctx.execute();
+    if (response === null) {
+      return null;
+    }
+    return new SourceMap(ctx.copy().selectNode(response, "SourceMap"));
   };
   typeDef = () => {
     const ctx = this._ctx.select("typeDef");
@@ -102520,9 +103951,13 @@ class File extends BaseClient {
     const response = await ctx.execute();
     return response;
   };
-  stat = () => {
-    const ctx = this._ctx.select("stat");
-    return new Stat(ctx);
+  stat = async () => {
+    const ctx = this._ctx.select("stat").select("id");
+    const response = await ctx.execute();
+    if (response === null) {
+      return null;
+    }
+    return new Stat(ctx.copy().selectNode(response, "Stat"));
   };
   sync = async () => {
     const ctx = this._ctx.select("sync");
@@ -102601,9 +104036,13 @@ class Function_ extends BaseClient {
     const ctx = this._ctx.select("returnType");
     return new TypeDef(ctx);
   };
-  sourceMap = () => {
-    const ctx = this._ctx.select("sourceMap");
-    return new SourceMap(ctx);
+  sourceMap = async () => {
+    const ctx = this._ctx.select("sourceMap").select("id");
+    const response = await ctx.execute();
+    if (response === null) {
+      return null;
+    }
+    return new SourceMap(ctx.copy().selectNode(response, "SourceMap"));
   };
   sourceModuleName = async () => {
     if (this._sourceModuleName) {
@@ -102736,9 +104175,13 @@ class FunctionArg extends BaseClient {
     const response = await ctx.execute();
     return response;
   };
-  sourceMap = () => {
-    const ctx = this._ctx.select("sourceMap");
-    return new SourceMap(ctx);
+  sourceMap = async () => {
+    const ctx = this._ctx.select("sourceMap").select("id");
+    const response = await ctx.execute();
+    if (response === null) {
+      return null;
+    }
+    return new SourceMap(ctx.copy().selectNode(response, "SourceMap"));
   };
   typeDef = () => {
     const ctx = this._ctx.select("typeDef");
@@ -103054,9 +104497,13 @@ class GitCommit extends BaseClient {
     const response = await ctx.execute();
     return response;
   };
-  ancestorReleaseTag = (opts) => {
-    const ctx = this._ctx.select("ancestorReleaseTag", { ...opts });
-    return new GitRef(ctx);
+  ancestorReleaseTag = async (opts) => {
+    const ctx = this._ctx.select("ancestorReleaseTag", { ...opts }).select("id");
+    const response = await ctx.execute();
+    if (response === null) {
+      return null;
+    }
+    return new GitRef(ctx.copy().selectNode(response, "GitRef"));
   };
   authorEmail = async () => {
     if (this._authorEmail) {
@@ -103135,9 +104582,13 @@ class GitCommit extends BaseClient {
     const response = await ctx.execute();
     return response;
   };
-  releaseTag = (opts) => {
-    const ctx = this._ctx.select("releaseTag", { ...opts });
-    return new GitRef(ctx);
+  releaseTag = async (opts) => {
+    const ctx = this._ctx.select("releaseTag", { ...opts }).select("id");
+    const response = await ctx.execute();
+    if (response === null) {
+      return null;
+    }
+    return new GitRef(ctx.copy().selectNode(response, "GitRef"));
   };
   sha = async () => {
     if (this._sha) {
@@ -103528,9 +104979,13 @@ class InterfaceTypeDef extends BaseClient {
     const response = await ctx.execute();
     return response;
   };
-  sourceMap = () => {
-    const ctx = this._ctx.select("sourceMap");
-    return new SourceMap(ctx);
+  sourceMap = async () => {
+    const ctx = this._ctx.select("sourceMap").select("id");
+    const response = await ctx.execute();
+    if (response === null) {
+      return null;
+    }
+    return new SourceMap(ctx.copy().selectNode(response, "SourceMap"));
   };
   sourceModuleName = async () => {
     if (this._sourceModuleName) {
@@ -104215,13 +105670,21 @@ class Module_ extends BaseClient {
     const response = await ctx.execute();
     return response.map((r) => new TypeDef(ctx.copy().selectNode(r.id, "TypeDef")));
   };
-  runtime = () => {
-    const ctx = this._ctx.select("runtime");
-    return new Container(ctx);
+  runtime = async () => {
+    const ctx = this._ctx.select("runtime").select("id");
+    const response = await ctx.execute();
+    if (response === null) {
+      return null;
+    }
+    return new Container(ctx.copy().selectNode(response, "Container"));
   };
-  sdk = () => {
-    const ctx = this._ctx.select("sdk");
-    return new SDKConfig(ctx);
+  sdk = async () => {
+    const ctx = this._ctx.select("sdk").select("id");
+    const response = await ctx.execute();
+    if (response === null) {
+      return null;
+    }
+    return new SDKConfig(ctx.copy().selectNode(response, "SDKConfig"));
   };
   serve = async (opts) => {
     if (this._serve) {
@@ -104234,9 +105697,13 @@ class Module_ extends BaseClient {
     const ctx = this._ctx.select("services", { ...opts });
     return new UpGroup(ctx);
   };
-  source = () => {
-    const ctx = this._ctx.select("source");
-    return new ModuleSource(ctx);
+  source = async () => {
+    const ctx = this._ctx.select("source").select("id");
+    const response = await ctx.execute();
+    if (response === null) {
+      return null;
+    }
+    return new ModuleSource(ctx.copy().selectNode(response, "ModuleSource"));
   };
   sync = async () => {
     const ctx = this._ctx.select("sync");
@@ -104528,9 +105995,13 @@ class ModuleSource extends BaseClient {
     const response = await ctx.execute();
     return response;
   };
-  sdk = () => {
-    const ctx = this._ctx.select("sdk");
-    return new SDKConfig(ctx);
+  sdk = async () => {
+    const ctx = this._ctx.select("sdk").select("id");
+    const response = await ctx.execute();
+    if (response === null) {
+      return null;
+    }
+    return new SDKConfig(ctx.copy().selectNode(response, "SDKConfig"));
   };
   sourceRootSubpath = async () => {
     if (this._sourceRootSubpath) {
@@ -104693,9 +106164,13 @@ class ObjectTypeDef extends BaseClient {
     const response = await ctx.execute();
     return response;
   };
-  constructor_ = () => {
-    const ctx = this._ctx.select("constructor");
-    return new Function_(ctx);
+  constructor_ = async () => {
+    const ctx = this._ctx.select("constructor").select("id");
+    const response = await ctx.execute();
+    if (response === null) {
+      return null;
+    }
+    return new Function_(ctx.copy().selectNode(response, "Function"));
   };
   deprecated = async () => {
     if (this._deprecated) {
@@ -104731,9 +106206,13 @@ class ObjectTypeDef extends BaseClient {
     const response = await ctx.execute();
     return response;
   };
-  sourceMap = () => {
-    const ctx = this._ctx.select("sourceMap");
-    return new SourceMap(ctx);
+  sourceMap = async () => {
+    const ctx = this._ctx.select("sourceMap").select("id");
+    const response = await ctx.execute();
+    if (response === null) {
+      return null;
+    }
+    return new SourceMap(ctx.copy().selectNode(response, "SourceMap"));
   };
   sourceModuleName = async () => {
     if (this._sourceModuleName) {
@@ -104931,9 +106410,13 @@ class Client extends BaseClient {
     const ctx = this._ctx.select("moduleSource", { refString, ...opts, __metadata: metadata });
     return new ModuleSource(ctx);
   };
-  node = (id) => {
-    const ctx = this._ctx.select("node", { id });
-    return new _NodeClient(ctx);
+  node = async (id) => {
+    const ctx = this._ctx.select("node", { id }).select("id");
+    const response = await ctx.execute();
+    if (response === null) {
+      return null;
+    }
+    return new _NodeClient(ctx.copy().selectNode(response, "Node"));
   };
   schema = (json) => {
     const ctx = this._ctx.select("schema", { json });
@@ -105536,29 +107019,53 @@ class TypeDef extends BaseClient {
     const response = await ctx.execute();
     return response;
   };
-  asEnum = () => {
-    const ctx = this._ctx.select("asEnum");
-    return new EnumTypeDef(ctx);
+  asEnum = async () => {
+    const ctx = this._ctx.select("asEnum").select("id");
+    const response = await ctx.execute();
+    if (response === null) {
+      return null;
+    }
+    return new EnumTypeDef(ctx.copy().selectNode(response, "EnumTypeDef"));
   };
-  asInput = () => {
-    const ctx = this._ctx.select("asInput");
-    return new InputTypeDef(ctx);
+  asInput = async () => {
+    const ctx = this._ctx.select("asInput").select("id");
+    const response = await ctx.execute();
+    if (response === null) {
+      return null;
+    }
+    return new InputTypeDef(ctx.copy().selectNode(response, "InputTypeDef"));
   };
-  asInterface = () => {
-    const ctx = this._ctx.select("asInterface");
-    return new InterfaceTypeDef(ctx);
+  asInterface = async () => {
+    const ctx = this._ctx.select("asInterface").select("id");
+    const response = await ctx.execute();
+    if (response === null) {
+      return null;
+    }
+    return new InterfaceTypeDef(ctx.copy().selectNode(response, "InterfaceTypeDef"));
   };
-  asList = () => {
-    const ctx = this._ctx.select("asList");
-    return new ListTypeDef(ctx);
+  asList = async () => {
+    const ctx = this._ctx.select("asList").select("id");
+    const response = await ctx.execute();
+    if (response === null) {
+      return null;
+    }
+    return new ListTypeDef(ctx.copy().selectNode(response, "ListTypeDef"));
   };
-  asObject = () => {
-    const ctx = this._ctx.select("asObject");
-    return new ObjectTypeDef(ctx);
+  asObject = async () => {
+    const ctx = this._ctx.select("asObject").select("id");
+    const response = await ctx.execute();
+    if (response === null) {
+      return null;
+    }
+    return new ObjectTypeDef(ctx.copy().selectNode(response, "ObjectTypeDef"));
   };
-  asScalar = () => {
-    const ctx = this._ctx.select("asScalar");
-    return new ScalarTypeDef(ctx);
+  asScalar = async () => {
+    const ctx = this._ctx.select("asScalar").select("id");
+    const response = await ctx.execute();
+    if (response === null) {
+      return null;
+    }
+    return new ScalarTypeDef(ctx.copy().selectNode(response, "ScalarTypeDef"));
   };
   kind = async () => {
     if (this._kind) {
@@ -106316,6 +107823,9 @@ class Registry {
   up = () => {
     return (target, propertyKey, descriptor) => descriptor;
   };
+  agent = () => {
+    return (target, propertyKey, descriptor) => {};
+  };
   argument = (opts) => {
     return (target, propertyKey, parameterIndex) => {};
   };
@@ -106356,6 +107866,7 @@ var func = registry.func;
 var check = registry.check;
 var generate = registry.generate;
 var up = registry.up;
+var agent = registry.agent;
 var field = registry.field;
 var enumType = registry.enumType;
 var argument = registry.argument;
@@ -106964,6 +108475,7 @@ var FUNCTION_DECORATOR = func.name;
 var CHECK_DECORATOR = check.name;
 var GENERATOR_DECORATOR = generate.name;
 var UP_DECORATOR = up.name;
+var AGENT_DECORATOR = agent.name;
 var FIELD_DECORATOR = field.name;
 var ARGUMENT_DECORATOR = argument.name;
 var ENUM_DECORATOR = enumType.name;
@@ -107273,6 +108785,7 @@ class DaggerFunction extends Locatable {
   isCheck = false;
   isGenerator = false;
   isUp = false;
+  isAgent = false;
   signature;
   symbol;
   constructor(node, ast2) {
@@ -107302,6 +108815,9 @@ class DaggerFunction extends Locatable {
     }
     if (this.ast.isNodeDecoratedWith(this.node, UP_DECORATOR)) {
       this.isUp = true;
+    }
+    if (this.ast.isNodeDecoratedWith(this.node, AGENT_DECORATOR)) {
+      this.isAgent = true;
     }
     for (const parameter of this.node.parameters) {
       this.arguments[parameter.name.getText()] = new DaggerArgument(parameter, this.ast);
@@ -108338,6 +109854,9 @@ class Register {
     if (fct.isUp) {
       fnDef = fnDef.withUp();
     }
+    if (fct.isAgent) {
+      fnDef = fnDef.withAgent();
+    }
     return fnDef;
   }
   addArg(args) {
@@ -108496,6 +110015,7 @@ export {
   connect,
   check,
   argument,
+  agent,
   _SyncerClient,
   _NodeClient,
   _ExportableClient,

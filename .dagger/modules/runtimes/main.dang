@@ -20,6 +20,13 @@ type Runtimes {
   let fixtures: String! = ".dagger/modules/runtimes/fixtures"
 
   """
+  Engine release these tests run against. Read off the SDK rather than repeated
+  here: it is the same pairing the committed bundle is built for, and a second
+  copy is a second thing to forget on a bump.
+  """
+  let engineVersion: String! = typescriptSdk.targetEngineVersion
+
+  """
   A node module should generate and run.
   """
   nodeRunsCheck(ws: Workspace!): Void @check {
@@ -61,7 +68,12 @@ type Runtimes {
   and its default was applied.
   """
   invokesFunctionCheck(ws: Workspace!): Void @check {
-    let target = sdkSdk.target(ws.directory("/"), ".")
+    # sdk-sdk pins its own CLI (1.0.0-beta.9), and the harness runs the whole
+    # user path through it. Our committed bundle is built for the engine this
+    # repo targets, so driving it with an older CLI pairs a beta.10 library with
+    # a beta.9 engine — the version coupling this SDK owns now that it ships the
+    # library. Pin the harness to the same engine instead.
+    let target = sdkSdk(daggerCliVersion: engineVersion).target(ws.directory("/"), ".")
     let run = target.run(["call", target.moduleName, "base-image-address"])
 
     run.assertSuccess

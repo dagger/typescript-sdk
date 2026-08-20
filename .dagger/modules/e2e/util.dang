@@ -212,4 +212,17 @@ type Fixtures {
     denoModule,
     parentSourceModule,
   ] + runtimeFixtures
+  """
+  The subset of managedModules configured by dagger-module.toml. These are the
+  fixtures that name an engine release, so they are the ones that can drift from
+  the release this SDK's bundle is built for; the dagger.json ones say "latest".
+  """
+  let managedTomlFixtures: [String!]! = [
+    managedTomlModule,
+    depAppModule,
+    depLibModule,
+    denoModule,
+    parentSourceModule,
+  ] + runtimeFixtures
+
 }

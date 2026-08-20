@@ -26,6 +26,16 @@ type TypescriptSdk {
   }
 
   """
+  Engine release the committed library bundle is built for.
+
+  This SDK ships the library rather than letting the engine build it, so the
+  pairing is ours to state: checks drive their harness at this release, and
+  every fixture module in the repo targets it. Bumping the bundle means bumping
+  this, and the fixture check fails until they agree.
+  """
+  targetEngineVersion: String! = "1.0.0-beta.10"
+
+  """
   Config filenames that mark a Dagger module root: the CLI 1.0
   `dagger-module.toml` (workspace-managed modules) and the legacy `dagger.json`.
   A managed module is discovered by whichever it uses.
