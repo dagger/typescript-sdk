@@ -598,6 +598,21 @@ staleness check, with a better message than a hand-written one:
 with the committed bindings and watching it fail. An engine bump therefore
 shows up as a failing check rather than silent drift.
 
+**On `fork.withDirectory` (worth knowing before reusing it).** The polyfill
+documents it as "add or replace", and the replace is real: whatever is not
+staged is absent from the changeset's *after* tree. That only shows up when a
+changeset is staged into a workspace and read back — `ws.withChanges`, which is
+how the engine generates a local dependency — where it silently drops the
+module's own config and source. Applying to disk is additive, so the same
+changeset looks fine there.
+
+Module generation therefore stages a diff over the module's existing tree
+(§7 Phase 3). Client generation does not need to: a client changeset is only
+ever applied, never staged and re-read. Verified rather than assumed — a client
+directory carrying a vendored `sdk/` and an unrelated file keeps both across a
+regeneration, and the changeset's `removedPaths` is empty, so the preservation
+`client-bundle.md` relies on holds.
+
 **VCS files are not written** (decided): no `.gitignore`, no `.gitattributes`.
 The engine appends to both around codegen, but for a workspace module the
 ignore list is reduced to `node_modules`/`.pnpm-store` anyway, which is the

@@ -70,10 +70,17 @@ upstream's `Local` SDK-lib origin (`detectSDKLibOrigin`: `"@dagger.io/dagger" ==
    client-dir config, filtered from the workspace root so a not-yet-existing
    client dir falls back to empty.
 
-   The vendored `sdk/` directory itself survives regeneration for free: the fork
-   stages the client via `withDirectory(client.path, generated)`, which is an
-   **overlay** — files the user has under `<client-dir>/sdk/` that codegen
-   doesn't emit are preserved.
+   The vendored `sdk/` directory itself survives regeneration for free — though
+   not because `withDirectory` is an overlay, as this originally claimed. The
+   polyfill documents it as "add or replace", and the replace is real in the
+   changeset's *after* tree. What makes this safe is that a client changeset is
+   only ever applied to disk, and applying is additive. Confirmed by
+   regenerating a client directory holding a vendored `sdk/core.js` and an
+   unrelated `NOTES.md`: both survive, and `removedPaths` comes back empty.
+
+   The distinction matters if this is reused elsewhere. Module generation stages
+   its changeset into a workspace and reads it back, where the replace *does*
+   drop unstaged files — see `module-gen.md`.
 
 That's it. No new engine primitive, no bundle shipped by this repo, no new
 generator modes.
