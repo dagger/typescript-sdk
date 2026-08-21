@@ -568,17 +568,23 @@ type TypescriptSdk {
   Modules with the generate skip marker are skipped.
   """
   generateAllModule(ws: Workspace!): Changeset! @generate {
-    # Each module generates onto the workspace the previous one produced, so the
-    # results accumulate by overlay and one diff at the end carries them all.
-    # Folding per-module changesets instead would mean measuring each one
-    # against `ws` — the engine measures those from the cwd, which is not the
-    # frame Workspace.withChanges applies them in.
-    modules(ws)
+    let changes = modules(ws)
       .filter { mod => mod.skipGenerate(ws) == false }
-      .reduce(ws) { stagedWs, mod =>
-        stagedWs.moduleSource("/" + mod.rootPath).generate(stagedWs)
-      }
-      .changes(ws)
+      .map { mod => ws.moduleSource("/" + mod.rootPath).generate(ws).changes(ws) }
+
+    # Force the per-module codegen to evaluate concurrently: selecting a field on
+    # the whole list resolves every element in one pass, where folding them into
+    # one changeset would walk them one at a time.
+    changes.{{isEmpty}}
+
+    # Merge as changesets, never by re-applying them to a workspace: past the
+    # changeset cwd cutover these are measured from ws.cwd, while
+    # Workspace.withChanges overlays at the workspace root — one frame off for
+    # every cwd but the root, which is what the engine's nested per-dependency
+    # generation runs at. Seed with ws.changes(ws), a workspace compared against
+    # itself, so the seed is empty even when that nested workspace already
+    # carries a staged dependency closure.
+    ws.changes(ws).withChangesets(changes)
   }
 
   """
