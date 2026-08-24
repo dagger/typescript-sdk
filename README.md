@@ -54,9 +54,10 @@ dagger module init typescript my-module --runtime deno
 - `node` / `bun` → `package.json`, `tsconfig.json`
 - `deno` → `deno.json`
 
-If `package.json`, `tsconfig.json`, or `deno.json` already exist at the target
-path, init merges Dagger-required keys into them rather than overwriting — your
-scripts, path aliases, unstable flags, and other custom settings are preserved.
+Init never removes what is already at the target path. If `package.json`,
+`tsconfig.json`, or `deno.json` are there, it merges Dagger-required keys into
+them rather than overwriting — your scripts, path aliases, unstable flags, and
+other custom settings are preserved — and any other file is left untouched.
 
 The engine owns the module's config; the SDK only contributes the template and
 config files above. Run `dagger generate` afterwards to produce the generated
@@ -119,6 +120,10 @@ It binds exactly one module and serves it through `Workspace.moduleSource`, so
 it resolves from any plain client session rather than only from a module
 runtime. If you point `@dagger.io/dagger` at a local bundle (e.g. `"./sdk"`),
 regeneration preserves that instead of resetting it to the version pin.
+
+Regeneration owns the `*.gen.ts` files and nothing else: bindings for a module
+that has left the closure are dropped, and your own files in the client
+directory are left alone.
 
 ## Generate SDK files and clients
 
