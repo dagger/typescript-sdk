@@ -201,6 +201,38 @@ type InitChecks {
   }
 
   """
+  Init into a directory that already holds files should layer the starter onto
+  it, never replace it: a user running `dagger module init` inside an existing
+  project keeps their files, and so does the config the engine wrote at the
+  destination before calling the SDK.
+  """
+  initOverExistingCheck(ws: Workspace!): Void @check {
+    let changes = typescriptSdk.initModule(ws, name: "init-over-existing", path: fixtures.lookupModule)
+
+    Asserts.assert(
+      changes.removedPaths.length == 0,
+      "init removed existing files: " + changes.removedPaths.join(", "),
+    )
+    Asserts.stringContains(
+      changes.after.file(fixtures.lookupModule + "/index.ts").contents,
+      "export class LookupApp",
+      "init must leave the existing module source in place",
+    )
+    Asserts.stringContains(
+      changes.after.file(fixtures.lookupModule + "/dagger.json").contents,
+      "\"source\": \"typescript\"",
+      "init must leave the existing module config in place",
+    )
+    Asserts.stringContains(
+      changes.after.file(fixtures.lookupModule + "/src/index.ts").contents,
+      "export class InitOverExisting",
+      "init did not render the template into the existing directory",
+    )
+
+    null
+  }
+
+  """
   Init flags should write configuration into the generated config files. By
   default, no config keys are written; the runtime decides which file the
   base image override lands in.

@@ -166,9 +166,10 @@ type TypescriptSdk {
 
   The engine resolves the destination `path` and owns the module's config; this
   function only returns the SDK-owned files to layer onto `path` — the rendered
-  template plus runtime-specific config. Files already at `path` are merged
-  into, not overwritten, so an existing package.json / tsconfig.json / deno.json
-  keeps its scripts, path aliases, and unstable flags.
+  template plus runtime-specific config. Files already at `path` are kept: an
+  existing package.json / tsconfig.json / deno.json is merged into rather than
+  overwritten, so it keeps its scripts, path aliases, and unstable flags, and
+  everything else there is left alone.
   """
   initModule(
     ws: Workspace!,
@@ -229,7 +230,30 @@ type TypescriptSdk {
       # `modPath` is workspace-root-relative, so anchor it: a relative workspace
       # path resolves from ws.cwd and would be prefixed again when initModule is
       # called directly from a subdirectory rather than driven by the engine.
-      ws.withNewDirectory("/" + modPath, templateSource).changes(ws)
+      #
+      # withNewDirectory replaces the directory it writes, so layer the starter
+      # onto what is already there: init must never remove a user's files, nor
+      # the config the engine wrote at `modPath` before calling us.
+      ws.withNewDirectory(
+        "/" + modPath,
+        existingDir(ws, modPath).withDirectory(".", templateSource),
+      ).changes(ws)
+    }
+  }
+
+  """
+  Existing contents of a workspace directory, empty when it does not exist yet.
+  """
+  let existingDir(ws: Workspace!, path: String!): Directory! {
+    if (path == ".") {
+      ws.directory("/")
+    } else {
+      let filtered = ws.directory("/", include: [path + "/**"])
+      if (filtered.exists(path)) {
+        filtered.directory(path)
+      } else {
+        directory
+      }
     }
   }
 
@@ -318,7 +342,8 @@ type TypescriptSdk {
     } else if (runtime == Runtime.BUN) {
       # The Dagger TypeScript runtime picks bun over node by spotting bun.lock,
       # so we emit an empty one for a fresh init. If the workspace already has
-      # one we leave it alone (overlay semantics via init's withDirectory).
+      # one we leave it alone: init layers the template onto the existing
+      # directory, so writing it here would truncate the user's lockfile.
       let nodeConfig = builder
         .withExec(["config-updator", "package-json", existingPrefix + "package.json", "/rendered/package.json"])
         .withExec(["config-updator", "tsconfig", existingPrefix + "tsconfig.json", "/rendered/tsconfig.json"])
@@ -525,6 +550,40 @@ type TypescriptSdk {
   }
 
   """
+  The `*.gen.ts` bindings sitting at `path`, by name.
+
+  Regeneration owns that set and nothing else: a module that has left the
+  closure must lose its file, while the user's own files at `path` stay.
+  """
+  let clientBindings(ws: Workspace!, path: String!): [String!]! {
+    existingDir(ws, path).entries.filter { entry => entry.trimSuffix(".gen.ts") != entry }
+  }
+
+  """
+  Baseline the freshly generated client is layered onto: the client directory as
+  it stands, minus the bindings regeneration is about to replace.
+  """
+  let existingClientBase(ws: Workspace!, path: String!): Directory! {
+    existingDir(ws, path).withoutFiles(clientBindings(ws, path))
+  }
+
+  """
+  The workspace with the bindings at `path` removed.
+
+  Pruning has to happen twice because withNewDirectory does not mean the same
+  thing for both kinds of workspace: it replaces the directory it writes when
+  the workspace is a local directory, and merges into it when the workspace is
+  loaded from git (how the Cloud checks runner loads it). Taking the bindings
+  out of the baseline covers the first, out of the workspace the second. The
+  baseline still reads from the untouched `ws`: reading it back out of the
+  pruned workspace comes up empty on a local directory, which would drop the
+  user's files.
+  """
+  let withoutClientBindings(ws: Workspace!, path: String!): Workspace! {
+    clientBindings(ws, path).reduce(ws) { pruned, entry => pruned.withoutFile("/" + path + "/" + entry) }
+  }
+
+  """
   Generate a typed client for `module` and stage it at workspace-relative `path`.
 
   The client analogue of `mod(ws, path).generate(ws)`: it resolves the bound
@@ -546,7 +605,7 @@ type TypescriptSdk {
     path: String!,
   ): Changeset! {
     let modSrc = ws.moduleSource(module)
-    ws.withNewDirectory("/" + path, clientDirectory(
+    let generated = clientDirectory(
       modSrc.clientSchemaIntrospectionJSON.contents,
       modSrc.moduleOriginalName,
       modSrc.engineVersion,
@@ -557,7 +616,10 @@ type TypescriptSdk {
       modSrc.asString,
       modSrc.pin,
       existingClientConfig(ws, path)
-    )).changes(ws)
+    )
+    withoutClientBindings(ws, path)
+      .withNewDirectory("/" + path, existingClientBase(ws, path).withDirectory(".", generated))
+      .changes(ws)
   }
 
   """
@@ -610,7 +672,7 @@ type TypescriptSdk {
       .filter { client => inCwdScope(cwd, client.path) }
       .reduce(ws) { stagedWs, client =>
         let m = client.moduleSource
-        stagedWs.withNewDirectory("/" + client.path, clientDirectory(
+        let generated = clientDirectory(
           m.clientSchemaIntrospectionJSON.contents,
           m.moduleOriginalName,
           m.engineVersion,
@@ -621,7 +683,11 @@ type TypescriptSdk {
           m.asString,
           m.pin,
           existingClientConfig(ws, client.path)
-        ))
+        )
+        withoutClientBindings(stagedWs, client.path).withNewDirectory(
+          "/" + client.path,
+          existingClientBase(ws, client.path).withDirectory(".", generated),
+        )
       }
       .changes(ws)
   }
