@@ -129,12 +129,10 @@ type ClientChecks {
   """
   The ownership split must hold whatever the workspace is made of.
 
-  `Workspace.withNewDirectory` replaces the directory it writes when the
-  workspace is a local directory and merges into it when the workspace is
-  synthetic — the shape a git-loaded workspace has, which is how the Cloud
-  checks runner loads this repo. Pruning that leans on replace therefore stops
-  pruning in CI while still passing locally, so assert the resulting tree here
-  rather than the changeset's removals.
+  A synthetic workspace is the shape a git-loaded one has, which is how the
+  Cloud checks runner loads this repo, and workspace write semantics have
+  differed between the two kinds before. Assert the resulting tree rather than
+  the changeset's removals: the tree is what the user is left with either way.
   """
   generateClientOnSyntheticWorkspaceCheck(ws: Workspace!): Void @check {
     let synthetic = ws.directory("/").asWorkspace
