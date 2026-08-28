@@ -158,17 +158,40 @@ type Fixtures {
   let clientExisting: String! = root + "/client/existing"
 
   """
-  A snapshot of `ws` holding just the files module discovery reads, re-anchored
-  at `cwd` so a check can stand anywhere in the tree.
+  `ws` re-anchored at the fixture root, where the test-only dagger.toml registers
+  the fixture modules and client as SDK-managed.
 
-  Keeps the workspace config (dagger.toml, whose [modules.<sdk>.as-sdk] list is
-  what discovery resolves the re-anchored workspace against) and every module
-  config, in both filenames. `extra` adds paths a check needs to exist for the
-  cwd itself to be a directory.
+  Everything the SDK resolves from workspace config — the managed module list,
+  the registered clients, the "typescript" SDK itself — has to be read from here
+  rather than from the repository's own dagger.toml, which deliberately knows
+  nothing about the fixtures. Dropping that config from the snapshot keeps it out
+  of reach, so a check cannot silently fall back to the real workspace.
+  """
+  let workspace(ws: Workspace!): Workspace! {
+    ws.directory("/").withoutFile("dagger.toml").asWorkspace(cwd: root)
+  }
+
+  """
+  A path as it appears in a changeset produced in the fixture workspace. A
+  returned changeset is applied relative to the caller's cwd, which `workspace`
+  anchors at the fixture root, so generated paths drop that prefix.
+  """
+  let changesetPath(path: String!): String! {
+    path.trimPrefix(root + "/")
+  }
+
+  """
+  A snapshot of the fixture workspace holding just the files module discovery
+  reads, re-anchored at `cwd` so a check can stand anywhere in the tree.
+
+  Keeps the workspace config (the fixtures dagger.toml, whose
+  [modules.<sdk>.as-sdk] list is what discovery resolves the re-anchored
+  workspace against) and every module config, in both filenames. `extra` adds
+  paths a check needs to exist for the cwd itself to be a directory.
   """
   let discoverySnapshot(ws: Workspace!, cwd: String!, extra: [String!]! = []): Workspace! {
-    ws
-      .directory("/", include: ["dagger.toml", "**/dagger.json", "**/dagger-module.toml"] + extra)
+    workspace(ws)
+      .directory("/", include: ["**/dagger.toml", "**/dagger.json", "**/dagger-module.toml"] + extra)
       .asWorkspace(cwd: cwd)
   }
 

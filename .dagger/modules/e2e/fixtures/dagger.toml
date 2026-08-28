@@ -1,0 +1,43 @@
+# Test-only workspace: registers this SDK against the e2e fixtures, so the
+# repository's own workspace never advertises test fixtures as managed modules.
+#
+# The workspace root is the git root and dagger.toml is only the nearest config
+# found walking up from the cwd, so a config nested here selects configuration
+# without moving the root: `source` resolves against this file, while as-sdk
+# paths stay relative to the repository root. Checks reach it through
+# `Fixtures.workspace`, which anchors a workspace cwd at this directory.
+
+[modules.typescript-sdk]
+source = "../../../.."
+check.skip = ["*"]
+
+[modules.typescript-sdk.as-sdk]
+name = "typescript"
+
+[[modules.typescript-sdk.as-sdk.modules]]
+path = ".dagger/modules/e2e/fixtures/generate/app"
+
+[[modules.typescript-sdk.as-sdk.modules]]
+path = ".dagger/modules/e2e/fixtures/lookup/app"
+
+[[modules.typescript-sdk.as-sdk.modules]]
+path = ".dagger/modules/e2e/fixtures/deps/app"
+
+[[modules.typescript-sdk.as-sdk.modules]]
+path = ".dagger/modules/e2e/fixtures/skip/app"
+
+[[modules.typescript-sdk.as-sdk.modules]]
+path = ".dagger/modules/e2e/fixtures/managed-toml/app"
+
+[[modules.typescript-sdk.as-sdk.modules]]
+path = ".dagger/modules/e2e/fixtures/generate-deps/app"
+
+[[modules.typescript-sdk.as-sdk.modules]]
+path = ".dagger/modules/e2e/fixtures/generate-deps/dep"
+
+[[modules.typescript-sdk.as-sdk.modules]]
+path = ".dagger/modules/e2e/fixtures/parent-source/.dagger/modules/app"
+
+[[modules.typescript-sdk.as-sdk.clients]]
+path = ".dagger/modules/e2e/fixtures/client/out"
+module = ".dagger/modules/e2e/fixtures/client/app"
