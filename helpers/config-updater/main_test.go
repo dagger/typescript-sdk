@@ -18,7 +18,44 @@ func TestUpdatePackageJSON(t *testing.T) {
 		{
 			name:        "empty package.json",
 			packageJSON: `{}`,
-			expected:    `{"type": "module"}`,
+			expected:    `{"type": "module", "dependencies": {"typescript": "5.9.3"}}`,
+		},
+		{
+			// The runtime mounts its prebuilt compiler only when the pin matches
+			// its default, so a module that chose its own version keeps it and
+			// accepts the install rather than being silently retargeted.
+			name: "a user's own typescript pin is preserved",
+			packageJSON: `{
+  "type": "module",
+  "dependencies": {
+    "typescript": "5.4.0"
+  }
+}`,
+			expected: `{
+  "type": "module",
+  "dependencies": {
+    "typescript": "5.4.0"
+  }
+}`,
+		},
+		{
+			// devDependencies is where a compiler normally goes. Adding
+			// dependencies.typescript beside it would leave two declarations of the
+			// same package, and npm resolves that to the runtime one — overriding
+			// the version the module chose.
+			name: "a user's own typescript devDependency is preserved",
+			packageJSON: `{
+  "type": "module",
+  "devDependencies": {
+    "typescript": "5.4.0"
+  }
+}`,
+			expected: `{
+  "type": "module",
+  "devDependencies": {
+    "typescript": "5.4.0"
+  }
+}`,
 		},
 		{
 			name: "package.json with local dagger dependency is stripped",
@@ -87,13 +124,16 @@ func TestUpdatePackageJSON(t *testing.T) {
   "scripts": {
     "build": "tsc"
   },
-  "type": "module"
+  "type": "module",
+  "dependencies": {
+    "typescript": "5.9.3"
+  }
 }`,
 		},
 		{
-			name:        "type=module already set is a no-op",
+			name:        "type=module already set still gains the typescript pin",
 			packageJSON: `{"type": "module"}`,
-			expected:    `{"type": "module"}`,
+			expected:    `{"type": "module", "dependencies": {"typescript": "5.9.3"}}`,
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
@@ -216,6 +256,7 @@ func TestUpdateDenoConfig(t *testing.T) {
 			denoConfig: `{}`,
 			expected: `{
   "imports": {
+    "typescript": "npm:typescript@5.9.3",
     "@dagger.io/dagger": "./sdk/index.ts",
     "@dagger.io/dagger/telemetry": "./sdk/telemetry.ts"
   },
@@ -235,6 +276,7 @@ func TestUpdateDenoConfig(t *testing.T) {
 			name: "deno.json with dagger imports already set is idempotent",
 			denoConfig: `{
   "imports": {
+    "typescript": "npm:typescript@5.9.3",
     "@dagger.io/dagger": "./sdk/index.ts",
     "@dagger.io/dagger/telemetry": "./sdk/telemetry.ts"
   },
@@ -251,6 +293,7 @@ func TestUpdateDenoConfig(t *testing.T) {
 }`,
 			expected: `{
   "imports": {
+    "typescript": "npm:typescript@5.9.3",
     "@dagger.io/dagger": "./sdk/index.ts",
     "@dagger.io/dagger/telemetry": "./sdk/telemetry.ts"
   },
@@ -273,6 +316,7 @@ func TestUpdateDenoConfig(t *testing.T) {
 }`,
 			expected: `{
   "imports": {
+    "typescript": "npm:typescript@5.9.3",
     "@dagger.io/dagger": "./sdk/index.ts",
     "@dagger.io/dagger/telemetry": "./sdk/telemetry.ts"
   },
@@ -283,6 +327,33 @@ func TestUpdateDenoConfig(t *testing.T) {
   "unstable": [
     "bare-node-builtins",
     "kv",
+    "sloppy-imports",
+    "node-globals",
+    "byonm"
+  ]
+}`,
+		},
+		{
+			// Deno has no node_modules to fall back on, so the compiler has to be
+			// declared here — but a user who picked a version keeps it.
+			name: "a user's own typescript import is preserved",
+			denoConfig: `{
+  "imports": {
+    "typescript": "npm:typescript@5.4.0"
+  }
+}`,
+			expected: `{
+  "imports": {
+    "typescript": "npm:typescript@5.4.0",
+    "@dagger.io/dagger": "./sdk/index.ts",
+    "@dagger.io/dagger/telemetry": "./sdk/telemetry.ts"
+  },
+  "nodeModulesDir": "auto",
+  "compilerOptions": {
+    "experimentalDecorators": true
+  },
+  "unstable": [
+    "bare-node-builtins",
     "sloppy-imports",
     "node-globals",
     "byonm"
@@ -304,6 +375,7 @@ func TestUpdateDenoConfig(t *testing.T) {
     "dev": "deno run main.ts"
   },
   "imports": {
+    "typescript": "npm:typescript@5.9.3",
     "@user/lib": "./src/lib.ts",
     "@dagger.io/dagger": "./sdk/index.ts",
     "@dagger.io/dagger/telemetry": "./sdk/telemetry.ts"
@@ -329,6 +401,7 @@ func TestUpdateDenoConfig(t *testing.T) {
 			expected: `{
   "url": "https://foo/bar/baz.html",
   "imports": {
+    "typescript": "npm:typescript@5.9.3",
     "@dagger.io/dagger": "./sdk/index.ts",
     "@dagger.io/dagger/telemetry": "./sdk/telemetry.ts"
   },

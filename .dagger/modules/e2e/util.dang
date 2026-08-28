@@ -130,6 +130,12 @@ type Fixtures {
   let depAppModule: String! = root + "/generate-deps/app"
   let depLibModule: String! = root + "/generate-deps/dep"
 
+  # The same edge in the legacy format: a dagger.json module with a local
+  # dagger.json dependency. Generation routes to the engine here, and its
+  # dependency staging is what a changeset must not carry back.
+  let legacyDepAppModule: String! = root + "/generate-legacy-deps/app"
+  let legacyDepLibModule: String! = root + "/generate-legacy-deps/dep"
+
   # Module config in <root>/.dagger/modules/app, implementation source in
   # <root>/ci — the split layout `dagger setup` migration produces.
   let parentSourceRoot: String! = root + "/parent-source"
@@ -146,6 +152,22 @@ type Fixtures {
   let configModule: String! = root + "/config/app"
   let configuredModule: String! = root + "/config/configured"
   let configuredDenoModule: String! = root + "/config/configured-deno"
+
+  """
+  A Deno module managed by this SDK: exercises the one branch in generation
+  that depends on the runtime, deno.json instead of package.json + tsconfig.
+  """
+  let denoModule: String! = root + "/generate-deno/app"
+
+  """
+  The runtime execution fixtures, managed so `dagger generate` keeps them
+  current, and registered by the engine when the runtimes module loads them.
+  """
+  let runtimeFixtures: [String!]! = [
+    ".dagger/modules/runtimes/fixtures/bun",
+    ".dagger/modules/runtimes/fixtures/deno",
+    ".dagger/modules/runtimes/fixtures/node",
+  ]
   let configBareModule: String! = root + "/config/bare"
 
   # A client binds to client/app (which depends on client/dep) and is generated
@@ -185,6 +207,22 @@ type Fixtures {
     managedTomlModule,
     depAppModule,
     depLibModule,
+    legacyDepAppModule,
+    legacyDepLibModule,
+    denoModule,
     parentSourceModule,
-  ]
+  ] + runtimeFixtures
+  """
+  The subset of managedModules configured by dagger-module.toml. These are the
+  fixtures that name an engine release, so they are the ones that can drift from
+  the release this SDK's bundle is built for; the dagger.json ones say "latest".
+  """
+  let managedTomlFixtures: [String!]! = [
+    managedTomlModule,
+    depAppModule,
+    depLibModule,
+    denoModule,
+    parentSourceModule,
+  ] + runtimeFixtures
+
 }

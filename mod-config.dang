@@ -132,7 +132,7 @@ type ModConfig {
   newer Bun writes the text bun.lock, but pre-existing modules may still carry
   the binary bun.lockb.
   """
-  let runtime: Runtime! {
+  runtime: Runtime! {
     if (hasFile(denoJsonPath)) {
       if (hasFile(packageJsonPath)) {
         # Contradictory layout: deno.json selects the Deno runtime, but

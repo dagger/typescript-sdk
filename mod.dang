@@ -93,7 +93,57 @@ type Mod {
     if (skipGenerate(ws)) {
       ws.changes(ws)
     } else {
-      ws.moduleSource("/" + rootPath).generate(ws).changes(ws)
+      # Stage the local dependency closure so this module's codegen sees
+      # up-to-date dependency bindings before generating it. A dependency's
+      # schema can only be loaded once its own generated files exist, so this
+      # has to happen before the schema is read either way.
+      let stagedWs = ws.withChanges(ws.moduleSource("/" + rootPath).generateLocalDependencies(ws))
+
+      generateStaged(stagedWs, ws)
     }
+  }
+
+  """
+  Generate this module against a workspace that already has its dependency
+  closure staged, choosing the generator by config format.
+
+  Split from `generate` so generate-all can reuse the routing without repeating
+  the staging: the engine dispatches the SDK's @generate rollup for each local
+  dependency, so generate-all already runs inside another module's staging.
+  """
+  let generateStaged(ws: Workspace!, base: Workspace!): Changeset! {
+    if (isWorkspaceManaged(ws)) {
+      TypescriptSdk().moduleFiles(ws, rootPath, sourcePath, base)
+    } else {
+      # A dagger.json module stays with the engine's built-in TypeScript
+      # runtime end to end: it regenerates everything at call time anyway, so
+      # generating it here would only put a second, differently-versioned copy
+      # of the same files on disk.
+      #
+      # Take this module's own directory out of the engine's result and lay it
+      # over the unstaged base, the same shape moduleFiles builds. The engine
+      # hands back a whole workspace, and that workspace still carries the
+      # dependency closure staged above — diffing it against `base` writes the
+      # dependencies' generated files into the user's tree alongside the module
+      # they asked for. Diffing against the staged workspace instead is not the
+      # answer either: staging a module the engine has already generated for a
+      # dependent cancels its own output and emits nothing at all.
+      let generated = ws.moduleSource("/" + rootPath).generate(ws)
+      base.withNewDirectory(
+        "/" + sourcePath,
+        generated.directory("/" + sourcePath),
+      ).changes(base)
+    }
+  }
+
+  """
+  Whether this module uses the CLI 1.0 config format, whose modules build from
+  their committed generated files rather than regenerating at call time. That
+  makes what `generate` writes the artifact the runtime executes — and makes
+  this SDK, not the engine, the thing that has to write it.
+  """
+  let isWorkspaceManaged(ws: Workspace!): Boolean! {
+    let path = if (rootPath == ".") { "dagger-module.toml" } else { rootPath + "/dagger-module.toml" }
+    ws.directory("/", include: [path]).exists(path)
   }
 }

@@ -1,0 +1,164 @@
+"""
+Builds the TypeScript SDK library artifacts this repo ships.
+
+The SDK module reads them straight off its own source at generate time, so
+whatever this produces has to be committed. Everything lands under `library/`,
+laid out the way the library source expects it, and is refreshed by
+`dagger generate`.
+"""
+type Packager {
+  """
+  Workspace-relative directory holding the library.
+  """
+  let libraryPath: String! = "library"
+
+  """
+  Directory holding the library's own generated bindings, relative to
+  libraryPath. Matches the layout of the library source they are compiled with,
+  where the runtime they import sits at ../common/context.js.
+  """
+  let bindingsPath: String! = "src/api"
+
+  """
+  Regenerate the TypeScript library's own bindings (client.gen.ts) from the
+  running engine's schema.
+
+  The schema comes from the session rather than from a module: a plain session
+  serves no modules, so introspecting it yields the core API alone — which is
+  exactly what a library binds. That one step is why this opens a nested
+  session; rendering the bindings from the resulting JSON does not.
+  """
+  libraryBindings(ws: Workspace!): Changeset! @generate {
+    let bindings = codegen(ws)
+      .withExec(["codegen", "introspect", "--output", "/schema.json"], experimentalPrivilegedNesting: true)
+      .withExec(["codegen", "library", "--introspection-json-path", "/schema.json", "--output", "/out"])
+      .directory("/out")
+
+    # Stage over the directory's existing contents, not in place of them:
+    # withNewDirectory swaps the whole directory, so staging only what codegen
+    # emits reports everything else there — the .gitattributes marking these
+    # bindings as generated — as deleted.
+    let target = "/" + libraryPath + "/" + bindingsPath
+    ws.withNewDirectory(target, ws.directory(target).withDirectory(".", bindings)).changes(ws)
+  }
+
+  """
+  Build the bundled library the generated module bindings import as ./core.js.
+
+  Same recipe and same pinned image as the engine's own build
+  (toolchains/engine-dev/build/sdk.go), so a module built against this bundle
+  behaves like one built against the engine's: a single node-targeted JS bundle
+  with the TypeScript compiler left external, plus the rolled-up type
+  declarations for it.
+
+  The install is frozen against the committed bun.lock. Both lockfiles matter and
+  neither is redundant: yarn.lock is what the vendored sources came with, and
+  dropping it lets resolution pull newer transitives that grow core.js by roughly
+  a quarter (4.3 MB -> 5.4 MB); but it is a yarn v1 file that does not pin
+  everything bun resolves, so without bun.lock a rebuild days later can still
+  drift — observed as a bundle quietly gaining transitive modules on an unchanged
+  tree. Freezing makes that drift a failed install instead of a silent diff.
+  """
+  libraryBundle(ws: Workspace!): Changeset! @generate {
+    let built = bun
+      .withDirectory("/src", ws.directory("/" + libraryPath))
+      .withWorkdir("/src")
+      .withExec(["bun", "install", "--frozen-lockfile"])
+      .withExec(["bun", "build", "./src/index.ts", "--external=typescript", "--target=node", "--outfile", "/out/core.js"])
+      # `bun x`, not a global tsc: the declarations we ship have to come from the
+      # compiler the lockfile pins, the same one typescript-version.txt records
+      # below. A globally installed tsc is whatever the registry served that day,
+      # so core.d.ts could move on an unchanged tree.
+      .withExec(["bun", "x", "tsc", "--emitDeclarationOnly"])
+      .withExec(["bun", "x", "rollup", "-c", "rollup.dts.config.mjs", "-o", "/out/core.d.ts"])
+      # The scanner module codegen runs over a user's source. Bundled rather
+      # than `bun build --compile`d as the engine does: a compiled binary is
+      # ~100MB and per-platform, where this is a few MB of portable JS.
+      .withExec([
+        "bun", "build", "src/module/entrypoint/introspection_entrypoint.ts",
+        "--external=typescript", "--target=node", "--outfile", "/out/introspector.js",
+      ])
+      # The scanner reads the user's code through the TypeScript compiler API,
+      # which stays external to its bundle. The compiler is not shipped here —
+      # it is a build-time dependency of ours (a different version from the one
+      # a module declares for its own runtime), so codegen installs it instead
+      # of this repo carrying 9MB of third-party blob per engine bump. Record
+      # which version to install, derived from the vendored lockfile so
+      # re-vendoring cannot silently move the scanner off the API it was
+      # written against.
+      .withExec(["sh", "-c",
+        "node -p \"require('./node_modules/typescript/package.json').version\" > /out/typescript-version.txt"])
+      .directory("/out")
+
+    # Same overlay as the bindings: the bundle directory also holds the
+    # hand-written index.ts and telemetry.ts wrappers, which this build does not
+    # produce and a straight directory swap would report as deleted.
+    let target = "/" + libraryPath + "/" + bundlePath
+    ws.withNewDirectory(target, ws.directory(target).withDirectory(".", built)).changes(ws)
+  }
+
+  """
+  Directory holding the built bundle, relative to libraryPath. Committed: the
+  SDK module reads it at generate time, and building it there would put a bun
+  toolchain in every user's `dagger generate`.
+  """
+  let bundlePath: String! = "bundle"
+
+  """
+  Bun toolchain the bundle is built with, pinned to the version and digest the
+  engine builds its own with. NodeJS comes along because the declaration build
+  shells out to tsc.
+
+  No TypeScript here: every step that needs a compiler takes the one the
+  vendored lockfile resolves, so the image stays free of a version nothing pins.
+  """
+  let bun: Container! {
+    container
+      .from("oven/bun:1.3.0-alpine@sha256:37e6b1cbe053939bccf6ae4507977ed957eaa6e7f275670b72ad6348e0d2c11f")
+      .withoutEntrypoint
+      .withExec(["apk", "add", "nodejs"])
+  }
+
+  """
+  Run the vendored library's own test suite.
+
+  Mostly the introspector's: it scans the fixture modules under testdata and
+  compares the result against a recorded expectation. That is the contract
+  entrypoint generation is built on — the scanner's output is what the
+  dispatcher is rendered from — and nothing else here would notice it drifting,
+  since our own golden pins the renderer given a typedef, not the typedef given
+  a module.
+
+  The specs that need a live session (invoke, registry, api, connect) are not
+  vendored: they would need an engine inside this container, and what they cover
+  is the library's runtime rather than anything this SDK generates.
+  """
+  libraryTests(ws: Workspace!): Void @check {
+    bun
+      .withDirectory("/src", ws.directory("/" + libraryPath))
+      .withWorkdir("/src")
+      .withExec(["bun", "install"])
+      .withExec(["bun", "run", "--bun", "mocha"])
+      .sync
+
+    null
+  }
+
+  """
+  Container with the codegen helper compiled and on PATH at
+  /usr/local/bin/codegen. Read from the workspace rather than this module's own
+  source: the helper lives at the repo root, outside the module directory. The
+  path is workspace-root-absolute, so generating from a subdirectory still
+  finds it.
+  """
+  let codegen(ws: Workspace!): Container! {
+    container
+      .from("golang:1.25-alpine")
+      .withoutEntrypoint
+      .withMountedCache("/go/pkg/mod", cacheVolume("go-mod"))
+      .withMountedCache("/root/.cache/go-build", cacheVolume("go-build"))
+      .withDirectory("/helper", ws.directory("/helpers/codegen"))
+      .withWorkdir("/helper")
+      .withExec(["go", "build", "-o", "/usr/local/bin/codegen", "."])
+  }
+}

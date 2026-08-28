@@ -1,0 +1,5 @@
+/sdk
+/**/node_modules/**
+/**/.pnpm-store/**
+/.env
+/__dagger.entrypoint.ts

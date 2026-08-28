@@ -42,6 +42,29 @@ type SdkChecks {
   }
 
   """
+  Every managed fixture should target the engine release this SDK's bundle is
+  built for.
+
+  A fixture left on an older release still generates and still loads, so it goes
+  on passing every other check here while covering an engine we no longer ship
+  for — which is how all three runtime fixtures sat at beta.9, and four more at
+  beta.7, through a bump nobody noticed missing them.
+  """
+  fixtureEngineVersionCheck(ws: Workspace!): Void @check {
+    let want = "engineVersion = \"v" + typescriptSdk.targetEngineVersion + "\""
+
+    Fixtures.managedTomlFixtures.each { path =>
+      Asserts.stringContains(
+        ws.directory("/" + path).file("dagger-module.toml").contents,
+        want,
+        path + " should target the engine release this SDK ships for (" + want + ")",
+      )
+    }
+
+    null
+  }
+
+  """
   The Go helpers (codegen, config-updater) must pass their own unit + golden
   tests. Runs `go test` in a container so `dagger check` covers the codegen
   logic, not just its end-to-end output.

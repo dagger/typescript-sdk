@@ -1,0 +1,13 @@
+{
+  "name": "legacy-deps-app",
+  "engineVersion": "latest",
+  "sdk": {
+    "source": "typescript"
+  },
+  "dependencies": [
+    {
+      "name": "legacydep",
+      "source": "../dep"
+    }
+  ]
+}

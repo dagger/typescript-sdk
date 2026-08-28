@@ -1,54 +1,28 @@
 package generator
 
+// Config drives one codegen run. Exactly one of ModuleConfig / ClientConfig /
+// EntrypointConfig is set (none of them means library mode); that choice selects
+// the output file names and how the generated bindings import the SDK runtime.
 type Config struct {
-	// Lang is the language to generate the module for.
-	Lang SDKLang
-
 	// OutputDir is the path to put the generated code.
-	// Usually this is the path to the module source directory.
-	// This allows generating extra file aside the client bindings
-	// like go.mod, go.sum etc...
 	OutputDir string
 
-	// IntrospectionJSON is an optional pre-computed introspection json string.
-	IntrospectionJSON string
-
-	// TypeDefsPath is the path of the file to write the typedefs module id.
-	TypeDefsPath string
-
-	// Generate the client in bundle mode.
-	Bundle bool
-
-	// ModuleConfig is the specific config to generate module or typedefs.
+	// ModuleConfig is the specific config to generate a module's own bindings.
 	ModuleConfig *ModuleGeneratorConfig
 
 	// ClientConfig is the specific config to generate standalone client.
 	ClientConfig *ClientGeneratorConfig
 
 	// EntrypointConfig is the specific config to generate the static dispatch
-	// entrypoint file (currently TypeScript only).
+	// entrypoint file.
 	EntrypointConfig *EntrypointGeneratorConfig
 }
 
 // Specific configuration for module generation.
 type ModuleGeneratorConfig struct {
-	// Name of the module to generate code for.
+	// Name of the module to generate code for. Its own types stay in the core
+	// file; only its dependencies are split into per-module files.
 	ModuleName string
-
-	// ModuleSourcePath is the subpath in OutputDir where the module source subpath is located.
-	ModuleSourcePath string
-
-	// ModuleParentPath is the path from the module source subpath to the context directory
-	ModuleParentPath string
-
-	// Whether we are initializing a new module.
-	// Currently, this is only used in go codegen to enforce backwards-compatible behavior
-	// where a pre-existing go.mod file is checked during dagger init for whether its module
-	// name is the expected value.
-	IsInit bool
-
-	// If set, use `@dagger.io/dagger` with the given version and use it in the generated client.
-	LibVersion string
 }
 
 // Module-source kinds a generated client can bind to. A local module
