@@ -1,0 +1,141 @@
+{
+  "enums": {},
+  "interfaces": {
+    "Greeter": {
+      "description": "Returns every object-ish shape an interface method can return.",
+      "functions": {
+        "chain": {
+          "arguments": [],
+          "description": "The same interface — the only case the old renderer got right.",
+          "isAgent": false,
+          "isCheck": false,
+          "isGenerator": false,
+          "isUp": false,
+          "location": { "column": 3, "filepath": "src/index.ts", "line": 6 },
+          "name": "chain",
+          "returnType": { "kind": "INTERFACE_KIND", "name": "Greeter" }
+        },
+        "ctr": {
+          "arguments": [],
+          "description": "A core object.",
+          "isAgent": false,
+          "isCheck": false,
+          "isGenerator": false,
+          "isUp": false,
+          "location": { "column": 3, "filepath": "src/index.ts", "line": 9 },
+          "name": "ctr",
+          "returnType": { "kind": "OBJECT_KIND", "name": "Container" }
+        },
+        "ctrs": {
+          "arguments": [],
+          "description": "A list of core objects, the branch that was already correct.",
+          "isAgent": false,
+          "isCheck": false,
+          "isGenerator": false,
+          "isUp": false,
+          "location": { "column": 3, "filepath": "src/index.ts", "line": 12 },
+          "name": "ctrs",
+          "returnType": {
+            "kind": "LIST_KIND",
+            "typeDef": { "kind": "OBJECT_KIND", "name": "Container" }
+          }
+        },
+        "speaker": {
+          "arguments": [],
+          "description": "A different interface declared by this module.",
+          "isAgent": false,
+          "isCheck": false,
+          "isGenerator": false,
+          "isUp": false,
+          "location": { "column": 3, "filepath": "src/index.ts", "line": 15 },
+          "name": "speaker",
+          "returnType": { "kind": "INTERFACE_KIND", "name": "Speaker" }
+        },
+        "widget": {
+          "arguments": [],
+          "description": "An object declared by this module.",
+          "isAgent": false,
+          "isCheck": false,
+          "isGenerator": false,
+          "isUp": false,
+          "location": { "column": 3, "filepath": "src/index.ts", "line": 18 },
+          "name": "widget",
+          "returnType": { "kind": "OBJECT_KIND", "name": "Widget" }
+        }
+      },
+      "location": { "column": 18, "filepath": "src/index.ts", "line": 5 },
+      "name": "Greeter"
+    },
+    "Speaker": {
+      "description": "A second interface, so Greeter can return something that is not itself.",
+      "functions": {
+        "say": {
+          "arguments": [],
+          "description": "",
+          "isAgent": false,
+          "isCheck": false,
+          "isGenerator": false,
+          "isUp": false,
+          "location": { "column": 3, "filepath": "src/index.ts", "line": 23 },
+          "name": "say",
+          "returnType": { "kind": "STRING_KIND" }
+        }
+      },
+      "location": { "column": 18, "filepath": "src/index.ts", "line": 22 },
+      "name": "Speaker"
+    }
+  },
+  "name": "Ifaces",
+  "objects": {
+    "Ifaces": {
+      "description": "Module entrypoint.",
+      "isDefaultExport": false,
+      "isExported": true,
+      "kind": "class",
+      "location": { "column": 14, "filepath": "src/index.ts", "line": 27 },
+      "methods": {
+        "greeter": {
+          "arguments": [
+            {
+              "description": "",
+              "isNullable": false,
+              "isOptional": false,
+              "isVariadic": false,
+              "location": { "column": 11, "filepath": "src/index.ts", "line": 29 },
+              "name": "greeter",
+              "type": { "kind": "INTERFACE_KIND", "name": "Greeter" }
+            }
+          ],
+          "description": "",
+          "isAgent": false,
+          "isCheck": false,
+          "isGenerator": false,
+          "isUp": false,
+          "location": { "column": 3, "filepath": "src/index.ts", "line": 29 },
+          "name": "greeter",
+          "returnType": { "kind": "INTERFACE_KIND", "name": "Greeter" }
+        }
+      },
+      "name": "Ifaces",
+      "properties": {}
+    },
+    "Widget": {
+      "description": "A module-owned object an interface method returns.",
+      "isDefaultExport": false,
+      "isExported": true,
+      "kind": "class",
+      "location": { "column": 14, "filepath": "src/index.ts", "line": 34 },
+      "methods": {},
+      "name": "Widget",
+      "properties": {
+        "label": {
+          "description": "",
+          "isExposed": true,
+          "location": { "column": 3, "filepath": "src/index.ts", "line": 35 },
+          "name": "label",
+          "type": { "kind": "STRING_KIND" }
+        }
+      }
+    }
+  }
+}

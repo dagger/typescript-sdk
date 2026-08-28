@@ -41,7 +41,16 @@ class __Iface_{{ $iface.Name }} {
     {{- if eq $kind "VOID_KIND" }}
     await this._ctx.select({{ jsString $fn.Name }}, __args).execute()
     {{- else if or (eq $kind "OBJECT_KIND") (eq $kind "INTERFACE_KIND") }}
-    return new __Iface_{{ $iface.Name }}(this._ctx.select({{ jsString $fn.Name }}, __args))
+    {{- $ret := $fn.ReturnType }}
+    {{- if and (eq $kind "INTERFACE_KIND") (index $module.Interfaces $ret.Name) }}
+    return new __Iface_{{ $ret.Name }}(this._ctx.select({{ jsString $fn.Name }}, __args))
+    {{- else if and (eq $kind "OBJECT_KIND") (index $module.Objects $ret.Name) }}
+    const __id = await this._ctx.select({{ jsString $fn.Name }}, __args).select("id").execute<string>()
+    return rebuild{{ $ret.Name }}({ id: __id })
+    {{- else }}
+    const __id = await this._ctx.select({{ jsString $fn.Name }}, __args).select("id").execute<string>()
+    return __loadCoreObject(__id, {{ jsString $ret.Name }})
+    {{- end }}
     {{- else if eq $kind "LIST_KIND" }}
     {{- $inner := $fn.ReturnType.TypeDef }}
     {{- if and $inner (or (eq $inner.Kind "OBJECT_KIND") (eq $inner.Kind "INTERFACE_KIND")) }}

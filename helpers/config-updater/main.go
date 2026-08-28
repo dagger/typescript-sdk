@@ -1,4 +1,4 @@
-// config-updator idempotently merges Dagger-required keys into a TypeScript SDK
+// config-updater idempotently merges Dagger-required keys into a TypeScript SDK
 // module's config file (package.json, tsconfig.json, or deno.json), preserving
 // any unrelated keys the user has set.
 package main
@@ -40,7 +40,7 @@ func main() {
 
 func run(args []string) error {
 	if len(args) < 3 {
-		return fmt.Errorf("usage: config-updator <subcommand> INPUT_PATH OUTPUT_PATH [args...]")
+		return fmt.Errorf("usage: config-updater <subcommand> INPUT_PATH OUTPUT_PATH [args...]")
 	}
 
 	subcommand := args[0]
@@ -64,7 +64,7 @@ func run(args []string) error {
 	case "client-package-json":
 		// client-package-json INPUT OUTPUT ENGINE_VERSION MODULE_NAME
 		if len(extra) != 2 {
-			return fmt.Errorf("usage: config-updator client-package-json INPUT_PATH OUTPUT_PATH ENGINE_VERSION MODULE_NAME")
+			return fmt.Errorf("usage: config-updater client-package-json INPUT_PATH OUTPUT_PATH ENGINE_VERSION MODULE_NAME")
 		}
 		updated, err = updateClientPackageJSON(input, extra[0], extra[1])
 	case "client-tsconfig":
@@ -72,7 +72,7 @@ func run(args []string) error {
 	case "client-deno-config":
 		// client-deno-config INPUT OUTPUT ENGINE_VERSION
 		if len(extra) != 1 {
-			return fmt.Errorf("usage: config-updator client-deno-config INPUT_PATH OUTPUT_PATH ENGINE_VERSION")
+			return fmt.Errorf("usage: config-updater client-deno-config INPUT_PATH OUTPUT_PATH ENGINE_VERSION")
 		}
 		updated, err = updateClientDenoConfig(input, extra[0])
 	default:

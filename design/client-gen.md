@@ -226,7 +226,7 @@ engine ──dispatch──▶ TypescriptSdk.generateAllClient(ws)        [@gene
 ### A. Go codegen helper — `helpers/codegen`
 
 Bring the TypeScript generator into this repo as a self-contained Go helper,
-compiled in a container exactly like `render-template` / `config-updator` /
+compiled in a container exactly like `render-template` / `config-updater` /
 `module-config`.
 
 Move (copy, then trim) from `dagger/dagger`:
@@ -293,7 +293,7 @@ mirroring `mod.dang`):
 The `@dagger.io/dagger` version pin and package identity are new. Two options —
 prefer reusing the existing Go helper:
 
-- **Extend `helpers/config-updator`** (already owns package.json/tsconfig/deno
+- **Extend `helpers/config-updater`** (already owns package.json/tsconfig/deno
   edits and the `@dagger.io/dagger` path aliases) with a `client-package-json`
   mode that, given the existing file (or none):
   - sets `type: "module"`,
@@ -356,7 +356,7 @@ The bound module's own `kind` selects the serve strategy:
 >   End-to-end verified: `client.gen.ts` imports bare `@dagger.io/dagger`, git
 >   deps embed `source`+`refPin`, local deps take the guarded serve, dep-splitting
 >   keys off `moduleName`.
-> - ✅ **Step 4 done.** `helpers/config-updator` gained `client-package-json`
+> - ✅ **Step 4 done.** `helpers/config-updater` gained `client-package-json`
 >   (scoped-package writer: `type:module`, `@dagger.io/dagger`=engine version with
 >   `v` stripped / `-dev` kept, `typescript` pinned if absent, scoped `name`
 >   `@dagger.io/<sanitized>-client` when unnamed), `client-tsconfig` (Remote: standard
@@ -364,18 +364,18 @@ The bound module's own `kind` selects the serve strategy:
 >   `imports["@dagger.io/dagger"]=npm:@dagger.io/dagger@<v>` + telemetry — new
 >   always-Remote behavior) + unit tests.
 > - ✅ **Steps 6–7 written** (dang). `typescript-sdk.dang` gains `codegenBuilder` +
->   `configUpdatorBuilder` containers; private helpers `generateClientBindings` /
+>   `configUpdaterBuilder` containers; private helpers `generateClientBindings` /
 >   `configureClientNode` / `dependenciesJSON` / `clientDirectory`; the
 >   workspace-oriented `generateClient(ws, module, path)` (analogue of
 >   `mod(ws, path).generate(ws)`); `generateAllModule` (renamed from `generateAll`,
 >   e2e ref updated); and `generateAllClient(ws) @generate` iterating
 >   `currentModule.asSDK.clients` via `client.moduleSource`. (Deno client config is
->   scaffolded in config-updator but not yet wired into `clientDirectory`.)
+>   scaffolded in config-updater but not yet wired into `clientDirectory`.)
 > - ✅ **Step 9 done — verified end-to-end on `v1.0.0-beta.6`.** e2e
 >   `generateClientCheck` / `generateAllClientCheck` assert `client.gen.ts` +
 >   **`client-dep.gen.ts`** (dep-splitting) + `package.json` + `tsconfig.json`;
 >   registered client binds the **dependency-bearing** fixture `client/app` (→
->   `client/dep`). Plus `helperTestsCheck` runs the codegen + config-updator Go
+>   `client/dep`). Plus `helperTestsCheck` runs the codegen + config-updater Go
 >   tests inside `dagger check`. **All 14 checks green.**
 > - ✅ **`container.withNewFile` / fork `withDirectory` / projections verified**;
 >   `toJSON(dep.kind)` renders the full enum value (`"DIR_SOURCE"`).
@@ -421,7 +421,7 @@ The bound module's own `kind` selects the serve strategy:
    (with and without dependencies) and assert `client.gen.ts` / `<dep>.gen.ts`
    match upstream output byte-for-byte (reuse upstream `dep_split_test.go`
    fixtures).
-4. **Port the client config writers** into `helpers/config-updator`
+4. **Port the client config writers** into `helpers/config-updater`
    (`client-package-json`, `client-tsconfig`, `client-deno-config`) with tests
    ported from `tsutils/*_updator_test.go`.
 5. **Wait for the engine primitives to ship** (companion doc phase 1) on the
@@ -523,7 +523,7 @@ so the following become dead and should be removed in the companion PR:
   `analyzeModuleConfig` whose only client-specific job (lib-origin detection)
   disappears with Remote-only.
 - **`CreateOrUpdate*ForClient`** runtime wrappers (`config_updator.go`) — the
-  logic moves into `helpers/config-updator` here (§4.C); the runtime copies are
+  logic moves into `helpers/config-updater` here (§4.C); the runtime copies are
   redundant.
 - **`ClientGeneratorConfig.ClientDir`** in `generator/config.go` if the Go
   client generator is also migrated to `meta.json`; otherwise leave for Go.
@@ -625,4 +625,4 @@ doc's *"Open questions from the typescript-sdk client-gen design"* section
   `introspectionSchemaJSON` — that's the module-facing schema, wrong for clients)
 - This repo: `typescript-sdk.dang` (`generateAll` → `generateAllModule`,
   `moduleConfigBuilder`, `initClient`), `mod.dang`,
-  `helpers/{config-updator,module-config}`
+  `helpers/{config-updater,module-config}`
