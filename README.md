@@ -11,7 +11,7 @@ creates run on the built-in TypeScript runtime.
 
 It has no module dependencies: workspace state, module discovery, and codegen
 all go through the engine's native `Workspace` and `ModuleSource` APIs, which
-requires an engine at `v1.0.0-beta.10` or newer.
+requires an engine at `v1.0.0-beta.11` or newer.
 
 ## Install
 
