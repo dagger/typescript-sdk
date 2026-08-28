@@ -42,7 +42,7 @@ type SdkChecks {
   }
 
   """
-  The Go helpers (codegen, config-updator) must pass their own unit + golden
+  The Go helpers (codegen, config-updater) must pass their own unit + golden
   tests. Runs `go test` in a container so `dagger check` covers the codegen
   logic, not just its end-to-end output.
   """
@@ -55,7 +55,7 @@ type SdkChecks {
       .withDirectory("/helpers", ws.directory("helpers"))
       .withWorkdir("/helpers/codegen")
       .withExec(["go", "test", "./..."])
-      .withWorkdir("/helpers/config-updator")
+      .withWorkdir("/helpers/config-updater")
       .withExec(["go", "test", "./..."])
       .stdout
 

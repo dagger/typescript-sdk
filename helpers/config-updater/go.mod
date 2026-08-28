@@ -1,4 +1,4 @@
-module config-updator
+module config-updater
 
 go 1.25.1
 

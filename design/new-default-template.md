@@ -96,7 +96,7 @@ Changes in [`typescript-sdk.dang`](../typescript-sdk.dang):
 - Generalize `renderedDefaultTemplate` (renamed `renderedTemplate`) so it
   renders any named template rather than special-casing `"minimal"`: it
   substitutes the class name with `render-template` and merges the runtime
-  config files with `config-updator`. This runs for every built-in template, so
+  config files with `config-updater`. This runs for every built-in template, so
   `empty` also gets a valid `package.json`/`tsconfig.json` — it ships only
   `src/index.ts.tmpl`, the same as `default`.
 

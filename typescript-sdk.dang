@@ -308,7 +308,7 @@ type TypescriptSdk {
   Render the templates/<template> starter with the requested module name and runtime.
 
   Seeds index.ts from the template, then layers in runtime-specific config
-  files via the config-updator helper. The config-updator reads existing user
+  files via the config-updater helper. The config-updater reads existing user
   config files (rooted at modPath in `existing`) so any user customizations are
   preserved; only Dagger-required keys are added or refreshed.
   """
@@ -322,27 +322,27 @@ type TypescriptSdk {
       .withMountedCache("/go/pkg/mod", cacheVolume("go-mod"))
       .withMountedCache("/root/.cache/go-build", cacheVolume("go-build"))
       .withDirectory("/helpers/render-template", currentModule.source.directory("helpers/render-template"))
-      .withDirectory("/helpers/config-updator", currentModule.source.directory("helpers/config-updator"))
+      .withDirectory("/helpers/config-updater", currentModule.source.directory("helpers/config-updater"))
       .withDirectory("/template", currentModule.source.directory("templates/" + template))
       .withDirectory("/existing", existing)
       .withWorkdir("/helpers/render-template")
       .withExec(["go", "build", "-o", "/usr/local/bin/render-template", "."])
-      .withWorkdir("/helpers/config-updator")
-      .withExec(["go", "build", "-o", "/usr/local/bin/config-updator", "."])
+      .withWorkdir("/helpers/config-updater")
+      .withExec(["go", "build", "-o", "/usr/local/bin/config-updater", "."])
       .withExec(["render-template", name, "/template", "/rendered"])
 
     let withConfig = if (runtime == Runtime.NODE) {
       builder
-        .withExec(["config-updator", "package-json", existingPrefix + "package.json", "/rendered/package.json"])
-        .withExec(["config-updator", "tsconfig", existingPrefix + "tsconfig.json", "/rendered/tsconfig.json"])
+        .withExec(["config-updater", "package-json", existingPrefix + "package.json", "/rendered/package.json"])
+        .withExec(["config-updater", "tsconfig", existingPrefix + "tsconfig.json", "/rendered/tsconfig.json"])
     } else if (runtime == Runtime.BUN) {
       # The Dagger TypeScript runtime picks bun over node by spotting bun.lock,
       # so we emit an empty one for a fresh init. If the workspace already has
       # one we leave it alone: init layers the template onto the existing
       # directory, so writing it here would truncate the user's lockfile.
       let nodeConfig = builder
-        .withExec(["config-updator", "package-json", existingPrefix + "package.json", "/rendered/package.json"])
-        .withExec(["config-updator", "tsconfig", existingPrefix + "tsconfig.json", "/rendered/tsconfig.json"])
+        .withExec(["config-updater", "package-json", existingPrefix + "package.json", "/rendered/package.json"])
+        .withExec(["config-updater", "tsconfig", existingPrefix + "tsconfig.json", "/rendered/tsconfig.json"])
       if (existing.exists(wsPrefix + "bun.lock")) {
         nodeConfig
       } else {
@@ -350,7 +350,7 @@ type TypescriptSdk {
       }
     } else {
       builder
-        .withExec(["config-updator", "deno-config", existingPrefix + "deno.json", "/rendered/deno.json"])
+        .withExec(["config-updater", "deno-config", existingPrefix + "deno.json", "/rendered/deno.json"])
     }
 
     withConfig.directory("/rendered")
@@ -430,18 +430,18 @@ type TypescriptSdk {
   }
 
   """
-  Container with the config-updator helper compiled and on PATH at
-  /usr/local/bin/config-updator.
+  Container with the config-updater helper compiled and on PATH at
+  /usr/local/bin/config-updater.
   """
-  let configUpdatorBuilder: Container! {
+  let configUpdaterBuilder: Container! {
     container
       .from("golang:1.25-alpine")
       .withoutEntrypoint
       .withMountedCache("/go/pkg/mod", cacheVolume("go-mod"))
       .withMountedCache("/root/.cache/go-build", cacheVolume("go-build"))
-      .withDirectory("/helper", currentModule.source.directory("helpers/config-updator"))
+      .withDirectory("/helper", currentModule.source.directory("helpers/config-updater"))
       .withWorkdir("/helper")
-      .withExec(["go", "build", "-o", "/usr/local/bin/config-updator", "."])
+      .withExec(["go", "build", "-o", "/usr/local/bin/config-updater", "."])
   }
 
   """
@@ -482,11 +482,11 @@ type TypescriptSdk {
   typescript pin, and a scoped name derived from `moduleName` when unnamed.
   """
   let configureClientNode(bindings: Directory!, existing: Directory!, engineVersion: String!, moduleName: String!): Directory! {
-    configUpdatorBuilder
+    configUpdaterBuilder
       .withDirectory("/out", bindings)
       .withDirectory("/existing", existing)
-      .withExec(["config-updator", "client-package-json", "/existing/package.json", "/out/package.json", engineVersion, moduleName])
-      .withExec(["config-updator", "client-tsconfig", "/existing/tsconfig.json", "/out/tsconfig.json"])
+      .withExec(["config-updater", "client-package-json", "/existing/package.json", "/out/package.json", engineVersion, moduleName])
+      .withExec(["config-updater", "client-tsconfig", "/existing/tsconfig.json", "/out/tsconfig.json"])
       .directory("/out")
   }
 
@@ -527,7 +527,7 @@ type TypescriptSdk {
 
   """
   Read the client dir's current config files (package.json, tsconfig.json,
-  deno.json) so config-updator preserves user customizations on regeneration —
+  deno.json) so config-updater preserves user customizations on regeneration —
   in particular a @dagger.io/dagger dependency the user has pointed at a local
   bundle. Filters from the workspace root so a not-yet-created client dir simply
   yields an empty directory.
