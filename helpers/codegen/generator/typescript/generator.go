@@ -30,23 +30,18 @@ type TypeScriptGenerator struct {
 	Config generator.Config
 }
 
-// Generate will generate the TypeScript SDK code and might modify the schema to reorder types in a alphanumeric fashion.
+// GenerateModule generates a module's own embedded bindings, flat in the output
+// directory: the caller lays the result down as the module's sdk/ directory.
 func (g *TypeScriptGenerator) GenerateModule(_ context.Context, schema *introspection.Schema, schemaVersion string) (*generator.GeneratedState, error) {
-	target := filepath.Join(g.Config.ModuleConfig.ModuleSourcePath, "sdk/src/api", ClientGenFile)
-
-	return generate(g.Config, target, schema, schemaVersion)
-}
-
-func (g *TypeScriptGenerator) GenerateClient(ctx context.Context, schema *introspection.Schema, schemaVersion string) (*generator.GeneratedState, error) {
-	return generate(g.Config, CoreGenFile, schema, schemaVersion)
-}
-
-func (g *TypeScriptGenerator) GenerateLibrary(ctx context.Context, schema *introspection.Schema, schemaVersion string) (*generator.GeneratedState, error) {
 	return generate(g.Config, ClientGenFile, schema, schemaVersion)
 }
 
-func (g *TypeScriptGenerator) GenerateTypeDefs(_ context.Context, _ *introspection.Schema, _ string) (*generator.GeneratedState, error) {
-	return nil, fmt.Errorf("not implemented for %s SDK", generator.SDKLangTypeScript)
+func (g *TypeScriptGenerator) GenerateClient(_ context.Context, schema *introspection.Schema, schemaVersion string) (*generator.GeneratedState, error) {
+	return generate(g.Config, CoreGenFile, schema, schemaVersion)
+}
+
+func (g *TypeScriptGenerator) GenerateLibrary(_ context.Context, schema *introspection.Schema, schemaVersion string) (*generator.GeneratedState, error) {
+	return generate(g.Config, ClientGenFile, schema, schemaVersion)
 }
 
 func generate(config generator.Config, target string, schema *introspection.Schema, schemaVersion string) (*generator.GeneratedState, error) {

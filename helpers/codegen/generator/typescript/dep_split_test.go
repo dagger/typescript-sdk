@@ -84,11 +84,7 @@ func TestDepTemplate_RendersDepTypes(t *testing.T) {
 	generator.SetSchemaParents(depSchema)
 
 	tmpl := templates.New("v0.21.0", full, "", generator.Config{
-		Lang: generator.SDKLangTypeScript,
-		ModuleConfig: &generator.ModuleGeneratorConfig{
-			ModuleName:       "host",
-			ModuleSourcePath: ".",
-		},
+		ModuleConfig: &generator.ModuleGeneratorConfig{ModuleName: "host"},
 	})
 
 	out := renderDepTemplate(t, tmpl, depSchema, "hello")
@@ -124,6 +120,75 @@ func TestDepTemplate_RendersDepTypes(t *testing.T) {
 	require.Contains(t, out, `from "./client.gen.js"`)
 }
 
+// TestDepTemplate_RejectsSiblingDepTypes asserts generation fails, loudly and
+// by name, when one dependency's API surfaces a type owned by another.
+//
+// A per-dep file has two arms — declare the dep's own types, import core ones
+// from client.gen.ts — and no third for a sibling's. The engine does not let a
+// module's API expose a type it neither owns nor gets from core, so this is
+// unreachable today; the point is that the day it stops being unreachable,
+// codegen stops rather than emitting a file referencing a name it never
+// imported.
+func TestDepTemplate_RejectsSiblingDepTypes(t *testing.T) {
+	helloModule := newSourceMapDirective("hello")
+	otherModule := newSourceMapDirective("other")
+
+	full := &introspection.Schema{
+		QueryType: struct {
+			Name string `json:"name,omitempty"`
+		}{Name: "Query"},
+		Types: introspection.Types{
+			newType("Query", introspection.TypeKindObject, nil),
+			// hello's own class, returning a class owned by `other`.
+			{
+				Kind:       introspection.TypeKindObject,
+				Name:       "Hello",
+				Directives: introspection.Directives{helloModule},
+				Fields: []*introspection.Field{
+					{
+						Name: "borrowed",
+						TypeRef: &introspection.TypeRef{
+							Kind: introspection.TypeKindNonNull,
+							OfType: &introspection.TypeRef{
+								Kind: introspection.TypeKindObject,
+								Name: "Other",
+							},
+						},
+					},
+				},
+			},
+			newType("Other", introspection.TypeKindObject,
+				introspection.Directives{otherModule}),
+		},
+	}
+	generator.SetSchemaParents(full)
+
+	depSchema := full.Include("hello")
+	generator.SetSchemaParents(depSchema)
+
+	tmpl := templates.New("v0.21.0", full, "", generator.Config{
+		ModuleConfig: &generator.ModuleGeneratorConfig{ModuleName: "host"},
+	})
+
+	data := struct {
+		Schema        *introspection.Schema
+		SchemaVersion string
+		Types         []*introspection.Type
+		DepName       string
+	}{
+		Schema:        depSchema,
+		SchemaVersion: "v0.21.0",
+		Types:         depSchema.Types,
+		DepName:       "hello",
+	}
+
+	var b bytes.Buffer
+	err := tmpl.ExecuteTemplate(&b, "dep", data)
+	require.Error(t, err, "a dependency referencing a sibling's type must fail generation")
+	require.ErrorContains(t, err, `dependency "hello" references types owned by another dependency`)
+	require.ErrorContains(t, err, "Other (owned by other)")
+}
+
 // TestHeaderTemplate_EmitsDependencyExports renders the header template against
 // a schema containing two deps and asserts one import + `export *` per dep,
 // with kebab-cased filenames, plus the BaseClient re-export.
@@ -141,11 +206,7 @@ func TestHeaderTemplate_EmitsDependencyExports(t *testing.T) {
 	}
 
 	tmpl := templates.New("v0.21.0", full, "", generator.Config{
-		Lang: generator.SDKLangTypeScript,
-		ModuleConfig: &generator.ModuleGeneratorConfig{
-			ModuleName:       "host",
-			ModuleSourcePath: ".",
-		},
+		ModuleConfig: &generator.ModuleGeneratorConfig{ModuleName: "host"},
 	})
 
 	var b bytes.Buffer
@@ -215,9 +276,7 @@ func TestGenerate_SplitsDependencyFiles(t *testing.T) {
 	// that here since this test calls generate() directly.
 	generator.SetSchemaParents(schema)
 
-	state, err := generate(generator.Config{
-		Lang: generator.SDKLangTypeScript,
-	}, ClientGenFile, schema, "v0.21.0")
+	state, err := generate(generator.Config{}, ClientGenFile, schema, "v0.21.0")
 	require.NoError(t, err)
 
 	core := readOverlay(t, state, "client.gen.ts")
@@ -260,7 +319,6 @@ func TestGenerate_KeepsOwnTypesInClient(t *testing.T) {
 	generator.SetSchemaParents(schema)
 
 	state, err := generate(generator.Config{
-		Lang:         generator.SDKLangTypeScript,
 		ModuleConfig: &generator.ModuleGeneratorConfig{ModuleName: "app"},
 	}, ClientGenFile, schema, "v0.21.0")
 	require.NoError(t, err)
@@ -316,7 +374,6 @@ func TestGenerate_Client_SplitsBoundModule(t *testing.T) {
 	generator.SetSchemaParents(schema)
 
 	state, err := generate(generator.Config{
-		Lang:         generator.SDKLangTypeScript,
 		ClientConfig: &generator.ClientGeneratorConfig{ModuleName: "hello"},
 	}, CoreGenFile, schema, "v0.21.0")
 	require.NoError(t, err)
@@ -377,7 +434,6 @@ func TestGenerate_Client_ServeBoundModule(t *testing.T) {
 
 	t.Run("local module resolves against the workspace by a root-relative path", func(t *testing.T) {
 		state, err := generate(generator.Config{
-			Lang: generator.SDKLangTypeScript,
 			ClientConfig: &generator.ClientGeneratorConfig{
 				ModuleName:  "hello",
 				BoundModule: generator.BoundModule{Kind: "DIR_SOURCE", Path: ".dagger/modules/hello"},
@@ -400,7 +456,6 @@ func TestGenerate_Client_ServeBoundModule(t *testing.T) {
 
 	t.Run("git module serves from its canonical ref + pin", func(t *testing.T) {
 		state, err := generate(generator.Config{
-			Lang: generator.SDKLangTypeScript,
 			ClientConfig: &generator.ClientGeneratorConfig{
 				ModuleName:  "hello",
 				BoundModule: generator.BoundModule{Kind: "GIT_SOURCE", Ref: "github.com/foo/hello@main", Pin: "abcdef"},
@@ -470,8 +525,7 @@ func TestDepTemplate_CoreValuesAreValueImported(t *testing.T) {
 	generator.SetSchemaParents(depSchema)
 
 	tmpl := templates.New("v0.21.0", full, "", generator.Config{
-		Lang:         generator.SDKLangTypeScript,
-		ModuleConfig: &generator.ModuleGeneratorConfig{ModuleName: "host", ModuleSourcePath: "."},
+		ModuleConfig: &generator.ModuleGeneratorConfig{ModuleName: "host"},
 	})
 
 	out := renderDepTemplate(t, tmpl, depSchema, "hello")

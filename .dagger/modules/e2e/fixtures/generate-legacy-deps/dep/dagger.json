@@ -1,0 +1,7 @@
+{
+  "name": "legacydep",
+  "engineVersion": "latest",
+  "sdk": {
+    "source": "typescript"
+  }
+}

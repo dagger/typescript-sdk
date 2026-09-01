@@ -1,0 +1,17 @@
+{
+  "name": "runtimes",
+  "engineVersion": "v1.0.0-0",
+  "sdk": {
+    "source": "dang"
+  },
+  "dependencies": [
+    {
+      "name": "typescript-sdk",
+      "source": "../../../"
+    },
+    {
+      "name": "sdk-sdk",
+      "source": "github.com/dagger/sdk-sdk"
+    }
+  ]
+}

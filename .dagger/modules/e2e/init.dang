@@ -142,7 +142,7 @@ type InitChecks {
     Asserts.stringContains(mergedPkg, "\"name\": \"user-pkg\"", "user-authored name key should be preserved")
     Asserts.stringContains(mergedPkg, "\"version\": \"1.2.3\"", "user-authored version key should be preserved")
     Asserts.stringContains(mergedPkg, "\"build\": \"tsc\"", "user-authored script should be preserved")
-    Asserts.stringContains(mergedPkg, "\"type\":\"module\"", "Dagger-required type=module should be added")
+    Asserts.stringContains(mergedPkg, "\"type\": \"module\"", "Dagger-required type=module should be added")
     Asserts.stringNotContains(
       mergedPkg,
       "\"@dagger.io/dagger\"",
@@ -155,7 +155,7 @@ type InitChecks {
     Asserts.stringContains(mergedTsConfig, "\"@user/lib\"", "user-authored path mapping should be preserved")
     Asserts.stringContains(
       mergedTsConfig,
-      "\"experimentalDecorators\":true",
+      "\"experimentalDecorators\": true",
       "Dagger-required experimentalDecorators should be added",
     )
     Asserts.stringContains(mergedTsConfig, "\"@dagger.io/dagger\"", "Dagger SDK path mapping should be added")
@@ -177,10 +177,10 @@ type InitChecks {
     Asserts.stringContains(mergedDeno, "\"@user/lib\"", "user-authored deno import should be preserved")
     Asserts.stringContains(mergedDeno, "\"kv\"", "user-authored unstable flag should be preserved")
     Asserts.stringContains(mergedDeno, "\"@dagger.io/dagger\"", "Dagger SDK import should be added")
-    Asserts.stringContains(mergedDeno, "\"nodeModulesDir\":\"auto\"", "Dagger-required nodeModulesDir should be added")
+    Asserts.stringContains(mergedDeno, "\"nodeModulesDir\": \"auto\"", "Dagger-required nodeModulesDir should be added")
     Asserts.stringContains(
       mergedDeno,
-      "\"experimentalDecorators\":true",
+      "\"experimentalDecorators\": true",
       "Dagger-required experimentalDecorators should be added",
     )
     Asserts.stringContains(mergedDeno, "\"bare-node-builtins\"", "Dagger-required unstable flag should be appended")

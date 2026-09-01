@@ -3,3 +3,11 @@
 
 # Generated client output (dagger generate writes here for the e2e client fixture).
 .dagger/modules/e2e/fixtures/client/out/
+
+# Locally built helper binaries. `go build` in a helper directory defaults the
+# output name to the directory's, so a bare `go build` drops one here; every
+# .dang caller builds them inside a Linux container instead.
+/helpers/codegen/codegen
+/helpers/config-updater/config-updater
+/helpers/module-config/module-config
+/helpers/render-template/render-template

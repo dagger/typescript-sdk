@@ -9,12 +9,24 @@
 [modules.e2e]
 source = ".dagger/modules/e2e"
 
+[modules.packager]
+source = ".dagger/modules/packager"
+
+[modules.runtimes]
+source = ".dagger/modules/runtimes"
+
 [modules.typescript-sdk]
 source = "."
 check.skip = ["*"]
 
 [modules.sdk-sdk]
 source = "github.com/dagger/sdk-sdk"
+# The contract suite drives a real CLI through the whole user path, so the
+# release it runs has to match the engine this SDK's committed bundle is built
+# for. sdk-sdk's own default tracks the same version today; pinning it here
+# states the requirement, so its default moving ahead of ours shows up as a
+# failing check rather than a library quietly paired with a newer engine.
+settings.daggerCliVersion = "1.0.0-beta.11"
 
 [modules.typescript-sdk.as-sdk]
 name = "typescript"
@@ -34,14 +46,37 @@ path = ".dagger/modules/e2e/fixtures/skip/app"
 [[modules.typescript-sdk.as-sdk.modules]]
 path = ".dagger/modules/e2e/fixtures/managed-toml/app"
 
+# A Deno module: same bindings and entrypoint as node/bun, but its config lives
+# in deno.json, the only part of generation that branches on runtime.
+[[modules.typescript-sdk.as-sdk.modules]]
+path = ".dagger/modules/e2e/fixtures/generate-deno/app"
+
 [[modules.typescript-sdk.as-sdk.modules]]
 path = ".dagger/modules/e2e/fixtures/generate-deps/app"
 
 [[modules.typescript-sdk.as-sdk.modules]]
 path = ".dagger/modules/e2e/fixtures/generate-deps/dep"
 
+# The legacy-format counterpart of generate-deps: a dagger.json module with a
+# local dagger.json dependency. Generation routes to the engine for these, the
+# one path where the SDK hands back a workspace it did not assemble itself.
+[[modules.typescript-sdk.as-sdk.modules]]
+path = ".dagger/modules/e2e/fixtures/generate-legacy-deps/app"
+
+[[modules.typescript-sdk.as-sdk.modules]]
+path = ".dagger/modules/e2e/fixtures/generate-legacy-deps/dep"
+
 [[modules.typescript-sdk.as-sdk.modules]]
 path = ".dagger/modules/e2e/fixtures/parent-source/.dagger/modules/app"
+
+[[modules.typescript-sdk.as-sdk.modules]]
+path = ".dagger/modules/runtimes/fixtures/bun"
+
+[[modules.typescript-sdk.as-sdk.modules]]
+path = ".dagger/modules/runtimes/fixtures/deno"
+
+[[modules.typescript-sdk.as-sdk.modules]]
+path = ".dagger/modules/runtimes/fixtures/node"
 
 [[modules.typescript-sdk.as-sdk.clients]]
 path = ".dagger/modules/e2e/fixtures/client/out"
