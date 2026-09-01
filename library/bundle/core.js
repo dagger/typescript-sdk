@@ -642,8 +642,8 @@ var require_ast = __commonJS((exports) => {
   exports.Location = Location;
 
   class Token {
-    constructor(kind2, start, end, line, column, value) {
-      this.kind = kind2;
+    constructor(kind, start, end, line, column, value) {
+      this.kind = kind;
       this.start = start;
       this.end = end;
       this.line = line;
@@ -1433,8 +1433,8 @@ var require_visitor = __commonJS((exports) => {
   exports.BREAK = Object.freeze({});
   function visit(root, visitor, visitorKeys = ast_ts_1.QueryDocumentKeys) {
     const enterLeaveMap = new Map;
-    for (const kind2 of Object.values(kinds_ts_1.Kind)) {
-      enterLeaveMap.set(kind2, getEnterLeaveForKind(visitor, kind2));
+    for (const kind of Object.values(kinds_ts_1.Kind)) {
+      enterLeaveMap.set(kind, getEnterLeaveForKind(visitor, kind));
     }
     let stack = undefined;
     let inArray = Array.isArray(root);
@@ -1538,12 +1538,12 @@ var require_visitor = __commonJS((exports) => {
   function visitInParallel(visitors) {
     const skipping = new Array(visitors.length).fill(null);
     const mergedVisitor = Object.create(null);
-    for (const kind2 of Object.values(kinds_ts_1.Kind)) {
+    for (const kind of Object.values(kinds_ts_1.Kind)) {
       let hasVisitor = false;
       const enterList = new Array(visitors.length).fill(undefined);
       const leaveList = new Array(visitors.length).fill(undefined);
       for (let i = 0;i < visitors.length; ++i) {
-        const { enter, leave } = getEnterLeaveForKind(visitors[i], kind2);
+        const { enter, leave } = getEnterLeaveForKind(visitors[i], kind);
         hasVisitor ||= enter != null || leave != null;
         enterList[i] = enter;
         leaveList[i] = leave;
@@ -1583,12 +1583,12 @@ var require_visitor = __commonJS((exports) => {
           }
         }
       };
-      mergedVisitor[kind2] = mergedEnterLeave;
+      mergedVisitor[kind] = mergedEnterLeave;
     }
     return mergedVisitor;
   }
-  function getEnterLeaveForKind(visitor, kind2) {
-    const kindVisitor = visitor[kind2];
+  function getEnterLeaveForKind(visitor, kind) {
+    const kindVisitor = visitor[kind];
     if (typeof kindVisitor === "object") {
       return kindVisitor;
     } else if (typeof kindVisitor === "function") {
@@ -5325,8 +5325,8 @@ var require_lexer = __commonJS((exports) => {
     }
   }
   exports.Lexer = Lexer;
-  function isPunctuatorTokenKind(kind2) {
-    return kind2 === tokenKind_ts_1.TokenKind.BANG || kind2 === tokenKind_ts_1.TokenKind.DOLLAR || kind2 === tokenKind_ts_1.TokenKind.AMP || kind2 === tokenKind_ts_1.TokenKind.PAREN_L || kind2 === tokenKind_ts_1.TokenKind.PAREN_R || kind2 === tokenKind_ts_1.TokenKind.DOT || kind2 === tokenKind_ts_1.TokenKind.SPREAD || kind2 === tokenKind_ts_1.TokenKind.COLON || kind2 === tokenKind_ts_1.TokenKind.EQUALS || kind2 === tokenKind_ts_1.TokenKind.AT || kind2 === tokenKind_ts_1.TokenKind.BRACKET_L || kind2 === tokenKind_ts_1.TokenKind.BRACKET_R || kind2 === tokenKind_ts_1.TokenKind.BRACE_L || kind2 === tokenKind_ts_1.TokenKind.PIPE || kind2 === tokenKind_ts_1.TokenKind.BRACE_R;
+  function isPunctuatorTokenKind(kind) {
+    return kind === tokenKind_ts_1.TokenKind.BANG || kind === tokenKind_ts_1.TokenKind.DOLLAR || kind === tokenKind_ts_1.TokenKind.AMP || kind === tokenKind_ts_1.TokenKind.PAREN_L || kind === tokenKind_ts_1.TokenKind.PAREN_R || kind === tokenKind_ts_1.TokenKind.DOT || kind === tokenKind_ts_1.TokenKind.SPREAD || kind === tokenKind_ts_1.TokenKind.COLON || kind === tokenKind_ts_1.TokenKind.EQUALS || kind === tokenKind_ts_1.TokenKind.AT || kind === tokenKind_ts_1.TokenKind.BRACKET_L || kind === tokenKind_ts_1.TokenKind.BRACKET_R || kind === tokenKind_ts_1.TokenKind.BRACE_L || kind === tokenKind_ts_1.TokenKind.PIPE || kind === tokenKind_ts_1.TokenKind.BRACE_R;
   }
   function isUnicodeScalarValue(code) {
     return code >= 0 && code <= 55295 || code >= 57344 && code <= 1114111;
@@ -5350,10 +5350,10 @@ var require_lexer = __commonJS((exports) => {
     }
     return "U+" + code.toString(16).toUpperCase().padStart(4, "0");
   }
-  function createToken(lexer, kind2, start, end, value) {
+  function createToken(lexer, kind, start, end, value) {
     const line = lexer.line;
     const col = 1 + start - lexer.lineStart;
-    return new ast_ts_1.Token(kind2, start, end, line, col, value);
+    return new ast_ts_1.Token(kind, start, end, line, col, value);
   }
   function readNextToken(lexer, start) {
     const body = lexer.source.body;
@@ -6661,20 +6661,20 @@ var require_parser = __commonJS((exports) => {
       }
       return node;
     }
-    peek(kind2) {
-      return this._lexer.token.kind === kind2;
+    peek(kind) {
+      return this._lexer.token.kind === kind;
     }
-    expectToken(kind2) {
+    expectToken(kind) {
       const token = this._lexer.token;
-      if (token.kind === kind2) {
+      if (token.kind === kind) {
         this.advanceLexer();
         return token;
       }
-      throw (0, syntaxError_ts_1.syntaxError)(this._lexer.source, token.start, `Expected ${getTokenKindDesc(kind2)}, found ${getTokenDesc(token)}.`);
+      throw (0, syntaxError_ts_1.syntaxError)(this._lexer.source, token.start, `Expected ${getTokenKindDesc(kind)}, found ${getTokenDesc(token)}.`);
     }
-    expectOptionalToken(kind2) {
+    expectOptionalToken(kind) {
       const token = this._lexer.token;
-      if (token.kind === kind2) {
+      if (token.kind === kind) {
         this.advanceLexer();
         return true;
       }
@@ -6750,8 +6750,8 @@ var require_parser = __commonJS((exports) => {
     const value = token.value;
     return getTokenKindDesc(token.kind) + (value != null ? ` "${value}"` : "");
   }
-  function getTokenKindDesc(kind2) {
-    return (0, lexer_ts_1.isPunctuatorTokenKind)(kind2) ? `"${kind2}"` : kind2;
+  function getTokenKindDesc(kind) {
+    return (0, lexer_ts_1.isPunctuatorTokenKind)(kind) ? `"${kind}"` : kind;
   }
 });
 
@@ -8550,8 +8550,8 @@ var require_PossibleTypeExtensionsRule = __commonJS((exports) => {
     }
     (0, invariant_ts_1.invariant)(false, "Unexpected type: " + (0, inspect_ts_1.inspect)(type));
   }
-  function extensionKindToTypeName(kind2) {
-    switch (kind2) {
+  function extensionKindToTypeName(kind) {
+    switch (kind) {
       case kinds_ts_1.Kind.SCALAR_TYPE_EXTENSION:
         return "scalar";
       case kinds_ts_1.Kind.OBJECT_TYPE_EXTENSION:
@@ -8565,7 +8565,7 @@ var require_PossibleTypeExtensionsRule = __commonJS((exports) => {
       case kinds_ts_1.Kind.INPUT_OBJECT_TYPE_EXTENSION:
         return "input object";
       default:
-        (0, invariant_ts_1.invariant)(false, "Unexpected kind: " + (0, inspect_ts_1.inspect)(kind2));
+        (0, invariant_ts_1.invariant)(false, "Unexpected kind: " + (0, inspect_ts_1.inspect)(kind));
     }
   }
 });
@@ -17247,19 +17247,19 @@ var import_graphql3, import_graphql4, extractOperationName = (document2) => {
   return isMutation;
 }, analyzeDocument = (document2, excludeOperationName) => {
   const normalizedDocument = typeof document2 === `string` || `kind` in document2 ? document2 : String(document2);
-  const expression2 = typeof normalizedDocument === `string` ? normalizedDocument : import_graphql4.print(normalizedDocument);
+  const expression = typeof normalizedDocument === `string` ? normalizedDocument : import_graphql4.print(normalizedDocument);
   let isMutation = false;
   let operationName = undefined;
   if (excludeOperationName) {
-    return { expression: expression2, isMutation, operationName };
+    return { expression, isMutation, operationName };
   }
   const docNode = tryCatch(() => typeof normalizedDocument === `string` ? import_graphql3.parse(normalizedDocument) : normalizedDocument);
   if (docNode instanceof Error) {
-    return { expression: expression2, isMutation, operationName };
+    return { expression, isMutation, operationName };
   }
   operationName = extractOperationName(docNode);
   isMutation = extractIsMutation(docNode);
-  return { expression: expression2, operationName, isMutation };
+  return { expression, operationName, isMutation };
 };
 var init_analyzeDocument = __esm(() => {
   init_graphql();
@@ -17528,7 +17528,7 @@ class GraphQLClient {
       fetchOptions.signal = batchRequestOptions.signal;
     }
     const analyzedDocuments = batchRequestOptions.documents.map(({ document: document2 }) => analyzeDocument(document2, excludeOperationName));
-    const expressions = analyzedDocuments.map(({ expression: expression2 }) => expression2);
+    const expressions = analyzedDocuments.map(({ expression }) => expression);
     const hasMutations = analyzedDocuments.some(({ isMutation }) => isMutation);
     const variables = batchRequestOptions.documents.map(({ variables: variables2 }) => variables2);
     const response = await runRequest({
@@ -27550,10 +27550,10 @@ var require_trace_serializer = __commonJS((exports) => {
     }
     writer.writeTag(5, 2);
     writer.writeString(span.name);
-    const kind2 = span.kind == null ? 0 : span.kind + 1;
-    if (kind2 !== 0) {
+    const kind = span.kind == null ? 0 : span.kind + 1;
+    if (kind !== 0) {
       writer.writeTag(6, 0);
-      writer.writeVarint(kind2);
+      writer.writeVarint(kind);
     }
     writer.writeTag(7, 1);
     (0, common_serializer_1.writeHrTimeAsFixed64)(writer, span.startTime);
@@ -34014,9 +34014,9 @@ var require_instrumentation2 = __commonJS((exports) => {
         }
         return exports2;
       }
-      const files2 = module2.files ?? [];
+      const files = module2.files ?? [];
       const normalizedName = path.normalize(name);
-      const supportedFileInstrumentations = files2.filter((f) => f.name === normalizedName && isSupported(f.supportedVersions, version, module2.includePrerelease));
+      const supportedFileInstrumentations = files.filter((f) => f.name === normalizedName && isSupported(f.supportedVersions, version, module2.includePrerelease));
       return supportedFileInstrumentations.reduce((patchedExports, file) => {
         file.moduleExports = patchedExports;
         if (this._enabled) {
@@ -34165,8 +34165,8 @@ var require_instrumentationNodeModuleDefinition = __commonJS((exports) => {
     supportedVersions;
     patch;
     unpatch;
-    constructor(name, supportedVersions, patch, unpatch, files2) {
-      this.files = files2 || [];
+    constructor(name, supportedVersions, patch, unpatch, files) {
+      this.files = files || [];
       this.name = name;
       this.supportedVersions = supportedVersions;
       this.patch = patch;
@@ -46312,7 +46312,7 @@ var require_descriptor2 = __commonJS((exports, module) => {
     Root_toDescriptorRecursive(this, set.file, edition);
     return set;
   };
-  function Root_toDescriptorRecursive(ns, files2, edition) {
+  function Root_toDescriptorRecursive(ns, files, edition) {
     var file = exports.FileDescriptorProto.create({ name: ns.filename || (ns.fullName.substring(1).replace(/\./g, "_") || "root") + ".proto" });
     editionToDescriptor(edition, file);
     if (!(ns instanceof Root))
@@ -46327,10 +46327,10 @@ var require_descriptor2 = __commonJS((exports, module) => {
       else if (nested instanceof Service)
         file.service.push(nested.toDescriptor());
       else if (nested instanceof Namespace)
-        Root_toDescriptorRecursive(nested, files2, edition);
+        Root_toDescriptorRecursive(nested, files, edition);
     file.options = toDescriptorOptions(ns.options, exports.FileOptions);
     if (file.messageType.length + file.enumType.length + file.extension.length + file.service.length)
-      files2.push(file);
+      files.push(file);
   }
   var unnamedMessageIndex = 0;
   Type.fromDescriptor = function fromDescriptor(descriptor, edition, nested, depth) {
@@ -48160,15 +48160,15 @@ var require_channelz = __commonJS((exports) => {
     ["server"]: new ordered_map_1.OrderedMap,
     ["socket"]: new ordered_map_1.OrderedMap
   };
-  var generateRegisterFn = (kind2) => {
+  var generateRegisterFn = (kind) => {
     let nextId = 1;
     function getNextId() {
       return nextId++;
     }
-    const entityMap = entityMaps[kind2];
+    const entityMap = entityMaps[kind];
     return (name, getInfo, channelzEnabled) => {
       const id = getNextId();
-      const ref = { id, name, kind: kind2 };
+      const ref = { id, name, kind };
       if (channelzEnabled) {
         entityMap.setElement(id, { ref, getInfo });
       }
@@ -54416,7 +54416,7 @@ var require_server = __commonJS((exports) => {
         throw new TypeError("Function expected");
       return f;
     }
-    var kind2 = contextIn.kind, key = kind2 === "getter" ? "get" : kind2 === "setter" ? "set" : "value";
+    var kind = contextIn.kind, key = kind === "getter" ? "get" : kind === "setter" ? "set" : "value";
     var target = !descriptorIn && ctor ? contextIn["static"] ? ctor : ctor.prototype : null;
     var descriptor = descriptorIn || (target ? Object.getOwnPropertyDescriptor(target, contextIn.name) : {});
     var _, done = false;
@@ -54431,8 +54431,8 @@ var require_server = __commonJS((exports) => {
           throw new TypeError("Cannot add initializers after decoration has completed");
         extraInitializers.push(accept(f || null));
       };
-      var result = (0, decorators[i])(kind2 === "accessor" ? { get: descriptor.get, set: descriptor.set } : descriptor[key], context);
-      if (kind2 === "accessor") {
+      var result = (0, decorators[i])(kind === "accessor" ? { get: descriptor.get, set: descriptor.set } : descriptor[key], context);
+      if (kind === "accessor") {
         if (result === undefined)
           continue;
         if (result === null || typeof result !== "object")
@@ -54444,7 +54444,7 @@ var require_server = __commonJS((exports) => {
         if (_ = accept(result.init))
           initializers.unshift(_);
       } else if (_ = accept(result)) {
-        if (kind2 === "field")
+        if (kind === "field")
           initializers.unshift(_);
         else
           descriptor[key] = _;
@@ -86974,22 +86974,22 @@ var require_utils16 = __commonJS((exports, module) => {
         recursive = pattern;
         pattern = undefined;
       }
-      let files2 = [];
+      let files = [];
       self2.fs.readdirSync(dir).forEach(function(file) {
         const path2 = pth.join(dir, file);
         const stat2 = self2.fs.statSync(path2);
         if (!pattern || pattern.test(path2)) {
-          files2.push(pth.normalize(path2) + (stat2.isDirectory() ? self2.sep : ""));
+          files.push(pth.normalize(path2) + (stat2.isDirectory() ? self2.sep : ""));
         }
         if (stat2.isDirectory() && recursive) {
           const realDir = self2.fs.realpathSync(path2);
           if (!visited.has(realDir)) {
             visited.add(realDir);
-            files2 = files2.concat(findSync(path2, pattern, recursive, visited));
+            files = files.concat(findSync(path2, pattern, recursive, visited));
           }
         }
       });
-      return files2;
+      return files;
     }
     return findSync(path, undefined, true, new Set([self2.fs.realpathSync(path)]));
   };
@@ -89222,8 +89222,8 @@ var isTemplateString = (templates) => Array.isArray(templates) && Array.isArray(
   if (index === expressions.length) {
     return newTokens;
   }
-  const expression2 = expressions[index];
-  const expressionTokens = Array.isArray(expression2) ? expression2.map((expression3) => parseExpression(expression3)) : [parseExpression(expression2)];
+  const expression = expressions[index];
+  const expressionTokens = Array.isArray(expression) ? expression.map((expression2) => parseExpression(expression2)) : [parseExpression(expression)];
   return concatTokens(newTokens, expressionTokens, trailingWhitespaces);
 }, splitByWhitespaces = (template, rawTemplate) => {
   if (rawTemplate.length === 0) {
@@ -89261,18 +89261,18 @@ var isTemplateString = (templates) => Array.isArray(templates) && Array.isArray(
   ...tokens.slice(0, -1),
   `${tokens.at(-1)}${nextTokens[0]}`,
   ...nextTokens.slice(1)
-], parseExpression = (expression2) => {
-  const typeOfExpression = typeof expression2;
+], parseExpression = (expression) => {
+  const typeOfExpression = typeof expression;
   if (typeOfExpression === "string") {
-    return expression2;
+    return expression;
   }
   if (typeOfExpression === "number") {
-    return String(expression2);
+    return String(expression);
   }
-  if (isPlainObject2(expression2) && (("stdout" in expression2) || ("isMaxBuffer" in expression2))) {
-    return getSubprocessResult(expression2);
+  if (isPlainObject2(expression) && (("stdout" in expression) || ("isMaxBuffer" in expression))) {
+    return getSubprocessResult(expression);
   }
-  if (expression2 instanceof ChildProcess || Object.prototype.toString.call(expression2) === "[object Promise]") {
+  if (expression instanceof ChildProcess || Object.prototype.toString.call(expression) === "[object Promise]") {
     throw new TypeError("Unexpected subprocess in template expression. Please use ${await subprocess} instead of ${subprocess}.");
   }
   throw new TypeError(`Unexpected "${typeOfExpression}" in template expression`);
@@ -99481,8 +99481,8 @@ failed to use CLI from PATH "${this.binPath}": ${sessionError.message}`, { cause
       });
     }
     try {
-      const files2 = fs3.readdirSync(this.cacheDir);
-      files2.forEach((file) => {
+      const files = fs3.readdirSync(this.cacheDir);
+      files.forEach((file) => {
         const filePath = path7.join(this.cacheDir, file);
         if (filePath === binPath || !file.startsWith(this.DAGGER_CLI_BIN_PREFIX)) {
           return;
@@ -100953,150 +100953,6 @@ function getContext() {
   }
   return ctx;
 }
-// src/api/client.gen.ts
-var exports_client_gen = {};
-__export(exports_client_gen, {
-  dag: () => dag,
-  _SyncerClient: () => _SyncerClient,
-  _NodeClient: () => _NodeClient,
-  _ExportableClient: () => _ExportableClient,
-  WorkspaceSDK: () => WorkspaceSDK,
-  WorkspaceModuleSetting: () => WorkspaceModuleSetting,
-  WorkspaceModule: () => WorkspaceModule,
-  WorkspaceMigrationStep: () => WorkspaceMigrationStep,
-  WorkspaceMigration: () => WorkspaceMigration,
-  WorkspaceGit: () => WorkspaceGit,
-  Workspace: () => Workspace,
-  Volume: () => Volume,
-  UpGroup: () => UpGroup,
-  Up: () => Up,
-  TypeDefKindValueToName: () => TypeDefKindValueToName,
-  TypeDefKindNameToValue: () => TypeDefKindNameToValue,
-  TypeDefKind: () => TypeDefKind,
-  TypeDef: () => TypeDef,
-  Terminal: () => Terminal,
-  Stat: () => Stat,
-  SourceMap: () => SourceMap,
-  Socket: () => Socket,
-  Service: () => Service,
-  Secret: () => Secret,
-  SearchSubmatch: () => SearchSubmatch,
-  SearchResult: () => SearchResult,
-  Schema: () => Schema,
-  ScalarTypeDef: () => ScalarTypeDef,
-  SDKConfig: () => SDKConfig,
-  ReturnTypeValueToName: () => ReturnTypeValueToName,
-  ReturnTypeNameToValue: () => ReturnTypeNameToValue,
-  ReturnType: () => ReturnType,
-  RemoteGitMirror: () => RemoteGitMirror,
-  RegistryProtocolValueToName: () => RegistryProtocolValueToName,
-  RegistryProtocolNameToValue: () => RegistryProtocolNameToValue,
-  RegistryProtocol: () => RegistryProtocol,
-  Port: () => Port,
-  PatchConflictValueToName: () => PatchConflictValueToName,
-  PatchConflictNameToValue: () => PatchConflictNameToValue,
-  PatchConflict: () => PatchConflict,
-  ObjectTypeDef: () => ObjectTypeDef,
-  NetworkProtocolValueToName: () => NetworkProtocolValueToName,
-  NetworkProtocolNameToValue: () => NetworkProtocolNameToValue,
-  NetworkProtocol: () => NetworkProtocol,
-  Module_: () => Module_,
-  ModuleSourceKindValueToName: () => ModuleSourceKindValueToName,
-  ModuleSourceKindNameToValue: () => ModuleSourceKindNameToValue,
-  ModuleSourceKind: () => ModuleSourceKind,
-  ModuleSourceExperimentalFeatureValueToName: () => ModuleSourceExperimentalFeatureValueToName,
-  ModuleSourceExperimentalFeatureNameToValue: () => ModuleSourceExperimentalFeatureNameToValue,
-  ModuleSourceExperimentalFeature: () => ModuleSourceExperimentalFeature,
-  ModuleSource: () => ModuleSource,
-  ModuleConfigClient: () => ModuleConfigClient,
-  ListTypeDef: () => ListTypeDef,
-  Label: () => Label,
-  LLMTokenUsage: () => LLMTokenUsage,
-  LLMSkill: () => LLMSkill,
-  LLMMessageRoleValueToName: () => LLMMessageRoleValueToName,
-  LLMMessageRoleNameToValue: () => LLMMessageRoleNameToValue,
-  LLMMessageRole: () => LLMMessageRole,
-  LLMMessage: () => LLMMessage,
-  LLMContentBlockKindValueToName: () => LLMContentBlockKindValueToName,
-  LLMContentBlockKindNameToValue: () => LLMContentBlockKindNameToValue,
-  LLMContentBlockKind: () => LLMContentBlockKind,
-  LLMContentBlock: () => LLMContentBlock,
-  LLM: () => LLM,
-  JSONValue: () => JSONValue,
-  InterfaceTypeDef: () => InterfaceTypeDef,
-  InputTypeDef: () => InputTypeDef,
-  ImageMediaTypesValueToName: () => ImageMediaTypesValueToName,
-  ImageMediaTypesNameToValue: () => ImageMediaTypesNameToValue,
-  ImageMediaTypes: () => ImageMediaTypes,
-  ImageLayerCompressionValueToName: () => ImageLayerCompressionValueToName,
-  ImageLayerCompressionNameToValue: () => ImageLayerCompressionNameToValue,
-  ImageLayerCompression: () => ImageLayerCompression,
-  Host: () => Host,
-  HealthcheckConfig: () => HealthcheckConfig,
-  HTTPState: () => HTTPState,
-  GitRepository: () => GitRepository,
-  GitRef: () => GitRef,
-  GitCommit: () => GitCommit,
-  GeneratorGroup: () => GeneratorGroup,
-  Generator: () => Generator,
-  GeneratedCode: () => GeneratedCode,
-  Function_: () => Function_,
-  FunctionCallArgValue: () => FunctionCallArgValue,
-  FunctionCall: () => FunctionCall,
-  FunctionCachePolicyValueToName: () => FunctionCachePolicyValueToName,
-  FunctionCachePolicyNameToValue: () => FunctionCachePolicyNameToValue,
-  FunctionCachePolicy: () => FunctionCachePolicy,
-  FunctionArg: () => FunctionArg,
-  FileTypeValueToName: () => FileTypeValueToName,
-  FileTypeNameToValue: () => FileTypeNameToValue,
-  FileType: () => FileType,
-  File: () => File,
-  FieldTypeDef: () => FieldTypeDef,
-  ExistsTypeValueToName: () => ExistsTypeValueToName,
-  ExistsTypeNameToValue: () => ExistsTypeNameToValue,
-  ExistsType: () => ExistsType,
-  ErrorValue: () => ErrorValue,
-  Error: () => Error2,
-  EnvVariable: () => EnvVariable,
-  EnvFile: () => EnvFile,
-  EnumValueTypeDef: () => EnumValueTypeDef,
-  EnumTypeDef: () => EnumTypeDef,
-  EngineCacheEntrySet: () => EngineCacheEntrySet,
-  EngineCacheEntry: () => EngineCacheEntry,
-  EngineCache: () => EngineCache,
-  Engine: () => Engine,
-  Directory: () => Directory,
-  DiffStatKindValueToName: () => DiffStatKindValueToName,
-  DiffStatKindNameToValue: () => DiffStatKindNameToValue,
-  DiffStatKind: () => DiffStatKind,
-  DiffStat: () => DiffStat,
-  CurrentModuleAsSDKModule: () => CurrentModuleAsSDKModule,
-  CurrentModuleAsSDKClient: () => CurrentModuleAsSDKClient,
-  CurrentModuleAsSDK: () => CurrentModuleAsSDK,
-  CurrentModule: () => CurrentModule,
-  Container: () => Container,
-  Cloud: () => Cloud,
-  ClientFilesyncMirror: () => ClientFilesyncMirror,
-  Client: () => Client,
-  CheckGroup: () => CheckGroup,
-  Check: () => Check,
-  ChangesetsMergeConflictValueToName: () => ChangesetsMergeConflictValueToName,
-  ChangesetsMergeConflictNameToValue: () => ChangesetsMergeConflictNameToValue,
-  ChangesetsMergeConflict: () => ChangesetsMergeConflict,
-  ChangesetMergeConflictValueToName: () => ChangesetMergeConflictValueToName,
-  ChangesetMergeConflictNameToValue: () => ChangesetMergeConflictNameToValue,
-  ChangesetMergeConflict: () => ChangesetMergeConflict,
-  Changeset: () => Changeset,
-  CacheVolume: () => CacheVolume,
-  CacheSharingModeValueToName: () => CacheSharingModeValueToName,
-  CacheSharingModeNameToValue: () => CacheSharingModeNameToValue,
-  CacheSharingMode: () => CacheSharingMode,
-  BaseClient: () => BaseClient,
-  AgentGroup: () => AgentGroup,
-  Agent: () => Agent,
-  Address: () => Address
-});
-
 // src/common/graphql/compute_query.ts
 init_main();
 init_errors();
@@ -107123,11 +106979,11 @@ class TypeDef extends BaseClient {
     const ctx = this._ctx.select("withInterface", { name, ...opts });
     return new TypeDef(ctx);
   };
-  withKind = (kind2) => {
+  withKind = (kind) => {
     const metadata = {
       kind: { is_enum: true, value_to_name: TypeDefKindValueToName }
     };
-    const ctx = this._ctx.select("withKind", { kind: kind2, __metadata: metadata });
+    const ctx = this._ctx.select("withKind", { kind, __metadata: metadata });
     return new TypeDef(ctx);
   };
   withListOf = (elementType) => {
@@ -107874,2136 +107730,6 @@ var agent = registry.agent;
 var field = registry.field;
 var enumType = registry.enumType;
 var argument = registry.argument;
-// src/module/entrypoint/entrypoint.ts
-init_ExecError();
-init_GraphQLRequestError();
-
-// src/module/executor.ts
-init_errors();
-class Executor {
-  modules;
-  daggerModule;
-  constructor(modules, daggerModule) {
-    this.modules = modules;
-    this.daggerModule = daggerModule;
-  }
-  getExportedObject(object2) {
-    const key = object2;
-    const module = this.modules.find((m3) => m3[key] !== undefined);
-    if (!module) {
-      throw new FunctionNotFound(`Object ${object2} not found`);
-    }
-    return module[key];
-  }
-  hasObject(object2) {
-    return !!this.daggerModule.objects[object2];
-  }
-  buildClass(object2, state) {
-    const daggerObject = this.daggerModule.objects[object2];
-    if (!daggerObject) {
-      throw new FunctionNotFound(`Object ${object2} not found in the module`);
-    }
-    switch (daggerObject.kind()) {
-      case "class": {
-        const obj = this.getExportedObject(object2);
-        const instanciatedClass = Object.create(obj.prototype);
-        Object.assign(instanciatedClass, state);
-        return instanciatedClass;
-      }
-      case "object": {
-        return state;
-      }
-    }
-  }
-  buildInterface(iface, id) {
-    const interfaceObject = this.daggerModule.interfaces[iface];
-    if (!interfaceObject) {
-      throw new Error(`Interface ${iface} not found in the module`);
-    }
-    const ifaceImpl = new InterfaceWrapper(this, this.daggerModule, `${this.daggerModule.name}${iface}`, id, interfaceObject.functions);
-    return ifaceImpl;
-  }
-  buildEnum(enumName, value) {
-    const enumObject = this.daggerModule.enums[enumName];
-    if (!enumObject) {
-      return value;
-    }
-    if (!enumObject.values[value]) {
-      throw new Error(`Enum ${enumName} does not have member ${value}`);
-    }
-    return enumObject.values[value].value;
-  }
-  async getResult(object2, method, state, inputs) {
-    const obj = this.getExportedObject(object2);
-    if (method === "") {
-      return new obj(...Object.values(inputs));
-    }
-    const builtObj = this.buildClass(object2, state);
-    if (!builtObj[method]) {
-      throw new FunctionNotFound(`Method ${method} not found`);
-    }
-    return await builtObj[method](...Object.values(inputs));
-  }
-}
-
-class InterfaceWrapper {
-  executor;
-  module;
-  ifaceName;
-  ifaceId;
-  fcts;
-  _ctx;
-  constructor(executor, module, ifaceName, ifaceId, fcts) {
-    this.executor = executor;
-    this.module = module;
-    this.ifaceName = ifaceName;
-    this.ifaceId = ifaceId;
-    this.fcts = fcts;
-    this._ctx = new Context([], new Connection(dag.getGQLClient()));
-    this._ctx = this._ctx.selectNode(ifaceId, ifaceName);
-    Object.entries(fcts).forEach(([name, fct]) => {
-      const argKeys = Object.keys(fct.arguments);
-      this[name] = async (...args) => {
-        const argsPayload = {};
-        for (let i3 = 0;i3 < argKeys.length; i3++) {
-          if (args[i3] !== undefined) {
-            argsPayload[argKeys[i3]] = args[i3];
-          }
-        }
-        this._ctx = this._ctx.select(name, argsPayload);
-        if (fct.returnType.kind === "INTERFACE_KIND" /* InterfaceKind */ || fct.returnType.kind === "OBJECT_KIND" /* ObjectKind */) {
-          return this;
-        }
-        if (fct.returnType.kind === "LIST_KIND" /* ListKind */) {
-          const listTypeDef = fct.returnType.typeDef;
-          if (listTypeDef.kind === "OBJECT_KIND" /* ObjectKind */ || listTypeDef.kind === "INTERFACE_KIND" /* InterfaceKind */) {
-            const typedef = listTypeDef;
-            const ids = await this._ctx.select("id").execute();
-            if (this.module.interfaces[typedef.name]) {
-              return await Promise.all(ids.map(({ id }) => new InterfaceWrapper(this.executor, module, `${this.module.name}${typedef.name}`, id, this.module.interfaces[typedef.name].functions)));
-            }
-            return ids.map(({ id }) => {
-              const ctx = new Context([], new Connection(dag.getGQLClient())).selectNode(id, typedef.name);
-              const className = exports_client_gen[typedef.name] ? typedef.name : `${typedef.name}_`;
-              const cls = exports_client_gen[className];
-              if (cls) {
-                return new cls(ctx);
-              }
-              throw new Error(`Generated client class not found for core type ${typedef.name}`);
-            });
-          }
-        }
-        return await this._ctx.execute();
-      };
-    });
-  }
-  async id() {
-    const ctx = this._ctx.select("id");
-    return await ctx.execute();
-  }
-}
-
-// src/module/introspector/index.ts
-init_errors();
-
-// src/module/introspector/dagger_module/argument.ts
-init_errors();
-import ts4 from "typescript";
-
-// src/module/introspector/typescript_module/ast.ts
-import * as path8 from "path";
-import ts3 from "typescript";
-init_errors();
-
-// src/module/introspector/typescript_module/declarations.ts
-import ts2 from "typescript";
-var isDeclarationOf = {
-  [ts2.SyntaxKind.ClassDeclaration]: ts2.isClassDeclaration,
-  [ts2.SyntaxKind.MethodDeclaration]: ts2.isMethodDeclaration,
-  [ts2.SyntaxKind.PropertyDeclaration]: ts2.isPropertyDeclaration,
-  [ts2.SyntaxKind.FunctionDeclaration]: ts2.isFunctionDeclaration,
-  [ts2.SyntaxKind.EnumDeclaration]: ts2.isEnumDeclaration,
-  [ts2.SyntaxKind.InterfaceDeclaration]: ts2.isInterfaceDeclaration,
-  [ts2.SyntaxKind.TypeAliasDeclaration]: ts2.isTypeAliasDeclaration
-};
-
-// src/module/introspector/typescript_module/ast.ts
-var CLIENT_GEN_FILE = "client.gen.ts";
-var GENERATED_CLIENT_SUFFIX = ".gen.ts";
-
-class AST {
-  files;
-  userModule;
-  checker;
-  sourceFiles;
-  generatedClientFiles;
-  constructor(files2, userModule2, generatedClientFiles = []) {
-    this.files = files2;
-    this.userModule = userModule2;
-    this.files = files2.map((f4) => path8.resolve(f4));
-    this.generatedClientFiles = new Set(generatedClientFiles.map((f4) => path8.resolve(f4)));
-    const program = ts3.createProgram(files2, {
-      experimentalDecorators: true,
-      moduleResolution: ts3.ModuleResolutionKind.Node10,
-      target: ts3.ScriptTarget.ES2022
-    });
-    this.checker = program.getTypeChecker();
-    this.sourceFiles = program.getSourceFiles().filter((file) => !file.isDeclarationFile);
-  }
-  isGeneratedClientFile(fileName) {
-    if (this.generatedClientFiles.size > 0) {
-      return this.generatedClientFiles.has(path8.resolve(fileName));
-    }
-    return fileName.endsWith(GENERATED_CLIENT_SUFFIX);
-  }
-  findResolvedNodeByName(name, kind2) {
-    let result;
-    for (const sourceFile of this.sourceFiles) {
-      ts3.forEachChild(sourceFile, (node) => {
-        if (result !== undefined)
-          return;
-        if (!this.isGeneratedClientFile(sourceFile.fileName) && !this.files.includes(path8.resolve(sourceFile.fileName))) {
-          return;
-        }
-        if (kind2 !== undefined && node.kind === kind2) {
-          const isDeclarationValid = isDeclarationOf[kind2](node);
-          if (!isDeclarationValid)
-            return;
-          const convertedNode = node;
-          if (!convertedNode.name || convertedNode.name.getText() !== name) {
-            return;
-          }
-          const symbol = this.checker.getSymbolAtLocation(convertedNode.name);
-          if (!symbol) {
-            console.debug(`missing symbol for ${name} at ${sourceFile.fileName}:${node.pos}`);
-            return;
-          }
-          result = {
-            type: kind2,
-            node: convertedNode,
-            symbol,
-            file: sourceFile
-          };
-        }
-      });
-    }
-    return result;
-  }
-  findAllDeclarations(kind2) {
-    const results = [];
-    for (const sourceFile of this.sourceFiles) {
-      ts3.forEachChild(sourceFile, (node) => {
-        if (!this.isGeneratedClientFile(sourceFile.fileName) && !this.files.includes(path8.resolve(sourceFile.fileName))) {
-          return;
-        }
-        if (kind2 !== undefined && node.kind === kind2) {
-          const isDeclarationValid = isDeclarationOf[kind2](node);
-          if (!isDeclarationValid)
-            return;
-          const convertedNode = node;
-          if (!convertedNode.name) {
-            return;
-          }
-          const symbol = this.checker.getSymbolAtLocation(convertedNode.name);
-          if (!symbol) {
-            console.debug(`missing symbol for ${convertedNode.name.getText()} at ${sourceFile.fileName}:${node.pos}`);
-            return;
-          }
-          results.push({
-            type: kind2,
-            node: convertedNode,
-            symbol,
-            file: sourceFile
-          });
-        }
-      });
-    }
-    return results;
-  }
-  getTypeFromTypeAlias(typeAlias) {
-    const symbol = this.getSymbolOrThrow(typeAlias.name);
-    return this.checker.getDeclaredTypeOfSymbol(symbol);
-  }
-  static getNodePosition(node) {
-    const sourceFile = node.getSourceFile();
-    const position = ts3.getLineAndCharacterOfPosition(sourceFile, node.getStart());
-    return `${sourceFile.fileName}:${position.line}:${position.character}`;
-  }
-  static getNodeLocation(node) {
-    const sourceFile = node.getSourceFile();
-    const targetNode = node.name ?? node;
-    const position = ts3.getLineAndCharacterOfPosition(sourceFile, targetNode.getStart(sourceFile));
-    const pathParts = path8.resolve(sourceFile.fileName).split(path8.sep);
-    const srcIndex = pathParts.indexOf("src", 2);
-    return {
-      filepath: pathParts.slice(srcIndex).join(path8.sep),
-      line: position.line + 1,
-      column: position.character + 1
-    };
-  }
-  getDocFromSymbol(symbol) {
-    return this.getSymbolDoc(symbol).description;
-  }
-  getSymbolDoc(symbol) {
-    const description = ts3.displayPartsToString(symbol.getDocumentationComment(this.checker)).trim();
-    let deprecated;
-    let hasDeprecatedTag = false;
-    for (const tag of symbol.getJsDocTags()) {
-      if (tag.name !== "deprecated")
-        continue;
-      hasDeprecatedTag = true;
-      const text = tag.text?.map((part) => ("text" in part) ? part.text : part).join("") ?? "";
-      deprecated = text.trim();
-      break;
-    }
-    if (!hasDeprecatedTag) {
-      return { description };
-    }
-    return {
-      description,
-      deprecated: deprecated ?? ""
-    };
-  }
-  getSymbolOrThrow(node) {
-    const symbol = this.getSymbol(node);
-    if (!symbol) {
-      throw new IntrospectionError(`could not find symbol at ${AST.getNodePosition(node)}`);
-    }
-    return symbol;
-  }
-  getSignatureFromFunctionOrThrow(node) {
-    const signature = this.checker.getSignatureFromDeclaration(node);
-    if (!signature) {
-      throw new IntrospectionError(`could not find signature at ${AST.getNodePosition(node)}`);
-    }
-    return signature;
-  }
-  getSymbol(node) {
-    return this.checker.getSymbolAtLocation(node);
-  }
-  isNodeDecoratedWith(node, daggerDecorator) {
-    const decorators = ts3.getDecorators(node);
-    if (!decorators) {
-      return false;
-    }
-    const decorator = decorators.find((d) => d.expression.getText().startsWith(daggerDecorator));
-    if (!decorator) {
-      return false;
-    }
-    if (!ts3.isCallExpression(decorator.expression)) {
-      throw new IntrospectionError(`decorator at ${AST.getNodePosition(node)} should be a call expression, please use ${daggerDecorator}() instead.`);
-    }
-    return true;
-  }
-  getDecoratorArgument(node, daggerDecorator, type, position = 0) {
-    const decorators = ts3.getDecorators(node);
-    if (!decorators) {
-      return;
-    }
-    const decorator = decorators.find((d) => d.expression.getText().startsWith(daggerDecorator));
-    if (!decorator) {
-      return;
-    }
-    const argument2 = decorator.expression.arguments[position];
-    if (!argument2) {
-      return;
-    }
-    switch (type) {
-      case "string":
-        return argument2.getText();
-      case "object":
-        return this.resolveDecoratorArgumentValue(argument2);
-    }
-  }
-  resolveDecoratorArgumentValue(expression2) {
-    if (ts3.isObjectLiteralExpression(expression2)) {
-      const result = {};
-      for (const property of expression2.properties) {
-        if (ts3.isPropertyAssignment(property)) {
-          result[this.getPropertyName(property.name)] = this.resolveParameterDefaultValue(property.initializer);
-        } else if (ts3.isShorthandPropertyAssignment(property)) {
-          result[property.name.getText()] = this.resolveParameterDefaultValue(property.name);
-        }
-      }
-      return result;
-    }
-    return this.resolveParameterDefaultValue(expression2);
-  }
-  getPropertyName(name) {
-    if (ts3.isStringLiteral(name) || ts3.isNumericLiteral(name)) {
-      return name.text;
-    }
-    return name.getText();
-  }
-  unwrapTypeStringFromPromise(type) {
-    if (type.startsWith("Promise<")) {
-      return type.slice("Promise<".length, -">".length);
-    }
-    if (type.startsWith("Awaited<")) {
-      return type.slice("Awaited<".length, -">".length);
-    }
-    return type;
-  }
-  unwrapTypeStringFromArray(type) {
-    if (type.endsWith("[]")) {
-      return type.replace("[]", "");
-    }
-    if (type.startsWith("Array<")) {
-      return type.slice("Array<".length, -">".length);
-    }
-    return type;
-  }
-  stringTypeToUnwrappedType(type) {
-    type = this.unwrapTypeStringFromPromise(type);
-    const extractedTypeFromArray = this.unwrapTypeStringFromArray(type);
-    if (extractedTypeFromArray !== type) {
-      return this.stringTypeToUnwrappedType(extractedTypeFromArray);
-    }
-    return type;
-  }
-  typeToStringType(type) {
-    const stringType = this.checker.typeToString(this.unwrapNullable(type));
-    return this.stringTypeToUnwrappedType(stringType);
-  }
-  unwrapNullable(type) {
-    if (type.flags & ts3.TypeFlags.Union) {
-      return this.checker.getNonNullableType(type);
-    }
-    return type;
-  }
-  tsTypeToTypeDef(node, type) {
-    type = this.unwrapNullable(type);
-    if (type.flags & ts3.TypeFlags.String)
-      return { kind: "STRING_KIND" /* StringKind */ };
-    if (type.flags & ts3.TypeFlags.Number) {
-      if (node.getText().includes("float")) {
-        return { kind: "FLOAT_KIND" /* FloatKind */ };
-      }
-      return { kind: "INTEGER_KIND" /* IntegerKind */ };
-    }
-    if (type.flags & ts3.TypeFlags.Boolean)
-      return { kind: "BOOLEAN_KIND" /* BooleanKind */ };
-    if (type.flags & ts3.TypeFlags.Void)
-      return { kind: "VOID_KIND" /* VoidKind */ };
-    if (type.flags & ts3.TypeFlags.Object) {
-      const objectType = type;
-      if (objectType.objectFlags & ts3.ObjectFlags.Reference) {
-        const typeArguments = this.checker.getTypeArguments(type);
-        switch (typeArguments.length) {
-          case 0:
-            break;
-          case 1: {
-            const typeArgument = typeArguments[0];
-            if (type.symbol.getName() === "Promise") {
-              return this.tsTypeToTypeDef(node, typeArgument);
-            }
-            if (type.symbol.getName() === "Array") {
-              return {
-                kind: "LIST_KIND" /* ListKind */,
-                typeDef: this.tsTypeToTypeDef(node, typeArgument)
-              };
-            }
-            return;
-          }
-          default: {
-            throw new IntrospectionError(`could not resolve type ${type.symbol.getName()} at ${AST.getNodePosition(node)}, dagger does not support generics with argument yet.`);
-          }
-        }
-      }
-    }
-  }
-  resolveParameterDefaultValueTypeReference(expression2, value) {
-    const type = typeof value;
-    switch (type) {
-      case "string":
-      case "number":
-      case "bigint":
-      case "boolean":
-      case "object":
-        return value;
-      default:
-        return;
-    }
-  }
-  getLiteralValueFromExpression(expression2) {
-    const type = this.checker.getTypeAtLocation(expression2);
-    if (!type) {
-      return;
-    }
-    const resolveLiteral = (t2) => {
-      if (t2.flags & ts3.TypeFlags.BooleanLiteral) {
-        const intrinsic = t2;
-        switch (intrinsic.intrinsicName) {
-          case "true":
-            return true;
-          case "false":
-            return false;
-        }
-      }
-      if (t2.flags & (ts3.TypeFlags.EnumLiteral | ts3.TypeFlags.StringLiteral | ts3.TypeFlags.NumberLiteral | ts3.TypeFlags.BigIntLiteral)) {
-        const literal = t2;
-        if (literal.value !== undefined) {
-          return literal.value;
-        }
-        const intrinsic = literal;
-        if (intrinsic.intrinsicName !== undefined) {
-          return intrinsic.intrinsicName;
-        }
-      }
-      return;
-    };
-    if (type.isUnion()) {
-      for (const subtype of type.types) {
-        const literal = resolveLiteral(subtype);
-        if (literal !== undefined) {
-          return literal;
-        }
-      }
-      return;
-    }
-    return resolveLiteral(type);
-  }
-  warnUnresolvedDefaultValue(expression2) {
-    console.warn(`default value '${expression2.getText()}' at ${AST.getNodePosition(expression2)} cannot be resolved, dagger does not support object or function as default value. 
-          The value will be ignored by the introspection and resolve at the runtime.`);
-  }
-  resolveParameterDefaultValue(expression) {
-    const kind = expression.kind;
-    switch (kind) {
-      case ts3.SyntaxKind.StringLiteral:
-        return `${eval(expression.getText())}`;
-      case ts3.SyntaxKind.NumericLiteral:
-        return parseInt(expression.getText());
-      case ts3.SyntaxKind.TrueKeyword:
-        return true;
-      case ts3.SyntaxKind.FalseKeyword:
-        return false;
-      case ts3.SyntaxKind.NullKeyword:
-        return null;
-      case ts3.SyntaxKind.ArrayLiteralExpression:
-        return eval(expression.getText());
-      case ts3.SyntaxKind.Identifier: {
-        const symbol = this.checker.getSymbolAtLocation(expression);
-        if (!symbol) {
-          throw new IntrospectionError(`could not resolve default value reference to the variable: '${expression.getText()}' from ${AST.getNodePosition(expression)}. Is it exported by the module?`);
-        }
-        const decl = symbol.valueDeclaration ?? symbol.declarations?.[0];
-        if (!decl) {
-          this.warnUnresolvedDefaultValue(expression);
-          return;
-        }
-        if (ts3.isVariableDeclaration(decl) && decl.initializer) {
-          return this.resolveParameterDefaultValue(decl.initializer);
-        }
-        if (ts3.isEnumMember(decl)) {
-          const val = this.checker.getConstantValue(decl);
-          if (val !== undefined)
-            return val;
-          if (decl.initializer)
-            return this.resolveParameterDefaultValue(decl.initializer);
-        }
-        if (ts3.isImportSpecifier(decl)) {
-          const aliased = this.checker.getAliasedSymbol(symbol);
-          const aliasedDecl = aliased?.valueDeclaration ?? aliased?.declarations?.[0];
-          if (aliasedDecl && ts3.isVariableDeclaration(aliasedDecl) && aliasedDecl.initializer) {
-            return this.resolveParameterDefaultValue(aliasedDecl.initializer);
-          }
-        }
-        this.warnUnresolvedDefaultValue(expression);
-        return;
-      }
-      case ts3.SyntaxKind.PropertyAccessExpression: {
-        const propertyAccess = expression;
-        const directConstant = this.checker.getConstantValue(propertyAccess);
-        if (directConstant !== undefined) {
-          return directConstant;
-        }
-        const nameSymbol = this.checker.getSymbolAtLocation(propertyAccess.name);
-        if (nameSymbol) {
-          const declarations = nameSymbol.declarations ?? [];
-          const decls = nameSymbol.valueDeclaration ? [nameSymbol.valueDeclaration, ...declarations] : declarations;
-          for (const decl of decls) {
-            if (ts3.isEnumMember(decl)) {
-              const val = this.checker.getConstantValue(decl);
-              if (val !== undefined) {
-                return val;
-              }
-              if (decl.initializer) {
-                return this.resolveParameterDefaultValue(decl.initializer);
-              }
-            }
-          }
-        }
-        const literal = this.getLiteralValueFromExpression(propertyAccess);
-        if (literal !== undefined) {
-          return literal;
-        }
-        this.warnUnresolvedDefaultValue(expression);
-        return;
-      }
-      default: {
-        this.warnUnresolvedDefaultValue(expression);
-      }
-    }
-  }
-}
-// src/module/introspector/typescript_module/typedef_utils.ts
-init_errors();
-function isTypeDefResolved(typeDef) {
-  if (typeDef.kind !== "LIST_KIND" /* ListKind */) {
-    return true;
-  }
-  const arrayTypeDef = typeDef;
-  if (arrayTypeDef.typeDef === undefined) {
-    return false;
-  }
-  if (arrayTypeDef.typeDef.kind === "LIST_KIND" /* ListKind */) {
-    return isTypeDefResolved(arrayTypeDef.typeDef);
-  }
-  return true;
-}
-function resolveTypeDef(typeDef, reference) {
-  if (typeDef === undefined) {
-    return reference;
-  }
-  if (typeDef.kind === "LIST_KIND" /* ListKind */) {
-    const listTypeDef = typeDef;
-    listTypeDef.typeDef = resolveTypeDef(listTypeDef.typeDef, reference);
-    return listTypeDef;
-  }
-  throw new IntrospectionError(`type ${JSON.stringify(typeDef)} has already been resolved, it should not be overwritten ; reference: ${JSON.stringify(reference)}`);
-}
-// src/module/introspector/dagger_module/decorator.ts
-var OBJECT_DECORATOR = object.name;
-var FUNCTION_DECORATOR = func.name;
-var CHECK_DECORATOR = check.name;
-var GENERATOR_DECORATOR = generate.name;
-var UP_DECORATOR = up.name;
-var AGENT_DECORATOR = agent.name;
-var FIELD_DECORATOR = field.name;
-var ARGUMENT_DECORATOR = argument.name;
-var ENUM_DECORATOR = enumType.name;
-
-// src/module/introspector/dagger_module/locatable.ts
-class Locatable {
-  __node;
-  constructor(__node) {
-    this.__node = __node;
-  }
-  getLocation() {
-    return AST.getNodeLocation(this.__node);
-  }
-}
-
-// src/module/introspector/dagger_module/argument.ts
-class DaggerArgument extends Locatable {
-  node;
-  ast;
-  name;
-  description;
-  deprecated;
-  _typeRef;
-  type;
-  isVariadic;
-  isNullable;
-  isOptional;
-  defaultPath;
-  defaultAddress;
-  ignore;
-  defaultValue;
-  symbol;
-  constructor(node, ast2) {
-    super(node);
-    this.node = node;
-    this.ast = ast2;
-    this.symbol = this.ast.getSymbolOrThrow(node.name);
-    this.name = this.node.name.getText();
-    const { description, deprecated } = this.ast.getSymbolDoc(this.symbol);
-    this.description = description;
-    this.deprecated = deprecated;
-    this.defaultValue = this.getDefaultValue();
-    this.isVariadic = this.node.dotDotDotToken !== undefined;
-    this.isNullable = this.getIsNullable();
-    this.isOptional = this.isVariadic || this.defaultValue === undefined && this.node.initializer !== undefined || this.isNullable || this.node.questionToken !== undefined;
-    if (this.deprecated !== undefined && !this.isOptional) {
-      throw new IntrospectionError(`argument ${this.name} is required and cannot be deprecated at ${AST.getNodePosition(this.node)}.`);
-    }
-    const decoratorArguments = this.ast.getDecoratorArgument(this.node, ARGUMENT_DECORATOR, "object");
-    if (decoratorArguments) {
-      this.ignore = decoratorArguments.ignore;
-      this.defaultPath = decoratorArguments.defaultPath;
-      this.defaultAddress = decoratorArguments.defaultAddress;
-      if (this.defaultAddress) {
-        this.isOptional = true;
-      }
-    }
-    this.type = this.getType();
-  }
-  getType() {
-    const type = this.ast.checker.getTypeAtLocation(this.node);
-    const typedef = this.ast.tsTypeToTypeDef(this.node, type);
-    if (typedef === undefined || !isTypeDefResolved(typedef)) {
-      this._typeRef = this.ast.typeToStringType(type);
-    }
-    return typedef;
-  }
-  getIsNullable() {
-    if (!this.node.type) {
-      return false;
-    }
-    if (ts4.isUnionTypeNode(this.node.type)) {
-      for (const _type of this.node.type.types) {
-        if (_type.getText() === "null") {
-          return true;
-        }
-      }
-    }
-    return false;
-  }
-  getDefaultValue() {
-    const initializer = this.node.initializer;
-    if (!initializer) {
-      return;
-    }
-    return this.ast.resolveParameterDefaultValue(initializer);
-  }
-  getReference() {
-    if (this._typeRef && (this.type === undefined || !isTypeDefResolved(this.type))) {
-      return this._typeRef;
-    }
-    return;
-  }
-  propagateReferences(references) {
-    if (!this._typeRef) {
-      return;
-    }
-    if (this.type && isTypeDefResolved(this.type)) {
-      return;
-    }
-    const typeDef = references[this._typeRef];
-    if (!typeDef) {
-      throw new IntrospectionError(`could not find type reference for ${this._typeRef} at ${AST.getNodePosition(this.node)}.`);
-    }
-    this.type = resolveTypeDef(this.type, typeDef);
-  }
-  toJSON() {
-    return {
-      name: this.name,
-      description: this.description,
-      deprecated: this.deprecated,
-      type: this.type,
-      isVariadic: this.isVariadic,
-      isNullable: this.isNullable,
-      isOptional: this.isOptional,
-      defaultValue: this.defaultValue,
-      defaultPath: this.defaultPath,
-      defaultAddress: this.defaultAddress,
-      ignore: this.ignore
-    };
-  }
-}
-
-// src/module/introspector/dagger_module/constructor.ts
-class DaggerConstructor {
-  node;
-  ast;
-  name = "";
-  arguments = {};
-  constructor(node, ast2) {
-    this.node = node;
-    this.ast = ast2;
-    const parameters = this.node.parameters;
-    for (const parameter of parameters) {
-      this.arguments[parameter.name.getText()] = new DaggerArgument(parameter, this.ast);
-    }
-  }
-  getArgsOrder() {
-    return Object.keys(this.arguments);
-  }
-  getReferences() {
-    const references = [];
-    for (const argument2 of Object.values(this.arguments)) {
-      const ref = argument2.getReference();
-      if (ref) {
-        references.push(ref);
-      }
-    }
-    return references;
-  }
-  propagateReferences(references) {
-    for (const argument2 of Object.values(this.arguments)) {
-      argument2.propagateReferences(references);
-    }
-  }
-  toJSON() {
-    return {
-      arguments: this.arguments
-    };
-  }
-}
-// src/module/introspector/dagger_module/enum.ts
-init_errors();
-class DaggerEnumValue extends Locatable {
-  node;
-  ast;
-  name;
-  value;
-  description;
-  deprecated;
-  symbol;
-  constructor(node, ast2) {
-    super(node);
-    this.node = node;
-    this.ast = ast2;
-    this.symbol = this.ast.getSymbolOrThrow(this.node.name);
-    this.name = this.node.name.getText();
-    const { description, deprecated } = this.ast.getSymbolDoc(this.symbol);
-    this.description = description;
-    this.deprecated = deprecated;
-    const initializer = this.node.initializer;
-    if (!initializer) {
-      throw new IntrospectionError(`enum ${this.name} at ${AST.getNodePosition(this.node)} has no value set to its member.`);
-    }
-    this.value = this.ast.resolveParameterDefaultValue(initializer);
-  }
-  toJSON() {
-    return {
-      name: this.name,
-      value: this.value,
-      description: this.description,
-      deprecated: this.deprecated
-    };
-  }
-}
-
-class DaggerEnum extends Locatable {
-  node;
-  ast;
-  name;
-  description;
-  values = {};
-  symbol;
-  constructor(node, ast2) {
-    super(node);
-    this.node = node;
-    this.ast = ast2;
-    this.name = this.node.name.getText();
-    this.symbol = this.ast.getSymbolOrThrow(this.node.name);
-    this.description = this.ast.getDocFromSymbol(this.symbol);
-    const members = this.node.members;
-    for (const member of members) {
-      const value = new DaggerEnumValue(member, this.ast);
-      this.values[value.name] = value;
-    }
-  }
-  toJSON() {
-    return {
-      name: this.name,
-      description: this.description,
-      values: this.values
-    };
-  }
-}
-// src/module/introspector/dagger_module/enumClass.ts
-init_errors();
-import ts5 from "typescript";
-class DaggerEnumClassValue extends Locatable {
-  node;
-  ast;
-  name;
-  value;
-  description;
-  deprecated;
-  symbol;
-  constructor(node, ast2) {
-    super(node);
-    this.node = node;
-    this.ast = ast2;
-    this.name = this.node.name.getText();
-    this.symbol = this.ast.getSymbolOrThrow(this.node.name);
-    const { description, deprecated } = this.ast.getSymbolDoc(this.symbol);
-    this.description = description;
-    this.deprecated = deprecated;
-    const initializer = this.node.initializer;
-    if (!initializer) {
-      throw new Error("Dagger enum value has no value set");
-    }
-    this.value = this.ast.resolveParameterDefaultValue(initializer);
-  }
-  toJSON() {
-    return {
-      name: this.name,
-      value: this.value,
-      description: this.description,
-      deprecated: this.deprecated
-    };
-  }
-}
-
-class DaggerEnumClass extends Locatable {
-  node;
-  ast;
-  name;
-  description;
-  values = {};
-  symbol;
-  constructor(node, ast2) {
-    super(node);
-    this.node = node;
-    this.ast = ast2;
-    if (!this.node.name) {
-      throw new IntrospectionError(`could not resolve name of enum at ${AST.getNodePosition(node)}.`);
-    }
-    this.name = this.node.name.getText();
-    this.symbol = this.ast.getSymbolOrThrow(this.node.name);
-    this.description = this.ast.getDocFromSymbol(this.symbol);
-    const properties = this.node.members;
-    for (const property of properties) {
-      if (ts5.isPropertyDeclaration(property)) {
-        const value = new DaggerEnumClassValue(property, this.ast);
-        this.values[value.name] = value;
-      }
-    }
-  }
-  toJSON() {
-    return {
-      name: this.name,
-      description: this.description,
-      values: this.values
-    };
-  }
-}
-// src/module/introspector/dagger_module/function.ts
-init_errors();
-class DaggerFunction extends Locatable {
-  node;
-  ast;
-  name;
-  description;
-  deprecated;
-  _returnTypeRef;
-  returnType;
-  arguments = {};
-  alias;
-  cache;
-  isCheck = false;
-  isGenerator = false;
-  isUp = false;
-  isAgent = false;
-  signature;
-  symbol;
-  constructor(node, ast2) {
-    super(node);
-    this.node = node;
-    this.ast = ast2;
-    this.symbol = this.ast.getSymbolOrThrow(node.name);
-    this.signature = this.ast.getSignatureFromFunctionOrThrow(node);
-    this.name = this.node.name.getText();
-    const { description, deprecated } = this.ast.getSymbolDoc(this.symbol);
-    this.description = description;
-    this.deprecated = deprecated;
-    const functionArguments = this.ast.getDecoratorArgument(this.node, FUNCTION_DECORATOR, "object");
-    if (functionArguments) {
-      if (typeof functionArguments === "string") {
-        this.alias = functionArguments;
-      } else {
-        this.alias = functionArguments.alias;
-        this.cache = functionArguments.cache;
-      }
-    }
-    if (this.ast.isNodeDecoratedWith(this.node, CHECK_DECORATOR)) {
-      this.isCheck = true;
-    }
-    if (this.ast.isNodeDecoratedWith(this.node, GENERATOR_DECORATOR)) {
-      this.isGenerator = true;
-    }
-    if (this.ast.isNodeDecoratedWith(this.node, UP_DECORATOR)) {
-      this.isUp = true;
-    }
-    if (this.ast.isNodeDecoratedWith(this.node, AGENT_DECORATOR)) {
-      this.isAgent = true;
-    }
-    for (const parameter of this.node.parameters) {
-      this.arguments[parameter.name.getText()] = new DaggerArgument(parameter, this.ast);
-    }
-    this.returnType = this.getReturnType();
-  }
-  getReturnType() {
-    const type = this.signature.getReturnType();
-    const typedef = this.ast.tsTypeToTypeDef(this.node, type);
-    if (typedef === undefined || !isTypeDefResolved(typedef)) {
-      this._returnTypeRef = this.ast.typeToStringType(type);
-    }
-    return typedef;
-  }
-  getArgsOrder() {
-    return Object.keys(this.arguments);
-  }
-  getReferences() {
-    const references = [];
-    if (this._returnTypeRef && (this.returnType === undefined || !isTypeDefResolved(this.returnType))) {
-      references.push(this._returnTypeRef);
-    }
-    for (const argument2 of Object.values(this.arguments)) {
-      const reference = argument2.getReference();
-      if (reference) {
-        references.push(reference);
-      }
-    }
-    return references;
-  }
-  propagateReferences(references) {
-    for (const argument2 of Object.values(this.arguments)) {
-      argument2.propagateReferences(references);
-    }
-    if (!this._returnTypeRef) {
-      return;
-    }
-    if (this.returnType && isTypeDefResolved(this.returnType)) {
-      return;
-    }
-    const typeDef = references[this._returnTypeRef];
-    if (!typeDef) {
-      throw new IntrospectionError(`could not find type reference for ${this._returnTypeRef} at ${AST.getNodePosition(this.node)}.`);
-    }
-    this.returnType = resolveTypeDef(this.returnType, typeDef);
-  }
-  toJSON() {
-    return {
-      name: this.name,
-      description: this.description,
-      deprecated: this.deprecated,
-      alias: this.alias,
-      arguments: this.arguments,
-      returnType: this.returnType
-    };
-  }
-}
-// src/module/introspector/dagger_module/module.ts
-import ts10 from "typescript";
-init_errors();
-
-// src/module/introspector/dagger_module/interface.ts
-init_errors();
-import ts7 from "typescript";
-
-// src/module/introspector/dagger_module/interfaceFunction.ts
-init_errors();
-import ts6 from "typescript";
-class DaggerInterfaceFunction extends Locatable {
-  node;
-  ast;
-  name;
-  description;
-  deprecated;
-  _returnTypeRef;
-  returnType;
-  arguments = {};
-  symbol;
-  signature;
-  alias;
-  cache;
-  constructor(node, ast2) {
-    super(node);
-    this.node = node;
-    this.ast = ast2;
-    if (!this.node.name) {
-      throw new IntrospectionError(`could not resolve name of interface function at ${AST.getNodePosition(node)}`);
-    }
-    this.name = this.node.name.getText();
-    this.symbol = this.ast.getSymbolOrThrow(this.node.name);
-    const { description, deprecated } = this.ast.getSymbolDoc(this.symbol);
-    this.description = description;
-    this.deprecated = deprecated;
-    const nodeType = this.node.type && ts6.isFunctionTypeNode(this.node.type) ? this.node.type : this.node;
-    const signature = this.ast.getSignatureFromFunctionOrThrow(nodeType);
-    for (const parameter of nodeType.parameters) {
-      this.arguments[parameter.name.getText()] = new DaggerArgument(parameter, this.ast);
-    }
-    const signatureReturnType = signature.getReturnType();
-    const typedef = this.ast.tsTypeToTypeDef(this.node, signatureReturnType);
-    if (typedef === undefined || !isTypeDefResolved(typedef)) {
-      this._returnTypeRef = this.ast.typeToStringType(signatureReturnType);
-    }
-    this.returnType = typedef;
-  }
-  getReferences() {
-    const references = [];
-    if (this._returnTypeRef && (this.returnType === undefined || !isTypeDefResolved(this.returnType))) {
-      references.push(this._returnTypeRef);
-    }
-    for (const argument2 of Object.values(this.arguments)) {
-      const reference = argument2.getReference();
-      if (reference) {
-        references.push(reference);
-      }
-    }
-    return references;
-  }
-  propagateReferences(references) {
-    for (const argument2 of Object.values(this.arguments)) {
-      argument2.propagateReferences(references);
-    }
-    if (!this._returnTypeRef) {
-      return;
-    }
-    if (this.returnType && isTypeDefResolved(this.returnType)) {
-      return;
-    }
-    const typeDef = references[this._returnTypeRef];
-    if (!typeDef) {
-      throw new IntrospectionError(`could not find type reference for ${this._returnTypeRef} at ${AST.getNodePosition(this.node)}.`);
-    }
-    this.returnType = resolveTypeDef(this.returnType, typeDef);
-  }
-  toJSON() {
-    return {
-      name: this.name,
-      description: this.description,
-      deprecated: this.deprecated,
-      arguments: this.arguments,
-      returnType: this.returnType
-    };
-  }
-}
-
-// src/module/introspector/dagger_module/interface.ts
-class DaggerInterface extends Locatable {
-  node;
-  ast;
-  name;
-  description;
-  functions = {};
-  symbol;
-  constructor(node, ast2) {
-    super(node);
-    this.node = node;
-    this.ast = ast2;
-    if (!this.node.name) {
-      throw new IntrospectionError(`could not resolve name of interface at ${AST.getNodePosition(node)}`);
-    }
-    this.name = this.node.name.getText();
-    this.symbol = this.ast.getSymbolOrThrow(this.node.name);
-    this.description = this.ast.getDocFromSymbol(this.symbol);
-    for (const member of this.node.members) {
-      if (!ts7.isPropertySignature(member) && !ts7.isMethodSignature(member)) {
-        continue;
-      }
-      if (member.type && ts7.isFunctionTypeNode(member.type) || ts7.isMethodSignature(member)) {
-        const daggerInterfaceFunction = new DaggerInterfaceFunction(member, this.ast);
-        this.functions[daggerInterfaceFunction.name] = daggerInterfaceFunction;
-        continue;
-      }
-    }
-  }
-  getReferences() {
-    const references = [];
-    for (const fn of Object.values(this.functions)) {
-      references.push(...fn.getReferences());
-    }
-    return references.filter((v2, i3, arr) => arr.indexOf(v2) === i3);
-  }
-  propagateReferences(references) {
-    for (const fn of Object.values(this.functions)) {
-      fn.propagateReferences(references);
-    }
-  }
-  toJSON() {
-    return {
-      name: this.name,
-      description: this.description,
-      functions: this.functions
-    };
-  }
-}
-
-// src/module/introspector/dagger_module/object.ts
-init_errors();
-import ts8 from "typescript";
-
-// src/module/introspector/dagger_module/property.ts
-init_errors();
-class DaggerProperty extends Locatable {
-  node;
-  ast;
-  name;
-  description;
-  deprecated;
-  alias;
-  isExposed;
-  symbol;
-  _typeRef;
-  type;
-  constructor(node, ast2) {
-    super(node);
-    this.node = node;
-    this.ast = ast2;
-    if (!this.node.name) {
-      throw new IntrospectionError(`could not resolve name of class at ${AST.getNodePosition(node)}.`);
-    }
-    this.symbol = this.ast.getSymbolOrThrow(this.node.name);
-    this.name = this.node.name.getText();
-    this.isExposed = this.ast.isNodeDecoratedWith(this.node, FUNCTION_DECORATOR) || this.ast.isNodeDecoratedWith(this.node, FIELD_DECORATOR);
-    const { description, deprecated } = this.ast.getSymbolDoc(this.symbol);
-    this.description = description;
-    this.deprecated = deprecated;
-    this.alias = this.getAlias();
-    this.type = this.getType();
-  }
-  getAlias() {
-    let alias = this.ast.getDecoratorArgument(this.node, FUNCTION_DECORATOR, "string");
-    if (alias) {
-      return JSON.parse(alias.replace(/'/g, '"'));
-    }
-    alias = this.ast.getDecoratorArgument(this.node, FIELD_DECORATOR, "string");
-    if (alias) {
-      return JSON.parse(alias.replace(/'/g, '"'));
-    }
-  }
-  getType() {
-    const type = this.ast.checker.getTypeAtLocation(this.node);
-    const typedef = this.ast.tsTypeToTypeDef(this.node, type);
-    if (typedef === undefined || !isTypeDefResolved(typedef)) {
-      this._typeRef = this.ast.typeToStringType(type);
-    }
-    return typedef;
-  }
-  getReference() {
-    if (this._typeRef && (this.type === undefined || !isTypeDefResolved(this.type))) {
-      return this._typeRef;
-    }
-    return;
-  }
-  propagateReferences(references) {
-    if (!this._typeRef) {
-      return;
-    }
-    if (this.type && isTypeDefResolved(this.type)) {
-      return;
-    }
-    const typeDef = references[this._typeRef];
-    if (!typeDef) {
-      throw new IntrospectionError(`could not find type reference for ${this._typeRef} at ${AST.getNodePosition(this.node)}.`);
-    }
-    this.type = resolveTypeDef(this.type, typeDef);
-  }
-  toJSON() {
-    return {
-      name: this.name,
-      description: this.description,
-      deprecated: this.deprecated,
-      alias: this.alias,
-      type: this.type,
-      isExposed: this.isExposed
-    };
-  }
-}
-
-// src/module/introspector/dagger_module/object.ts
-class DaggerObject extends Locatable {
-  node;
-  ast;
-  name;
-  description;
-  deprecated;
-  _constructor = undefined;
-  methods = {};
-  properties = {};
-  isExported = false;
-  isDefaultExport = false;
-  symbol;
-  kind() {
-    return "class";
-  }
-  constructor(node, ast2) {
-    super(node);
-    this.node = node;
-    this.ast = ast2;
-    if (!this.node.name) {
-      throw new IntrospectionError(`could not resolve name of class at ${AST.getNodePosition(node)}.`);
-    }
-    this.name = this.node.name.getText();
-    if (!this.ast.isNodeDecoratedWith(node, OBJECT_DECORATOR)) {
-      throw new IntrospectionError(`class ${this.name} at ${AST.getNodePosition(node)} is used by the module but not exposed with a dagger decorator.`);
-    }
-    const modifiers = ts8.getCombinedModifierFlags(this.node);
-    this.isExported = (modifiers & ts8.ModifierFlags.Export) !== 0;
-    this.isDefaultExport = (modifiers & ts8.ModifierFlags.Default) !== 0;
-    if (!this.isExported) {
-      console.warn(`missing export in class ${this.name} at ${AST.getNodePosition(node)} but it's used by the module.`);
-    }
-    this.symbol = this.ast.getSymbolOrThrow(this.node.name);
-    const { description, deprecated } = this.ast.getSymbolDoc(this.symbol);
-    this.description = description;
-    this.deprecated = deprecated;
-    for (const member of this.node.members) {
-      if (ts8.isPropertyDeclaration(member)) {
-        const property = new DaggerProperty(member, this.ast);
-        this.properties[property.alias ?? property.name] = property;
-        continue;
-      }
-      if (ts8.isConstructorDeclaration(member)) {
-        this._constructor = new DaggerConstructor(member, this.ast);
-        continue;
-      }
-      if (ts8.isMethodDeclaration(member) && this.ast.isNodeDecoratedWith(member, FUNCTION_DECORATOR)) {
-        const daggerFunction = new DaggerFunction(member, this.ast);
-        this.methods[daggerFunction.alias ?? daggerFunction.name] = daggerFunction;
-        continue;
-      }
-    }
-  }
-  getLocation() {
-    return AST.getNodeLocation(this.node);
-  }
-  getReferences() {
-    const references = [];
-    if (this._constructor) {
-      references.push(...this._constructor.getReferences());
-    }
-    for (const property of Object.values(this.properties)) {
-      const ref = property.getReference();
-      if (ref) {
-        references.push(ref);
-      }
-    }
-    for (const fn of Object.values(this.methods)) {
-      references.push(...fn.getReferences());
-    }
-    return references.filter((v2, i3, arr) => arr.indexOf(v2) === i3);
-  }
-  propagateReferences(references) {
-    if (this._constructor) {
-      this._constructor.propagateReferences(references);
-    }
-    for (const property of Object.values(this.properties)) {
-      property.propagateReferences(references);
-    }
-    for (const fn of Object.values(this.methods)) {
-      fn.propagateReferences(references);
-    }
-  }
-  toJSON() {
-    return {
-      name: this.name,
-      description: this.description,
-      deprecated: this.deprecated,
-      constructor: this._constructor,
-      methods: this.methods,
-      properties: this.properties
-    };
-  }
-}
-
-// src/module/introspector/dagger_module/typeObject.ts
-init_errors();
-import ts9 from "typescript";
-
-// src/module/introspector/dagger_module/typeObjectProperty.ts
-init_errors();
-class DaggerObjectTypeProperty extends Locatable {
-  node;
-  symbol;
-  ast;
-  name;
-  description;
-  deprecated;
-  alias = undefined;
-  isExposed = true;
-  _typeRef;
-  type;
-  constructor(node, symbol, ast2) {
-    super(node);
-    this.node = node;
-    this.symbol = symbol;
-    this.ast = ast2;
-    this.name = symbol.name;
-    const { description, deprecated } = this.ast.getSymbolDoc(this.symbol);
-    this.description = description;
-    this.deprecated = deprecated;
-    const type = this.ast.checker.getTypeOfSymbolAtLocation(this.symbol, this.node);
-    this.type = this.ast.tsTypeToTypeDef(this.node, type);
-    if (this.type === undefined || !isTypeDefResolved(this.type)) {
-      this._typeRef = this.ast.typeToStringType(type);
-    }
-  }
-  getReference() {
-    if (this._typeRef && (this.type === undefined || !isTypeDefResolved(this.type))) {
-      return this._typeRef;
-    }
-    return;
-  }
-  propagateReferences(references) {
-    if (!this._typeRef) {
-      return;
-    }
-    if (this.type && isTypeDefResolved(this.type)) {
-      return;
-    }
-    const typeDef = references[this._typeRef];
-    if (!typeDef) {
-      throw new IntrospectionError(`could not find type reference for ${this._typeRef}.`);
-    }
-    this.type = resolveTypeDef(this.type, typeDef);
-  }
-  toJSON() {
-    return {
-      name: this.name,
-      description: this.description,
-      deprecated: this.deprecated,
-      alias: this.alias,
-      type: this.type,
-      isExposed: this.isExposed
-    };
-  }
-}
-
-// src/module/introspector/dagger_module/typeObject.ts
-class DaggerTypeObject extends Locatable {
-  node;
-  ast;
-  name;
-  description;
-  deprecated;
-  _constructor = undefined;
-  methods = {};
-  properties = {};
-  symbol;
-  kind() {
-    return "object";
-  }
-  constructor(node, ast2) {
-    super(node);
-    this.node = node;
-    this.ast = ast2;
-    if (!this.node.name) {
-      throw new IntrospectionError(`could not resolve name of enum at ${AST.getNodePosition(node)}.`);
-    }
-    this.name = this.node.name.getText();
-    this.symbol = this.ast.getSymbolOrThrow(this.node.name);
-    const { description, deprecated } = this.ast.getSymbolDoc(this.symbol);
-    this.description = description;
-    this.deprecated = deprecated;
-    const type = this.ast.getTypeFromTypeAlias(this.node);
-    if (type.flags & ts9.TypeFlags.Object) {
-      const objectType = type;
-      const properties = objectType.getProperties();
-      for (const property of properties) {
-        const daggerProperty = new DaggerObjectTypeProperty(this.node, property, this.ast);
-        this.properties[daggerProperty.name] = daggerProperty;
-      }
-    }
-  }
-  getLocation() {
-    return AST.getNodeLocation(this.node);
-  }
-  getReferences() {
-    const references = [];
-    for (const property of Object.values(this.properties)) {
-      const ref = property.getReference();
-      if (ref) {
-        references.push(ref);
-      }
-    }
-    return references.filter((v2, i3, arr) => arr.indexOf(v2) === i3);
-  }
-  propagateReferences(references) {
-    for (const property of Object.values(this.properties)) {
-      property.propagateReferences(references);
-    }
-  }
-  toJSON() {
-    return {
-      name: this.name,
-      description: this.description,
-      properties: this.properties,
-      deprecated: this.deprecated
-    };
-  }
-}
-
-// src/module/introspector/dagger_module/module.ts
-class DaggerModule {
-  name;
-  userModule;
-  ast;
-  objects = {};
-  enums = {};
-  interfaces = {};
-  description;
-  references = {
-    float: { kind: "FLOAT_KIND" /* FloatKind */ }
-  };
-  constructor(name, userModule2, ast2) {
-    this.name = name;
-    this.userModule = userModule2;
-    this.ast = ast2;
-    const classObjects = this.findClasses();
-    for (const classObject of classObjects) {
-      const mainFileContent = classObject.file.getFullText();
-      this.description = this.getDescription(mainFileContent);
-      const daggerObject = new DaggerObject(classObject.node, this.ast);
-      const objectName = classObject.node.name?.getText() || this.name;
-      this.objects[objectName] = daggerObject;
-      this.references[objectName] = {
-        kind: "OBJECT_KIND" /* ObjectKind */,
-        name: objectName
-      };
-      this.resolveReferences(daggerObject.getReferences());
-      this.propagateReferences();
-    }
-  }
-  resolveReferences(references) {
-    if (references.length === 0) {
-      return;
-    }
-    for (const reference of references) {
-      if (this.references[reference]) {
-        continue;
-      }
-      const classRef = this.ast.findResolvedNodeByName(reference, ts10.SyntaxKind.ClassDeclaration);
-      if (classRef) {
-        if (this.ast.isGeneratedClientFile(classRef.file.fileName)) {
-          this.references[reference] = {
-            kind: "OBJECT_KIND" /* ObjectKind */,
-            name: reference
-          };
-          continue;
-        }
-        if (this.ast.isNodeDecoratedWith(classRef.node, OBJECT_DECORATOR)) {
-          const daggerObject = new DaggerObject(classRef.node, this.ast);
-          this.objects[daggerObject.name] = daggerObject;
-          this.references[daggerObject.name] = {
-            kind: "OBJECT_KIND" /* ObjectKind */,
-            name: daggerObject.name
-          };
-          this.resolveReferences(daggerObject.getReferences());
-          continue;
-        }
-        if (this.ast.isNodeDecoratedWith(classRef.node, ENUM_DECORATOR)) {
-          const daggerEnum = new DaggerEnumClass(classRef.node, this.ast);
-          this.enums[daggerEnum.name] = daggerEnum;
-          this.references[daggerEnum.name] = {
-            kind: "ENUM_KIND" /* EnumKind */,
-            name: daggerEnum.name
-          };
-          continue;
-        }
-        throw new IntrospectionError(`class ${reference} in ${AST.getNodePosition(classRef.node)} is used by the module but not exposed with a dagger decorator.`);
-      }
-      const enumRef = this.ast.findResolvedNodeByName(reference, ts10.SyntaxKind.EnumDeclaration);
-      if (enumRef) {
-        if (this.ast.isGeneratedClientFile(enumRef.file.fileName)) {
-          this.references[reference] = {
-            kind: "ENUM_KIND" /* EnumKind */,
-            name: reference
-          };
-          continue;
-        }
-        const daggerEnum = new DaggerEnum(enumRef.node, this.ast);
-        this.enums[daggerEnum.name] = daggerEnum;
-        this.references[daggerEnum.name] = {
-          kind: "ENUM_KIND" /* EnumKind */,
-          name: daggerEnum.name
-        };
-        continue;
-      }
-      const interfaceRef = this.ast.findResolvedNodeByName(reference, ts10.SyntaxKind.InterfaceDeclaration);
-      if (interfaceRef) {
-        const daggerInterface = new DaggerInterface(interfaceRef.node, this.ast);
-        this.interfaces[daggerInterface.name] = daggerInterface;
-        this.references[daggerInterface.name] = {
-          kind: "INTERFACE_KIND" /* InterfaceKind */,
-          name: daggerInterface.name
-        };
-        this.resolveReferences(daggerInterface.getReferences());
-        continue;
-      }
-      const typeAliasRef = this.ast.findResolvedNodeByName(reference, ts10.SyntaxKind.TypeAliasDeclaration);
-      if (typeAliasRef) {
-        this.resolveTypeAlias(reference, typeAliasRef);
-        continue;
-      }
-      if (reference === "String") {
-        throw new IntrospectionError(`Use of primitive 'String' type detected, please use 'string' instead.`);
-      }
-      if (reference === "Boolean") {
-        throw new IntrospectionError(`Use of primitive 'Boolean' type detected, please use 'boolean' instead.`);
-      }
-      if (reference === "Number") {
-        throw new IntrospectionError(`Use of primitive 'Number' type detected, please use 'number' instead.`);
-      }
-      throw new IntrospectionError(`could not resolve type reference for ${reference}.`);
-    }
-  }
-  resolveTypeAlias(reference, typeAlias) {
-    const type = this.ast.getTypeFromTypeAlias(typeAlias.node);
-    if (type.flags & ts10.TypeFlags.String) {
-      this.references[reference] = { kind: "STRING_KIND" /* StringKind */ };
-      return;
-    }
-    if (type.flags & ts10.TypeFlags.Number) {
-      this.references[reference] = { kind: "INTEGER_KIND" /* IntegerKind */ };
-      return;
-    }
-    if (type.flags & ts10.TypeFlags.Boolean) {
-      this.references[reference] = { kind: "BOOLEAN_KIND" /* BooleanKind */ };
-      return;
-    }
-    if (type.flags & ts10.TypeFlags.Void) {
-      this.references[reference] = { kind: "VOID_KIND" /* VoidKind */ };
-      return;
-    }
-    if (type.flags & ts10.TypeFlags.Intersection || type.flags & ts10.TypeFlags.Union) {
-      this.references[reference] = {
-        kind: "SCALAR_KIND" /* ScalarKind */,
-        name: reference
-      };
-      return;
-    }
-    if (type.flags & ts10.TypeFlags.Object) {
-      if (this.ast.isGeneratedClientFile(typeAlias.file.fileName)) {
-        this.references[reference] = {
-          kind: "OBJECT_KIND" /* ObjectKind */,
-          name: reference
-        };
-        return;
-      }
-      const daggerObject = new DaggerTypeObject(typeAlias.node, this.ast);
-      this.objects[daggerObject.name] = daggerObject;
-      this.references[daggerObject.name] = {
-        kind: "OBJECT_KIND" /* ObjectKind */,
-        name: daggerObject.name
-      };
-      this.resolveReferences(daggerObject.getReferences());
-      return;
-    }
-    throw new IntrospectionError(`could not resolve type reference for ${reference} at ${AST.getNodePosition(typeAlias.node)}`);
-  }
-  findClasses() {
-    const allClassDeclarations = this.ast.findAllDeclarations(ts10.SyntaxKind.ClassDeclaration);
-    const allClasses = [];
-    for (const classDecl of allClassDeclarations) {
-      const convertedDecl = classDecl;
-      if (convertedDecl.node.name && convertedDecl.node.name.getText() === this.name) {
-        return [convertedDecl];
-      }
-      if (this.ast.isNodeDecoratedWith(classDecl.node, OBJECT_DECORATOR)) {
-        allClasses.push(convertedDecl);
-      }
-    }
-    return allClasses;
-  }
-  propagateReferences() {
-    for (const object2 of Object.values(this.objects)) {
-      object2.propagateReferences(this.references);
-    }
-    for (const interface_ of Object.values(this.interfaces)) {
-      interface_.propagateReferences(this.references);
-    }
-  }
-  getDescription(sourceFileContent) {
-    const regex = /^(?!.*import)[\s]*\/\*\*([\s\S]*?)\*\//;
-    const match = sourceFileContent.match(regex);
-    if (!match) {
-      return;
-    }
-    const comment = match[1].split(`
-`).map((line) => line.replace(/^\s*\*\s?/, "")).join(`
-`);
-    return comment.trim();
-  }
-  toJSON() {
-    return {
-      name: this.name,
-      description: this.description,
-      objects: this.objects,
-      enums: this.enums,
-      interfaces: this.interfaces
-    };
-  }
-}
-// src/module/entrypoint/load.ts
-async function load2(files2) {
-  return await Promise.all(files2.map(async (f4) => await import(f4)));
-}
-function loadInvokedObject(module2, parentName) {
-  return module2.objects[parentName];
-}
-function loadInvokedMethod(object3, ctx) {
-  if (ctx.fnName === "") {
-    return object3._constructor;
-  }
-  return object3.methods[ctx.fnName];
-}
-async function loadArgs(executor, method, ctx) {
-  const args = {};
-  for (const argName of method.getArgsOrder()) {
-    const argument3 = method.arguments[argName];
-    if (!argument3) {
-      throw new Error(`could not find argument ${argName}`);
-    }
-    if (!argument3.type) {
-      throw new Error(`could not find type for argument ${argName}`);
-    }
-    const loadedArg = await loadValue(executor, ctx.fnArgs[argName], argument3.type);
-    if (argument3.isVariadic) {
-      for (const [i3, arg] of (loadedArg ?? []).entries()) {
-        args[`${argName}${i3}`] = arg;
-      }
-      continue;
-    }
-    if (argument3.isNullable && loadedArg === undefined && !argument3.defaultValue) {
-      args[argName] = null;
-      continue;
-    }
-    args[argName] = loadedArg;
-  }
-  return args;
-}
-async function loadParentState(executor, object3, ctx) {
-  const parentState = {};
-  for (const [key, value] of Object.entries(ctx.parentArgs)) {
-    const property = object3.properties[key];
-    if (!property) {
-      throw new Error(`could not find parent property ${key}`);
-    }
-    if (!property.type) {
-      throw new Error(`could not find type for parent property ${key}`);
-    }
-    parentState[property.name] = await loadValue(executor, value, property.type);
-  }
-  return parentState;
-}
-async function loadValue(executor, value, type) {
-  if (value === undefined) {
-    return value;
-  }
-  switch (type.kind) {
-    case "LIST_KIND" /* ListKind */:
-      return Promise.all(value.map(async (v2) => await loadValue(executor, v2, type.typeDef)));
-    case "OBJECT_KIND" /* ObjectKind */: {
-      const objectType = type.name;
-      if (executor.hasObject(objectType)) {
-        return executor.buildClass(objectType, value);
-      }
-      const ctx = new Context([], new Connection(dag.getGQLClient())).selectNode(value, objectType);
-      const className = exports_client_gen[objectType] ? objectType : `${objectType}_`;
-      const cls = exports_client_gen[className];
-      if (cls) {
-        return new cls(ctx);
-      }
-      throw new Error(`Generated client class not found for core type ${objectType}`);
-    }
-    case "INTERFACE_KIND" /* InterfaceKind */: {
-      const interfaceType = type.name;
-      return executor.buildInterface(interfaceType, value);
-    }
-    case "ENUM_KIND" /* EnumKind */: {
-      const enumType2 = type.name;
-      return executor.buildEnum(enumType2, value);
-    }
-    case "STRING_KIND" /* StringKind */:
-    case "INTEGER_KIND" /* IntegerKind */:
-    case "BOOLEAN_KIND" /* BooleanKind */:
-    case "FLOAT_KIND" /* FloatKind */:
-    case "VOID_KIND" /* VoidKind */:
-    case "SCALAR_KIND" /* ScalarKind */:
-      return value;
-    default:
-      throw new Error(`unsupported type ${type.kind}`);
-  }
-}
-function loadObjectReturnType(module2, object3, method) {
-  const retType = method.returnType;
-  if (!retType) {
-    throw new Error(`could not find return type for ${method.name}`);
-  }
-  switch (retType.kind) {
-    case "LIST_KIND" /* ListKind */: {
-      let listType = retType;
-      while (listType.kind === "LIST_KIND" /* ListKind */) {
-        listType = listType.typeDef;
-      }
-      if (listType.kind === "ENUM_KIND" /* EnumKind */) {
-        return module2.enums[listType.name];
-      }
-      return module2.objects[listType.name];
-    }
-    case "OBJECT_KIND" /* ObjectKind */:
-      return module2.objects[retType.name];
-    case "ENUM_KIND" /* EnumKind */:
-      return module2.enums[retType.name];
-    default:
-      return object3;
-  }
-}
-async function loadResult(result, module2, object3) {
-  if (result && typeof result?.id === "function") {
-    return await result.id();
-  }
-  if (Array.isArray(result)) {
-    result = await Promise.all(result.map(async (r2) => await loadResult(r2, module2, object3)));
-    return result;
-  }
-  if (typeof result === "object" && (object3 instanceof DaggerObject || object3 instanceof DaggerTypeObject)) {
-    const state = {};
-    for (const [key, value] of Object.entries(result)) {
-      const property = Object.values(object3.properties).find((p2) => p2.name === key);
-      if (!property) {
-        throw new Error(`could not find result property ${key}`);
-      }
-      if (!property.type) {
-        throw new Error(`could not find type for result property ${key}`);
-      }
-      let referencedObject = undefined;
-      if (property.type.kind === "OBJECT_KIND" /* ObjectKind */) {
-        referencedObject = module2.objects[property.type.name];
-      }
-      if (property.type.kind === "LIST_KIND" /* ListKind */) {
-        let _property = property.type;
-        while (_property.kind === "LIST_KIND" /* ListKind */) {
-          _property = _property.typeDef;
-        }
-        if (_property.kind === "OBJECT_KIND" /* ObjectKind */) {
-          referencedObject = module2.objects[_property.name];
-        }
-        if (_property.kind === "ENUM_KIND" /* EnumKind */) {
-          referencedObject = module2.enums[_property.name];
-        }
-      }
-      if (property.type.kind === "ENUM_KIND" /* EnumKind */) {
-        referencedObject = module2.enums[property.type.name];
-      }
-      if (!referencedObject) {
-        referencedObject = object3;
-      }
-      state[property.alias ?? property.name] = await loadResult(value, module2, referencedObject);
-    }
-    return state;
-  }
-  if (object3 instanceof DaggerEnum || object3 instanceof DaggerEnumClass) {
-    const enumMember = Object.entries(object3.values).find(([, member]) => member.value === result);
-    if (!enumMember) {
-      return result;
-    }
-    return enumMember[0];
-  }
-  return result;
-}
-
-// src/module/introspector/case_convertor.ts
-function convertToPascalCase(input) {
-  if (!input) {
-    return "";
-  }
-  const words = input.split(/(?=[A-Z0-9])|[^a-zA-Z0-9]|(?<=[a-zA-Z])(?=\d)|(?<=\d)(?=[a-zA-Z])/g).filter((word) => word.length > 0);
-  const pascalCase = words.map((word) => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase()).join("");
-  return pascalCase;
-}
-
-// src/module/introspector/index.ts
-async function scan(files2, moduleName = "", loadModule = true, generatedClientFiles = []) {
-  if (files2.length === 0) {
-    throw new IntrospectionError("no files to introspect found");
-  }
-  const formattedModuleName = convertToPascalCase(moduleName);
-  let userModule2 = [];
-  if (loadModule) {
-    userModule2 = await load2(files2);
-  }
-  const ast2 = new AST(files2, userModule2, generatedClientFiles);
-  const module2 = new DaggerModule(formattedModuleName, userModule2, ast2);
-  return module2;
-}
-
-// src/module/entrypoint/invoke.ts
-init_errors();
-function isConstructor(method) {
-  return method.name === "";
-}
-function isFloat(num) {
-  return num % 1 !== 0;
-}
-async function invoke(executor, module2, ctx) {
-  const object3 = loadInvokedObject(module2, ctx.parentName);
-  if (!object3) {
-    throw new Error(`could not find object ${ctx.parentName}`);
-  }
-  const method = loadInvokedMethod(object3, ctx);
-  if (!method) {
-    throw new Error(`could not find method ${ctx.fnName}`);
-  }
-  const args = await loadArgs(executor, method, ctx);
-  const parentState = await loadParentState(executor, object3, ctx);
-  let result;
-  try {
-    result = await executor.getResult(object3.name, method.name, parentState, args);
-  } catch (e2) {
-    if (e2 instanceof FunctionNotFound) {
-      result = await registry.getResult(object3.name, method.name, parentState, args);
-    } else {
-      throw e2;
-    }
-  }
-  if (result) {
-    let returnType;
-    if (!isConstructor(method)) {
-      if (method.returnType.kind === "INTEGER_KIND" /* IntegerKind */ && isFloat(result)) {
-        throw new Error(`cannot return float '${result}' if return type is 'number' (integer), please use 'float' as return type instead`);
-      }
-      returnType = loadObjectReturnType(module2, object3, method);
-    } else {
-      returnType = object3;
-    }
-    result = await loadResult(result, module2, returnType);
-  }
-  return result;
-}
-
-// src/module/entrypoint/register.ts
-class Register {
-  module;
-  constructor(module2) {
-    this.module = module2;
-  }
-  async run() {
-    let mod = dag.module_();
-    if (this.module.description) {
-      mod = mod.withDescription(this.module.description);
-    }
-    Object.values(this.module.objects).forEach((object3) => {
-      const objectOpts = {
-        description: object3.description,
-        sourceMap: addSourceMap(object3),
-        deprecated: object3.deprecated
-      };
-      let typeDef = dag.typeDef().withObject(object3.name, objectOpts);
-      Object.values(object3.methods).forEach((method) => {
-        typeDef = typeDef.withFunction(this.addFunction(method));
-      });
-      Object.values(object3.properties).forEach((field2) => {
-        if (field2.isExposed) {
-          const fieldOpts = {
-            description: field2.description,
-            sourceMap: addSourceMap(field2),
-            deprecated: field2.deprecated
-          };
-          typeDef = typeDef.withField(field2.alias ?? field2.name, addTypeDef(field2.type), fieldOpts);
-        }
-      });
-      if (object3._constructor) {
-        typeDef = typeDef.withConstructor(this.addConstructor(object3._constructor, typeDef));
-      }
-      mod = mod.withObject(typeDef);
-    });
-    Object.values(this.module.enums).forEach((enum_) => {
-      let typeDef = dag.typeDef().withEnum(enum_.name, {
-        description: enum_.description,
-        sourceMap: addSourceMap(enum_)
-      });
-      Object.values(enum_.values).forEach((value) => {
-        const memberOpts = {
-          value: value.value,
-          description: value.description,
-          sourceMap: addSourceMap(value),
-          deprecated: value.deprecated
-        };
-        typeDef = typeDef.withEnumMember(value.name, memberOpts);
-      });
-      mod = mod.withEnum(typeDef);
-    });
-    Object.values(this.module.interfaces).forEach((interface_) => {
-      let typeDef = dag.typeDef().withInterface(interface_.name, {
-        description: interface_.description
-      });
-      Object.values(interface_.functions).forEach((function_) => {
-        typeDef = typeDef.withFunction(this.addFunction(function_));
-      });
-      mod = mod.withInterface(typeDef);
-    });
-    return await mod.id();
-  }
-  addConstructor(constructor2, owner) {
-    return dag.function_("", owner).with(this.addArg(constructor2.arguments));
-  }
-  addFunction(fct) {
-    let fnDef = dag.function_(fct.alias ?? fct.name, addTypeDef(fct.returnType)).withDescription(fct.description).withSourceMap(addSourceMap(fct)).with(this.addArg(fct.arguments));
-    switch (fct.cache) {
-      case "never": {
-        fnDef = fnDef.withCachePolicy("Never" /* Never */);
-        break;
-      }
-      case "session": {
-        fnDef = fnDef.withCachePolicy("PerSession" /* PerSession */);
-        break;
-      }
-      case "": {
-        break;
-      }
-      default: {
-        const opts = { timeToLive: fct.cache };
-        fnDef = fnDef.withCachePolicy("Default" /* Default */, opts);
-      }
-    }
-    if (fct.deprecated !== undefined) {
-      fnDef = fnDef.withDeprecated({ reason: fct.deprecated });
-    }
-    if (fct.isCheck) {
-      fnDef = fnDef.withCheck();
-    }
-    if (fct.isGenerator) {
-      fnDef = fnDef.withGenerator();
-    }
-    if (fct.isUp) {
-      fnDef = fnDef.withUp();
-    }
-    if (fct.isAgent) {
-      fnDef = fnDef.withAgent();
-    }
-    return fnDef;
-  }
-  addArg(args) {
-    return (fct) => {
-      Object.values(args).forEach((arg) => {
-        const opts = {
-          description: arg.description,
-          sourceMap: addSourceMap(arg),
-          deprecated: arg.deprecated
-        };
-        let typeDef = addTypeDef(arg.type);
-        if (arg.isOptional) {
-          typeDef = typeDef.withOptional(true);
-        }
-        if ([arg.defaultValue, arg.defaultPath, arg.defaultAddress].filter((v2) => v2).length > 1) {
-          throw new Error("cannot set multiple defaults");
-        }
-        if (arg.defaultValue !== undefined) {
-          const defaultValue = this.getDefaultValueFromArg(arg);
-          if (defaultValue === undefined) {
-            typeDef = typeDef.withOptional(true);
-          } else {
-            opts.defaultValue = JSON.stringify(defaultValue);
-          }
-        }
-        if (arg.defaultPath) {
-          opts.defaultPath = arg.defaultPath;
-        }
-        if (arg.defaultAddress) {
-          opts.defaultAddress = arg.defaultAddress;
-        }
-        if (arg.ignore) {
-          opts.ignore = arg.ignore;
-        }
-        fct = fct.withArg(arg.name, typeDef, opts);
-      });
-      return fct;
-    };
-  }
-  getDefaultValueFromArg(arg) {
-    if (!isPrimitiveType(arg.type)) {
-      return;
-    }
-    if (arg.type.kind !== "ENUM_KIND" /* EnumKind */) {
-      return arg.defaultValue;
-    }
-    const enumObj = this.module.enums[arg.type.name];
-    if (!enumObj) {
-      return arg.defaultValue;
-    }
-    const enumMember = Object.entries(enumObj.values).find(([, member]) => member.value === arg.defaultValue);
-    if (!enumMember) {
-      throw new Error(`could not resolve default value '${arg.defaultValue}' for enum ${arg.type.name}`);
-    }
-    return enumMember[0];
-  }
-}
-function addTypeDef(type) {
-  switch (type.kind) {
-    case "SCALAR_KIND" /* ScalarKind */:
-      return dag.typeDef().withScalar(type.name);
-    case "OBJECT_KIND" /* ObjectKind */:
-      return dag.typeDef().withObject(type.name);
-    case "LIST_KIND" /* ListKind */:
-      return dag.typeDef().withListOf(addTypeDef(type.typeDef));
-    case "VOID_KIND" /* VoidKind */:
-      return dag.typeDef().withKind(type.kind).withOptional(true);
-    case "ENUM_KIND" /* EnumKind */:
-      return dag.typeDef().withEnum(type.name);
-    case "INTERFACE_KIND" /* InterfaceKind */:
-      return dag.typeDef().withInterface(type.name);
-    default:
-      return dag.typeDef().withKind(type.kind);
-  }
-}
-function addSourceMap(object3) {
-  const { filepath, line, column } = object3.getLocation();
-  return dag.sourceMap(filepath, line, column);
-}
-function isPrimitiveType(type) {
-  return type.kind === "BOOLEAN_KIND" /* BooleanKind */ || type.kind === "INTEGER_KIND" /* IntegerKind */ || type.kind === "STRING_KIND" /* StringKind */ || type.kind === "FLOAT_KIND" /* FloatKind */ || type.kind === "ENUM_KIND" /* EnumKind */;
-}
-
-// src/module/entrypoint/entrypoint.ts
-async function entrypoint(files2) {
-  await connection(async () => {
-    const fnCall = dag.currentFunctionCall();
-    const moduleName = await dag.currentModule().name();
-    const scanResult = await scan(files2, moduleName);
-    const parentName = await fnCall.parentName();
-    let result;
-    if (parentName === "") {
-      result = await new Register(scanResult).run();
-    } else {
-      const fnName = await fnCall.name();
-      const parentJson = JSON.parse(await fnCall.parent());
-      const fnArgs = await fnCall.inputArgs();
-      const args = {};
-      const parentArgs = parentJson ?? {};
-      for (const arg of fnArgs) {
-        args[await arg.name()] = JSON.parse(await arg.value());
-      }
-      const modules = await load2(files2);
-      const executor = new Executor(modules, scanResult);
-      try {
-        result = await invoke(executor, scanResult, {
-          parentName,
-          fnName,
-          parentArgs,
-          fnArgs: args
-        });
-      } catch (e2) {
-        await fnCall.returnError(formatError(e2));
-        await close();
-        process.exit(1);
-      }
-    }
-    if (result !== undefined && result !== null) {
-      result = JSON.stringify(result);
-    } else {
-      result = "null";
-    }
-    await fnCall.returnValue(result);
-  }, { LogOutput: process.stdout });
-}
-function formatError(e2) {
-  if (e2 instanceof Error) {
-    let error = dag.error(e2.message);
-    if (e2 instanceof ExecError || e2 instanceof GraphQLRequestError) {
-      Object.entries(e2.extensions ?? []).forEach(([key, value]) => {
-        if (value !== "" && value !== undefined && value !== null) {
-          error = error.withValue(key, JSON.stringify(value));
-        }
-      });
-    }
-    return error;
-  }
-  try {
-    return dag.error(JSON.stringify(e2));
-  } catch {
-    return dag.error(String(e2));
-  }
-}
 export {
   up,
   object,
@@ -110013,7 +107739,6 @@ export {
   func,
   field,
   enumType,
-  entrypoint,
   dag,
   connection,
   connect,
