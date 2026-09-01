@@ -133,8 +133,8 @@ type ModConfig {
   the binary bun.lockb.
   """
   runtime: Runtime! {
-    if (hasFile(denoJsonPath)) {
-      if (hasFile(packageJsonPath)) {
+    if (runtimeProbe.exists(denoJsonPath)) {
+      if (runtimeProbe.exists(packageJsonPath)) {
         # Contradictory layout: deno.json selects the Deno runtime, but
         # package.json is a Node/Bun config file. The engine can't tell which
         # runtime this module wants, so neither can we — surface it rather than
@@ -143,11 +143,27 @@ type ModConfig {
       } else {
         Runtime.DENO
       }
-    } else if (hasFile(bunLockPath) or hasFile(bunLockbPath)) {
+    } else if (runtimeProbe.exists(bunLockPath) or runtimeProbe.exists(bunLockbPath)) {
       Runtime.BUN
     } else {
       Runtime.NODE
     }
+  }
+
+  """
+  The four files runtime detection asks about, fetched in one pass.
+
+  Probing them through hasFile is four separate `ws.directory(include: [one
+  file])` calls, and each distinct include list is a distinct node in the
+  engine's graph — so four filtered directory reads to answer one question.
+  Sharing a single include list makes it one, and every `exists` after that is
+  a lookup in a directory the engine has already materialized.
+
+  Detection runs once per module per generate, so this is four round-trips
+  saved per module rather than four overall.
+  """
+  let runtimeProbe: Directory! {
+    ws.directory("/", include: [denoJsonPath, packageJsonPath, bunLockPath, bunLockbPath])
   }
 
   let toolPath: String! = "/work/config.json"
