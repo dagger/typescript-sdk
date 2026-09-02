@@ -4,8 +4,8 @@
 > which proposed moving the runtime here as a separate Dang module addressed by
 > git ref. The engine has since gained a strictly better delivery mechanism —
 > `embed:<filename>` — so this replaces that proposal's §7 (layout/delivery) and
-> §10 (rollout) while keeping its §5 (what moves) and §6 (the `typescript`
-> problem) essentially intact.
+> §10 (rollout) while keeping its §6 (the `typescript` problem) and §8
+> (optimizations) intact.
 >
 > Depends on engine PR [dagger/dagger#14018](https://github.com/dagger/dagger/pull/14018)
 > (open, `v1.0.0-beta.12`). Reference implementation:
@@ -14,7 +14,7 @@
 ## 1. Summary
 
 `dagger generate` emits a single self-contained Dang file, `runtime.dang`, next
-to the module's `dagger-module.toml`, and new modules record:
+to the module's `dagger-module.toml`, and modules record:
 
 ```toml
 [runtime]
@@ -23,15 +23,24 @@ to the module's `dagger-module.toml`, and new modules record:
 
 An embed-aware engine reads that file out of the module's own directory and
 evaluates it in-process with its native Dang interpreter. No SDK module is
-resolved, fetched, compiled or loaded — recognizing the ref is a string check,
-producing the runtime container is one in-process evaluation.
+resolved, fetched, compiled or loaded.
 
-For TypeScript the interesting part is not the mechanism (that is settled by the
-engine PR and mirrored from Python) but the **contents**: the file has to
-express, in one Dang file with no access to its own module source, everything
-`sdk/typescript/runtime` does today for **three JavaScript runtimes and three
-Node package managers** — while losing the two engine-image mounts the current
-runtime leans on (§6). That is the crux of this document.
+The design decision that shapes everything below: **the emitted runtime is
+specialized at generation time.** We know, when we generate, which JavaScript
+runtime the module uses, which package manager, which base image, and whether it
+has any dependencies at all — so we emit the runtime for *that* module rather
+than a universal one that re-derives all of it on every call. What lands in the
+module is a straight-line container recipe with the answers already baked in:
+
+```
+runtime/node/main.dang ─┐
+runtime/bun/main.dang  ─┼─ generation picks one, splices the config ─▶ <module>/runtime.dang
+runtime/deno/main.dang ─┘
+```
+
+The result does one thing: **build a container that installs (if needed) and
+runs the committed entrypoint.** No codegen, no introspection, no config
+parsing, no branching on things that were already known.
 
 ## 2. The contract
 
@@ -43,130 +52,146 @@ pub moduleRuntime(modSource: ModuleSource!, introspectionJson: File): Container!
 
 | Rule | Where | Consequence for us |
 | --- | --- | --- |
-| Ref is `embed:<bare .dang filename>` | `core/sdk/embedded_runtime.go:34` | no path, no metacharacters; `runtime.dang` |
-| File read from the module's **source root** (dir holding `dagger-module.toml`) | `core/sdk/embedded_runtime.go:181` | generation writes it at `rootPath`, not `sourcePath` (§7.1) |
+| Ref is `embed:<bare .dang filename>` | `core/sdk/embedded_runtime.go:34` | no path, no metacharacters; always `runtime.dang`, whichever of the three we emit |
+| File read from the module's **source root** (dir holding `dagger-module.toml`) | `core/sdk/embedded_runtime.go:181` | generation writes it at `rootPath`, not `sourcePath` (§7.3) |
 | Auto-included in the module context, after user patterns | `core/schema/modulesource.go:1230` | no `include` entry needed; a negation cannot undo it |
 | Evaluated alone in a temp dir (`dang.RunDir`) | `core/sdk/dang/v2/embedded_runtime.go:174` | **one file** — no imports of sibling `.dang` files |
-| Exactly one type may declare `pub moduleRuntime` | `:189` | helper types are allowed and needed (config records) |
+| Exactly one type may declare `pub moduleRuntime` | `:189` | helper types allowed, but we should not need any |
 | That type must be constructible with no arguments | `:225` | every field carries a default |
-| `introspectionJson` must be declared **and nullable**; never passed | `:225`, `:26` | declare it, ignore it |
+| `introspectionJson` declared, nullable, **never passed** | `:225`, `:26` | declare it, ignore it — §4 |
 | Returns `Container!`; engine appends `withWorkdir("/scratch")` | `core/sdk/embedded_runtime.go:166`, `core/sdk/consts.go:6` | entrypoint argv must use absolute paths |
 | Only `Runtime` is implemented — no codegen, no typedefs | `core/sdk/embedded_runtime.go:78-100` | typedefs are discovered by running the container |
 
-The file is evaluated against the module's **dependency-facing schema**
-(`SchemaIntrospectionJSONFileForModule`), so the core API — `container`,
-`directory`, `cacheVolume`, `modSource.*` — is available.
-
 **`currentModule` is the trap.** It resolves, but to the *user's* module being
 loaded, not to this SDK: anything the runtime wants from its own repo has to be
-a literal in the file. Python guards this by asserting the assembled file
-contains no `currentModule`; we do the same (§7.2).
+a literal in the file. Generation asserts the emitted file contains no
+`currentModule` (§7.2).
 
 ## 3. Why this supersedes the runtime-module proposal
 
 `runtime-module.md` proposed `github.com/dagger/typescript-sdk/runtime` as an
-ordinary Dang module ref. Everything it argued for still holds — we own the
-whole contract, the runtime-codegen path disappears, no Go build to load the
-runtime — and embedding adds:
+ordinary Dang module ref. Embedding keeps every argument it made and adds:
 
 - **No module resolution at all.** No git fetch, no pin, no `dagger.lock` entry,
-  no second ref that can drift from the SDK's (`runtime-module.md` §9.1's
-  "two modules that must stay in step" problem simply stops existing: the
-  runtime is generated by the same pass that writes `sdk/`).
-- **No unpinned-ref exposure.** A module pointing at a git ref executes whatever
-  that ref resolves to; an embedded file is committed, reviewed and pinned by
-  construction.
-- **Hermetic per module.** A module keeps the runtime it was generated with
-  until it is regenerated. That is also the cost — see §10.2.
+  no second ref that can drift from the SDK's — its §9.1 "two modules that must
+  stay in step" problem stops existing, because the runtime is written by the
+  same pass that writes `sdk/`.
+- **No unpinned-ref exposure.** An embedded file is committed and reviewed.
+- **Specialization becomes possible.** A shared runtime module serves every
+  module, so it must detect. A generated one serves exactly one module, so it
+  can be told (§7.1). This is where most of the latency goes (§8).
 
-What carries over unchanged from that document: §5 (what moves from
-`sdk/typescript/runtime`), §6 (the `typescript` dependency problem — now a hard
-prerequisite, §6.2 here), §8 (the optimizations), §9.3 (the `.gitignore` trap).
+## 4. Scope: install and run, nothing else
 
-## 4. What the runtime has to do
+**The runtime never generates anything.** `dagger-module.toml` modules build
+from committed files, and the engine never passes `introspectionJson` to an
+embedded runtime — so there is no codegen path to port, no
+`skipRuntimeCodegen`/`RuntimeTrustsCommittedFiles` logic to satisfy, and no
+introspection schema to reason about. `introspectionJson` exists in the
+signature because the engine's validator requires it; the body ignores it.
 
-Only the **no-codegen path** — `dagger-module.toml` modules build from committed
-files, and `introspectionJson` is never passed. Upstream that is
-`setupContainerWithoutCodegen` in each of the three runtime files
-(`runtime_node.go:149`, `runtime_bun.go`, `runtime_deno.go`); everything else in
-those files is the codegen path and does not move.
+Everything under `sdk/typescript/runtime` that exists to generate — `Codegen`,
+`GenerateClient`, `lib_generator.go`, `introspector.go`, `SetupContainer`'s
+four-goroutine codegen path, the config *writers* — is out of scope entirely.
+The only upstream code with a counterpart here is
+`setupContainerWithoutCodegen` (`runtime_node.go:149`, and the bun/deno twins),
+which is ~40 lines each.
 
-Shared skeleton, in order:
+**Legacy `dagger.json` modules are not ours.** They keep `sdk = "typescript"`
+and the engine's builtin runtime end to end — that is already how `mod.dang:114`
+routes them. We emit nothing for them and carry no compatibility branch: seeing
+a `dagger.json` means "the engine handles this module", full stop.
 
-1. **Read the module source.** `modSource.{{moduleOriginalName, sourceSubpath,
-   sourceRootSubpath, contextDirectory, sdk.{{debug}}}}` — one dot-block where
-   `analyzeModuleConfig` (`config.go:102`) does six sequential round-trips.
-2. **Detect** runtime, package manager and base image from the committed
-   `package.json` / `deno.json` / lockfiles (§8).
-3. **Assert the committed generated files exist** — `sdk/client.gen.ts`,
-   `__dagger.entrypoint.ts`, plus `tsconfig.json` for node/bun
-   (`config.go:530`), with the same actionable message.
-4. **Base container** from the detected image, workdir `/src/<sourceSubpath>`,
-   per-manager cache mount.
-5. **Install dependencies** — skipped entirely when there are none (§6.2).
-6. **Overlay the committed tree** excluding `node_modules`.
-7. **Mount `sdk/`** at `node_modules/@dagger.io/dagger`.
-8. **Set the entrypoint** (absolute paths).
-9. **`terminal`** when `modSource.sdk.debug`.
+So the whole runtime is: read two things off the module source, assert the
+committed files are there, assemble a container, set an entrypoint.
 
-## 5. What is in each runtime
+## 5. Three runtimes, one per JavaScript runtime
 
-The three differ in base image, cache mount, install command, entrypoint argv
-and which config file is authoritative. That is the whole delta — which is why
-this is one Dang file with a three-way branch, not three files (upstream's split
-exists because each file also carried a codegen path).
+Node, Bun and Deno stop sharing a file. Upstream shares one because each runtime
+also carried a codegen path worth factoring; with codegen gone, what remains is
+three different container recipes that have almost nothing in common — different
+base image, different install tooling, different loader, different config file.
+A single file with a three-way branch would only be a way to ship two thirds of
+a runtime that will never execute.
 
-### 5.1 Node
+Each source lives at `runtime/<js-runtime>/main.dang` (§7.1). Everything in
+`#<config>` is replaced by generation with literals for the module being
+generated; the values below are the defaults that keep the file valid on its own.
 
-| | |
-| --- | --- |
-| default image | `node:24.13.1-alpine@sha256:4f696f…` (`tsdistconsts/consts.go`) |
-| pinned version override | `dagger.runtime = "node@22"` → `node:22-alpine` (**no digest**, upstream parity) |
-| base setup | `apk add ca-certificates`; `NODE_OPTIONS=--use-openssl-ca` |
-| TypeScript loader | `tsx` — **the engine-image mount we lose**, see §6.1 |
-| entrypoint | `tsx --no-deprecation --tsconfig /src/<sub>/tsconfig.json /src/<sub>/__dagger.entrypoint.ts` |
-| required committed | `sdk/client.gen.ts`, `__dagger.entrypoint.ts`, `tsconfig.json`, `package.json` |
+### 5.1 Node — `runtime/node/main.dang`
 
-Package managers (`runtime_node.go:298-479`), selected per §8:
-
-| | cache mount | setup exec | install exec | lockfile |
-| --- | --- | --- | --- | --- |
-| yarn (default, 1.22.22) | `/root/.cache/yarn` shared | none (corepack resolves the pinned version) | `yarn install --prod` | `yarn.lock` |
-| npm (11.8.0) | `/root/.npm` shared | `npm -v \| grep -qx <v> \|\| npm install -g npm@<v>` | `npm install --omit=dev` | `package-lock.json` |
-| pnpm (8.15.4) | `/root/.pnpm-store` shared | `npm install -g pnpm@<v>` | `pnpm install --shamefully-hoist=true --prod` | `pnpm-lock.yaml` |
-
-Each install first overlays `[<lockfile>, .npmrc]` from the module source, so a
-lockfile is honored and a private registry config is respected. Lockfile
-*generation* does not move (`runtime-module.md` §5; `module-gen.md` §6 already
-dropped it).
-
-### 5.2 Bun
+```dang
+type TypescriptNodeRuntime {
+  #<config>
+  let baseImage: String! = "node:24.13.1-alpine@sha256:4f696f…"
+  let tsxVersion: String! = "4.22.4"
+  let packageManager: String! = "yarn"      # yarn | npm | pnpm
+  let packageManagerVersion: String! = "1.22.22"
+  let installs: Boolean! = false            # module declares dependencies
+  let moduleName: String! = "module"
+  #</config>
+  …
+}
+```
 
 | | |
 | --- | --- |
-| default image | `oven/bun:1.3.0-alpine@sha256:37e6b1…` |
-| version override | `dagger.runtime = "bun@1.2"` → `oven/bun:1.2-alpine` |
-| cache mount | `/root/.bun/install/cache` shared, `mod-bun-cache-<version>` |
-| install | overlay `[bun.lock, bunfig.toml]`, then `bun install --no-verify --omit=dev --omit=peer --omit=optional` |
-| entrypoint | `bun run /src/<sub>/__dagger.entrypoint.ts` |
-| required committed | same as node (bun also reads `tsconfig.json`) |
+| base image | digest-pinned default, or `node:<version>-alpine` when `dagger.runtime = "node@<version>"`, or `dagger.baseImage` verbatim — **decided at generation** |
+| shared prefix | `apk add ca-certificates` → `NODE_OPTIONS=--use-openssl-ca` → `npm install -g tsx@<pinned>` (§6.1). Ordered before anything module-specific so the layer is shared by every Node module on the engine |
+| install (only when `installs`) | yarn: `yarn install --prod` · npm: `npm install --omit=dev` (preceded by the version-pin exec) · pnpm: `npm install -g pnpm@<v>` then `pnpm install --shamefully-hoist=true --prod` |
+| install inputs | `[<lockfile>, .npmrc]` mounted from the module source |
+| cache mount | yarn `/root/.cache/yarn` · npm `/root/.npm` · pnpm `/root/.pnpm-store`, shared, upstream names kept so the cache is shared with the builtin runtime |
+| entrypoint | `tsx --no-deprecation --tsconfig <mod>/tsconfig.json <mod>/__dagger.entrypoint.ts` |
+| committed files asserted | `sdk/client.gen.ts`, `__dagger.entrypoint.ts`, `tsconfig.json` |
 
-No loader to install: bun runs TypeScript with decorators natively.
+The three package managers stay in one file behind the baked `packageManager`
+constant: they differ by two execs and a cache path, and splitting them into
+five sources would multiply the surface for no gain. A module that installs
+nothing (§6.2) never reaches that branch at all.
 
-### 5.3 Deno
+### 5.2 Bun — `runtime/bun/main.dang`
 
 | | |
 | --- | --- |
-| default image | `denoland/deno:alpine-2.5.0@sha256:8f58f3…` |
-| base image override | `dagger.baseImage` from **`deno.json`**, not `package.json` |
-| cache mount | `/root/.deno/cache` — upstream names this volume `mod-bun-cache-<bunVersion>` (`runtime_deno.go:25`), a copy-paste bug worth fixing on the way over |
-| install | `deno install --node-modules-dir=auto` (no lockfile overlay; `deno.json` is authoritative) |
-| entrypoint | `deno run -q -A /src/<sub>/__dagger.entrypoint.ts` |
-| required committed | `sdk/client.gen.ts`, `__dagger.entrypoint.ts`, `deno.json` (**no** `tsconfig.json`) |
+| base image | `oven/bun:1.3.0-alpine@sha256:37e6b1…`, or `oven/bun:<version>-alpine`, or `dagger.baseImage` |
+| shared prefix | none — bun runs TypeScript with decorators natively, so there is no loader to install and no CA exec upstream |
+| install (only when `installs`) | `bun install --no-verify --omit=dev --omit=peer --omit=optional`, inputs `[bun.lock, bunfig.toml]` |
+| cache mount | `/root/.bun/install/cache`, shared |
+| entrypoint | `bun run <mod>/__dagger.entrypoint.ts` |
+| committed files asserted | `sdk/client.gen.ts`, `__dagger.entrypoint.ts`, `tsconfig.json` |
+
+### 5.3 Deno — `runtime/deno/main.dang`
+
+| | |
+| --- | --- |
+| base image | `denoland/deno:alpine-2.5.0@sha256:8f58f3…`, or `dagger.baseImage` **from `deno.json`** |
+| shared prefix | none |
+| install (only when `installs`) | `deno install --node-modules-dir=auto` |
+| cache mount | `/root/.deno/cache` — upstream names this volume `mod-bun-cache-<bunVersion>` (`runtime_deno.go:25`); fix it on the way over |
+| entrypoint | `deno run -q -A <mod>/__dagger.entrypoint.ts` |
+| committed files asserted | `sdk/client.gen.ts`, `__dagger.entrypoint.ts`, `deno.json` (**no** `tsconfig.json`) |
 
 Deno resolves `@dagger.io/dagger` through `deno.json` `imports`
-(`"./sdk/index.ts"`), and the runtime additionally mounts `sdk/` at
-`node_modules/@dagger.io/dagger` like the others.
+(`"./sdk/index.ts"` — a path, not an npm specifier), so a module with no npm
+dependencies needs no install at all: `installs` is false and `deno install`
+never runs.
+
+### 5.4 The shared body
+
+Identical in all three, ~30 lines:
+
+```dang
+pub moduleRuntime(modSource: ModuleSource!, introspectionJson: File): Container! {
+  let src = modSource.{{ contextDirectory, sourceSubpath, sdk.{{ debug }} }}
+  …assert committed files…
+  let ctr = base                              # image + shared prefix (cached across modules)
+    .withWorkdir(modulePath)
+    .withMountedDirectory(modulePath, source)  # mounted, not copied
+    .withMountedDirectory(modulePath + "/node_modules/@dagger.io/dagger", source.directory("sdk"))
+    .withEntrypoint(entrypointArgv)
+  if (src.sdk.debug) { ctr.terminal } else { ctr }
+}
+```
 
 ## 6. The two engine-image assets we lose
 
@@ -175,59 +200,48 @@ handed the engine's SDK rootfs as `sdkSourceDir` and mounts two things out of
 it. An embedded runtime has no such directory — and cannot read its own module
 source either (§2).
 
-### 6.1 `tsx` (node only)
+### 6.1 `tsx` (Node only)
 
 `runtime_node.go:35` mounts `/tsx_module` from the engine image and symlinks
 `/usr/local/bin/tsx`. Options, in order of preference:
 
-1. **Install it in the base layer**: `npm install -g tsx@<pinned>` as the first
-   exec on the pinned node image, *before* anything module-specific. Then it is
-   content-addressed on (image digest, tsx version) alone, so it runs once per
-   engine and every Node module reuses the layer — the same economics as the
-   baked copy (`runtime-module.md` §8.4).
+1. **Install it in the shared prefix**: `npm install -g tsx@<pinned>`, before
+   anything module-specific. Then it is content-addressed on (image digest, tsx
+   version) alone, so it runs once per engine and every Node module reuses the
+   layer.
 
    **Measured** on the dev engine (`v1.0.0-beta.12`, linux/arm64):
    `npm install -g tsx@4.22.4` on `node:24.13.1-alpine` is **3.6s cold** (3
-   packages), and a second container with a different workdir reports the exec
-   `CACHED` — confirming it is a one-time per-engine cost, not a per-call one.
-   Layer ordering is what makes that true: a `withWorkdir`/mount placed before
-   the install would fork the layer per module and turn 3.6s into a per-module
-   cost.
+   packages); a second container with a different workdir reports that exec
+   `CACHED`. One-time per engine, not per call. Layer ordering is what makes
+   that true — a `withWorkdir` or mount placed before the install forks the
+   layer per module and turns 3.6s into a per-module cost.
 2. **Publish our own base image** from this repo — node + tsx + ca-certificates,
-   digest-pinned — so the cost folds into the image pull we already pay and the
-   `apk add ca-certificates` exec disappears too. Restores exactly the property
-   the engine image gave us. Costs a published artifact to build, version and
-   keep in step with `tsdistconsts`. Worth it only if the 3.6s above shows up in
-   the numbers (§9.5).
+   digest-pinned — so the cost folds into the image pull and the `apk add`
+   exec disappears too. Restores exactly the property the engine image gave us,
+   at the cost of an artifact to build, version and keep in step with
+   `tsdistconsts`. Take it if the numbers (§9.5) say the 3.6s matters.
 3. **Vendor tsx into `sdk/`** at generation time. Removes the fetch, but adds
-   ~MBs per module to an artifact that is already ~3.9 MB, and tsx ships a
-   native (esbuild) binary per platform — so the committed copy would have to
-   cover every platform a module can run on.
-4. **Node's native type stripping** — rejected: modules use legacy decorators
-   (`experimentalDecorators`), which `--experimental-strip-types` refuses, and
-   the decorators are not optional (they are what registers the user's classes
-   at import time).
+   ~MBs per module to an artifact already ~3.9 MB, and tsx ships a native
+   (esbuild) binary per platform, so the committed copy would have to cover
+   every platform a module can run on.
+4. **Node's native type stripping** — rejected: `--experimental-strip-types`
+   refuses legacy decorators, and the decorators are not optional (they are what
+   registers the user's classes at import time).
 
-**Recommend (1)**, with the version pinned in the runtime file as a literal;
-keep (2) in reserve. Bun and Deno need no loader at all, so this is a Node-only
-cost.
+**Recommend (1)** now, with the version baked by generation; keep (2) in
+reserve. Bun and Deno need no loader, so this is a Node-only cost.
 
 ### 6.2 `typescript` — a hard prerequisite
 
 All three runtimes mount the engine's prebuilt `/typescript-library` when the
-module's config pins the default TypeScript version, and **skip installation
-entirely** when that is the only dependency (`runtime_node.go:332,391,451`,
-`runtime_bun.go`, `runtime_deno.go`). We write exactly that pin today:
-`helpers/config-updater/main.go:154` adds `dependencies.typescript = "5.9.3"` to
-every generated module.
+module pins the default TypeScript version, and **skip installation entirely**
+when that is the only dependency (`runtime_node.go:332,391,451`, and the bun and
+deno twins). We write exactly that pin today: `helpers/config-updater/main.go:154`
+adds `dependencies.typescript = "5.9.3"` to every generated module.
 
-Ported naively, the embedded runtime turns **every `dagger call` into a real npm
-install of TypeScript** — a regression, not the speedup this is for.
-
-`runtime-module.md` §6.2 already has the answer and it becomes a **blocking
-prerequisite** here: build a runtime-only bundle (`library/src/runtime.ts`, the
-barrel minus `export { entrypoint }`), drop `entrypoint` from
-`library/bundle/index.ts`, and stop pinning `typescript` in config-updater.
+Ported naively, every `dagger call` becomes a real npm install — a regression,
+not the speedup this is for.
 
 The dependency is one import edge wide, and it is dead code at runtime:
 
@@ -241,221 +255,242 @@ The dependency is one import edge wide, and it is dead code at runtime:
   `library/src/index.ts` exporting `entrypoint`, whose module imports `scan`
   from the introspector (`library/src/module/entrypoint/entrypoint.ts:8`).
 
-The static dispatch entrypoint never calls any of it — runtime introspection
-died with the static entrypoint. But ESM resolves static imports at load, not at
-use, so the specifier has to resolve anyway: that, and nothing else, is why
-every generated module declares a TypeScript dependency.
+ESM resolves static imports at load, not at use, so the specifier has to resolve
+even though nothing calls it. That, and nothing else, is why every generated
+module declares a TypeScript dependency.
 
-Cut that export and a default module has **no dependencies at all**: the runtime
-skips package-manager setup *and* install outright, which is strictly better
-than reproducing the mount — nothing to keep in sync, nothing to drift. The same
-removal covers deno (`imports.typescript = "npm:typescript@5.9.3"` in our
-generated `deno.json`) and bun.
+> **This is not the generated entrypoint.** `entrypoint` here is the *library
+> function* `@dagger.io/dagger` exports — the legacy dynamic dispatcher that
+> scanned the user's module at call time. The generated
+> `__dagger.entrypoint.ts` is a different thing entirely and stays exactly as it
+> is: it is what the runtime executes, and its import list
+> (`templates/entrypoint_functions.go`, `plannedImports`) is `Context`,
+> `Error as DaggerError`, `FunctionCachePolicy`, `TypeDefKind`, `connection`,
+> `dag`, `getRegisteredClass` — `entrypoint` is not among them. Removing the
+> export removes runtime introspection, which the static entrypoint already
+> replaced; it does not remove the entrypoint file.
 
-If this slips, the fallback is measurable rather than fatal: `npm install
+So: build a runtime-only bundle (`library/src/runtime.ts`, the barrel minus
+`export { entrypoint }`), drop the matching declaration from `core.d.ts` and the
+re-export from `library/bundle/index.ts`, and stop pinning `typescript` in
+config-updater. Then a default module declares **no dependencies at all**,
+generation bakes `installs = false`, and the runtime skips package-manager setup
+and install outright — in all three runtimes, including the deno
+`imports.typescript = "npm:typescript@5.9.3"` we write today.
+
+If it slips, the fallback is measurable rather than fatal: `npm install
 --omit=dev` of `typescript@5.9.3` on the pinned node image is **1.6s cold**
-(measured, same engine), cached per module manifest thereafter. Slower than
-today for a first call, not a cliff — but it is per module, where the tsx layer
-is per engine, so it is the one worth fixing properly.
+(measured, same engine), cached per module manifest. But it is per module, where
+the tsx layer is per engine — so it is the one worth fixing properly.
 
-## 7. Changes in this repo
+## 7. Generation
 
-### 7.1 The runtime source: `runtime/main.dang`
+### 7.1 Detect once, at generation
 
-A single file implementing §4/§5, plus helper record types for the decoded
-config. Unlike Python's, it needs **no `#<externals>` fence**: TypeScript has no
-runtime script to inline (the entrypoint is the module's own generated
-`__dagger.entrypoint.ts`), so everything the file needs is already a literal —
-image refs, package-manager versions, the tsx pin.
+Everything `analyzeModuleConfig` (`config.go:102`) does per call — six
+sequential engine round-trips, then JSON parsing of `package.json`/`deno.json`,
+then three detection passes — happens once, at generation, in Dang:
 
-That has a pleasant consequence: the same file is valid both as an embedded file
-*and* as a normal Dang module. Giving it a `runtime/dagger-module.toml` costs
-nothing and buys a way to exercise `moduleRuntime` directly from a check,
-without going through the engine's embed path (§9).
-
-If we later want Dependabot to bump the image digests, adopt Python's shape:
-commit single-`FROM` Dockerfiles under `runtime/images/{node,bun,deno}/` and
-fence the three `let default*Image` bindings, splicing literals at generation
-(`mod.dang` in python-sdk#24 does this in ~40 lines). Not needed for the first
-landing; the repo already pins images as Dang literals today.
-
-### 7.2 Generation
-
-Add to `typescript-sdk.dang`:
-
-```dang
-let embeddedRuntime: String! {
-  let source = currentModule.source.file("runtime/main.dang").contents
-  if (source.contains("currentModule")) {
-    raise "runtime/main.dang reads its own module source; the embedded copy would not be self-contained"
-  }
-  "# Code generated by dagger. DO NOT EDIT.\n" + source
-}
-```
-
-and write it in `moduleFiles` (`typescript-sdk.dang:614`). Two details:
-
-- **It goes at `rootPath`, not `sourcePath`.** The engine reads
-  `<sourceRootSubpath>/runtime.dang` — the directory holding
-  `dagger-module.toml`. Those are the same directory for most modules but not
-  for a migrated one whose config sits in `.dagger/modules/<name>/` with
-  `source` pointing elsewhere (`mod.dang:44-56`). `moduleFiles` currently stages
-  only under `sourcePath`, so this is a second staging op —
-  `withNewFile("/" + rootPath + "/runtime.dang", …)` — not a change to the
-  existing `withNewDirectory`.
-- **Emit it for every `dagger-module.toml` module**, regardless of what the
-  module's `[runtime] source` currently says. The file is inert until the config
-  points at it, which makes migration "regenerate, then flip one line" instead
-  of a flag day. Legacy `dagger.json` modules are untouched (`mod.dang:114`
-  already routes them to the engine end to end).
-
-Then `targetRuntime` (`typescript-sdk.dang:24`) flips from `"typescript"` to
-`"embed:runtime.dang"` — in its own commit, so it can be reverted independently
-of everything above.
-
-### 7.3 File hygiene
-
-- `.gitattributes`: `/runtime.dang linguist-generated`, alongside the entries
-  the fixtures already carry for `sdk/**` and `__dagger.entrypoint.ts`.
-- `.gitignore`: `runtime.dang` **must not** be ignored. The `runtimes` fixtures
-  ignore `/sdk` and `/__dagger.entrypoint.ts` today; a user doing the same for
-  `runtime.dang` would get "embedded runtime file not found" on a file that is
-  on disk. Same trap as `runtime-module.md` §9.3 — verify how the engine's
-  auto-include interacts with an ignored file (§10.4).
-- Regeneration overwrites the file in place; there is no pruning problem (fixed
-  name, unlike `sdk/*.gen.ts`).
-
-## 8. Config detection in Dang
-
-Rules are unchanged from `config.go` — the point is parity, so a module loads
-identically before and after the flip:
-
-| decision | source of truth, in order |
+| decision | rule (unchanged from `config.go`) |
 | --- | --- |
-| runtime | `dagger.runtime` in `package.json` (`node@x` / `bun@x`) → `bun.lock`/`bun.lockb` → `package-lock.json`/`yarn.lock`/`pnpm-lock.yaml` → `deno.json`/`deno.lock` → **node** |
-| package manager | bun runtime → bun; deno runtime → deno; `packageManager` field (`name@version`, version **required**) → `package-lock.json` → `yarn.lock` → `pnpm-lock.yaml` → **yarn 1.22.22** |
+| JS runtime | `dagger.runtime` in `package.json` (`node@x` / `bun@x`) → `bun.lock`/`bun.lockb` → `package-lock.json`/`yarn.lock`/`pnpm-lock.yaml` → `deno.json`/`deno.lock` → **node** |
+| package manager | bun/deno runtime → their own; `packageManager` field (`name@version`, version required) → `package-lock.json` → `yarn.lock` → `pnpm-lock.yaml` → **yarn 1.22.22** |
 | base image | `dagger.baseImage` (`deno.json` for deno, else `package.json`) → `<runtime>:<version>-alpine` when a version was pinned → digest-pinned default |
+| `installs` | does the module declare any dependency after §6.2 (`dependencies` in `package.json`, npm specifiers in `deno.json` `imports`) |
 
 Implementation notes:
 
-- Decode with `JSON.decode(contents) :: PkgJSON!` into declared record types.
-  Dang v2 has a map type (`Map[String!]`, with `.length`/`.has`/`.get`), so
-  `dependencies` decodes directly — this is what makes the "are there any
-  dependencies at all?" check in §6.2 a one-liner. (`runtime-module.md` §7.2
-  says Dang has no map type; that is out of date as of `dang/v2 v2.1.3`.)
-- **Do not** use the `helpers/module-config` container pattern from
-  `mod-config.dang:164`: it builds a Go binary per call and has no place on a
-  runtime hot path. `ModConfig.runtime` (`mod-config.dang:135`) also reads a
-  *Workspace*, while the runtime reads a `ModuleSource` — keep them separate
-  rather than contorting one to serve both.
-- `deno.json` may legally contain comments (JSONC). `JSON.decode` will reject
-  those, exactly as upstream's `encoding/json` does today (`config.go:175-186`) — so
-  this is parity, not a regression, but it is worth a clear error.
+- Do it **in Dang, with `JSON.decode(contents) :: T`** — no helper container, no
+  exec. Dang v2 has a map type (`Map[String!]`), so `dependencies` decodes
+  directly and `installs` is `.length > 0`. (`runtime-module.md` §7.2 says Dang
+  has no map type; that is out of date as of `dang/v2 v2.1.3`.)
+- `existingModuleConfig` (`typescript-sdk.dang:591`) already reads exactly the
+  files this needs.
+- `ModConfig` (`mod-config.dang`) stays as it is: it serves the user-facing
+  `mod config` surface and needs the Go helper for *writes*. Its `runtime`
+  detection (`mod-config.dang:135`) is a subset of the table above — worth
+  reconciling so the two cannot disagree, but they read different sources (a
+  workspace vs. a generated tree), so keep them as separate functions.
+- `deno.json` may legally contain comments (JSONC), which `JSON.decode` rejects,
+  exactly as upstream's `encoding/json` does today (`config.go:175-186`). Same
+  behavior, better error.
+
+### 7.2 Splice and emit
+
+Mirrors python-sdk#24: read the chosen source, replace the `#<config>` block
+with literals, prepend the generated-file header, assert self-containment.
+
+```dang
+let embeddedRuntime(cfg: RuntimeConfig!): String! {
+  let source = currentModule.source.file("runtime/" + cfg.jsRuntime + "/main.dang").contents
+  let opening = source.split("#<config>")
+  let closing = (opening[1] ?? "").split("#</config>")
+  if (opening.length != 2 or closing.length != 2) {
+    raise "runtime/" + cfg.jsRuntime + "/main.dang must fence its config in exactly one #<config> block"
+  }
+  let assembled = "# Code generated by dagger. DO NOT EDIT.\n"
+    + (opening[0] ?? "") + configLiterals(cfg) + (closing[1] ?? "")
+  if (assembled.contains("currentModule")) {
+    raise "runtime source reads its own module source; the embedded copy would not be self-contained"
+  }
+  assembled
+}
+```
+
+The fence is what keeps each source valid as written — the committed defaults
+are real values, so `runtime/node/main.dang` can be loaded and called directly
+by a check (§9.1) without going near the engine's embed path.
+
+### 7.3 Where it lands
+
+- **At `rootPath`, not `sourcePath`.** The engine reads
+  `<sourceRootSubpath>/runtime.dang` — the directory holding
+  `dagger-module.toml`. Those coincide for most modules but not for a migrated
+  one whose config sits in `.dagger/modules/<name>/` with `source` pointing
+  elsewhere (`mod.dang:44-56`). `moduleFiles` (`typescript-sdk.dang:614`) stages
+  only under `sourcePath` today, so this is a second staging op —
+  `withNewFile("/" + rootPath + "/runtime.dang", …)`.
+- **Emitted for every `dagger-module.toml` module**, whatever its current
+  `[runtime] source` says. The file is inert until the config points at it,
+  which makes migration "regenerate, then flip one line".
+- `targetRuntime` (`typescript-sdk.dang:24`) becomes `"embed:runtime.dang"` —
+  one constant, since all three variants share the filename.
+- `.gitattributes`: `/runtime.dang linguist-generated`. `.gitignore`: it must
+  **not** be ignored (§10.4).
+
+## 8. Optimizations
+
+The point of the exercise. In rough order of expected value:
+
+**8.1 — No SDK load at all.** Today's builtin runtime is a Go module, so loading
+it means the Go SDK compiles it in a container, with its own module cache and
+dependency closure, before the engine can ask it anything
+(`runtime-module.md` §8.1). An embedded file is evaluated in-process. Largest
+cold-start win, and it hits every first TypeScript module call on a fresh engine.
+
+**8.2 — Zero detection at call time.** §7.1. No `package.json` read, no JSON
+decode, no lockfile probing, no base-image resolution: all of it is a literal in
+the file. What remains is one projection —
+`modSource.{{ contextDirectory, sourceSubpath, sdk.{{ debug }} }}` — where
+upstream does six sequential round-trips.
+
+**8.3 — Zero-dependency modules skip installation.** §6.2, decided at generation
+so the install step is not merely skipped but *absent* from the emitted file.
+For a default module in any of the three runtimes this removes package-manager
+setup and install entirely.
+
+**8.4 — A shared, module-independent base prefix.** For Node, the image +
+`apk add ca-certificates` + `npm i -g tsx` prefix must come before any
+module-specific operation, so all Node modules on an engine share one cached
+layer (§6.1). Bun and Deno have no prefix at all — `container.from(<digest>)`
+and straight into the module.
+
+**8.5 — Mount, don't copy.** Upstream overlays the module tree with
+`withDirectory(".", source)`, which copies into the layer. `withMountedDirectory`
+avoids the copy; the engine's own Python runtime already does it this way.
+
+**8.6 — Stable layer ordering.** Mount `sdk/` (changes only on regeneration)
+separately from the module source (changes on every edit), so editing user code
+invalidates neither the bundle mount nor the install layer.
+
+**8.7 — Digest-pinned images.** Carry `tsdistconsts`' pins over. A user pinning
+`dagger.runtime = "node@22"` gets `node:22-alpine` resolved per call — upstream
+behavior, kept for parity, but it is a cache miss the default does not have.
+
+**8.8 — Cheap existence checks.** The committed-file assertions are the only
+reads left in the runtime. Prefer one `entries`/`glob` over three separate
+`exists` calls, and keep the actionable message
+(`config.go:530`) — a missing generated file is the one failure mode users hit.
 
 ## 9. Testing
 
-1. **Direct**: with `runtime/dagger-module.toml` in place (§7.1), a check can
-   call `moduleRuntime(modSource)` on the runtime type and assert the resulting
-   container — entrypoint argv, env, mounts — per runtime and per package
-   manager, without needing an embed-capable engine.
-2. **Generation**: assert the emitted `runtime.dang` sits next to
+1. **Direct.** Give each `runtime/<js-runtime>/` a `dagger-module.toml` so its
+   `moduleRuntime` can be called from a check against a fixture `ModuleSource`,
+   asserting entrypoint argv, mounts, env and install execs — per runtime and,
+   for node, per package manager. No embed-capable engine needed. (This also
+   keeps `runtime-module.md`'s module-ref path alive as a debugging escape
+   hatch.)
+2. **Generation.** Assert the emitted `runtime.dang` sits next to
    `dagger-module.toml`, carries the generated-file marker, declares
-   `pub moduleRuntime(`, contains the image pins, and contains no
-   `currentModule` (mirrors python-sdk#24's `toml-generate-check`).
-3. **Execution**: point `.dagger/modules/runtimes/fixtures/{node,bun,deno}` at
+   `pub moduleRuntime(`, contains the expected literals for that fixture (the
+   *right* runtime, image and package manager), and contains no `currentModule`.
+3. **Execution.** Point `.dagger/modules/runtimes/fixtures/{node,bun,deno}` at
    `embed:runtime.dang` and let the existing `nodeRunsCheck` / `bunRunsCheck` /
-   `denoRunsCheck` / `invokesFunctionCheck` (`.dagger/modules/runtimes/main.dang`)
-   become this change's regression suite with no new test code. **Keep one
-   fixture on `"typescript"`** so the builtin path stays covered.
-4. **Package-manager coverage** is the gap the current fixtures leave: they only
-   exercise the default (yarn). Add npm and pnpm fixtures — a lockfile plus a
-   `packageManager` field is enough to select them — since this is the first
-   time we own that code.
-5. **Perf**: measure cold and warm `dagger call` on each runtime against the
-   builtin runtime, before and after. The whole proposal is a latency argument;
-   it should come with numbers. Both sides of the ledger need measuring, not
-   just the two costs §6 adds:
-   - what embed **removes** — the builtin TypeScript runtime is a Go module, so
-     loading it means the Go SDK compiles it in a container, with its own module
-     cache and dependency closure, before the engine can ask it anything
-     (`runtime-module.md` §8.1). A Dang file is evaluated in-process.
-   - `analyzeModuleConfig`'s six sequential engine round-trips (`config.go:102`)
-     collapse to one dot-block.
-   - `apk add ca-certificates` disappears if §6.1 option (2) is taken.
+   `denoRunsCheck` / `invokesFunctionCheck` become the regression suite with no
+   new test code. Keep one fixture on `"typescript"` so the builtin path stays
+   covered.
+4. **Package managers.** The current fixtures only exercise the default (yarn).
+   Add npm and pnpm fixtures — a lockfile plus a `packageManager` field selects
+   them — since this is the first time we own that code. Add one fixture with a
+   real dependency, so the `installs = true` path is covered at all.
+5. **Perf.** Cold and warm `dagger call` per runtime, embedded vs. builtin. Both
+   sides of the ledger: §8.1 and §8.2 against §6.1's 3.6s.
 
-A dev engine with embed support is available today —
+The dev engine has embed support today —
 `_EXPERIMENTAL_DAGGER_RUNNER_HOST=docker-container://dagger-engine.dev` with
-`dagger-dev` (`v1.0.0-beta.12`, `dac39c69`) — so 1–3 can be exercised before the
-engine change ships.
+`dagger-dev` (`v1.0.0-beta.12`, `dac39c69`) — so all five are reachable before
+the engine change ships.
 
 ## 10. Risks and open questions
 
-**10.1 — Engine availability.** `embed:` is unreleased. Released engines
-(≤ `v1.0.0-beta.11`, which is what `targetEngineVersion`
-(`typescript-sdk.dang:36`) and every fixture pins) reject the ref with
-`invalid SDK: "embed:runtime.dang"`. Python accepted a known-red CI window;
-we can avoid one by landing §7.2's emit first and flipping `targetRuntime` only
-after an embed-capable engine is released and `targetEngineVersion` is bumped.
+**10.1 — Specialization means regeneration is load-bearing.** A user who adds a
+`bun.lock`, switches `packageManager`, or adds their first dependency without
+running `dagger generate` keeps the runtime generated for the previous shape:
+the wrong interpreter, the wrong installer, or no install at all. This is the
+cost of §8.2 and it is deliberate — but it needs to be *loud*:
+- `mod config set` (`mod-config.dang:63`) edits `package.json`; it should return
+  the regenerated runtime in the same changeset rather than leave the module
+  inconsistent until the next generate.
+- The failure mode for "added a dependency, did not regenerate" is a module-load
+  error about a missing package. Worth a check that the emitted runtime and the
+  committed manifest agree, run as part of generation.
 
-**10.2 — Version skew is now per module.** A module keeps the runtime it was
-generated with. Good: hermetic, no unpinned ref, no second thing to pin. Bad: a
-runtime bugfix reaches a module only when someone regenerates it, and the fleet
-of committed runtimes is unbounded. The engine routes evaluation through the
-Dang major ladder by the module's `engineVersion`, so language-level
+**10.2 — Engine availability.** `embed:` is unreleased. Released engines
+(≤ `v1.0.0-beta.11`, what `targetEngineVersion` (`typescript-sdk.dang:36`) and
+every fixture pins) reject the ref with `invalid SDK: "embed:runtime.dang"`.
+Land the emit first, flip `targetRuntime` after an embed-capable release.
+
+**10.3 — Version skew is now per module.** A module keeps the runtime it was
+generated with. Hermetic and unpinnable-by-accident; also means a runtime fix
+reaches a module only when someone regenerates it. The engine routes evaluation
+through the Dang major ladder by the module's `engineVersion`, so language-level
 compatibility is handled; semantic drift is not.
 
-**10.3 — A ~400-line generated Dang file in every module.** Reviewable, but it
-is noise in user diffs and an invitation to edit. Mitigated by the header and
-`linguist-generated`, not eliminated.
+**10.4 — The `.gitignore` interaction.** The engine force-includes the file
+after user patterns, but that is an *include pattern*, not a gitignore override.
+The `runtimes` fixtures already ignore `/sdk` and `/__dagger.entrypoint.ts`; a
+user doing the same to `runtime.dang` would get "embedded runtime file not
+found" for a file that is on disk. Verify against the dev engine and make the
+error actionable.
 
-**10.4 — The `.gitignore` interaction.** §7.3. The engine force-includes the
-file after user patterns, but that is an *include pattern*, not a gitignore
-override; verify against the dev engine with a module whose `.gitignore` covers
-`runtime.dang`, and make the error actionable if it bites.
+**10.5 — A generated Dang file in every module.** Specialization keeps it small
+(~80–120 lines rather than ~400), which helps, but it is still a file users will
+read and be tempted to edit. Header plus `linguist-generated`; nothing more.
 
-**10.5 — Base images without digests.** A pinned `dagger.runtime = "node@22"`
-produces `node:22-alpine`, resolved per call. That is upstream behavior and
-worth keeping for parity, but it is a cache miss the digest-pinned default does
-not have.
-
-**10.6 — Per-module specialization, deliberately not taken.** Generation knows
-the module's runtime and package manager, so it *could* emit a file containing
-only that branch. Rejected for now: a user who adds a `bun.lock` without
-regenerating would silently keep running node, where detection-at-call-time
-follows the module. Revisit only if detection shows up in a measurement.
-
-**10.7 — `helpers/config-updater` and the runtime must agree.** Today the pin
-warning is one-directional (`runtime-module.md` §6). After §6.2 the invariant
-becomes "generated modules declare no dependencies", and the runtime's
-skip-install path depends on it. A check should assert the default template
-generates an empty `dependencies`.
-
-**10.8 — Registry reachability moves.** Today a Node module can be called with
+**10.6 — Registry reachability moves.** Today a Node module can be called with
 nothing but the engine image, because both `tsx` and `typescript` come out of
 it. After §6.1 option (1), the first Node call on a fresh engine needs
-`registry.npmjs.org`. §6.2 removes the `typescript` half entirely; the tsx half
-is what remains, and §6.1 option (2) converts it from an npm fetch into an image
-pull — the dependency an air-gapped setup is more likely to already mirror. Not
-a blocker, but it is a behavior change for offline users and belongs in release
-notes whichever option we take.
+`registry.npmjs.org`; §6.2 removes the `typescript` half, and §6.1 option (2)
+converts the tsx half into an image pull. A behavior change for offline users,
+and release-note material whichever option we take.
 
 ## 11. Rollout
 
-1. **§6.2 first** — the runtime-only bundle and dropping the `typescript` pin.
-   Independently correct, and it lands while the engine's runtime is still what
-   executes modules, so `packager:library-bundle` staleness plus the existing
-   `runtimes` checks catch a mistake early.
-2. **Write `runtime/main.dang`** — config detection, then node (yarn, then npm
-   and pnpm), then bun, then deno. Cover it with the direct checks (§9.1) as it
-   grows; nothing here needs the embed path.
-3. **Emit `runtime.dang`** from `moduleFiles` (§7.2) with the generation check
-   (§9.2). Still inert.
-4. **Verify end-to-end against `dagger-dev`**: flip one fixture's config by hand
-   to `embed:runtime.dang` and run the execution checks (§9.3).
-5. **Add npm/pnpm fixtures** (§9.4) and take the perf numbers (§9.5).
+1. **§6.2 first** — runtime-only bundle, drop the `entrypoint` export and its
+   `core.d.ts` declaration, stop pinning `typescript`. Independently correct,
+   and it lands while the engine's runtime still executes modules, so
+   `packager:library-bundle` staleness plus the existing `runtimes` checks catch
+   a mistake early.
+2. **Generation-time detection** (§7.1) — in Dang, no new helper. Landable on
+   its own: nothing consumes the result yet.
+3. **Write the three runtimes** — node (yarn, then npm and pnpm), then bun, then
+   deno, each covered by direct checks (§9.1) as it is written.
+4. **Splice and emit** (§7.2, §7.3) with the generation check (§9.2). Still
+   inert.
+5. **Verify end-to-end against `dagger-dev`**: flip one fixture's config by hand
+   and run the execution checks (§9.3), then add the missing fixtures (§9.4) and
+   take the numbers (§9.5).
 6. **Flip `targetRuntime`** once an embed-capable engine is released and
-   `targetEngineVersion` is bumped. New modules get the embed form; existing
-   ones are unaffected until their config is edited.
-7. **Leave the engine's builtin `"typescript"` runtime alone.** It still serves
-   every `dagger.json` module. Retiring it is gated on pre-1.0 deprecation, not
-   on this.
+   `targetEngineVersion` is bumped.
+7. **Leave the engine's builtin `"typescript"` runtime alone.** It serves every
+   `dagger.json` module, and that is where those modules stay (§4).
