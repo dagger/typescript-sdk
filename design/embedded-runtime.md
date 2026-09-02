@@ -289,7 +289,12 @@ the tsx layer is per engine — so it is the one worth fixing properly.
 
 Everything `analyzeModuleConfig` (`config.go:102`) does per call — six
 sequential engine round-trips, then JSON parsing of `package.json`/`deno.json`,
-then three detection passes — happens once, at generation, in Dang:
+then three detection passes — happens once, at generation, in Dang.
+
+**Detection is generation-time only.** The emitted runtime carries answers, not
+rules: it never re-derives the JS runtime, the package manager, the base image
+or whether to install. A module whose inputs change is a module that needs
+regenerating (§10.1).
 
 | decision | rule (unchanged from `config.go`) |
 | --- | --- |
@@ -433,17 +438,18 @@ the engine change ships.
 
 ## 10. Risks and open questions
 
-**10.1 — Specialization means regeneration is load-bearing.** A user who adds a
-`bun.lock`, switches `packageManager`, or adds their first dependency without
-running `dagger generate` keeps the runtime generated for the previous shape:
-the wrong interpreter, the wrong installer, or no install at all. This is the
-cost of §8.2 and it is deliberate — but it needs to be *loud*:
-- `mod config set` (`mod-config.dang:63`) edits `package.json`; it should return
-  the regenerated runtime in the same changeset rather than leave the module
-  inconsistent until the next generate.
-- The failure mode for "added a dependency, did not regenerate" is a module-load
-  error about a missing package. Worth a check that the emitted runtime and the
-  committed manifest agree, run as part of generation.
+**10.1 — Regeneration is load-bearing. Decided: that is the contract.** A user
+who adds a `bun.lock`, switches `packageManager`, or adds their first dependency
+keeps the runtime generated for the previous shape until they run
+`dagger generate`. The runtime does **not** re-check any of it at call time — no
+lockfile probe, no manifest read, no self-correction. That is the whole point of
+§8.2, and it is the same rule that already governs `sdk/` and
+`__dagger.entrypoint.ts`: change the module, regenerate it.
+
+The only thing this asks of us is that the rule is visible where a user changes
+one of those inputs — `mod config set` (`mod-config.dang:63`) edits
+`package.json`, so its output should say to regenerate, the way any
+generated-files workflow does.
 
 **10.2 — Engine availability.** `embed:` is unreleased. Released engines
 (≤ `v1.0.0-beta.11`, what `targetEngineVersion` (`typescript-sdk.dang:36`) and
