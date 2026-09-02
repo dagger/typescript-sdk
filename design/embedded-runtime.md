@@ -181,16 +181,36 @@ source either (§2).
 `/usr/local/bin/tsx`. Options, in order of preference:
 
 1. **Install it in the base layer**: `npm install -g tsx@<pinned>` as the first
-   exec on the pinned node image. Content-addressed on (image digest, tsx
-   version), so it runs once per engine and is shared by every Node module —
-   the same economics as the baked copy (`runtime-module.md` §8.4). Costs one
-   network fetch the first time.
-2. **Vendor tsx into `sdk/`** at generation time. Removes the fetch, but adds
-   ~MBs per module to an artifact that is already ~3.9 MB.
-3. **Node's native type stripping** — rejected: modules use legacy decorators
-   (`experimentalDecorators`), which `--experimental-strip-types` refuses.
+   exec on the pinned node image, *before* anything module-specific. Then it is
+   content-addressed on (image digest, tsx version) alone, so it runs once per
+   engine and every Node module reuses the layer — the same economics as the
+   baked copy (`runtime-module.md` §8.4).
 
-**Recommend (1)**, with the version pinned in the runtime file as a literal.
+   **Measured** on the dev engine (`v1.0.0-beta.12`, linux/arm64):
+   `npm install -g tsx@4.22.4` on `node:24.13.1-alpine` is **3.6s cold** (3
+   packages), and a second container with a different workdir reports the exec
+   `CACHED` — confirming it is a one-time per-engine cost, not a per-call one.
+   Layer ordering is what makes that true: a `withWorkdir`/mount placed before
+   the install would fork the layer per module and turn 3.6s into a per-module
+   cost.
+2. **Publish our own base image** from this repo — node + tsx + ca-certificates,
+   digest-pinned — so the cost folds into the image pull we already pay and the
+   `apk add ca-certificates` exec disappears too. Restores exactly the property
+   the engine image gave us. Costs a published artifact to build, version and
+   keep in step with `tsdistconsts`. Worth it only if the 3.6s above shows up in
+   the numbers (§9.5).
+3. **Vendor tsx into `sdk/`** at generation time. Removes the fetch, but adds
+   ~MBs per module to an artifact that is already ~3.9 MB, and tsx ships a
+   native (esbuild) binary per platform — so the committed copy would have to
+   cover every platform a module can run on.
+4. **Node's native type stripping** — rejected: modules use legacy decorators
+   (`experimentalDecorators`), which `--experimental-strip-types` refuses, and
+   the decorators are not optional (they are what registers the user's classes
+   at import time).
+
+**Recommend (1)**, with the version pinned in the runtime file as a literal;
+keep (2) in reserve. Bun and Deno need no loader at all, so this is a Node-only
+cost.
 
 ### 6.2 `typescript` — a hard prerequisite
 
@@ -207,16 +227,36 @@ install of TypeScript** — a regression, not the speedup this is for.
 `runtime-module.md` §6.2 already has the answer and it becomes a **blocking
 prerequisite** here: build a runtime-only bundle (`library/src/runtime.ts`, the
 barrel minus `export { entrypoint }`), drop `entrypoint` from
-`library/bundle/index.ts`, and stop pinning `typescript` in config-updater. The
-compiler is only reachable from the introspector, which the static entrypoint
-never calls — it is dead weight kept alive by a barrel export.
+`library/bundle/index.ts`, and stop pinning `typescript` in config-updater.
 
-Then a default module has **no dependencies at all**, and the runtime skips
-package-manager setup *and* install outright. Strictly better than reproducing
-the mount: nothing to keep in sync, nothing to drift.
+The dependency is one import edge wide, and it is dead code at runtime:
 
-The same removal covers deno (`imports.typescript = "npm:typescript@5.9.3"` in
-our generated `deno.json`) and bun.
+- `library/bundle/core.js` carries 9 top-level `import … from "typescript"`
+  statements (the packager builds with `--external=typescript`,
+  `.dagger/modules/packager/main.dang:67`), all in the introspector region at
+  the tail of the file.
+- In the sources, `typescript` is imported by 15 files, **every one of them
+  under `library/src/module/introspector/`**.
+- The single edge that pulls that region into the bundle is
+  `library/src/index.ts` exporting `entrypoint`, whose module imports `scan`
+  from the introspector (`library/src/module/entrypoint/entrypoint.ts:8`).
+
+The static dispatch entrypoint never calls any of it — runtime introspection
+died with the static entrypoint. But ESM resolves static imports at load, not at
+use, so the specifier has to resolve anyway: that, and nothing else, is why
+every generated module declares a TypeScript dependency.
+
+Cut that export and a default module has **no dependencies at all**: the runtime
+skips package-manager setup *and* install outright, which is strictly better
+than reproducing the mount — nothing to keep in sync, nothing to drift. The same
+removal covers deno (`imports.typescript = "npm:typescript@5.9.3"` in our
+generated `deno.json`) and bun.
+
+If this slips, the fallback is measurable rather than fatal: `npm install
+--omit=dev` of `typescript@5.9.3` on the pinned node image is **1.6s cold**
+(measured, same engine), cached per module manifest thereafter. Slower than
+today for a first call, not a cliff — but it is per module, where the tsx layer
+is per engine, so it is the one worth fixing properly.
 
 ## 7. Changes in this repo
 
@@ -333,7 +373,15 @@ Implementation notes:
    time we own that code.
 5. **Perf**: measure cold and warm `dagger call` on each runtime against the
    builtin runtime, before and after. The whole proposal is a latency argument;
-   it should come with numbers.
+   it should come with numbers. Both sides of the ledger need measuring, not
+   just the two costs §6 adds:
+   - what embed **removes** — the builtin TypeScript runtime is a Go module, so
+     loading it means the Go SDK compiles it in a container, with its own module
+     cache and dependency closure, before the engine can ask it anything
+     (`runtime-module.md` §8.1). A Dang file is evaluated in-process.
+   - `analyzeModuleConfig`'s six sequential engine round-trips (`config.go:102`)
+     collapse to one dot-block.
+   - `apk add ca-certificates` disappears if §6.1 option (2) is taken.
 
 A dev engine with embed support is available today —
 `_EXPERIMENTAL_DAGGER_RUNNER_HOST=docker-container://dagger-engine.dev` with
@@ -381,6 +429,15 @@ warning is one-directional (`runtime-module.md` §6). After §6.2 the invariant
 becomes "generated modules declare no dependencies", and the runtime's
 skip-install path depends on it. A check should assert the default template
 generates an empty `dependencies`.
+
+**10.8 — Registry reachability moves.** Today a Node module can be called with
+nothing but the engine image, because both `tsx` and `typescript` come out of
+it. After §6.1 option (1), the first Node call on a fresh engine needs
+`registry.npmjs.org`. §6.2 removes the `typescript` half entirely; the tsx half
+is what remains, and §6.1 option (2) converts it from an npm fetch into an image
+pull — the dependency an air-gapped setup is more likely to already mirror. Not
+a blocker, but it is a behavior change for offline users and belongs in release
+notes whichever option we take.
 
 ## 11. Rollout
 
