@@ -35,20 +35,28 @@ type GenerateChecks {
   the engine's carries only what it staged. Comparing directories would compare
   that difference, not the generators.
 
-  The two files left out are the bundle's, not the generator's: `sdk/core.js`
-  and `sdk/core.d.ts` are bundler and compiler output, and ours is built from
-  the vendored lockfile where the engine's is built from whatever it resolves.
-  core.js differs in size; core.d.ts differs in the order of a union's members,
-  which is the tell that the two builds ran different TypeScript versions. Ours
-  being reproducible is worth more than ours matching an unpinned build, so this
-  asserts nothing about them.
+  Three files are left out, and none of them is the generator's doing.
+  `sdk/core.js` and `sdk/core.d.ts` are bundler and compiler output, and ours is
+  built from the vendored lockfile where the engine's is built from whatever it
+  resolves. core.js differs in size; core.d.ts differs in the order of a union's
+  members, which is the tell that the two builds ran different TypeScript
+  versions. Ours being reproducible is worth more than ours matching an unpinned
+  build.
+
+  `sdk/index.ts` is a deliberate divergence: ours does not re-export the dynamic
+  `entrypoint`, because re-exporting it drags the introspector and the
+  TypeScript compiler into core.js, which every module then loads on every call
+  for a symbol a generated module never touches. That is a smaller module
+  surface than the engine ships, chosen knowingly — so this check no longer
+  proves the two trees are interchangeable, only that everything the generator
+  itself renders still matches.
 
   Everything the generator itself produces has to match byte for byte: the
   bindings, the hand-written wrappers, the entrypoint, and both config files.
   """
   localMatchesEngineCheck(ws: Workspace!): Void @check {
     let path = fixtures.generateModule
-    let bundleFiles = ["core.js", "core.d.ts"]
+    let bundleFiles = ["core.js", "core.d.ts", "index.ts"]
 
     let ours = typescriptSdk.generateModuleLocal(ws, path).after.directory(path)
     let engine = ws.moduleSource("/" + path).generate(ws).changes(ws).after.directory(path)

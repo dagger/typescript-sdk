@@ -120,6 +120,34 @@ type Packager {
   }
 
   """
+  The module-facing bundle must not carry the TypeScript compiler.
+
+  core.js is loaded on every module load, and the compiler is the single most
+  expensive thing it can pull in: importing it costs roughly twice what the rest
+  of the bundle costs, for something a running module never uses — the compiler
+  is how the introspector reads a user's source at *generate* time, not how a
+  module dispatches a call.
+
+  It arrives transitively. Re-export anything that reaches the introspector from
+  the bundle's entry and the whole scanner comes with it, which is why
+  src/index.ts stops re-exporting the dynamic `entrypoint`. That is a local
+  delta against a vendored file, so it is exactly the kind of thing a re-vendor
+  drops on the floor — asserted here rather than trusted.
+  """
+  moduleBundleCheck(ws: Workspace!): Void @check {
+    let core = ws.directory("/" + libraryPath + "/" + bundlePath).file("core.js").contents
+
+    if (core.contains("from \"typescript\"")) {
+      raise "library/bundle/core.js imports the TypeScript compiler; a module " +
+        "loads this bundle on every call and does not need a compiler to " +
+        "dispatch. Something re-exported from library/src/index.ts reaches the " +
+        "introspector — see library/VENDOR.md."
+    }
+
+    null
+  }
+
+  """
   Run the vendored library's own test suite.
 
   Mostly the introspector's: it scans the fixture modules under testdata and

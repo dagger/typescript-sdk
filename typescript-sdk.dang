@@ -493,11 +493,14 @@ type TypescriptSdk {
   client.gen.ts, which has to sit beside it.
   """
   let moduleSdkDirectory(bindings: Directory!): Directory! {
+    # One filtered copy rather than four file reads: naming each file
+    # individually is four `Directory.file` lookups and four `withFile` nodes
+    # per module, for a set that is fixed and always copied together. The
+    # include list is explicit so the bundle's other contents — the
+    # introspector and the compiler pin, which belong to generation rather than
+    # to the module — still stay out.
     directory
-      .withFile("core.js", tsBundle.file("core.js"))
-      .withFile("core.d.ts", tsBundle.file("core.d.ts"))
-      .withFile("index.ts", tsBundle.file("index.ts"))
-      .withFile("telemetry.ts", tsBundle.file("telemetry.ts"))
+      .withDirectory(".", tsBundle, include: ["core.js", "core.d.ts", "index.ts", "telemetry.ts"])
       .withDirectory(".", bindings)
   }
 
@@ -514,16 +517,31 @@ type TypescriptSdk {
   tree: a bare import resolves from the importing file's directory, so putting
   it next to the module would leave the scanner unable to find it.
   """
-  let generateModuleEntrypoint(moduleName: String!, source: Directory!, sdk: Directory!): File! {
+  """
+  The scanner, ready to run: the introspector beside the compiler version it was
+  built against.
+
+  Nothing in here depends on the module being scanned, so it is assembled once
+  rather than inside generateModuleEntrypoint. Built per module it is the same
+  container described N times — N copies of the compiler pin read, the image
+  pull and the `bun add` — which the engine dedupes by digest but still walks,
+  and which fills the trace with N identical chains. As one node it is one span
+  and one cache entry however many modules the workspace has.
+  """
+  let introspector: Container! {
     let tsVersion = tsBundle.file("typescript-version.txt").contents.trimSuffix("\n")
 
-    let typedef = container
+    container
       .from("oven/bun:1.3.0-alpine@sha256:37e6b1cbe053939bccf6ae4507977ed957eaa6e7f275670b72ad6348e0d2c11f")
       .withoutEntrypoint
       .withMountedCache("/root/.bun/install/cache", cacheVolume("bun-install"))
       .withWorkdir("/introspector")
       .withFile("/introspector/introspector.js", tsBundle.file("introspector.js"))
       .withExec(["bun", "add", "--no-save", "typescript@" + tsVersion])
+  }
+
+  let generateModuleEntrypoint(moduleName: String!, source: Directory!, sdk: Directory!): File! {
+    let typedef = introspector
       .withWorkdir("/work")
       .withDirectory("/work/src", source)
       .withDirectory("/work/sdk", sdk)
