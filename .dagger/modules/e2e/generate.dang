@@ -1,78 +1,40 @@
 """
-Checks for module codegen — `Mod.generate` for one module and
-`typescriptSdk.generateAllModule` for everything in scope.
+Checks for module codegen: `generateScope`, the entry point the engine drives,
+and `Mod.generate` for addressing one module by path.
 
-Both stage a module's local dependency closure before generating it, so a
-module's own codegen always sees up-to-date bindings for the modules it imports.
+Neither stages a dependency closure any more. The engine orders scopes so a
+module is generated before anything that holds a client for it, and threads each
+result into the next, so a module's codegen already sees current bindings.
 """
 type GenerateChecks {
   let fixtures: Fixtures! = Fixtures
 
   """
-  Generating an existing module should produce generated files rooted at that
+  Generating an existing scope should produce generated files rooted at that
   module without touching unrelated paths.
   """
   generateCheck(ws: Workspace!): Void @check {
-    let changes = typescriptSdk.mod(ws, path: fixtures.generateModule).generate(ws)
+    let changes = Gen.module(ws, fixtures.depLibModule, "gendep")
 
-    Asserts.generated(changes, fixtures.generateModule + "/sdk/index.ts")
+    Asserts.generated(changes, fixtures.depLibModule + "/sdk/index.ts")
 
     null
   }
 
   """
-  Generating a module through this SDK and through the engine should produce the
-  same tree.
+  A legacy dagger.json module should be refused rather than generated.
 
-  The gate the cutover is staged behind. `generateModuleLocal` generates through
-  this SDK while `Mod.generate` still delegates to the engine, so the same
-  fixture can be produced both ways and diffed — and until the two agree there
-  is no case for switching the routing over.
-
-  Scoped to the generated files rather than the whole module directory, because
-  the two changesets are not the same kind of tree: ours layers onto the
-  module's existing files, so `after` also holds its src/ and lockfile, while
-  the engine's carries only what it staged. Comparing directories would compare
-  that difference, not the generators.
-
-  Three files are left out, and none of them is the generator's doing.
-  `sdk/core.js` and `sdk/core.d.ts` are bundler and compiler output, and ours is
-  built from the vendored lockfile where the engine's is built from whatever it
-  resolves. core.js differs in size; core.d.ts differs in the order of a union's
-  members, which is the tell that the two builds ran different TypeScript
-  versions. Ours being reproducible is worth more than ours matching an unpinned
-  build.
-
-  `sdk/index.ts` is a deliberate divergence: ours does not re-export the dynamic
-  `entrypoint`, because re-exporting it drags the introspector and the
-  TypeScript compiler into core.js, which every module then loads on every call
-  for a symbol a generated module never touches. That is a smaller module
-  surface than the engine ships, chosen knowingly — so this check no longer
-  proves the two trees are interchangeable, only that everything the generator
-  itself renders still matches.
-
-  Everything the generator itself produces has to match byte for byte: the
-  bindings, the hand-written wrappers, the entrypoint, and both config files.
+  Its runtime regenerates everything on every call, so anything written here is
+  a second, differently-versioned copy of the same files that the runtime then
+  ignores. Refusing says so out loud instead of leaving a tree that looks
+  generated and drifts.
   """
-  localMatchesEngineCheck(ws: Workspace!): Void @check {
-    let path = fixtures.generateModule
-    let bundleFiles = ["core.js", "core.d.ts", "index.ts"]
-
-    let ours = typescriptSdk.generateModuleLocal(ws, path).after.directory(path)
-    let engine = ws.moduleSource("/" + path).generate(ws).changes(ws).after.directory(path)
-
-    Asserts.assert(
-      ours.directory("sdk").withoutFiles(bundleFiles).digest ==
-        engine.directory("sdk").withoutFiles(bundleFiles).digest,
-      "this SDK and the engine should generate the same sdk/ bindings and wrappers",
+  generateRefusesLegacyCheck(ws: Workspace!): Void @check {
+    Asserts.stringContains(
+      Gen.failure(typescriptSdk.mod(ws, path: fixtures.generateModule).generate(ws)),
+      "configured by dagger.json",
+      "generating a legacy module should be refused",
     )
-
-    ["__dagger.entrypoint.ts", "package.json", "tsconfig.json"].each { name =>
-      Asserts.assert(
-        ours.file(name).digest == engine.file(name).digest,
-        "this SDK and the engine should generate the same " + name,
-      )
-    }
 
     null
   }
@@ -90,7 +52,7 @@ type GenerateChecks {
   """
   generateWorkspaceModuleCheck(ws: Workspace!): Void @check {
     let path = fixtures.depAppModule
-    let changes = typescriptSdk.mod(ws, path: path).generate(ws)
+    let changes = Gen.module(Gen.withDependency(ws), path, "generate-deps-app")
     let tree = changes.after.directory(path)
 
     Asserts.generated(changes, path + "/sdk/client.gen.ts")
@@ -149,7 +111,7 @@ type GenerateChecks {
   """
   generateTypescriptPinCheck(ws: Workspace!): Void @check {
     let path = fixtures.depLibModule
-    let changes = typescriptSdk.mod(ws, path: path).generate(ws)
+    let changes = Gen.module(ws, path, "gendep")
 
     Asserts.stringNotContains(
       ws.directory("/" + path).file("package.json").contents,
@@ -182,8 +144,8 @@ type GenerateChecks {
     let path = fixtures.depAppModule
     let stale = path + "/sdk/departed.gen.ts"
 
-    let dirty = ws.withNewFile("/" + stale, "export const gone = true\n")
-    let changes = typescriptSdk.mod(dirty, path: path).generate(dirty)
+    let dirty = Gen.withDependency(ws).withNewFile("/" + stale, "export const gone = true\n")
+    let changes = Gen.module(dirty, path, "generate-deps-app")
 
     Asserts.generated(changes, path + "/sdk/gendep.gen.ts")
     Asserts.assert(
@@ -196,73 +158,21 @@ type GenerateChecks {
   }
 
   """
-  Generating a legacy module with a local dependency should write that module's
-  files and nothing else.
+  A generated module should carry the bundle this SDK ships, not one built
+  somewhere else.
 
-  The dependency closure has to be staged before generation — a dependency's
-  schema is only loadable once its own generated files exist — but that staging
-  is scaffolding, not output. A legacy module routes to the engine, which hands
-  back a whole workspace rather than a changeset, so what is taken out of that
-  workspace is the only thing keeping the dependency's freshly generated files
-  from being written into the user's tree alongside the module they asked for.
+  Provenance is invisible in the generated tree otherwise — every path produces
+  the same file names — so a regression that reached a different library would
+  leave every other check passing while modules drifted from the runtime this
+  SDK is paired with.
   """
-  generateLegacyDependencyCheck(ws: Workspace!): Void @check {
-    let changes = typescriptSdk.mod(ws, path: fixtures.legacyDepAppModule).generate(ws)
-
-    Asserts.generated(changes, fixtures.legacyDepAppModule + "/sdk/index.ts")
-
-    Asserts.notAdded(
-      changes,
-      fixtures.legacyDepLibModule + "/sdk/index.ts",
-      "generating a legacy dependent should not also write its dependency's files",
-    )
-
-    null
-  }
-
-  """
-  A CLI 1.0 module should be generated by this SDK and a legacy one by the
-  engine, and the bundle each ends up with is what distinguishes them: ours is
-  the one committed in this repo, the engine's is built from its own image.
-
-  Routing is invisible in the generated tree otherwise — both paths produce the
-  same file names — so a flipped condition would leave every check passing while
-  workspace modules quietly went back to being generated by the engine, drifting
-  from the library this SDK ships.
-  """
-  generateRoutingCheck(ws: Workspace!): Void @check {
-    let ours = typescriptSdk.mod(ws, path: fixtures.depAppModule).generate(ws)
+  generateBundleProvenanceCheck(ws: Workspace!): Void @check {
+    let ours = Gen.module(Gen.withDependency(ws), fixtures.depAppModule, "generate-deps-app")
       .after.directory(fixtures.depAppModule).file("sdk/core.js").digest
 
-    let shipped = typescriptSdk.libraryBundleFile("core.js").digest
-
     Asserts.assert(
-      ours == shipped,
-      "a dagger-module.toml module should be generated with the bundle this SDK ships",
-    )
-
-    let legacy = typescriptSdk.mod(ws, path: fixtures.generateModule).generate(ws)
-      .after.directory(fixtures.generateModule).file("sdk/core.js").digest
-
-    Asserts.assert(
-      legacy != shipped,
-      "a dagger.json module should keep being generated by the engine's runtime",
-    )
-
-    # And through generate-all, which is what `dagger generate` actually runs.
-    # It reached the engine's generator long after `mod generate` stopped doing
-    # so, because it carried its own copy of the logic and every other check
-    # here passes either way: the two paths emit the same file names, and only
-    # the bundle they carry says which one ran.
-    let all = typescriptSdk.generateAllModule(ws)
-
-    Asserts.assert(
-      all.after.directory(fixtures.depAppModule).file("sdk/core.js").digest == shipped,
-      "generate-all should generate a dagger-module.toml module with this SDK",
-    )
-    Asserts.assert(
-      all.after.directory(fixtures.generateModule).file("sdk/core.js").digest != shipped,
-      "generate-all should leave a dagger.json module to the engine's runtime",
+      ours == typescriptSdk.libraryBundleFile("core.js").digest,
+      "a generated module should carry the bundle this SDK ships",
     )
 
     null
@@ -279,7 +189,7 @@ type GenerateChecks {
   """
   generateDenoModuleCheck(ws: Workspace!): Void @check {
     let path = fixtures.denoModule
-    let changes = typescriptSdk.mod(ws, path: path).generate(ws)
+    let changes = Gen.module(ws, path, "generate-deno-app")
     let tree = changes.after.directory(path)
 
     Asserts.generated(changes, path + "/sdk/client.gen.ts")
@@ -327,100 +237,60 @@ type GenerateChecks {
   with "dir module source does not contain a dagger config file".
   """
   generateDependencyCheck(ws: Workspace!): Void @check {
-    let changes = typescriptSdk.mod(ws, path: fixtures.depAppModule).generate(ws)
+    let staged = Gen.withDependency(ws)
+    let changes = typescriptSdk.mod(staged, path: fixtures.depAppModule).generate(staged)
 
     Asserts.generated(changes, fixtures.depAppModule + "/sdk/index.ts")
     Asserts.generated(changes, fixtures.depAppModule + "/sdk/gendep.gen.ts")
 
-    # Generating the dependent stages its dependency's codegen only to feed its
-    # own; that staging is ephemeral and must not leak into the changeset.
+    # Addressing one module generates that module and nothing else: the
+    # dependency's own files are already there, and regenerating them here would
+    # write a second module into the diff the caller asked for.
     Asserts.notAdded(
       changes,
       fixtures.depLibModule + "/sdk/index.ts",
-      "generating a dependent should not also stage its dependency's own files",
+      "generating a dependent should not also write its dependency's own files",
     )
 
     null
   }
 
   """
-  Generating everything should cover the whole managed set — including both ends
-  of a local dependency edge — and leave every module out of scope alone.
+  Every scope recorded in dagger.toml should generate its own files.
 
-  The dependency ordering is the interesting part: app and dep are each managed
-  in their own right, so generate-all produces app's bindings (which embed dep)
-  and dep's own bindings, and the two changesets have to merge cleanly rather
-  than conflict over the files the closure staging touched.
+  Workspace-wide generation is the engine's now — it reads the scope list, orders
+  it, and calls this SDK once per scope — so what stays ours is that each scope
+  named there really is one we can generate. A fixture removed from the tree but
+  left in the config fails here rather than in the middle of a `dagger generate`.
   """
-  generateAllCheck(ws: Workspace!): Void @check {
-    let changes = typescriptSdk.generateAllModule(ws)
+  generateEveryScopeCheck(ws: Workspace!): Void @check {
+    # Threaded, in the order the config records them: a scope generated against
+    # the result of the ones before it is what the engine does, and it is the
+    # only way a dependent's schema can load.
+    fixtures.managedScopes.reduce(ws) { staged, scope =>
+      let changes = Gen.module(staged, scope.path, scope.name)
+      Asserts.generated(changes, scope.path + "/sdk/index.ts")
+      staged.withChanges(changes)
+    }
 
-    Asserts.generated(changes, fixtures.generateModule + "/sdk/index.ts")
+    null
+  }
 
-    # Both ends of the dependency edge, plus the dependency's bindings inside
-    # the dependent.
-    Asserts.generated(changes, fixtures.depAppModule + "/sdk/index.ts")
+  """
+  A module with a local dependency should get bindings for it.
+
+  Dependency edges still exist in a manifest even though new wiring goes through
+  clients, and the dependency's bindings are what make `dag.<dep>()` resolve
+  inside the module.
+  """
+  generateDependencyBindingsCheck(ws: Workspace!): Void @check {
+    let changes = Gen.module(Gen.withDependency(ws), fixtures.depAppModule, "generate-deps-app")
+
     Asserts.generated(changes, fixtures.depAppModule + "/sdk/gendep.gen.ts")
-    Asserts.generated(changes, fixtures.depLibModule + "/sdk/index.ts")
-
-    # Skip-marked and unmanaged modules stay untouched.
     Asserts.notAdded(
       changes,
-      fixtures.lookupModule + "/sdk/index.ts",
-      "generate-all generated a lookup fixture that should be skipped",
-    )
-    Asserts.notAdded(
-      changes,
-      fixtures.depsModule + "/sdk/index.ts",
-      "generate-all generated dependency fixtures that should be skipped",
-    )
-    Asserts.notAdded(
-      changes,
-      fixtures.skipModule + "/sdk/index.ts",
-      "generate-all generated a skipped module",
-    )
-    Asserts.notAdded(
-      changes,
-      fixtures.managedTomlModule + "/sdk/index.ts",
-      "generate-all generated a skipped dagger-module.toml module",
-    )
-    Asserts.notAdded(
-      changes,
-      fixtures.parentSourceCode + "/sdk/index.ts",
-      "generate-all generated a skipped relocated-source module",
-    )
-    Asserts.notAdded(
-      changes,
-      fixtures.nonTsModule + "/sdk/index.ts",
-      "generate-all generated a non-TypeScript SDK module",
-    )
-
-    null
-  }
-
-  """
-  Generate-all is scoped by the same cwd-anchored discovery as modules(), so
-  running it where this SDK manages nothing does nothing — it must not fall back
-  to the whole workspace.
-
-  Only the empty direction is checked here. Codegen needs a client-backed
-  workspace (generateLocalDependencies fails with "workspace has no client ID"
-  on a re-anchored snapshot), so generating from a subdirectory for real cannot
-  run as a check. Which modules a cwd selects is covered by
-  `discovery:modules-cwd-check`, and measuring the result from the cwd belongs
-  to the engine, which owns it past the changeset cwd cutover.
-  """
-  generateAllScopeCheck(ws: Workspace!): Void @check {
-    let outside = fixtures.discoverySnapshot(
-      ws,
-      fixtures.root + "/init-existing",
-      extra: [fixtures.root + "/init-existing/**"],
-    )
-    let changes = typescriptSdk.generateAllModule(outside)
-
-    Asserts.assert(
-      changes.isEmpty,
-      "generate-all outside every managed module should produce no changes",
+      fixtures.depLibModule + "/sdk/index.ts",
+      "generating a dependent should not also write its dependency's files",
     )
 
     null
@@ -428,9 +298,13 @@ type GenerateChecks {
 
   """
   A skip marker above a module should make generate return an empty changeset.
+
+  Uses a managed scope rather than the legacy skip fixture: a dagger.json module
+  is refused before the marker is ever consulted, so it could not tell a working
+  marker from a broken one.
   """
   skipGenerateCheck(ws: Workspace!): Void @check {
-    let mod = typescriptSdk.mod(ws, path: fixtures.skipModule)
+    let mod = typescriptSdk.mod(ws, path: fixtures.managedTomlModule)
     let changes = mod.generate(ws)
 
     Asserts.assert(mod.skipGenerate(ws), "skip marker was not detected")

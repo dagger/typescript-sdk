@@ -91,6 +91,78 @@ type Asserts {
 }
 
 """
+Drives the SDK's scope generator the way the engine does, so checks exercise the
+real entry point rather than the helpers behind it.
+"""
+type Gen {
+  """
+  Generate one scope and return the changes it makes to `ws`.
+
+  The engine sets the workspace cwd to the scope before calling generateScope and
+  diffs the workspace that comes back, so a check has to do both to see what a
+  real run would write. The result is re-anchored at the caller's cwd, so
+  assertions keep using workspace-root-relative fixture paths.
+
+  Settings are constructor arguments, so a check covering the bun runtime or the
+  empty template constructs the SDK with them — which is exactly what the engine
+  does with a scope's effective settings.
+  """
+  let scope(
+    ws: Workspace!,
+    path: String!,
+    name: String!,
+    isModule: Boolean! = true,
+    clients: [ModuleSource!]! = [],
+    runtime: String! = "",
+    template: String! = "default",
+    packageManager: String! = "",
+    baseImage: String! = "",
+  ): Changeset! {
+    typescriptSdk(
+      runtime: runtime,
+      template: template,
+      packageManager: packageManager,
+      baseImage: baseImage,
+    )
+      .generateScope(ws.withWorkdir(path), isModule: isModule, name: name, clients: clients)
+      # withWorkdir sets the cwd from the workspace root, so "." puts the result
+      # back where the caller stands and assertions keep using root-relative
+      # fixture paths.
+      .withWorkdir(".")
+      .changes(ws.withWorkdir("."))
+  }
+
+  """
+  Generate a module scope with the default settings.
+  """
+  let module(ws: Workspace!, path: String!, name: String!): Changeset! {
+    scope(ws, path, name)
+  }
+
+  """
+  A workspace with the deps fixture's dependency already generated.
+
+  A module's schema only loads once its dependencies carry their committed
+  generated files, and nothing stages them any more: the engine orders scopes so
+  a dependency is generated first and threads the result into the next call. A
+  check generating one scope on its own has to do that threading itself.
+  """
+  let withDependency(ws: Workspace!): Workspace! {
+    ws.withChanges(module(ws, Fixtures.depLibModule, "gendep"))
+  }
+
+  """
+  Return the error a rejected generation raised, or the paths it added when it
+  unexpectedly succeeded.
+  """
+  let failure(changes: Changeset!): String! {
+    changes.addedPaths.join(", ") rescue {
+      err: Error => err.message
+    }
+  }
+}
+
+"""
 Workspace-root-relative paths of the e2e fixture tree.
 
 Checks address fixtures from the workspace root rather than through
@@ -163,11 +235,10 @@ type Fixtures {
   The runtime execution fixtures, managed so `dagger generate` keeps them
   current, and registered by the engine when the runtimes module loads them.
   """
-  let runtimeFixtures: [String!]! = [
-    ".dagger/modules/runtimes/fixtures/bun",
-    ".dagger/modules/runtimes/fixtures/deno",
-    ".dagger/modules/runtimes/fixtures/node",
-  ]
+  let runtimeBun: String! = ".dagger/modules/runtimes/fixtures/bun"
+  let runtimeDeno: String! = ".dagger/modules/runtimes/fixtures/deno"
+  let runtimeNode: String! = ".dagger/modules/runtimes/fixtures/node"
+  let runtimeFixtures: [String!]! = [runtimeBun, runtimeDeno, runtimeNode]
   let configBareModule: String! = root + "/config/bare"
 
   # A client binds to client/app (which depends on client/dep) and is generated
@@ -180,42 +251,26 @@ type Fixtures {
   let clientExisting: String! = root + "/client/existing"
 
   """
-  A snapshot of `ws` holding just the files module discovery reads, re-anchored
-  at `cwd` so a check can stand anywhere in the tree.
+  The module scopes this workspace records under [sdks.typescript.scopes], minus
+  the two behind a skip marker.
 
-  Keeps the workspace config (dagger.toml, whose [modules.<sdk>.as-sdk] list is
-  what discovery resolves the re-anchored workspace against) and every module
-  config, in both filenames. `extra` adds paths a check needs to exist for the
-  cwd itself to be a directory.
+  Mirrors dagger.toml by hand: a check cannot read the scope list back out of the
+  engine, so this is the copy that has to be kept in step — and the check that
+  generates every one of them is what catches it drifting.
   """
-  let discoverySnapshot(ws: Workspace!, cwd: String!, extra: [String!]! = []): Workspace! {
-    ws
-      .directory("/", include: ["dagger.toml", "**/dagger.json", "**/dagger-module.toml"] + extra)
-      .asWorkspace(cwd: cwd)
-  }
+  let managedScopes: [ManagedScope!]! = [
+    ManagedScope(path: depLibModule, name: "gendep"),
+    ManagedScope(path: depAppModule, name: "generate-deps-app"),
+    ManagedScope(path: denoModule, name: "generate-deno-app"),
+    ManagedScope(path: runtimeBun, name: "runtime-bun"),
+    ManagedScope(path: runtimeDeno, name: "runtime-deno"),
+    ManagedScope(path: runtimeNode, name: "runtime-node"),
+  ]
 
   """
-  Every module this workspace manages under the TypeScript SDK, as recorded in
-  [[modules.typescript-sdk.as-sdk.modules]]. Discovery from the workspace root
-  must return exactly this set.
-  """
-  let managedModules: [String!]! = [
-    generateModule,
-    lookupModule,
-    depsModule,
-    skipModule,
-    managedTomlModule,
-    depAppModule,
-    depLibModule,
-    legacyDepAppModule,
-    legacyDepLibModule,
-    denoModule,
-    parentSourceModule,
-  ] + runtimeFixtures
-  """
-  The subset of managedModules configured by dagger-module.toml. These are the
-  fixtures that name an engine release, so they are the ones that can drift from
-  the release this SDK's bundle is built for; the dagger.json ones say "latest".
+  Every fixture configured by dagger-module.toml, including the skipped ones.
+  These name an engine release, so they are the ones that can drift from the
+  release this SDK's bundle is built for.
   """
   let managedTomlFixtures: [String!]! = [
     managedTomlModule,
@@ -224,5 +279,19 @@ type Fixtures {
     denoModule,
     parentSourceModule,
   ] + runtimeFixtures
+}
 
+"""
+One module scope recorded in the workspace config.
+"""
+type ManagedScope {
+  """
+  Workspace-root-relative path of the scope.
+  """
+  let path: String!
+
+  """
+  The scope's recorded name, which the engine passes to every generation.
+  """
+  let name: String!
 }

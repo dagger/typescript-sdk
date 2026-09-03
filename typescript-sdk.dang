@@ -14,16 +14,53 @@ type TypescriptSdk {
   let tsTomlPattern = "\\[runtime\\][^\\[]*source\\s*=\\s*\"typescript\""
 
   """
-  Marker filename that skips generate when found at or above a TypeScript SDK module root.
+  JavaScript runtime for the code this SDK generates: "node", "bun" or "deno".
+
+  Empty detects it from the config files already in the scope — deno.json for
+  Deno, a bun lockfile for Bun, otherwise Node — so a scope keeps the runtime it
+  was created with. Setting it moves the scope to that runtime on the next
+  generation.
   """
-  skipGenerateFilename: String! = ".dagger-typescript-sdk-skip-generate"
+  runtime: String! = ""
 
   """
-  Runtime source to write into modules created by this SDK.
+  Starter to materialize when a scope has no module yet: `default` for a small
+  working module, `empty` for a bare @object class.
   """
-  targetRuntime: String! {
-    "typescript"
-  }
+  template: String! = "default"
+
+  """
+  packageManager pin for package.json, as `name@version` or just `name`. Empty
+  writes no field. Node only; Bun and Deno bundle their own.
+  """
+  packageManager: String! = ""
+
+  """
+  Base container image modules build on. Empty keeps the SDK default. Written to
+  deno.json for the Deno runtime, package.json otherwise.
+  """
+  baseImage: String! = ""
+
+  """
+  Marker filename that skips generation when found at or above a scope.
+
+  Private: it is a constant repos depend on, not a knob. Dropping the file
+  anywhere above a scope disables generation for everything beneath it, which no
+  per-scope setting can express.
+  """
+  let skipGenerateFilename: String! = ".dagger-typescript-sdk-skip-generate"
+
+  """
+  Runtime source written into the `[runtime]` table of every module this SDK
+  creates. Names the engine's builtin TypeScript runtime, which executes what we
+  generate.
+  """
+  let runtimeSource: String! = "typescript"
+
+  """
+  Files that mark a TypeScript project root, and so a scope this SDK can manage.
+  """
+  let scopeMarkers: [String!]! = ["package.json", "deno.json", "deno.jsonc", "tsconfig.json"]
 
   """
   Engine release the committed library bundle is built for.
@@ -48,43 +85,109 @@ type TypescriptSdk {
   let defaultTemplate: String! = "default"
 
   """
-  Return every TypeScript SDK module this workspace manages that is visible from
-  the client's current location.
+  Detect the TypeScript project containing the workspace cwd.
 
-  The engine owns both the list and the cwd policy: currentModule.asSDK returns
-  the modules registered to this SDK that sit at or below the client's cwd, plus
-  the nearest enclosing one when the cwd is not itself registered. So running
-  from a subdirectory acts on the project you're in — and the projects beneath
-  it — not the whole workspace. Paths come back workspace-root-relative, the
-  currency Mod.rootPath uses.
+  The engine calls this to decide which scope a `dagger module client add`
+  belongs to, and which SDK owns it: every installed SDK is asked, and the
+  deepest answer wins. Returning "" means this SDK manages nothing here, so a
+  directory with no TypeScript project is left to another SDK rather than
+  claimed.
 
-  A module is registered by the directory holding its config, so one whose
-  `source` field points elsewhere is listed at its config path and not from
-  inside its own source tree. Address those by path (see `mod`).
+  The result is workspace-root-relative and must contain the cwd; the engine
+  rejects anything else.
   """
-  modules(ws: Workspace!): [Mod!]! {
-    currentModule
-      .asSDK(workspace: ws)
-      .modules.{{path}}
-      .map { module => Mod(rootPath: module.path, ws: ws, skipGenerateFilename: skipGenerateFilename) }
+  detectScope(ws: Workspace!): String! {
+    # Deepest marker wins, regardless of which filename found it: a package.json
+    # beside the cwd describes the cwd's project, an ancestor's describes the
+    # monorepo above it.
+    let found = scopeMarkers.reduce(null) { acc, marker =>
+      let hit = ws.findUp(marker)
+      if (configHitDepth(hit) > configHitDepth(acc)) { hit } else { acc }
+    }
+
+    if (found == null) { "" } else { dirOf(found) }
   }
 
   """
-  The client's current location as a workspace-root-relative path, "." at the
-  root. The anchor every cwd-scoped operation measures against.
+  Generate every file this SDK owns in one scope.
+
+  The engine sets the workspace cwd to the scope, hands over the scope's
+  complete desired state, and diffs whatever workspace comes back — so this both
+  creates a module that does not exist yet and refreshes one that does. The
+  marker that tells them apart is `dagger-module.toml`: writing it is ours, and
+  its absence means "nothing has been generated here yet".
+
+  `name` comes from the workspace config, not from the module on disk. It is the
+  scope's identity, so a module is named by what the user asked for even before
+  any file exists to read a name out of.
   """
-  let clientCwd(ws: Workspace!): String! {
+  generateScope(
+    ws: Workspace!,
+    """
+    Whether this scope holds a module, as opposed to only generated clients.
+    """
+    isModule: Boolean!,
+    """
+    The scope's recorded name. Used as the module's name when isModule.
+    """
+    name: String!,
+    """
+    Every module this scope generates a client for. The complete desired set:
+    a target that has been removed is simply absent, and its files go with it.
+    """
+    clients: [ModuleSource!]!,
+  ): Workspace! {
+    let scope = scopePath(ws)
+
+    if (hasSkipMarker(ws)) {
+      ws
+    } else if (isModule) {
+      let rt = effectiveRuntime(ws, scope)
+      # One path serves init and every later generation: the manifest is what
+      # separates them, and seeding is what writes it.
+      let seeded = if (hasModuleManifest(ws, scope)) { ws } else { seedModule(ws, scope, name, rt) }
+      # A module's files follow its manifest's `source`, which migration can aim
+      # away from the directory holding the manifest.
+      let source = moduleSourcePath(seeded, scope)
+
+      clientScope(moduleFiles(seeded, scope, source, name, rt), source, true, clients)
+    } else {
+      clientScope(ws, scope, false, clients)
+    }
+  }
+
+  """
+  The scope the engine is asking about, as a workspace-root-relative path.
+
+  Every helper here addresses the workspace from its root, so the cwd the engine
+  set is read once and converted, rather than threading two path conventions
+  through generation.
+  """
+  let scopePath(ws: Workspace!): String! {
     let cwd = ws.cwd.trimPrefix("/").trimSuffix("/")
     if (cwd == "") { "." } else { cwd }
   }
 
   """
-  Whether a workspace-root-relative path is in scope from `cwd`: at or below it,
-  or an ancestor of it — the same cone the engine narrows managed modules to.
-  Clients are not narrowed by the engine, so they are filtered with this.
+  Whether the generate skip marker sits at or above the scope.
   """
-  let inCwdScope(cwd: String!, path: String!): Boolean! {
-    cwd == "." or path == cwd or path.hasPrefix(cwd + "/") or cwd.hasPrefix(path + "/")
+  let hasSkipMarker(ws: Workspace!): Boolean! {
+    ws.findUp(skipGenerateFilename) != null
+  }
+
+  """
+  Directory holding a workspace-absolute file path, "." at the root.
+  """
+  let dirOf(path: String!): String! {
+    let dir = path.trimPrefix("/").split("/").dropLast(1).join("/")
+    if (dir == "") { "." } else { dir }
+  }
+
+  """
+  Join a scope-relative filename onto a workspace-root-relative scope path.
+  """
+  let scopeFile(scope: String!, name: String!): String! {
+    if (scope == ".") { name } else { scope + "/" + name }
   }
 
   """
@@ -172,78 +275,82 @@ type TypescriptSdk {
   }
 
   """
-  Initialize TypeScript-owned files for a new Dagger module.
+  Whether a scope already holds a module manifest.
 
-  The engine resolves the destination `path` and owns the module's config; this
-  function only returns the SDK-owned files to layer onto `path` — the rendered
-  template plus runtime-specific config. Files already at `path` are kept: an
-  existing package.json / tsconfig.json / deno.json is merged into rather than
-  overwritten, so it keeps its scripts, path aliases, and unstable flags, and
-  everything else there is left alone.
+  Only `dagger-module.toml` counts, not the legacy `dagger.json`: a scope is
+  something this SDK generates into, and a `dagger.json` module is regenerated by
+  the engine's runtime at call time instead.
   """
-  initModule(
-    ws: Workspace!,
-    """
-    Module name. Rendered into the template as the module's class name.
-    """
-    name: String!,
-    """
-    Workspace-relative directory to create the module in.
-    """
-    path: String!,
-    """
-    Starter to materialize from templates/<template>: `default` for a small working module, `empty` for a bare @object class.
-    """
-    template: String! = defaultTemplate,
-    """
-    TypeScript runtime the module runs on. The engine picks it back up from the config files this writes.
-    """
-    runtime: Runtime! = Runtime.NODE,
-    """
-    packageManager pin for package.json, as `name@version` or just `name`. Empty writes no field. NODE only; Bun and Deno bundle their own.
-    """
-    packageManager: String! = "",
-    """
-    Base container image the module builds on. Empty keeps the SDK default. Written to deno.json for DENO, package.json otherwise.
-    """
-    baseImage: String! = "",
-  ): Changeset! {
-    let rawPath = path.trimPrefix("./").trimPrefix("/")
-    let modPath = if (rawPath == "" or rawPath == ".") {
-      "."
-    } else if (rawPath == ".." or rawPath.trimPrefix("../") != rawPath) {
-      raise "path escapes workspace: " + rawPath
-    } else {
-      rawPath.trimSuffix("/")
-    }
+  let hasModuleManifest(ws: Workspace!, scope: String!): Boolean! {
+    let path = scopeFile(scope, "dagger-module.toml")
+    ws.directory("/", include: [path]).exists(path)
+  }
 
-    # An empty name means "the default", not the templates/ directory itself —
+  """
+  The runtime a scope generates for: the `runtime` setting when set, otherwise
+  whatever the files already there imply.
+
+  Detection is the default so that adopting this SDK, or regenerating a module
+  created before the setting existed, does not silently move a Bun or Deno
+  project onto Node.
+  """
+  let effectiveRuntime(ws: Workspace!, scope: String!): Runtime! {
+    if (runtime == "") {
+      ModConfig(sourcePath: scope, ws: ws).runtime
+    } else if (runtime == "node" or runtime == "NODE") {
+      Runtime.NODE
+    } else if (runtime == "bun" or runtime == "BUN") {
+      Runtime.BUN
+    } else if (runtime == "deno" or runtime == "DENO") {
+      Runtime.DENO
+    } else {
+      raise "unknown runtime: \"" + runtime + "\"; expected node, bun or deno"
+    }
+  }
+
+  """
+  Lay down the files a brand-new module needs: the rendered starter, the config
+  files its runtime is detected from, and the manifest.
+
+  Merge, never replace. A scope is a directory the user may already work in — an
+  existing package.json / tsconfig.json / deno.json keeps its scripts, path
+  aliases and unstable flags, and everything else in the directory is left alone.
+  """
+  let seedModule(ws: Workspace!, scope: String!, name: String!, rt: Runtime!): Workspace! {
+    # An empty setting means "the default", not the templates/ directory itself —
     # which exists, so it would pass the check below and render every starter as
     # a subdirectory of the new module.
     let starter = if (template == "") { defaultTemplate } else { template }
 
     if (currentModule.source.exists("templates/" + starter) == false) {
       raise "unknown init template: " + starter
-    } else if (packageManager != "" and runtime != Runtime.NODE) {
-      raise "packageManager is only supported with --runtime NODE; Bun and Deno bundle their own"
+    } else if (packageManager != "" and rt != Runtime.NODE) {
+      raise "packageManager is only supported with the node runtime; bun and deno bundle their own"
     } else {
-      let includePrefix = if (modPath == ".") { "" } else { modPath + "/" }
       let existing = ws.directory("/", include: [
-        includePrefix + "package.json",
-        includePrefix + "tsconfig.json",
-        includePrefix + "deno.json",
-        includePrefix + "bun.lock",
+        scopeFile(scope, "package.json"),
+        scopeFile(scope, "tsconfig.json"),
+        scopeFile(scope, "deno.json"),
+        scopeFile(scope, "bun.lock"),
       ])
 
-      let renderedSource = renderedTemplate(name, starter, runtime, existing, modPath)
-      let templateSource = configuredTemplate(renderedSource, runtime, packageManager, baseImage)
-      # `modPath` is workspace-root-relative, so anchor it: a relative workspace
-      # path resolves from ws.cwd and would be prefixed again when initModule is
-      # called directly from a subdirectory rather than driven by the engine.
-      #
-      # Merge, never replace: init must keep the user's own files, and the
-      # config the engine wrote at `modPath` before calling us.
-      ws.withDirectory("/" + modPath, templateSource).changes(ws)
+      let rendered = renderedTemplate(name, starter, rt, existing, scope)
+      let configured = configuredTemplate(rendered, rt, packageManager, baseImage)
+
+      # Pin the engine version to the release this SDK's committed bundle was
+      # built for, rather than letting it default to whichever engine happens to
+      # be running: the generated files come from the bundle, so that is the
+      # pairing the module actually has.
+      ws
+        .withDirectory("/" + scope, configured)
+        .withFile(
+          "/" + scopeFile(scope, "dagger-module.toml"),
+          moduleManifest
+            .v1(name: name)
+            .withRuntime(source: runtimeSource)
+            .withEngineVersion(version: "v" + targetEngineVersion)
+            .asFile,
+        )
     }
   }
 
@@ -261,32 +368,6 @@ type TypescriptSdk {
         directory
       }
     }
-  }
-
-  """
-  Register a typed TypeScript client for `module` at `path`.
-
-  The engine resolves `module`, records the client (generator + directory) in
-  workspace config, and then calls generateClient to materialize the files. The
-  SDK contributes nothing to the registration itself, so this returns an empty
-  Changeset.
-  """
-  initClient(
-    ws: Workspace!,
-    """
-    Workspace-relative directory to generate the client package into.
-    """
-    path: String!,
-    """
-    Module the client binds to: a workspace-relative path or a canonical module ref. A client serves exactly one module.
-    """
-    module: String!,
-    """
-    Bind the local development client instead of a pinned release.
-    """
-    dev: Boolean! = false,
-  ): Changeset! {
-    ws.changes(ws)
   }
 
   """
@@ -623,40 +704,47 @@ type TypescriptSdk {
   }
 
   """
-  Generate a module's files and stage them at its source directory.
+  Generate a module's own files and write them into its source directory.
 
-  Takes the module's paths rather than a Mod so it can be called with a
-  workspace that already has the module's dependency closure staged — resolving
-  the module afresh from that workspace is what makes its schema loadable.
+  The workspace handed in already carries whatever the engine generated for this
+  scope's dependencies — it orders scopes leaf-first and threads each result into
+  the next — so the module's schema resolves against current bindings without
+  this SDK staging anything itself.
   """
-  let moduleFiles(ws: Workspace!, rootPath: String!, sourcePath: String!, base: Workspace!): Changeset! {
-    let modSrc = ws.moduleSource("/" + rootPath)
+  let moduleFiles(ws: Workspace!, scope: String!, sourcePath: String!, name: String!, rt: Runtime!): Workspace! {
     let sourcePrefix = if (sourcePath == ".") { "" } else { sourcePath + "/" }
+    let modSrc = ws.moduleSource("/" + scope)
 
-    # Everything the module is generated *from* reads the staged workspace, so
-    # dependency bindings are current. Everything the changeset is measured
-    # *against* reads the unstaged one: the engine may have just generated this
-    # module while staging it for a dependent, and diffing against that would
-    # report its own output as already present and emit nothing.
-    let existingSource = if (sourcePath == ".") { base.directory("/") } else { base.directory("/" + sourcePath) }
-    let existing = existingSource.withoutFiles(moduleBindings(base, sourcePath).map { entry => "sdk/" + entry })
+    let existing = existingDir(ws, sourcePath)
+      .withoutFiles(moduleBindings(ws, sourcePath).map { entry => "sdk/" + entry })
 
     let generated = moduleDirectory(
       modSrc.introspectionSchemaJSON.contents,
-      modSrc.moduleOriginalName,
-      base.directory("/" + sourcePrefix + "src"),
-      existingModuleConfig(base, sourcePath),
-      moduleRuntime(base, sourcePath),
+      name,
+      ws.directory("/" + sourcePrefix + "src"),
+      existingModuleConfig(ws, sourcePath),
+      rt,
     )
 
-    # Stage the generated files over the module's existing tree, not in place of
-    # it. withNewDirectory swaps the whole directory, so staging only what we
-    # generate says everything else — the module's config and its source — was
-    # deleted. Applying to disk hides that, but staging into a workspace does
-    # not: the engine generates a dependency by running this against a workspace
-    # it then reuses, and the next module's dependency resolution finds the
-    # dependency's config gone.
-    base.withNewDirectory("/" + sourcePath, existing.withDirectory(".", generated)).changes(base)
+    # Write the generated files over the module's existing tree, not in place of
+    # it. withNewDirectory swaps the whole directory, so writing only what we
+    # generate would say everything else — the module's config and its source —
+    # had been deleted.
+    ws.withNewDirectory("/" + sourcePath, existing.withDirectory(".", generated))
+  }
+
+  """
+  Where a module's files belong: its scope, unless its manifest points `source`
+  somewhere else.
+
+  Workspace migration writes a config to .dagger/modules/<name>/ with `source`
+  aimed back at the code it wrapped, so the directory the runtime reads is not
+  always the directory holding the manifest. Resolved through the engine rather
+  than assumed equal to the scope.
+  """
+  let moduleSourcePath(ws: Workspace!, scope: String!): String! {
+    let subpath = ws.moduleSource("/" + scope).sourceSubpath
+    if (subpath == "" or subpath == ".") { "." } else { subpath }
   }
 
   """
@@ -686,50 +774,49 @@ type TypescriptSdk {
   }
 
   """
-  Which TypeScript runtime a module's source directory is configured for,
-  detected from the files it carries — the same rule the engine applies when it
-  loads the module.
-  """
-  let moduleRuntime(ws: Workspace!, sourcePath: String!): Runtime! {
-    ModConfig(sourcePath: sourcePath, ws: ws).runtime
-  }
-
-  """
-  Generate a module's files through this SDK, bypassing `Mod.generate`'s choice
-  of path. Exists so a check can generate the same module both ways and compare
-  the results; `Mod.generate` is what callers should use.
-  """
-  generateModuleLocal(ws: Workspace!, path: String!): Changeset! {
-    let mod = mod(ws, path: path, findUp: false)
-    moduleFiles(ws, mod.rootPath, mod.sourcePath, ws)
-  }
-
-  """
-  Generate the raw client bindings (dagger.gen.ts plus one <module>.gen.ts per
-  module) from an introspection schema.
+  Generate the raw client bindings for a whole scope: one dagger.gen.ts holding
+  the core API, plus one <module>.gen.ts per target.
 
   This is the engine-free core of client generation, run in the codegen
-  container. `schemaJSON` is the client-facing introspection schema contents.
-  `module` is a JSON object describing the single module the client is bound to
-  ({kind, path, ref, pin}). It drives the generated serveBoundModule bootstrap:
-  a GIT_SOURCE module serves from its canonical ref+pin (resolves anywhere); a
-  LOCAL_SOURCE/DIR_SOURCE module resolves its workspace-root-relative path
-  against the workspace (dag.currentWorkspace().moduleSource(path)). An unknown
-  kind fails codegen closed.
-  """
-  let generateClientBindings(schemaJSON: String!, moduleName: String!, engineVersion: String!, module: String! = "{}"): Directory! {
-    let metaJson = "{\"moduleName\":" + JSON.encode(moduleName) + ",\"engineVersion\":" + JSON.encode(engineVersion) + ",\"module\":" + module + "}"
+  container. Each target contributes its client-facing schema — core plus that
+  one module — and codegen merges them, so the core API is emitted once however
+  many modules the scope serves.
 
-    codegenBuilder
-      .withNewFile("/schema.json", schemaJSON)
-      .withNewFile("/meta.json", metaJson)
+  Each target also carries the provenance the generated serveBoundModule
+  bootstrap needs: a GIT_SOURCE module is served from its canonical ref+pin
+  (which resolve anywhere), a LOCAL_SOURCE/DIR_SOURCE module by resolving its
+  workspace-root-relative path against the workspace. An unknown kind fails
+  codegen closed.
+  """
+  let generateClientBindings(targets: [ClientTarget!]!, engineVersion: String!): Directory! {
+    let withSchemas = targets.reduce(codegenBuilder) { builder, target =>
+      builder.withNewFile(schemaPath(target.name), target.schemaJSON)
+    }
+
+    let modulesJSON = targets.map { target =>
+      "{\"name\":" + JSON.encode(target.name) +
+      ",\"schemaPath\":" + JSON.encode(schemaPath(target.name)) +
+      ",\"kind\":" + target.kindJSON +
+      ",\"path\":" + JSON.encode(target.path) +
+      ",\"ref\":" + JSON.encode(target.ref) +
+      ",\"pin\":" + JSON.encode(target.pin) + "}"
+    }.join(",")
+
+    withSchemas
+      .withNewFile("/meta.json", "{\"engineVersion\":" + JSON.encode(engineVersion) + ",\"modules\":[" + modulesJSON + "]}")
       .withExec([
         "codegen", "client",
-        "--introspection-json-path", "/schema.json",
         "--client-meta-path", "/meta.json",
         "--output", "/out",
       ])
       .directory("/out")
+  }
+
+  """
+  Where a target's schema is staged inside the codegen container.
+  """
+  let schemaPath(name: String!): String! {
+    "/schemas/" + name + ".json"
   }
 
   """
@@ -751,38 +838,21 @@ type TypescriptSdk {
   }
 
   """
-  Serialize the bound module the generated client serves. A client binds exactly
-  one module, so serveBoundModule serves that one module: a local module by its
-  workspace-root-relative `path`, a git module by its canonical `ref` + `pin`.
-  `path` is used for LOCAL_SOURCE/DIR_SOURCE; `ref`/`pin` for GIT_SOURCE; codegen
-  picks by `kind`. Shape: {kind, path, ref, pin}.
-  """
-  let boundModuleJSON(kindJSON: String!, path: String!, ref: String!, pin: String!): String! {
-    "{\"kind\":" + kindJSON +
-    ",\"path\":" + JSON.encode(path) +
-    ",\"ref\":" + JSON.encode(ref) +
-    ",\"pin\":" + JSON.encode(pin) + "}"
-  }
+  Build the complete client package for a scope: merged bindings plus the
+  package.json and tsconfig.json that make it installable on its own.
 
+  `existing` supplies the package's current config so user edits are preserved —
+  in particular a @dagger.io/dagger the user has repointed at a local bundle.
+  `name` names the package and is the scope's, not any one module's: the package
+  serves all of them.
   """
-  Build the complete Node/Bun client directory (bindings + scoped package.json +
-  tsconfig) from the bound module's client-facing schema and provenance.
-
-  Takes the pieces (not a live ModuleSource) so callers can supply them either
-  from a resolved handle or from a projected list item. `existing` supplies the
-  client dir's current config so user edits are preserved; pass an empty
-  directory for a fresh client. `kindJSON` is the already-JSON-encoded source
-  kind (e.g. "\"GIT_SOURCE\""). `path` is the module's workspace-root-relative
-  path (local kinds); `ref`/`pin` the canonical git ref + pin (GIT_SOURCE).
-  """
-  let clientDirectory(schemaJSON: String!, moduleName: String!, engineVersion: String!, kindJSON: String!, path: String!, ref: String!, pin: String!, existing: Directory!): Directory! {
-    let bindings = generateClientBindings(
-      schemaJSON,
-      moduleName,
-      engineVersion,
-      boundModuleJSON(kindJSON, path, ref, pin)
+  let clientDirectory(targets: [ClientTarget!]!, name: String!, existing: Directory!): Directory! {
+    configureClientNode(
+      generateClientBindings(targets, targetEngineVersion),
+      existing,
+      targetEngineVersion,
+      name,
     )
-    configureClientNode(bindings, existing, engineVersion, moduleName)
   }
 
   """
@@ -806,145 +876,107 @@ type TypescriptSdk {
   }
 
   """
-  The `*.gen.ts` bindings sitting at `path`, by name.
+  Generate the client half of a scope: one installable package serving every
+  target the scope records.
 
-  Regeneration owns that set and nothing else: a module that has left the
-  closure must lose its file, while the user's own files at `path` stay.
+  One package rather than one per target, because the core API is the bulk of a
+  generated client and every target in a scope shares it. Removal needs no
+  special case: `clients` is the complete desired set, so a target that is gone
+  is simply not rendered, and the last one leaving takes the package with it.
   """
-  let clientBindings(ws: Workspace!, path: String!): [String!]! {
-    existingDir(ws, path).entries.filter { entry => entry.trimSuffix(".gen.ts") != entry }
+  let clientScope(ws: Workspace!, base: String!, isModule: Boolean!, clients: [ModuleSource!]!): Workspace! {
+    let dir = clientDirPath(base, isModule)
+
+    if (clients.length == 0) {
+      if (existingDir(ws, dir).entries.length == 0) { ws } else { ws.withoutDirectory("/" + dir) }
+    } else {
+      let targets = clients
+        .{{ moduleOriginalName, kind, pin, asString, sourceRootSubpath, clientSchemaIntrospectionJSON.{{ contents }} }}
+        .map { module =>
+          ClientTarget(
+            name: module.moduleOriginalName,
+            schemaJSON: module.clientSchemaIntrospectionJSON.contents,
+            kindJSON: JSON.encode(module.kind),
+            # Local kinds serve by resolving this against the workspace; git
+            # kinds ignore it and serve from ref+pin instead.
+            path: module.sourceRootSubpath,
+            ref: module.asString,
+            pin: module.pin,
+          )
+        }
+
+      # Replace rather than merge, the reverse of seeding: merging can only add,
+      # and dropping the bindings of a target that has left the scope is the
+      # point. The package's own config survives because it is read back out of
+      # `ws` and layered under the fresh bindings.
+      ws.withNewDirectory("/" + dir, clientDirectory(targets, dirName(dir), existingClientConfig(ws, dir)))
+    }
   }
 
   """
-  The client directory minus its bindings — what regeneration replaces `path`
-  with, once the fresh bindings are layered back on. Replace rather than merge,
-  the reverse of init: merging can only add, and dropping the bindings of a
-  module that has left the closure is the point.
+  Where a scope's generated client package lives.
 
-  Reads from the untouched `ws`. Pruning the workspace itself and reading that
-  back loses the whole directory on a local-directory workspace
-  (dagger/dagger#13955), taking the user's files with it.
+  A module scope owns its whole directory, so the package sits beside the
+  generated `sdk/`. A client-only scope is the user's own project, so it goes
+  under `.dagger/` where everything else this SDK writes there lives. Neither
+  may sit under `src/`: the introspector treats every file it finds there as
+  module source.
   """
-  let existingClientBase(ws: Workspace!, path: String!): Directory! {
-    existingDir(ws, path).withoutFiles(clientBindings(ws, path))
+  let clientDirPath(base: String!, isModule: Boolean!): String! {
+    scopeFile(base, if (isModule) { "clients" } else { ".dagger/clients" })
   }
 
   """
-  Generate a typed client for `module` and stage it at workspace-relative `path`.
-
-  The client analogue of `mod(ws, path).generate(ws)`: it resolves the bound
-  module in the workspace, generates a self-contained scoped npm package from
-  its client-facing schema — dagger.gen.ts for the core types, one
-  <module>.gen.ts per module in the closure, package.json and tsconfig.json —
-  and returns the staged changes. Config files already at `path` are merged
-  into, so a @dagger.io/dagger the user pointed at a local bundle survives.
+  Last segment of a workspace path, empty at the root — the scope's own name,
+  which names the client package it owns.
   """
-  generateClient(
-    ws: Workspace!,
-    """
-    Module the client binds to: a workspace-relative path or a canonical module ref.
-    """
-    module: String!,
-    """
-    Workspace-relative directory to generate the client package into.
-    """
-    path: String!,
-  ): Changeset! {
-    let modSrc = ws.moduleSource(module)
-    let generated = clientDirectory(
-      modSrc.clientSchemaIntrospectionJSON.contents,
-      modSrc.moduleOriginalName,
-      modSrc.engineVersion,
-      JSON.encode(modSrc.kind),
-      # Local: the workspace-relative module path the caller resolved against.
-      # Git: unused (ref/pin drive the serve).
-      module,
-      modSrc.asString,
-      modSrc.pin,
-      existingClientConfig(ws, path)
-    )
-    ws.withNewDirectory("/" + path, existingClientBase(ws, path).withDirectory(".", generated)).changes(ws)
+  let dirName(path: String!): String! {
+    if (path == ".") {
+      ""
+    } else {
+      let segments = path.split("/")
+      segments.dropFirst(segments.length - 1).join("/")
+    }
   }
 
+}
+
+"""
+One module a scope generates a client for: its client-facing schema plus the
+provenance the generated bootstrap needs to serve it at runtime.
+
+Projected off a ModuleSource rather than passed as one, so the whole target set
+resolves in a single pass instead of a round-trip per field per module.
+"""
+type ClientTarget {
   """
-  Generate every managed TypeScript SDK module visible from the client's current
-  location. Discovery goes through modules(ws), so running from a subdirectory
-  generates only the project you're in and the projects beneath it.
-
-  Modules with the generate skip marker are skipped.
+  The target module's name, which names its generated bindings file.
   """
-  generateAllModule(ws: Workspace!): Changeset! @generate {
-    let changes = modules(ws)
-      .filter { mod => mod.skipGenerate(ws) == false }
-      .map { mod =>
-        # Stage this module's local dependency closure first (leaf-first, possibly
-        # across SDKs) so its codegen sees up-to-date dependency bindings. The dep
-        # codegen is ephemeral: taking the changeset against the staged workspace
-        # cancels it out, leaving only each module's own changes.
-        let stagedWs = ws.withChanges(ws.moduleSource("/" + mod.rootPath).generateLocalDependencies(ws))
-
-        # Generate through Mod so this and `mod generate` cannot pick different
-        # generators — but only its staged half: Mod.generate would stage a
-        # second time, and the engine already re-enters this function under each
-        # dependency's own staging.
-        mod.generateStaged(stagedWs, ws)
-      }
-
-    # Force the per-module codegen to evaluate concurrently: selecting a field on
-    # the whole list resolves every element in one pass, where folding them into
-    # one changeset would walk them one at a time.
-    changes.{{isEmpty}}
-
-    # Merge as changesets, never by re-applying them to a workspace: past the
-    # changeset cwd cutover these are measured from ws.cwd, while
-    # Workspace.withChanges overlays at the workspace root — one frame off for
-    # every cwd but the root, which is what the engine's nested per-dependency
-    # generation runs at. Seed with ws.changes(ws), a workspace compared against
-    # itself, so the seed is empty even when that nested workspace already
-    # carries a staged dependency closure.
-    ws.changes(ws).withChangesets(changes)
-  }
+  let name: String!
 
   """
-  Regenerate every client this SDK manages that is visible from the client's
-  current location.
-
-  Iterates the workspace-registered clients (currentModule.asSDK.clients),
-  resolves each bound module through the engine field
-  CurrentModuleAsSDKClient.moduleSource (honoring pin/remote refs), generates
-  the client from that module's ModuleSource.clientSchemaIntrospectionJSON, and
-  stages the files at the client path.
-
-  Scoped by cwd like generateAllModule: a returned changeset may only carry
-  paths under the caller's location, so regenerating from a subdirectory — or
-  nested under the engine's per-dependency generation, where the cwd is the
-  dependency — skips clients that live elsewhere in the workspace.
+  The target's client-facing introspection schema: core plus this one module.
   """
-  generateAllClient(ws: Workspace!): Changeset! @generate {
-    let cwd = clientCwd(ws)
+  let schemaJSON: String!
 
-    currentModule.asSDK(ws).clients
-      .{{path, module, moduleSource.{{ clientSchemaIntrospectionJSON.{{ contents }}, moduleOriginalName, engineVersion, kind, pin, asString }} }}
-      .filter { client => inCwdScope(cwd, client.path) }
-      .reduce(ws) { stagedWs, client =>
-        let m = client.moduleSource
-        let generated = clientDirectory(
-          m.clientSchemaIntrospectionJSON.contents,
-          m.moduleOriginalName,
-          m.engineVersion,
-          JSON.encode(m.kind),
-          # Local: the config-recorded workspace-relative module path.
-          # Git: unused (ref/pin drive the serve).
-          client.module,
-          m.asString,
-          m.pin,
-          existingClientConfig(ws, client.path)
-        )
-        stagedWs.withNewDirectory(
-          "/" + client.path,
-          existingClientBase(ws, client.path).withDirectory(".", generated),
-        )
-      }
-      .changes(ws)
-  }
+  """
+  JSON-encoded source kind, deciding how the generated bootstrap serves it.
+  Encoded at projection time because the engine types it as an enum.
+  """
+  let kindJSON: String!
+
+  """
+  Workspace-root-relative path, for local kinds.
+  """
+  let path: String!
+
+  """
+  Canonical ref, for git kinds.
+  """
+  let ref: String!
+
+  """
+  Pinned version, for git kinds.
+  """
+  let pin: String!
 }
