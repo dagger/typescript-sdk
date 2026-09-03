@@ -1,127 +1,136 @@
 """
-Checks for `typescriptSdk.modules` — which managed modules are in scope.
+Checks for `typescriptSdk.detectScope` — which directory this SDK claims as the
+project containing the workspace cwd.
 
-Discovery is `currentModule.asSDK.modules`, the engine-owned list of modules
-this SDK manages, narrowed by the engine to the client's cwd. So the workspace
-decides *what* is a module of ours and the cwd decides *how much of it* a
-command acts on.
+Detection replaces the engine-owned module list the beta interface handed us.
+The engine asks every installed SDK where the cwd belongs and takes the deepest
+answer, so this decides both which scope a `dagger module client add` lands in
+and whether TypeScript owns it at all.
 """
 type DiscoveryChecks {
   let fixtures: Fixtures! = Fixtures
 
   """
-  Workspace-root-relative paths of every module discovered from `cwd`.
+  A workspace built from nothing but the named files, anchored at `cwd`.
+
+  Synthetic rather than a slice of the real tree: detection answers a question
+  about the files above the cwd, so a fixture that spells out exactly those files
+  is the only way to pin the answer down.
   """
-  let discovered(ws: Workspace!, cwd: String!, extra: [String!]! = []): [String!]! {
-    typescriptSdk
-      .modules(fixtures.discoverySnapshot(ws, cwd, extra: extra))
-      .{{rootPath}}
-      .map { mod => mod.rootPath }
+  let workspaceWith(files: [String!]!, cwd: String!): Workspace! {
+    files
+      .reduce(directory) { dir, path => dir.withNewFile(path, "{}") }
+      .asWorkspace(cwd: cwd)
   }
 
   """
-  Cwd-relative paths of every module discovered from `cwd` — how a listing reads
-  to someone standing there.
+  The scope this SDK detects from `cwd` in a workspace holding `files`.
   """
-  let discoveredRelative(ws: Workspace!, cwd: String!, extra: [String!]! = []): [String!]! {
-    typescriptSdk
-      .modules(fixtures.discoverySnapshot(ws, cwd, extra: extra))
-      .{{path}}
-      .map { mod => mod.path }
+  let detected(files: [String!]!, cwd: String!): String! {
+    typescriptSdk.detectScope(workspaceWith(files, cwd))
   }
 
   """
-  From the workspace root the whole workspace is in scope, so modules() should
-  return every TypeScript SDK module this workspace manages — whether it is
-  configured by the legacy dagger.json or the CLI 1.0 dagger-module.toml — and
-  nothing that isn't managed by this SDK (e.g. a sibling module using another
-  SDK).
-
-  Runs against the real workspace, so it also catches a dagger.toml
-  [[...as-sdk.modules]] entry that no longer matches the fixture tree.
+  Every marker should mark a project root, and the directory holding it is the
+  scope. A TypeScript project is a package.json for Node and Bun, a deno.json
+  for Deno; a bare tsconfig.json covers a project that is neither.
   """
-  modulesCheck(ws: Workspace!): Void @check {
-    let roots = typescriptSdk.modules(ws).{{rootPath}}.map { mod => mod.rootPath }
-
-    fixtures.managedModules.each { want =>
-      Asserts.assert(Asserts.contains(roots, want), "managed module should be listed: " + want)
-    }
+  detectMarkersCheck: Void @check {
     Asserts.assert(
-      Asserts.contains(roots, fixtures.nonTsModule) == false,
-      "a module not managed by this SDK should be excluded from modules listing",
+      detected(["apps/web/package.json"], "apps/web") == "apps/web",
+      "package.json should mark a scope",
+    )
+    Asserts.assert(
+      detected(["apps/web/deno.json"], "apps/web") == "apps/web",
+      "deno.json should mark a scope",
+    )
+    Asserts.assert(
+      detected(["apps/web/deno.jsonc"], "apps/web") == "apps/web",
+      "deno.jsonc should mark a scope",
+    )
+    Asserts.assert(
+      detected(["apps/web/tsconfig.json"], "apps/web") == "apps/web",
+      "tsconfig.json should mark a scope",
     )
 
     null
   }
 
   """
-  Discovery is anchored at the client's cwd, not the workspace root. Re-anchoring
-  the workspace to a subdirectory scopes modules() to the managed modules in that
-  cone (walk-down) plus the nearest enclosing one (find-up), and excludes managed
-  modules that live outside it.
+  Detection walks up: standing anywhere inside a project resolves to the project
+  root, which is what lets `dagger module client add` work from a subdirectory.
   """
-  modulesCwdCheck(ws: Workspace!): Void @check {
-    # Walk-down: from fixtures/generate only generate/app is in the cone; the
-    # sibling managed modules live outside it and must be excluded. Its
-    # cwd-relative path is "app" — a directory beneath the cwd.
-    let generateCwd = fixtures.root + "/generate"
-    Asserts.paths(discovered(ws, generateCwd), [fixtures.generateModule], "cwd=generate")
-    Asserts.paths(discoveredRelative(ws, generateCwd), ["app"], "cwd=generate (cwd-relative)")
-
-    # Find-up: from inside lookup/app (a nested subdir with no config of its own)
-    # the enclosing managed module is discovered; siblings are not. Its
-    # cwd-relative path is ".." — an ancestor of the cwd. The nested dir has no
-    # config, so it needs its .keep to survive the snapshot filter.
-    let keep = ["**/.keep"]
-    Asserts.paths(
-      discovered(ws, fixtures.lookupNested, extra: keep),
-      [fixtures.lookupModule],
-      "cwd=lookup/app/nested",
+  detectFindsUpCheck: Void @check {
+    Asserts.assert(
+      detected(["apps/web/package.json", "apps/web/src/.keep"], "apps/web/src") == "apps/web",
+      "detection should walk up to the nearest project root",
     )
-    Asserts.paths(
-      discoveredRelative(ws, fixtures.lookupNested, extra: keep),
-      [".."],
-      "cwd=lookup/app/nested (cwd-relative)",
+    Asserts.assert(
+      detected(["package.json", "apps/web/src/.keep"], "apps/web/src") == ".",
+      "a project at the workspace root should be detected as the workspace root",
     )
-
-    # Root cwd: the whole workspace is in scope, so exactly the managed modules
-    # are discovered, whether marked by dagger.json or dagger-module.toml.
-    Asserts.paths(discovered(ws, "/"), fixtures.managedModules, "cwd=/")
 
     null
   }
 
   """
-  A module whose config `source` points outside its own directory is discovered
-  through the directory holding that config, not through the directory holding
-  its code.
+  The deepest marker wins, regardless of which filename found it.
 
-  That is the layout `dagger setup` migration writes: config in
-  .dagger/modules/<name>/, source pointing back at the pre-existing code (here
-  ci/). Standing at the project root finds it; standing in ci/ does not, because
-  ci/ holds no module config and nothing above it does either. Callers who want
-  to act on the module from its source tree address it by path instead.
+  A monorepo has a package.json at the root and one per app; a client belongs to
+  the app the user is standing in, not the repo. The engine compares SDKs by
+  scope length too, so answering with an ancestor would also hand the scope to
+  whichever SDK answered more precisely.
   """
-  parentSourceDiscoveryCheck(ws: Workspace!): Void @check {
-    # From the project root, the module config is in the walk-down cone and the
-    # module is reported at that config path, not at its source path.
-    Asserts.paths(
-      discovered(ws, fixtures.parentSourceRoot),
-      [fixtures.parentSourceModule],
-      "cwd=parent-source",
+  detectDeepestWinsCheck: Void @check {
+    Asserts.assert(
+      detected(["package.json", "apps/web/package.json"], "apps/web") == "apps/web",
+      "the nearest project root should win over an ancestor",
     )
-    Asserts.paths(
-      discoveredRelative(ws, fixtures.parentSourceRoot),
-      [".dagger/modules/app"],
-      "cwd=parent-source (cwd-relative)",
+    # Mixed filenames: a nearer deno.json must not be shadowed by an ancestor's
+    # package.json, or a Deno app inside a Node monorepo resolves to the wrong
+    # scope.
+    Asserts.assert(
+      detected(["package.json", "apps/web/deno.json"], "apps/web") == "apps/web",
+      "the deepest marker should win whichever filename found it",
     )
 
-    # From the source tree, there is no module config at or above the cwd that
-    # this SDK manages, so nothing is in scope.
-    Asserts.paths(
-      discovered(ws, fixtures.parentSourceCode, extra: [fixtures.parentSourceCode + "/package.json"]),
-      [],
-      "cwd=parent-source/ci",
+    null
+  }
+
+  """
+  With no marker at or above the cwd, detection should decline.
+
+  Returning "" is how the engine learns this SDK manages nothing here, so
+  another SDK can claim the directory. Claiming it anyway would make every
+  `dagger module client add` in a non-TypeScript tree ambiguous.
+  """
+  detectDeclinesCheck: Void @check {
+    Asserts.assert(
+      detected(["services/api/go.mod"], "services/api") == "",
+      "detection should decline a directory with no TypeScript project",
+    )
+    # A marker *below* the cwd is not a project the cwd belongs to.
+    Asserts.assert(
+      detected(["apps/web/package.json", ".keep"], ".") == "",
+      "a marker below the cwd should not be detected as its scope",
+    )
+
+    null
+  }
+
+  """
+  Detection should agree with the real fixture tree, not just synthetic ones: a
+  fixture that already carries user-authored config is a project root, and the
+  migration-layout fixture's source tree is one too.
+  """
+  detectRealTreeCheck(ws: Workspace!): Void @check {
+    Asserts.assert(
+      typescriptSdk.detectScope(ws.withWorkdir(fixtures.existingNode)) == fixtures.existingNode,
+      "a directory with a user package.json should be its own scope",
+    )
+    Asserts.assert(
+      typescriptSdk.detectScope(ws.withWorkdir(fixtures.parentSourceCode)) == fixtures.parentSourceCode,
+      "the migration fixture's source tree should be a scope of its own",
     )
 
     null

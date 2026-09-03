@@ -1,10 +1,10 @@
 """
-Checks for typed client generation — `typescriptSdk.generateClient` for one
-client and `generateAllClient` for every client the workspace registers.
+Checks for typed client generation, the client half of `generateScope`.
 
-A client binds exactly one module and ships as a self-contained scoped npm
-package: dagger.gen.ts for the core types, one <module>.gen.ts per module in the
-bound module's closure, plus package.json and tsconfig.json.
+A scope gets one self-contained package serving every target it records:
+dagger.gen.ts for the core types, one <module>.gen.ts per target, plus
+package.json and tsconfig.json. One package rather than one per target, because
+the core API is the bulk of a generated client and every target shares it.
 """
 type ClientChecks {
   let fixtures: Fixtures! = Fixtures
@@ -18,9 +18,30 @@ type ClientChecks {
   let daggerSourceRef: String! = "b82dd645c0a2759cee20b038de3d155ce3860cf6"
 
   """
-  Assert that a changeset holds a complete scoped-package client at `path`.
+  Where a client-only scope's generated package lives, relative to the scope.
   """
-  let clientPackage(changes: Changeset!, path: String!): Void {
+  let clientDir(scope: String!): String! {
+    scope + "/.dagger/clients"
+  }
+
+  """
+  Generate the client half of a scope bound to the client-app fixture.
+  """
+  let generateClients(ws: Workspace!, scope: String!): Changeset! {
+    Gen.scope(
+      ws,
+      scope,
+      "",
+      isModule: false,
+      clients: [ws.moduleSource("/" + fixtures.clientModule)],
+    )
+  }
+
+  """
+  Assert that a changeset holds a complete client package for `scope`.
+  """
+  let clientPackage(changes: Changeset!, scope: String!): Void {
+    let path = clientDir(scope)
     Asserts.generated(changes, path + "/dagger.gen.ts")
     Asserts.generated(changes, path + "/client-app.gen.ts")
     Asserts.generated(changes, path + "/package.json")
@@ -29,15 +50,12 @@ type ClientChecks {
   }
 
   """
-  Generating a client for a module should produce a scoped-package client:
-  dagger.gen.ts (core types), one <module>.gen.ts per module (the bound module
-  plus its deps), and package.json — rooted at the client output path.
+  A scope with one client target should produce a complete package: dagger.gen.ts
+  for the core types, one <module>.gen.ts for the target, and the package config
+  that makes it installable on its own.
   """
   generateClientCheck(ws: Workspace!): Void @check {
-    clientPackage(
-      typescriptSdk.generateClient(ws, module: fixtures.clientModule, path: fixtures.clientOutput),
-      fixtures.clientOutput,
-    )
+    clientPackage(generateClients(ws, fixtures.clientOutput), fixtures.clientOutput)
 
     null
   }
@@ -49,8 +67,8 @@ type ClientChecks {
   bugs that file-presence checks miss.
   """
   generateClientCompilesCheck(ws: Workspace!): Void @check {
-    let changes = typescriptSdk.generateClient(ws, module: fixtures.clientModule, path: fixtures.clientOutput)
-    let clientDir = changes.layer.directory(fixtures.clientOutput)
+    let changes = generateClients(ws, fixtures.clientOutput)
+    let generated = changes.layer.directory(clientDir(fixtures.clientOutput))
 
     let node = container
       .from("node:22-alpine")
@@ -74,7 +92,7 @@ type ClientChecks {
     # local path overrides the version pin) and type-check.
     let out = node
       .withDirectory("/dagger-lib", daggerLib)
-      .withDirectory("/client", clientDir)
+      .withDirectory("/client", generated)
       .withWorkdir("/client")
       .withExec(["npm", "install", "--no-audit", "--no-fund", "--legacy-peer-deps", "/dagger-lib", "typescript@5.9.3"])
       .withExec(["npx", "--no-install", "tsc", "--noEmit"])
@@ -93,11 +111,12 @@ type ClientChecks {
   closure are pruned.
   """
   generateClientRespectsExistingCheck(ws: Workspace!): Void @check {
-    let changes = typescriptSdk.generateClient(ws, module: fixtures.clientModule, path: fixtures.clientExisting)
+    let changes = generateClients(ws, fixtures.clientExisting)
+    let generatedDir = clientDir(fixtures.clientExisting)
 
     # The "./sdk" value proves the local ref is preserved; the ": " (space after
     # colon) proves the output is pretty-printed, not a single minified line.
-    let pkg = changes.layer.file(fixtures.clientExisting + "/package.json").contents
+    let pkg = changes.layer.file(generatedDir + "/package.json").contents
     Asserts.stringContains(
       pkg,
       "\"@dagger.io/dagger\": \"./sdk\"",
@@ -111,16 +130,25 @@ type ClientChecks {
     let removed = "removed [" + changes.removedPaths.join(", ") + "]"
     Asserts.assert(
       Asserts.contains(changes.removedPaths, fixtures.clientExisting + "/main.ts") == false,
-      "regeneration removed a hand-written file from the client package: " + removed,
+      "regeneration removed a hand-written file from the scope: " + removed,
     )
+    # The scope's own package.json belongs to the user. The generated package is
+    # self-contained and installed by hand, so nothing here may touch it.
+    Asserts.assert(
+      Asserts.contains(changes.modifiedPaths, fixtures.clientExisting + "/package.json") == false,
+      "regeneration modified the user's own package.json",
+    )
+    # Read the resulting workspace, not the changeset's after-tree: that tree
+    # holds only what generation touched, so a file surviving untouched is
+    # exactly the case it cannot show.
     Asserts.stringContains(
-      changes.after.file(fixtures.clientExisting + "/main.ts").contents,
+      ws.withChanges(changes).directory("/" + fixtures.clientExisting).file("main.ts").contents,
       "hello from the user's own file",
-      "hand-written client code must survive regeneration",
+      "hand-written code in the scope must survive regeneration",
     )
     Asserts.assert(
-      Asserts.contains(changes.removedPaths, fixtures.clientExisting + "/stale-dep.gen.ts"),
-      "regeneration should prune bindings for a module that left the closure: " + removed,
+      Asserts.contains(changes.removedPaths, generatedDir + "/stale-dep.gen.ts"),
+      "regeneration should prune bindings for a target that left the scope: " + removed,
     )
 
     null
@@ -136,18 +164,18 @@ type ClientChecks {
   """
   generateClientOnSyntheticWorkspaceCheck(ws: Workspace!): Void @check {
     let synthetic = ws.directory("/").asWorkspace
-    let changes = typescriptSdk.generateClient(
-      synthetic,
-      module: fixtures.clientModule,
-      path: fixtures.clientExisting,
-    )
-    let entries = changes.after.directory(fixtures.clientExisting).entries
+    let changes = generateClients(synthetic, fixtures.clientExisting)
+    let after = synthetic.withChanges(changes)
+    let entries = after.directory("/" + clientDir(fixtures.clientExisting)).entries
     let kept = "kept [" + entries.join(", ") + "]"
 
-    Asserts.assert(Asserts.contains(entries, "main.ts"), "hand-written client code must survive: " + kept)
+    Asserts.assert(
+      Asserts.contains(after.directory("/" + fixtures.clientExisting).entries, "main.ts"),
+      "hand-written code in the scope must survive: " + kept,
+    )
     Asserts.assert(
       Asserts.contains(entries, "stale-dep.gen.ts") == false,
-      "bindings for a module that left the closure must be pruned: " + kept,
+      "bindings for a target that left the scope must be pruned: " + kept,
     )
     Asserts.assert(Asserts.contains(entries, "dagger.gen.ts"), "regeneration must write the core bindings: " + kept)
 
@@ -155,11 +183,50 @@ type ClientChecks {
   }
 
   """
-  Regenerating all workspace-registered clients should generate each one at its
-  configured path.
+  Removing the last target should take the package with it. `clients` is the
+  complete desired set, so an empty one means the scope serves nothing — leaving
+  the bindings behind would export an API against a module no longer served.
   """
-  generateAllClientCheck(ws: Workspace!): Void @check {
-    clientPackage(typescriptSdk.generateAllClient(ws), fixtures.clientOutput)
+  removeClientsCheck(ws: Workspace!): Void @check {
+    let generated = ws.withChanges(generateClients(ws, fixtures.clientOutput))
+    let removed = Gen.scope(generated, fixtures.clientOutput, "", isModule: false)
+
+    Asserts.assert(
+      Asserts.contains(removed.removedPaths, clientDir(fixtures.clientOutput) + "/"),
+      "dropping the last target should remove the generated package, got: "
+        + removed.removedPaths.join(", "),
+    )
+
+    null
+  }
+
+  """
+  A scope serving two targets should get one package: one core file, and one
+  bindings file per target. Emitting the core API per target instead would
+  duplicate the bulk of the client for every module a scope binds.
+  """
+  multipleClientsCheck(ws: Workspace!): Void @check {
+    let path = clientDir(fixtures.clientOutput)
+    let changes = Gen.scope(
+      ws,
+      fixtures.clientOutput,
+      "",
+      isModule: false,
+      clients: [
+        ws.moduleSource("/" + fixtures.clientModule),
+        ws.moduleSource("/" + fixtures.generateModule),
+      ],
+    )
+
+    Asserts.generated(changes, path + "/dagger.gen.ts")
+    Asserts.generated(changes, path + "/client-app.gen.ts")
+    Asserts.generated(changes, path + "/generate-app.gen.ts")
+
+    # Both targets must be served by the one bootstrap, or the second `dag.<mod>()`
+    # resolves against a module nothing installed.
+    let core = changes.layer.file(path + "/dagger.gen.ts").contents
+    Asserts.stringContains(core, fixtures.clientModule, "the core file should serve the first target")
+    Asserts.stringContains(core, fixtures.generateModule, "the core file should serve the second target")
 
     null
   }

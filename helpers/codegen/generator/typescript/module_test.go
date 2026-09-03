@@ -114,7 +114,7 @@ func TestGenerateClient_ImportsPackage(t *testing.T) {
 	gen := &TypeScriptGenerator{Config: generator.Config{
 		ClientConfig: &generator.ClientGeneratorConfig{
 			ModuleName:  "app",
-			BoundModule: generator.BoundModule{Kind: generator.ModuleKindDir, Path: ".dagger/modules/app"},
+			BoundModules: []generator.BoundModule{{Name: "app", Kind: generator.ModuleKindDir, Path: ".dagger/modules/app"}},
 		},
 	}}
 

@@ -4,25 +4,41 @@ the runtime it targets, the skip marker it honors, and the templates it ships.
 """
 type SdkChecks {
   """
-  The SDK should report the builtin runtime it targets. The engine writes this
-  into a new module's `[runtime] source`, so a change here silently repoints
-  every module the SDK creates.
+  A module this SDK creates should name the engine's builtin TypeScript runtime.
+  The SDK writes the manifest now, so this is what points every generated module
+  at the runtime that executes it — getting it wrong produces modules that will
+  not load.
   """
-  targetRuntimeCheck: Void @check {
-    Asserts.assert(typescriptSdk.targetRuntime == "typescript", "targetRuntime should be typescript")
+  targetRuntimeCheck(ws: Workspace!): Void @check {
+    let path = Fixtures.out + "/runtime-source"
+    let changes = Gen.module(ws, path, "runtime-source")
+
+    Asserts.stringContains(
+      changes.layer.file(path + "/dagger-module.toml").contents,
+      "source = \"typescript\"",
+      "a generated manifest should select the builtin typescript runtime",
+    )
 
     null
   }
 
   """
-  The helper should expose the generate skip marker used by callers. It is part
-  of the SDK's contract with the repos that drop the file, so renaming it is a
-  breaking change.
+  The generate skip marker should stop generation for everything at or below the
+  directory holding it. It is the SDK's contract with the repos that drop the
+  file: renaming it, or narrowing it to the marked directory alone, silently
+  starts regenerating trees that opted out.
+
+  Checked through the marker's effect rather than its name, because the filename
+  is private — a setting would be the wrong shape for something that has to work
+  from an ancestor.
   """
-  skipGenerateFilenameCheck: Void @check {
+  skipMarkerCheck(ws: Workspace!): Void @check {
+    # The fixture carries the marker one directory above the module.
+    let changes = Gen.module(ws, Fixtures.managedTomlModule, "managed-toml-app")
+
     Asserts.assert(
-      typescriptSdk.skipGenerateFilename == ".dagger-typescript-sdk-skip-generate",
-      "skip marker filename changed",
+      changes.isEmpty,
+      "a scope under the skip marker should generate nothing, got: " + changes.addedPaths.join(", "),
     )
 
     null

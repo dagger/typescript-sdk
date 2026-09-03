@@ -1,49 +1,46 @@
 """
-Checks for `typescriptSdk.initModule` / `initClient` — the CLI 1.0 init contract.
+Checks for seeding a new module scope.
 
-initModule returns only the SDK-owned seed files; the engine owns the module's
-config and the workspace bookkeeping. initClient contributes no files at all.
+`generateScope` serves both init and regeneration; these cover the init half,
+where the scope holds no `dagger-module.toml` yet and the SDK lays down the
+starter, the runtime's config files, and the manifest.
 """
 type InitChecks {
   let fixtures: Fixtures! = Fixtures
 
   """
-  Return the error raised by an init that should be rejected, or the changeset's
-  added paths when it unexpectedly succeeds.
-  """
-  let initFailure(changes: Changeset!): String! {
-    changes.addedPaths.join(", ") rescue {
-      err: Error => err.message
-    }
-  }
-
-  """
-  initModule should produce only the SDK-owned seed files, and the runtime should
-  decide which config files come with them. The engine owns the module's config,
-  so it must not appear in the changeset.
+  Seeding should lay down the starter, the manifest, and the config files the
+  chosen runtime is detected from — and nothing belonging to the legacy format.
   """
   initCheck(ws: Workspace!): Void @check {
     let defaultPath = fixtures.out + "/init-default"
     let bunPath = fixtures.out + "/init-bun"
     let denoPath = fixtures.out + "/init-deno"
 
-    let defaultChanges = typescriptSdk.initModule(ws, name: "init-default", path: defaultPath)
-    let bunChanges = typescriptSdk.initModule(ws, name: "init-bun", path: bunPath, runtime: TypescriptSdkRuntime.BUN)
-    let denoChanges = typescriptSdk.initModule(ws, name: "init-deno", path: denoPath, runtime: TypescriptSdkRuntime.DENO)
+    let defaultChanges = Gen.scope(ws, defaultPath, "init-default")
+    let bunChanges = Gen.scope(ws, bunPath, "init-bun", runtime: "bun")
+    let denoChanges = Gen.scope(ws, denoPath, "init-deno", runtime: "deno")
 
     Asserts.notAdded(
       defaultChanges,
       defaultPath + "/dagger.json",
-      "initModule should not write dagger.json; the engine owns it",
+      "seeding should write the CLI 1.0 manifest, never a legacy dagger.json",
     )
+    # The manifest is the SDK's to write, and its absence is what marks a scope
+    # as not yet seeded — so a run that skipped it would re-seed forever.
+    Asserts.added(defaultChanges, defaultPath + "/dagger-module.toml")
     Asserts.added(defaultChanges, defaultPath + "/src/index.ts")
     Asserts.added(defaultChanges, defaultPath + "/package.json")
     Asserts.added(defaultChanges, defaultPath + "/tsconfig.json")
     Asserts.notAdded(defaultChanges, defaultPath + "/index.ts", "init should not generate index.ts at the module root")
     Asserts.notAdded(defaultChanges, defaultPath + "/deno.json", "node init should not generate deno.json")
     Asserts.notAdded(defaultChanges, defaultPath + "/bun.lock", "node init should not generate bun.lock")
-    Asserts.assert(defaultChanges.modifiedPaths.length == 0, "init unexpectedly modified existing files")
-    Asserts.assert(defaultChanges.removedPaths.length == 0, "init unexpectedly removed files")
+    Asserts.assert(defaultChanges.modifiedPaths.length == 0, "seeding a fresh scope should modify nothing")
+    Asserts.assert(defaultChanges.removedPaths.length == 0, "seeding a fresh scope should remove nothing")
+    # Seeding runs into generation in the same call, so the bindings the runtime
+    # loads are there from the first run rather than a `dagger generate` later.
+    Asserts.added(defaultChanges, defaultPath + "/sdk/client.gen.ts")
+    Asserts.added(defaultChanges, defaultPath + "/__dagger.entrypoint.ts")
 
     # Bun reuses the Node config files and adds the lockfile the runtime sniffs
     # for to pick bun over node.
@@ -70,7 +67,7 @@ type InitChecks {
     let defaultPath = fixtures.out + "/template-default"
     let emptyPath = fixtures.out + "/template-empty"
 
-    let defaultChanges = typescriptSdk.initModule(ws, name: "template-default", path: defaultPath)
+    let defaultChanges = Gen.scope(ws, defaultPath, "template-default")
     let defaultIndex = defaultChanges.layer.file(defaultPath + "/src/index.ts").contents
     Asserts.stringContains(defaultIndex, "export class TemplateDefault", "default template should render the module class")
     Asserts.stringContains(defaultIndex, "container(): Container", "default template should expose the container function")
@@ -78,7 +75,7 @@ type InitChecks {
     Asserts.stringContains(defaultIndex, "baseImageAddress", "default template should expose the base image field")
     Asserts.stringNotContains(defaultIndex, "{{", "default template placeholders should be fully rendered")
 
-    let emptyChanges = typescriptSdk.initModule(ws, name: "template-empty", path: emptyPath, template: "empty")
+    let emptyChanges = Gen.scope(ws, emptyPath, "template-empty", template: "empty")
     Asserts.added(emptyChanges, emptyPath + "/src/index.ts")
     Asserts.added(emptyChanges, emptyPath + "/package.json")
     let emptyIndex = emptyChanges.layer.file(emptyPath + "/src/index.ts").contents
@@ -88,7 +85,7 @@ type InitChecks {
     # An unnamed template means the default, not the templates/ directory —
     # which exists, so it would render every starter as a subdirectory.
     let unnamedPath = fixtures.out + "/template-unnamed"
-    let unnamedChanges = typescriptSdk.initModule(ws, name: "template-unnamed", path: unnamedPath, template: "")
+    let unnamedChanges = Gen.scope(ws, unnamedPath, "template-unnamed", template: "")
     Asserts.added(unnamedChanges, unnamedPath + "/src/index.ts")
     Asserts.notAdded(
       unnamedChanges,
@@ -110,19 +107,9 @@ type InitChecks {
   files instead of clobbering them.
   """
   initRespectsExistingCheck(ws: Workspace!): Void @check {
-    let nodeChanges = typescriptSdk.initModule(ws, name: "init-existing-node", path: fixtures.existingNode)
-    let denoChanges = typescriptSdk.initModule(
-      ws,
-      name: "init-existing-deno",
-      path: fixtures.existingDeno,
-      runtime: TypescriptSdkRuntime.DENO,
-    )
-    let bunChanges = typescriptSdk.initModule(
-      ws,
-      name: "init-existing-bun",
-      path: fixtures.existingBun,
-      runtime: TypescriptSdkRuntime.BUN,
-    )
+    let nodeChanges = Gen.scope(ws, fixtures.existingNode, "init-existing-node")
+    let denoChanges = Gen.scope(ws, fixtures.existingDeno, "init-existing-deno", runtime: "deno")
+    let bunChanges = Gen.scope(ws, fixtures.existingBun, "init-existing-bun", runtime: "bun")
 
     # Existing user files should be modified (merged), not added fresh.
     Asserts.modified(nodeChanges, fixtures.existingNode + "/package.json")
@@ -201,32 +188,27 @@ type InitChecks {
   }
 
   """
-  Init into a directory that already holds files should layer the starter onto
-  it, never replace it: a user running `dagger module init` inside an existing
-  project keeps their files, and so does the config the engine wrote at the
-  destination before calling the SDK.
+  Seeding a directory that already holds files should layer the starter onto it,
+  never replace it: a user running `dagger module init` inside an existing
+  project keeps everything that was already there.
   """
   initOverExistingCheck(ws: Workspace!): Void @check {
-    let changes = typescriptSdk.initModule(ws, name: "init-over-existing", path: fixtures.lookupModule)
+    let path = fixtures.existingNode
+    let changes = Gen.scope(ws, path, "init-over-existing")
 
     Asserts.assert(
       changes.removedPaths.length == 0,
-      "init removed existing files: " + changes.removedPaths.join(", "),
+      "seeding removed existing files: " + changes.removedPaths.join(", "),
     )
     Asserts.stringContains(
-      changes.after.file(fixtures.lookupModule + "/index.ts").contents,
-      "export class LookupApp",
-      "init must leave the existing module source in place",
+      changes.after.file(path + "/package.json").contents,
+      "\"name\": \"user-pkg\"",
+      "seeding must leave the existing project files in place",
     )
     Asserts.stringContains(
-      changes.after.file(fixtures.lookupModule + "/dagger.json").contents,
-      "\"source\": \"typescript\"",
-      "init must leave the existing module config in place",
-    )
-    Asserts.stringContains(
-      changes.after.file(fixtures.lookupModule + "/src/index.ts").contents,
+      changes.after.file(path + "/src/index.ts").contents,
       "export class InitOverExisting",
-      "init did not render the template into the existing directory",
+      "seeding did not render the template into the existing directory",
     )
 
     null
@@ -242,26 +224,25 @@ type InitChecks {
     let configuredDenoPath = fixtures.out + "/init-configured-deno"
     let defaultPath = fixtures.out + "/init-config-default"
 
-    let configured = typescriptSdk.initModule(
+    let configured = Gen.scope(
       ws,
-      name: "init-configured",
-      path: configuredPath,
+      configuredPath,
+      "init-configured",
       packageManager: "pnpm@8.15.4",
       baseImage: "node:23.2.0-alpine",
     )
     let pkg = configuredPath + "/package.json"
     Asserts.added(configured, pkg)
-    Asserts.assert(configured.modifiedPaths.length == 0, "configured init should not modify existing files")
     Asserts.assert(configured.removedPaths.length == 0, "configured init should not remove files")
     Asserts.stringContains(configured.layer.file(pkg).contents, "pnpm@8.15.4", "init --package-manager not written")
     Asserts.stringContains(configured.layer.file(pkg).contents, "node:23.2.0-alpine", "init --base-image not written")
 
     # Deno init with baseImage routes to deno.json; no package.json is created.
-    let configuredDeno = typescriptSdk.initModule(
+    let configuredDeno = Gen.scope(
       ws,
-      name: "init-configured-deno",
-      path: configuredDenoPath,
-      runtime: TypescriptSdkRuntime.DENO,
+      configuredDenoPath,
+      "init-configured-deno",
+      runtime: "deno",
       baseImage: "denoland/deno:alpine-2.0.0",
     )
     let denoFile = configuredDenoPath + "/deno.json"
@@ -278,7 +259,7 @@ type InitChecks {
     )
 
     # Default init has no config keys.
-    let default = typescriptSdk.initModule(ws, name: "init-config-default", path: defaultPath)
+    let default = Gen.scope(ws, defaultPath, "init-config-default")
     let defaultPkg = defaultPath + "/package.json"
     Asserts.added(default, defaultPkg)
     Asserts.stringNotContains(
@@ -296,34 +277,25 @@ type InitChecks {
   }
 
   """
-  Init should reject what it cannot honor instead of writing a half-configured
-  module: a path outside the workspace, a template it does not ship, and
-  --package-manager on a runtime that bundles its own.
+  Seeding should reject what it cannot honor instead of writing a
+  half-configured module: a template it does not ship, and a packageManager on a
+  runtime that bundles its own.
+
+  Path validation is not here any more — the engine resolves and validates the
+  scope before it ever calls the SDK.
   """
   initRejectsCheck(ws: Workspace!): Void @check {
     Asserts.stringContains(
-      initFailure(typescriptSdk.initModule(ws, name: "escape", path: "../escape")),
-      "path escapes workspace",
-      "init accepted a path outside the workspace",
-    )
-
-    Asserts.stringContains(
-      initFailure(
-        typescriptSdk.initModule(ws, name: "unknown", path: fixtures.out + "/init-unknown", template: "no-such-template"),
+      Gen.failure(
+        Gen.scope(ws, fixtures.out + "/init-unknown", "unknown", template: "no-such-template"),
       ),
       "unknown init template",
       "init accepted a template it does not ship",
     )
 
     Asserts.stringContains(
-      initFailure(
-        typescriptSdk.initModule(
-          ws,
-          name: "pm-on-deno",
-          path: fixtures.out + "/init-pm-on-deno",
-          runtime: TypescriptSdkRuntime.DENO,
-          packageManager: "pnpm@8.15.4",
-        ),
+      Gen.failure(
+        Gen.scope(ws, fixtures.out + "/init-pm-on-deno", "pm-on-deno", runtime: "deno", packageManager: "pnpm@8.15.4"),
       ),
       "packageManager is only supported",
       "init accepted --package-manager on a runtime that bundles its own",
@@ -333,19 +305,15 @@ type InitChecks {
   }
 
   """
-  initClient should not materialize files itself. The engine records the client
-  in workspace config and generates the files, so the SDK's contribution to the
-  init changeset is empty.
+  An unknown runtime should be rejected by name. The setting is a string rather
+  than an enum, so a typo is only caught here.
   """
-  initClientCheck(ws: Workspace!): Void @check {
-    let changes = typescriptSdk.initClient(
-      ws,
-      path: fixtures.out + "/init-client",
-      module: fixtures.generateModule,
-      dev: true,
+  initRejectsRuntimeCheck(ws: Workspace!): Void @check {
+    Asserts.stringContains(
+      Gen.failure(Gen.scope(ws, fixtures.out + "/init-bad-runtime", "bad-runtime", runtime: "nope")),
+      "unknown runtime",
+      "seeding accepted a runtime this SDK cannot generate for",
     )
-
-    Asserts.assert(changes.isEmpty, "initClient should return an empty SDK changeset")
 
     null
   }

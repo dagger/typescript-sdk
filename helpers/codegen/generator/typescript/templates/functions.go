@@ -146,7 +146,7 @@ func (funcs typescriptTemplateFuncs) FuncMap() template.FuncMap {
 		"ModuleRelPath":             funcs.moduleRelPath,
 		"FormatProtected":           funcs.formatProtected,
 		"IsClientOnly":              funcs.isClientOnly,
-		"BoundModule":               funcs.boundModule,
+		"BoundModules":              funcs.boundModules,
 		"IsBundle":                  funcs.isBundle,
 		"LegacyTypeScriptSDKCompat": funcs.legacyTypeScriptSDKCompat,
 		"LegacyIDableTypes":         funcs.legacyIDableTypes,
@@ -701,18 +701,21 @@ func (funcs typescriptTemplateFuncs) isClientOnly() bool {
 	return funcs.cfg.ClientConfig != nil
 }
 
-// boundModule returns the single module the generated client serves, with the
-// local path normalized to a workspace-root-absolute form. Workspace.moduleSource
+// boundModules returns the modules the generated client serves, with local
+// paths normalized to a workspace-root-absolute form. Workspace.moduleSource
 // resolves a leading-slash path from the workspace root and a bare relative path
 // from the client process's cwd; the design contract requires root-relative
 // resolution (cwd-independent), so a local path is forced absolute. Git modules
 // use Ref, never Path, so their identity is left untouched.
-func (funcs typescriptTemplateFuncs) boundModule() generator.BoundModule {
-	m := funcs.cfg.ClientConfig.BoundModule
-	if m.Kind != generator.ModuleKindGit && m.Path != "" && !strings.HasPrefix(m.Path, "/") {
-		m.Path = "/" + m.Path
+func (funcs typescriptTemplateFuncs) boundModules() []generator.BoundModule {
+	modules := make([]generator.BoundModule, 0, len(funcs.cfg.ClientConfig.BoundModules))
+	for _, m := range funcs.cfg.ClientConfig.BoundModules {
+		if m.Kind != generator.ModuleKindGit && m.Path != "" && !strings.HasPrefix(m.Path, "/") {
+			m.Path = "/" + m.Path
+		}
+		modules = append(modules, m)
 	}
-	return m
+	return modules
 }
 
 // isBundle reports whether the bindings sit next to the bundled SDK library and
