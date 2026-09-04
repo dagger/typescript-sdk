@@ -1,19 +1,9 @@
 """
-Checks for the SDK-level surface the engine and callers read directly:
-the runtime it targets, the skip marker it honors, and the templates it ships.
+Checks for the SDK-level surface the engine and callers read directly: the skip
+marker it honors, the templates it ships, and the release its bundle is built
+for.
 """
 type SdkChecks {
-  """
-  The SDK should report the builtin runtime it targets. The engine writes this
-  into a new module's `[runtime] source`, so a change here silently repoints
-  every module the SDK creates.
-  """
-  targetRuntimeCheck: Void @check {
-    Asserts.assert(typescriptSdk.targetRuntime == "typescript", "targetRuntime should be typescript")
-
-    null
-  }
-
   """
   The helper should expose the generate skip marker used by callers. It is part
   of the SDK's contract with the repos that drop the file, so renaming it is a
@@ -29,7 +19,7 @@ type SdkChecks {
   }
 
   """
-  Every directory under templates/ should be offered to `module init --template`,
+  Every directory under templates/ should be offered to the `template` setting,
   named after the directory.
   """
   templatesCheck: Void @check {

@@ -10,7 +10,7 @@ layout — through a synthetic workspace built for it.
 """
 type E2e {
   """
-  Checks for the SDK-level surface: target runtime, skip marker, templates, and
+  Checks for the SDK-level surface: the skip marker, the templates it ships, and
   the Go helpers' own tests.
   """
   sdk: SdkChecks! {
@@ -25,17 +25,11 @@ type E2e {
   }
 
   """
-  Checks for which managed modules are in scope from a given cwd.
+  Checks for the SDK-module interface: finding a client root and generating a
+  scope.
   """
-  discovery: DiscoveryChecks! {
-    DiscoveryChecks
-  }
-
-  """
-  Checks for the CLI 1.0 init contract (initModule / initClient).
-  """
-  init: InitChecks! {
-    InitChecks
+  scope: ScopeChecks! {
+    ScopeChecks
   }
 
   """
@@ -46,7 +40,7 @@ type E2e {
   }
 
   """
-  Checks for module codegen, single and workspace-wide.
+  Checks for module codegen.
   """
   generate: GenerateChecks! {
     GenerateChecks

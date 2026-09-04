@@ -77,62 +77,51 @@ type Mod {
   Whether this module root or an ancestor contains a marker filename.
   """
   let hasMarker(ws: Workspace!, filename: String!): Boolean! {
-    let markerPath = ws.findUp(name: filename, from: rootPath)
+    # Anchored: rootPath is workspace-root-relative, and findUp resolves a
+    # relative `from` against ws.cwd, which is wherever the caller stands.
+    let markerPath = ws.findUp(name: filename, from: "/" + rootPath)
     markerPath != null
   }
 
   """
-  Generate this module's SDK bindings, into its source directory.
-
-  ModuleSource.generate stages the local dependency closure before running this
-  module's codegen, so it sees up-to-date bindings for every module it imports,
-  and applies only this module's own generated files to the workspace. If the
+  Generate this module's SDK bindings, into its source directory. If the
   generate skip marker is present, the changeset is empty.
   """
   generate(ws: Workspace!): Changeset! {
     if (skipGenerate(ws)) {
       ws.changes(ws)
     } else {
-      # Stage the local dependency closure so this module's codegen sees
-      # up-to-date dependency bindings before generating it. A dependency's
-      # schema can only be loaded once its own generated files exist, so this
-      # has to happen before the schema is read either way.
-      let stagedWs = ws.withChanges(ws.moduleSource("/" + rootPath).generateLocalDependencies(ws))
-
-      generateStaged(stagedWs, ws)
+      generated(ws).changes(ws)
     }
   }
 
   """
-  Generate this module against a workspace that already has its dependency
-  closure staged, choosing the generator by config format.
+  The workspace with this module's generated files staged at its source
+  directory, choosing the generator by config format. The skip marker is not
+  applied here; `generate` applies it.
 
-  Split from `generate` so generate-all can reuse the routing without repeating
-  the staging: the engine dispatches the SDK's @generate rollup for each local
-  dependency, so generate-all already runs inside another module's staging.
+  A module's own codegen reads the schema of every module it imports, and a
+  local dependency's schema is only loadable once that dependency's generated
+  files exist. Nothing here puts them there: `dagger generate` orders a
+  dependency's scope before its dependent's, and a caller generating one module
+  on its own stages the dependency first.
   """
-  let generateStaged(ws: Workspace!, base: Workspace!): Changeset! {
+  generated(ws: Workspace!): Workspace! {
     if (isWorkspaceManaged(ws)) {
-      TypescriptSdk().moduleFiles(ws, rootPath, sourcePath, base)
+      TypescriptSdk().moduleWorkspace(ws, rootPath, sourcePath)
     } else {
       # A dagger.json module stays with the engine's built-in TypeScript
       # runtime end to end: it regenerates everything at call time anyway, so
       # generating it here would only put a second, differently-versioned copy
       # of the same files on disk.
       #
-      # Take this module's own directory out of the engine's result and lay it
-      # over the unstaged base, the same shape moduleFiles builds. The engine
-      # hands back a whole workspace, and that workspace still carries the
-      # dependency closure staged above — diffing it against `base` writes the
-      # dependencies' generated files into the user's tree alongside the module
-      # they asked for. Diffing against the staged workspace instead is not the
-      # answer either: staging a module the engine has already generated for a
-      # dependent cancels its own output and emits nothing at all.
-      let generated = ws.moduleSource("/" + rootPath).generate(ws)
-      base.withNewDirectory(
+      # Take this module's own directory out of the engine's result rather than
+      # returning that result whole: the engine hands back a workspace carrying
+      # every module it generated on the way, and the caller asked for this one.
+      ws.withNewDirectory(
         "/" + sourcePath,
-        generated.directory("/" + sourcePath),
-      ).changes(base)
+        ws.moduleSource("/" + rootPath).generate(ws).directory("/" + sourcePath),
+      )
     }
   }
 
