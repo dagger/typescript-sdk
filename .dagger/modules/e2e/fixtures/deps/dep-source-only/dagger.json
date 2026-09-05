@@ -1,7 +1,0 @@
-{
-  "name": "dep-source-only",
-  "engineVersion": "latest",
-  "sdk": {
-    "source": "typescript"
-  }
-}

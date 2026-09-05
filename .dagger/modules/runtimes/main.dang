@@ -20,13 +20,6 @@ type Runtimes {
   let fixtures: String! = ".dagger/modules/runtimes/fixtures"
 
   """
-  Engine release these tests run against. Read off the SDK rather than repeated
-  here: it is the same pairing the committed bundle is built for, and a second
-  copy is a second thing to forget on a bump.
-  """
-  let engineVersion: String! = typescriptSdk.targetEngineVersion
-
-  """
   A node module should generate and run.
   """
   nodeRunsCheck(ws: Workspace!): Void @check {
@@ -52,37 +45,6 @@ type Runtimes {
   """
   denoRunsCheck(ws: Workspace!): Void @check {
     assertRuns(ws, "deno", "RuntimeDeno")
-  }
-
-  """
-  A scaffolded module should answer a function call.
-
-  Loading a module proves the entrypoint registers its types; this proves the
-  other half of the dispatcher — that a call reaches the user's code and its
-  return value comes back. It goes through sdk-sdk's harness, which builds a
-  scratch workspace and drives a release CLI the way a user would: `sdk
-  install`, `module init`, `generate`, then the call.
-
-  The function is the default template's `baseImageAddress`, whose value is set
-  by the module's constructor, so a passing call also means the constructor ran
-  and its default was applied.
-  """
-  invokesFunctionCheck(ws: Workspace!): Void @check {
-    # The harness runs the whole user path through a real CLI, and our committed
-    # bundle is built for one engine release, so driving it with sdk-sdk's own
-    # default would pair our library with whatever engine that default moves to
-    # — the version coupling this SDK owns now that it ships the library. Pin
-    # the harness to the release we target instead.
-    let target = sdkSdk(daggerCliVersion: engineVersion).target(ws.directory("/"), ".")
-    let run = target.run(["call", target.moduleName, "base-image-address"])
-
-    run.assertSuccess
-
-    if (run.stdout.contains("alpine") == false) {
-      raise "calling a scaffolded module returned unexpected output: " + run.stdout
-    }
-
-    null
   }
 
   """

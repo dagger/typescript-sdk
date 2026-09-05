@@ -1,8 +1,10 @@
 # New default TypeScript init template
 
-> **Status: implemented.** See `templates/default/`, the `initModule` wiring in
-> `typescript-sdk.dang`, and the `e-2-e:template-check` test. Earlier iterations
-> are kept under [`archives/`](./archives).
+> **Status: implemented.** See `templates/default/`, the scaffolding wiring in
+> `typescript-sdk.dang`, and the `e-2-e:scope:generate-scope-init-check` test.
+> The `initModule` function this was built on is gone; dagger/typescript-sdk#43
+> moved scaffolding into `generateScope`. Earlier iterations are kept under
+> [`archives/`](./archives).
 
 ## Summary
 

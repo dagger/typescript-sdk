@@ -1,10 +1,11 @@
 """
-Checks for typed client generation — `typescriptSdk.generateClient` for one
-client and `generateAllClient` for every client the workspace registers.
+Checks for typed client generation — `generateScope` on a scope without a
+module, which is how the engine asks for one, and `typescriptSdk.generateClient`
+underneath it.
 
 A client binds exactly one module and ships as a self-contained scoped npm
-package: dagger.gen.ts for the core types, one <module>.gen.ts per module in the
-bound module's closure, plus package.json and tsconfig.json.
+package: dagger.gen.ts for the core types, one <module>.gen.ts for the module it
+binds to, plus package.json and tsconfig.json.
 """
 type ClientChecks {
   let fixtures: Fixtures! = Fixtures
@@ -30,8 +31,8 @@ type ClientChecks {
 
   """
   Generating a client for a module should produce a scoped-package client:
-  dagger.gen.ts (core types), one <module>.gen.ts per module (the bound module
-  plus its deps), and package.json — rooted at the client output path.
+  dagger.gen.ts (core types), one <module>.gen.ts for the bound module, and
+  package.json — rooted at the client output path.
   """
   generateClientCheck(ws: Workspace!): Void @check {
     clientPackage(
@@ -44,9 +45,9 @@ type ClientChecks {
 
   """
   A generated client must type-check. The bindings extend `BaseClient`, which no
-  published @dagger.io/dagger exports yet, so build the library from dagger `main`
-  and `tsc --noEmit` the generated client against it — catching binding/tsconfig
-  bugs that file-presence checks miss.
+  published @dagger.io/dagger exports yet, so build the library from the dagger
+  commit `daggerSourceRef` pins and `tsc --noEmit` the generated client against
+  it — catching binding/tsconfig bugs that file-presence checks miss.
   """
   generateClientCompilesCheck(ws: Workspace!): Void @check {
     let changes = typescriptSdk.generateClient(ws, module: fixtures.clientModule, path: fixtures.clientOutput)
@@ -89,8 +90,8 @@ type ClientChecks {
   version pin), and the emitted package.json must be pretty-printed.
 
   Regeneration owns the `*.gen.ts` bindings and nothing else: hand-written files
-  in the client package survive, while bindings for a module that has left the
-  closure are pruned.
+  in the client package survive, while bindings for a module the client no longer
+  binds are pruned.
   """
   generateClientRespectsExistingCheck(ws: Workspace!): Void @check {
     let changes = typescriptSdk.generateClient(ws, module: fixtures.clientModule, path: fixtures.clientExisting)
@@ -120,7 +121,7 @@ type ClientChecks {
     )
     Asserts.assert(
       Asserts.contains(changes.removedPaths, fixtures.clientExisting + "/stale-dep.gen.ts"),
-      "regeneration should prune bindings for a module that left the closure: " + removed,
+      "regeneration should prune bindings for a module the client no longer binds: " + removed,
     )
 
     null
@@ -147,7 +148,7 @@ type ClientChecks {
     Asserts.assert(Asserts.contains(entries, "main.ts"), "hand-written client code must survive: " + kept)
     Asserts.assert(
       Asserts.contains(entries, "stale-dep.gen.ts") == false,
-      "bindings for a module that left the closure must be pruned: " + kept,
+      "bindings for a module the client no longer binds must be pruned: " + kept,
     )
     Asserts.assert(Asserts.contains(entries, "dagger.gen.ts"), "regeneration must write the core bindings: " + kept)
 
@@ -155,11 +156,107 @@ type ClientChecks {
   }
 
   """
-  Regenerating all workspace-registered clients should generate each one at its
-  configured path.
+  A scope without a module is a standalone client package, and the SDK generates
+  one for the module the scope's single client names.
+
+  python-sdk refuses this outright. TypeScript does not: it has had standalone
+  clients since they moved into this module, so the scope interface has to keep
+  serving them.
+
+  Two cases, because the scope is a second entry point into the behavior
+  `generateClient` already guards: an empty directory, which is where a complete
+  package has to appear, and a directory that already holds a client, where the
+  ownership split has to hold. A regeneration that lost the user's own file, or
+  kept a binding it no longer generates, is invisible on the empty one.
   """
-  generateAllClientCheck(ws: Workspace!): Void @check {
-    clientPackage(typescriptSdk.generateAllClient(ws), fixtures.clientOutput)
+  generateClientScopeCheck(ws: Workspace!): Void @check {
+    let fresh = fixtures.clientOutput
+    let freshScoped = ws.withNewDirectory("/" + fresh, directory).withWorkdir(fresh)
+    let generated = typescriptSdk.generateScope(
+      freshScoped,
+      isModule: false,
+      name: "",
+      clients: [ws.moduleSource("/" + fixtures.clientModule)],
+    )
+
+    Asserts.assert(generated.cwd == freshScoped.cwd, "generateScope must not move the workspace cwd")
+    clientPackage(generated.withWorkdir(".").changes(freshScoped.withWorkdir(".")), fresh)
+
+    let scoped = ws.withWorkdir(fixtures.clientExisting)
+    let changes = typescriptSdk
+      .generateScope(
+        scoped,
+        isModule: false,
+        name: "",
+        clients: [ws.moduleSource("/" + fixtures.clientModule)],
+      )
+      .withWorkdir(".")
+      .changes(scoped.withWorkdir("."))
+    let removed = "removed [" + changes.removedPaths.join(", ") + "]"
+
+    Asserts.stringContains(
+      changes.after.file(fixtures.clientExisting + "/main.ts").contents,
+      "hello from the user's own file",
+      "hand-written client code must survive regeneration through a scope: " + removed,
+    )
+    Asserts.assert(
+      Asserts.contains(changes.removedPaths, fixtures.clientExisting + "/stale-dep.gen.ts"),
+      "a scope regeneration should prune bindings for a module the client no longer binds: " + removed,
+    )
+
+    null
+  }
+
+  """
+  A scope without a module and without clients has nothing to generate, and must
+  be left exactly as it is — the engine calls generateScope for every recorded
+  scope, including ones whose clients have all been removed.
+  """
+  generateEmptyScopeCheck(ws: Workspace!): Void @check {
+    let scoped = ws.withWorkdir(fixtures.clientExisting)
+    let changes = typescriptSdk
+      .generateScope(scoped, isModule: false, name: "", clients: [])
+      .withWorkdir(".")
+      .changes(scoped.withWorkdir("."))
+
+    Asserts.assert(changes.isEmpty, "a scope with no module and no clients should be left alone")
+
+    null
+  }
+
+  """
+  Two clients in one scope should be rejected, naming the scope.
+
+  A generated client's bootstrap serves the single module it binds to, and two
+  clients in one directory would each want to own dagger.gen.ts, package.json
+  and tsconfig.json. The engine appends to a scope's client list without a
+  limit, so this is reachable, and silently generating one of the two would be
+  worse than refusing both.
+  """
+  generateClientScopeRejectsSecondCheck(ws: Workspace!): Void @check {
+    let scoped = ws.withWorkdir(fixtures.clientOutput)
+    let message = typescriptSdk.generateScope(
+      scoped,
+      isModule: false,
+      name: "",
+      clients: [
+        ws.moduleSource("/" + fixtures.clientModule),
+        ws.moduleSource("/" + fixtures.clientDep),
+      ],
+    ).cwd rescue {
+      err: Error => err.message
+    }
+
+    Asserts.stringContains(
+      message,
+      "binds exactly one module",
+      "a scope with two clients was not rejected: " + message,
+    )
+    Asserts.stringContains(
+      message,
+      fixtures.clientOutput,
+      "the rejection should name the scope: " + message,
+    )
 
     null
   }

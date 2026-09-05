@@ -101,9 +101,9 @@ type Fixtures {
   let root: String! = ".dagger/modules/e2e/fixtures"
 
   """
-  Where init checks stage their output. Nothing is ever written here — init
-  returns a Changeset that the checks inspect — so these paths only have to be
-  free of real files.
+  Where the scope checks stage their output. Nothing is ever written here — the
+  checks diff the workspace `generateScope` returns — so these paths only have to
+  be free of real files.
   """
   let out: String! = ".dagger/modules/e2e/out"
 
@@ -118,15 +118,12 @@ type Fixtures {
   # The one fixture `dagger generate` really regenerates.
   let generateModule: String! = root + "/generate/app"
 
-  # A module whose dagger.json declares local dependencies in every supported
-  # spelling (bare string, {name, source}, {source}).
-  let depsModule: String! = root + "/deps/app"
-
   # A CLI 1.0 managed module: configured by dagger-module.toml, not dagger.json.
   let managedTomlModule: String! = root + "/managed-toml/app"
 
   # A dagger-module.toml module and the local dagger-module.toml dependency it
-  # imports; both are workspace-managed, so generate-all covers the closure.
+  # imports. A check that generates the dependent stages the dependency first,
+  # with `withDependencyStaged`.
   let depAppModule: String! = root + "/generate-deps/app"
   let depLibModule: String! = root + "/generate-deps/dep"
 
@@ -142,7 +139,7 @@ type Fixtures {
   let parentSourceModule: String! = parentSourceRoot + "/.dagger/modules/app"
   let parentSourceCode: String! = parentSourceRoot + "/ci"
 
-  # Directories that already hold user-authored config when init runs.
+  # Directories that already hold user-authored config when a scope is scaffolded.
   let existingNode: String! = root + "/init-existing/node-app"
   let existingDeno: String! = root + "/init-existing/deno-app"
   let existingBun: String! = root + "/init-existing/bun-app"
@@ -173,6 +170,7 @@ type Fixtures {
   # A client binds to client/app (which depends on client/dep) and is generated
   # into its own directory.
   let clientModule: String! = root + "/client/app"
+  let clientDep: String! = root + "/client/dep"
   let clientOutput: String! = root + "/client/out"
 
   # A client directory that already points @dagger.io/dagger at a local bundle;
@@ -180,42 +178,22 @@ type Fixtures {
   let clientExisting: String! = root + "/client/existing"
 
   """
-  A snapshot of `ws` holding just the files module discovery reads, re-anchored
-  at `cwd` so a check can stand anywhere in the tree.
+  `ws` with the local dependency fixture's generated files staged.
 
-  Keeps the workspace config (dagger.toml, whose [modules.<sdk>.as-sdk] list is
-  what discovery resolves the re-anchored workspace against) and every module
-  config, in both filenames. `extra` adds paths a check needs to exist for the
-  cwd itself to be a directory.
+  A module's codegen reads the schema of every module it imports, and a local
+  dependency's schema is only loadable once that dependency's own generated
+  files exist — `sdk/` is gitignored, so in a fresh checkout it does not. The
+  engine orders a dependency's scope before its dependent's when it drives
+  generation; a check generating one module on its own has to do it here.
   """
-  let discoverySnapshot(ws: Workspace!, cwd: String!, extra: [String!]! = []): Workspace! {
-    ws
-      .directory("/", include: ["dagger.toml", "**/dagger.json", "**/dagger-module.toml"] + extra)
-      .asWorkspace(cwd: cwd)
+  let withDependencyStaged(ws: Workspace!): Workspace! {
+    ws.withChanges(typescriptSdk.mod(ws, path: depLibModule).generate(ws))
   }
 
   """
-  Every module this workspace manages under the TypeScript SDK, as recorded in
-  [[modules.typescript-sdk.as-sdk.modules]]. Discovery from the workspace root
-  must return exactly this set.
-  """
-  let managedModules: [String!]! = [
-    generateModule,
-    lookupModule,
-    depsModule,
-    skipModule,
-    managedTomlModule,
-    depAppModule,
-    depLibModule,
-    legacyDepAppModule,
-    legacyDepLibModule,
-    denoModule,
-    parentSourceModule,
-  ] + runtimeFixtures
-  """
-  The subset of managedModules configured by dagger-module.toml. These are the
-  fixtures that name an engine release, so they are the ones that can drift from
-  the release this SDK's bundle is built for; the dagger.json ones say "latest".
+  The fixtures configured by dagger-module.toml. These are the ones that name an
+  engine release, so they are the ones that can drift from the release this
+  SDK's bundle is built for; the dagger.json ones say "latest".
   """
   let managedTomlFixtures: [String!]! = [
     managedTomlModule,

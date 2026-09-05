@@ -1,0 +1,549 @@
+"""
+Checks for the SDK-module interface the engine drives — `findClientRoot`, which
+answers with the project a location belongs to, and `generateScope` on a scope
+that holds a module.
+
+`generateScope` on a scope without a module is a standalone client, and its
+checks live with the rest of client generation in client.dang.
+"""
+type ScopeChecks {
+  let fixtures: Fixtures! = Fixtures
+
+  """
+  A synthetic workspace holding just `files`, anchored at `cwd`.
+
+  Detection reads the filesystem rather than any registration, so a handful of
+  files is a complete workspace for it — and one built here can hold layouts
+  this repository does not (an ancestor of another language's module, a
+  node_modules tree) without carrying them as fixtures.
+  """
+  let workspaceOf(files: [[String!]!]!, cwd: String!): Workspace! {
+    files
+      .reduce(directory) { dir, file => dir.withNewFile(file[0] ?? "", file[1] ?? "") }
+      .asWorkspace(cwd: cwd)
+  }
+
+  let tsToml: String! = "[runtime]\nsource = \"typescript\"\n"
+  let tsJson: String! = "{\"sdk\":{\"source\":\"typescript\"}}"
+
+  let detectedAt(ws: Workspace!, path: String!): String {
+    typescriptSdk.findClientRoot(ws.withWorkdir(path))
+  }
+
+  """
+  findClientRoot should answer with the module a nested path belongs to, whichever
+  of the four markers names it.
+
+  Every module fixture in this repository carries more than one marker at once —
+  the legacy one has a package.json beside its dagger.json — so each marker case
+  isolates it: a fixture that has only the marker under test, or a synthetic
+  workspace built to hold only it.
+  """
+  findClientRootCheck(ws: Workspace!): Void @check {
+    Asserts.assert(
+      detectedAt(ws, fixtures.generateModule + "/src") == fixtures.generateModule,
+      "findClientRoot should find the module owning a nested path",
+    )
+    Asserts.assert(
+      detectedAt(ws, fixtures.generateModule) == fixtures.generateModule,
+      "findClientRoot should answer with the module root itself",
+    )
+
+    # dagger-module.toml only: no package.json, no deno.json.
+    Asserts.assert(
+      detectedAt(ws, fixtures.managedTomlModule + "/src") == fixtures.managedTomlModule,
+      "findClientRoot should find a module marked only by its dagger-module.toml",
+    )
+
+    # dagger.json only, which no fixture on disk is: every legacy module here
+    # has been generated at least once and so carries a package.json too.
+    let legacyOnly = workspaceOf([
+      ["legacy/dagger.json", tsJson],
+      ["legacy/src/.keep", ""],
+    ], "legacy/src")
+    Asserts.assert(
+      typescriptSdk.findClientRoot(legacyOnly) == "legacy",
+      "findClientRoot should find a module marked only by its dagger.json",
+    )
+
+    # deno.json: the one marker a Deno project has that a Node one does not.
+    Asserts.assert(
+      detectedAt(ws, fixtures.denoModule + "/src") == fixtures.denoModule,
+      "findClientRoot should find a Deno project",
+    )
+
+    # package.json with no module config at all: a TypeScript project that has
+    # never been a Dagger module, which is exactly what `module init` is for.
+    Asserts.assert(
+      detectedAt(ws, fixtures.existingNode) == fixtures.existingNode,
+      "findClientRoot should find a plain TypeScript project",
+    )
+
+    null
+  }
+
+  """
+  findClientRoot should answer with the nearest marker, whichever kind found it.
+
+  Ranking by depth rather than by filename is what keeps a package.json one
+  level up from being shadowed by a module config two levels up.
+  """
+  findClientRootNearestCheck: Void @check {
+    let ws = workspaceOf([
+      ["parent/dagger-module.toml", tsToml],
+      ["parent/child/package.json", "{}"],
+      ["parent/child/nested/.keep", ""],
+    ], "parent/child/nested")
+
+    Asserts.assert(
+      typescriptSdk.findClientRoot(ws) == "parent/child",
+      "findClientRoot should prefer the nearer package.json over an ancestor module config",
+    )
+
+    null
+  }
+
+  """
+  findClientRoot should not claim a module belonging to another SDK.
+
+  A Dagger module config says a module lives here, not that it is ours. This
+  repository is its own counter-example: `.dagger/modules/e2e` and the workspace
+  root are both Dang modules, and every fixture sits under them. Claiming one
+  would point `dagger module client add` at someone else's project.
+  """
+  findClientRootForeignModuleCheck(ws: Workspace!): Void @check {
+    let detected = detectedAt(ws, fixtures.root + "/client")
+
+    Asserts.assert(
+      detected == null,
+      "findClientRoot should not claim an enclosing Dang module, got: " + (detected ?? "null"),
+    )
+
+    null
+  }
+
+  """
+  findClientRoot should answer "." for a project at the workspace root, and null
+  where there is no project at all.
+
+  The engine reads null as "no client root"; a project at the root has to come
+  back as "." to stay distinguishable from it.
+  """
+  findClientRootBoundsCheck: Void @check {
+    Asserts.assert(
+      typescriptSdk.findClientRoot(workspaceOf([["package.json", "{}"], ["src/.keep", ""]], "src")) == ".",
+      "findClientRoot should answer \".\" for a project at the workspace root",
+    )
+    Asserts.assert(
+      typescriptSdk.findClientRoot(workspaceOf([["some/where/.keep", ""]], "some/where")) == null,
+      "findClientRoot should answer null where there is no project",
+    )
+
+    null
+  }
+
+  """
+  findClientRoot should answer with the project rather than an installed package
+  when the location is inside node_modules, however deeply nested.
+
+  Every installed package carries a package.json, so without truncating the
+  search origin a location under node_modules resolves to a dependency of the
+  project instead of the project.
+  """
+  findClientRootNodeModulesCheck: Void @check {
+    let ws = workspaceOf([
+      ["proj/package.json", "{}"],
+      ["proj/node_modules/a/package.json", "{}"],
+      ["proj/node_modules/a/node_modules/b/package.json", "{}"],
+      ["proj/node_modules/a/node_modules/b/src/.keep", ""],
+    ], "proj/node_modules/a/node_modules/b/src")
+
+    Asserts.assert(
+      typescriptSdk.findClientRoot(ws) == "proj",
+      "findClientRoot should skip node_modules and answer with the project",
+    )
+
+    null
+  }
+
+  """
+  generateScope on a scope with no module config should scaffold one: the
+  starter, a dagger-module.toml from the engine's manifest builder, and the
+  generated files — leaving the workspace cwd and the user's own files alone.
+
+  The engine owns no part of this any more: what this writes is the whole
+  module, and a `dagger.json` here would mean the module was created in the
+  format that is being retired.
+  """
+  generateScopeInitCheck(ws: Workspace!): Void @check {
+    let scope = fixtures.out + "/scope-init"
+    let scoped = ws
+      .withNewDirectory("/" + scope, directory)
+      .withNewFile("/" + scope + "/keep.txt", "keep\n")
+      .withWorkdir(scope)
+    let generated = typescriptSdk.generateScope(scoped, isModule: true, name: "scope-init", clients: [])
+    let changes = generated.withWorkdir(".").changes(scoped.withWorkdir("."))
+
+    Asserts.assert(generated.cwd == scoped.cwd, "generateScope must not move the workspace cwd")
+
+    Asserts.added(changes, scope + "/dagger-module.toml")
+    Asserts.added(changes, scope + "/package.json")
+    Asserts.added(changes, scope + "/tsconfig.json")
+    Asserts.added(changes, scope + "/src/index.ts")
+    Asserts.added(changes, scope + "/sdk/client.gen.ts")
+    Asserts.added(changes, scope + "/__dagger.entrypoint.ts")
+    Asserts.notAdded(changes, scope + "/dagger.json", "scaffolding a scope must not write a dagger.json")
+    Asserts.assert(
+      changes.modifiedPaths.length == 0,
+      "scaffolding a scope modified existing files: " + changes.modifiedPaths.join(", "),
+    )
+    Asserts.assert(
+      changes.removedPaths.length == 0,
+      "scaffolding a scope removed existing files: " + changes.removedPaths.join(", "),
+    )
+
+    let manifest = changes.layer.file(scope + "/dagger-module.toml").contents
+    Asserts.stringContains(manifest, "name = \"scope-init\"", "the manifest should carry the module name")
+    Asserts.stringContains(manifest, "source = \"typescript\"", "the manifest should name the TypeScript runtime")
+
+    let source = changes.layer.file(scope + "/src/index.ts").contents
+    Asserts.stringContains(source, "export class ScopeInit", "the starter should render the module class")
+    Asserts.stringNotContains(source, "{{", "the starter's placeholders should be fully rendered")
+
+    null
+  }
+
+  """
+  The scaffolding settings should reach the files a new module is made of: the
+  starter, the runtime's config files, and the two config values.
+
+  These were flags on `initModule`. The engine now turns them into flags on
+  `dagger module init typescript` and persists them on the scope, so they are
+  read off the constructor instead.
+  """
+  generateScopeSettingsCheck(ws: Workspace!): Void @check {
+    let scope = fixtures.out + "/scope-configured"
+    let scoped = ws.withNewDirectory("/" + scope, directory).withWorkdir(scope)
+    let changes = typescriptSdk(template: "empty", runtime: "deno", baseImage: "denoland/deno:alpine-2.0.0")
+      .generateScope(scoped, isModule: true, name: "scope-configured", clients: [])
+      .withWorkdir(".")
+      .changes(scoped.withWorkdir("."))
+
+    Asserts.stringContains(
+      changes.layer.file(scope + "/src/index.ts").contents,
+      "export class ScopeConfigured {}",
+      "the empty starter should render a bare class",
+    )
+
+    Asserts.added(changes, scope + "/deno.json")
+    Asserts.notAdded(changes, scope + "/package.json", "a Deno module should not be given a package.json")
+    Asserts.stringContains(
+      changes.layer.file(scope + "/deno.json").contents,
+      "denoland/deno:alpine-2.0.0",
+      "the base image setting should reach deno.json",
+    )
+
+    let nodeScope = fixtures.out + "/scope-node-configured"
+    let nodeScoped = ws.withNewDirectory("/" + nodeScope, directory).withWorkdir(nodeScope)
+    let nodeChanges = typescriptSdk(packageManager: "pnpm@8.15.4", baseImage: "node:23.2.0-alpine")
+      .generateScope(nodeScoped, isModule: true, name: "scope-node-configured", clients: [])
+      .withWorkdir(".")
+      .changes(nodeScoped.withWorkdir("."))
+    let pkg = nodeChanges.layer.file(nodeScope + "/package.json").contents
+
+    Asserts.stringContains(pkg, "pnpm@8.15.4", "the package manager setting should reach package.json")
+    Asserts.stringContains(pkg, "node:23.2.0-alpine", "the base image setting should reach package.json")
+    Asserts.notAdded(nodeChanges, nodeScope + "/bun.lock", "a Node module should not be given a bun lockfile")
+
+    let bunScope = fixtures.out + "/scope-bun"
+    let bunScoped = ws.withNewDirectory("/" + bunScope, directory).withWorkdir(bunScope)
+    let bunChanges = typescriptSdk(runtime: "bun")
+      .generateScope(bunScoped, isModule: true, name: "scope-bun", clients: [])
+      .withWorkdir(".")
+      .changes(bunScoped.withWorkdir("."))
+
+    # Bun reuses the Node config files and adds the lockfile the engine runtime
+    # sniffs for to pick bun over node.
+    Asserts.added(bunChanges, bunScope + "/package.json")
+    Asserts.added(bunChanges, bunScope + "/tsconfig.json")
+    Asserts.added(bunChanges, bunScope + "/bun.lock")
+
+    null
+  }
+
+  """
+  Scaffolding should reject what it cannot honor rather than write half a
+  module: a starter it does not ship, a runtime name it does not know, and a
+  package manager on a runtime that bundles its own.
+  """
+  generateScopeRejectsCheck(ws: Workspace!): Void @check {
+    let scope = fixtures.out + "/scope-rejects"
+    let scoped = ws.withNewDirectory("/" + scope, directory).withWorkdir(scope)
+    let failure(sdk: TypescriptSdk!): String! {
+      sdk.generateScope(scoped, isModule: true, name: "scope-rejects", clients: []).cwd rescue {
+        err: Error => err.message
+      }
+    }
+
+    Asserts.stringContains(
+      failure(typescriptSdk(template: "no-such-template")),
+      "unknown init template",
+      "scaffolding accepted a starter it does not ship",
+    )
+    Asserts.stringContains(
+      failure(typescriptSdk(runtime: "cobol")),
+      "unknown runtime",
+      "scaffolding accepted a runtime it does not know",
+    )
+    Asserts.stringContains(
+      failure(typescriptSdk(runtime: "deno", packageManager: "pnpm@8.15.4")),
+      "packageManager is only supported",
+      "scaffolding accepted a package manager on a runtime that bundles its own",
+    )
+
+    null
+  }
+
+  """
+  Scaffolding into a directory that already holds config should merge into it,
+  never replace it: a user running `dagger module init` inside an existing
+  project keeps their scripts, path aliases and unstable flags, and gains only
+  the keys Dagger requires.
+
+  One case per config file the three runtimes read, because the merge is per
+  file: package.json and tsconfig.json for node, deno.json for deno, and bun's
+  lockfile, which is the one file here that must not be merged at all.
+  """
+  generateScopeOverExistingCheck(ws: Workspace!): Void @check {
+    let scoped = ws.withWorkdir(fixtures.existingNode)
+    let changes = typescriptSdk
+      .generateScope(scoped, isModule: true, name: "scope-existing", clients: [])
+      .withWorkdir(".")
+      .changes(scoped.withWorkdir("."))
+
+    Asserts.assert(
+      changes.removedPaths.length == 0,
+      "scaffolding removed existing files: " + changes.removedPaths.join(", "),
+    )
+    Asserts.modified(changes, fixtures.existingNode + "/package.json")
+
+    let pkg = changes.after.file(fixtures.existingNode + "/package.json").contents
+    Asserts.stringContains(pkg, "\"name\": \"user-pkg\"", "the user's package name should survive")
+    Asserts.stringContains(pkg, "\"build\": \"tsc\"", "the user's script should survive")
+    Asserts.stringContains(pkg, "\"type\": \"module\"", "the Dagger-required type=module should be added")
+
+    let tsconfig = changes.after.file(fixtures.existingNode + "/tsconfig.json").contents
+    Asserts.stringContains(tsconfig, "\"@user/lib\"", "the user's path mapping should survive")
+    Asserts.stringContains(tsconfig, "\"experimentalDecorators\": true", "decorators should be enabled")
+
+    let denoScoped = ws.withWorkdir(fixtures.existingDeno)
+    let denoChanges = typescriptSdk(runtime: "deno")
+      .generateScope(denoScoped, isModule: true, name: "scope-existing-deno", clients: [])
+      .withWorkdir(".")
+      .changes(denoScoped.withWorkdir("."))
+
+    let deno = denoChanges.after.file(fixtures.existingDeno + "/deno.json").contents
+    Asserts.stringContains(deno, "\"dev\": \"deno run main.ts\"", "the user's deno task should survive")
+    Asserts.stringContains(deno, "\"@user/lib\"", "the user's deno import should survive")
+    Asserts.stringContains(deno, "\"kv\"", "the user's unstable flag should survive")
+    Asserts.stringContains(deno, "\"@dagger.io/dagger\"", "the Dagger SDK import should be added")
+    Asserts.stringContains(deno, "\"nodeModulesDir\": \"auto\"", "the Dagger-required nodeModulesDir should be added")
+    Asserts.stringContains(
+      deno,
+      "\"experimentalDecorators\": true",
+      "the Dagger-required experimentalDecorators should be added",
+    )
+
+    let bunScoped = ws.withWorkdir(fixtures.existingBun)
+    let bunChanges = typescriptSdk(runtime: "bun")
+      .generateScope(bunScoped, isModule: true, name: "scope-existing-bun", clients: [])
+      .withWorkdir(".")
+      .changes(bunScoped.withWorkdir("."))
+
+    # The fixture's lockfile is deliberately not JSON, so anything that treated
+    # it as a config file to merge into would corrupt it.
+    let bunLock = fixtures.existingBun + "/bun.lock"
+    Asserts.notAdded(bunChanges, bunLock, "an existing bun.lock should not be reported as added")
+    Asserts.assert(
+      Asserts.contains(bunChanges.modifiedPaths, bunLock) == false,
+      "an existing bun.lock should not be modified",
+    )
+
+    null
+  }
+
+  """
+  generateScope on a module that already has a config should generate it and
+  leave the module's manifest alone — in both config formats, since the format
+  is what picks the generator.
+
+  Asserted on the manifest's contents, not with `notAdded`: a file that already
+  exists can never be reported as added, so a regeneration that rewrote the
+  manifest, or reconciled its dependencies away, would pass that unnoticed.
+
+  Only the managed module's manifest can be compared byte for byte. A legacy
+  module is generated by the engine, which remarshals the config it loaded and
+  in doing so resolves this fixture's `engineVersion: "latest"` to the running
+  engine's version — so what has to hold there is that the file still declares
+  the same module in the same format.
+  """
+  generateScopeExistingCheck(ws: Workspace!): Void @check {
+    let managed = fixtures.depLibModule
+    let managedScoped = ws.withWorkdir(managed)
+    let managedChanges = typescriptSdk
+      .generateScope(managedScoped, isModule: true, name: "unused", clients: [])
+      .withWorkdir(".")
+      .changes(managedScoped.withWorkdir("."))
+
+    Asserts.generated(managedChanges, managed + "/sdk/index.ts")
+    Asserts.assert(
+      managedChanges.after.file(managed + "/dagger-module.toml").contents ==
+        ws.directory("/" + managed).file("dagger-module.toml").contents,
+      "regenerating a managed module must leave dagger-module.toml byte for byte as it was",
+    )
+    Asserts.notAdded(
+      managedChanges,
+      managed + "/dagger.json",
+      "regenerating a managed module must not write a legacy manifest beside it",
+    )
+
+    let legacy = fixtures.generateModule
+    let legacyScoped = ws.withWorkdir(legacy)
+    let legacyChanges = typescriptSdk
+      .generateScope(legacyScoped, isModule: true, name: "unused", clients: [])
+      .withWorkdir(".")
+      .changes(legacyScoped.withWorkdir("."))
+    let legacyManifest = legacyChanges.after.file(legacy + "/dagger.json").contents
+
+    Asserts.generated(legacyChanges, legacy + "/sdk/index.ts")
+    Asserts.stringContains(
+      legacyManifest,
+      "\"generate-app\"",
+      "regenerating a legacy module must leave its manifest naming the module",
+    )
+    Asserts.stringContains(
+      legacyManifest,
+      "\"typescript\"",
+      "regenerating a legacy module must leave its manifest naming the runtime",
+    )
+    Asserts.notAdded(
+      legacyChanges,
+      legacy + "/dagger-module.toml",
+      "regenerating a legacy module must not migrate it to the current format",
+    )
+
+    null
+  }
+
+  """
+  The generate skip marker should hold an existing module, and only an existing
+  one: a scope with no config is being created, and creating it half way would
+  leave a module that cannot load.
+  """
+  generateScopeSkipCheck(ws: Workspace!): Void @check {
+    let scoped = ws.withWorkdir(fixtures.managedTomlModule)
+    let changes = typescriptSdk
+      .generateScope(scoped, isModule: true, name: "managed-toml-app", clients: [])
+      .withWorkdir(".")
+      .changes(scoped.withWorkdir("."))
+
+    Asserts.assert(changes.isEmpty, "the skip marker should leave an existing module alone")
+
+    let fresh = fixtures.root + "/managed-toml/scope-under-marker"
+    let freshScoped = ws.withNewDirectory("/" + fresh, directory).withWorkdir(fresh)
+    let freshChanges = typescriptSdk
+      .generateScope(freshScoped, isModule: true, name: "scope-under-marker", clients: [])
+      .withWorkdir(".")
+      .changes(freshScoped.withWorkdir("."))
+
+    Asserts.added(freshChanges, fresh + "/dagger-module.toml")
+    Asserts.added(freshChanges, fresh + "/sdk/client.gen.ts")
+
+    null
+  }
+
+  """
+  A module scope's clients are that module's dependencies: each is recorded in
+  the module's own manifest, and its types arrive in the module's own bindings
+  as one <dependency>.gen.ts — the same file a manifest-declared dependency has
+  always produced.
+
+  No separate client package is generated. That is the whole of the decision
+  this adoption turns on, so it is asserted on both halves: the manifest the
+  runtime reads, and the file the module's source imports.
+  """
+  generateScopeClientsCheck(ws: Workspace!): Void @check {
+    # A dependency's schema is only loadable once its own generated files exist.
+    # `dagger generate` orders the dependency's scope first; a check generating
+    # one module has to stage it.
+    let staged = ws.withChanges(typescriptSdk.mod(ws, path: fixtures.depLibModule).generate(ws))
+
+    let scope = fixtures.out + "/scope-clients"
+    let scoped = staged.withNewDirectory("/" + scope, directory).withWorkdir(scope)
+    let client = staged.moduleSource("/" + fixtures.depLibModule)
+    let changes = typescriptSdk
+      .generateScope(scoped, isModule: true, name: "scope-clients", clients: [client])
+      .withWorkdir(".")
+      .changes(scoped.withWorkdir("."))
+
+    let manifest = changes.layer.file(scope + "/dagger-module.toml").contents
+    Asserts.stringContains(manifest, "gendep", "the client should be recorded as a dependency")
+    Asserts.stringContains(
+      manifest,
+      "../../fixtures/generate-deps/dep",
+      "a local client should be recorded by its path relative to the module",
+    )
+
+    Asserts.added(changes, scope + "/sdk/gendep.gen.ts")
+    Asserts.notAdded(
+      changes,
+      scope + "/dagger.gen.ts",
+      "a client in a module scope should not become a standalone client package",
+    )
+
+    null
+  }
+
+  """
+  Recording a client the module's manifest already declares should leave one
+  dependency entry, not two.
+
+  A pre-1.0 manifest names a dependency by source alone — the spelling every
+  module written before named dependencies used — so reconciling by removing the
+  resolved module name would match nothing and append a second entry for the
+  same dependency. The module would then carry it twice.
+
+  The fixture on disk keeps its named entry; this rewrites the manifest to the
+  unnamed spelling in the workspace the check drives.
+  """
+  generateScopeUnnamedDependencyCheck(ws: Workspace!): Void @check {
+    let path = fixtures.depAppModule
+    let manifestPath = "/" + path + "/dagger-module.toml"
+    let staged = fixtures.withDependencyStaged(ws)
+    let unnamed = staged
+      .file(manifestPath)
+      .contents
+      .split("\n")
+      .filter { line => line.trimSpace != "name = \"gendep\"" }
+      .join("\n")
+
+    let rewritten = staged.withNewFile(manifestPath, unnamed)
+    let scoped = rewritten.withWorkdir(path)
+    let generated = typescriptSdk.generateScope(
+      scoped,
+      isModule: true,
+      name: "generate-deps-app",
+      clients: [rewritten.moduleSource("/" + fixtures.depLibModule)],
+    )
+    let manifest = generated.file(manifestPath).contents
+    let entries = manifest.split("\n").filter { line => line.trimSpace == "[[dependencies]]" }
+
+    Asserts.assert(
+      entries.length == 1,
+      "recording a client the manifest already declares should leave one dependency, got: " + manifest,
+    )
+    Asserts.stringContains(manifest, "../dep", "the dependency should keep its relative source")
+
+    null
+  }
+}
