@@ -1,6 +1,10 @@
 # Adopt the SDK-module interface: `findClientRoot` and `generateScope`
 
-Status: proposed.
+> **Status: implemented.** See `findClientRoot` and `generateScope` in
+> `typescript-sdk.dang`, the `[sdks.typescript]` block in `dagger.toml`, the
+> `e-2-e:scope:*` checks, and `.dagger/modules/engine-e2e`, which runs the suite
+> against an engine built from the pull request this adopts. Landed in
+> dagger/typescript-sdk#43.
 
 Baseline: this document describes the TypeScript SDK at commit
 `aedc08022eeddee4209e2aa6347c9786e7d46d34`. "Today" means that commit.
@@ -651,5 +655,11 @@ restarted run does not replay it.
   engine rather than an assertion.
 - `sdk-ux-module-max` head when this was written, and the pin:
   `7e6fc93c86f0bf0eebae8c2c74a249c3b5cc451f`.
-- Phase 6, draft pull request: not done. The branch is ready and verified; it
-  has not been pushed.
+- Phase 6, draft pull request: dagger/typescript-sdk#43, opened as a draft at
+  head `9d9eefc2f923c5f5f22fc2b6d8463bf70bdee514`.
+- Phase 7, checks: at the expected end state. The four that can pass on the
+  released engine pass — `load`, `e-2-e:sdk:helper-tests-check`,
+  `engine-e-2-e:dev-sdk-check` and `engine-e-2-e:checks-check` — along with the
+  four `packager:*` checks, which select nothing from this module. Everything
+  else in `e-2-e:*` and `runtimes:*` fails there for the one reason this
+  document gives, and passes inside the playground engine.
