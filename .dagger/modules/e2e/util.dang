@@ -205,6 +205,12 @@ type Fixtures {
   let legacyDepAppModule: String! = root + "/generate-legacy-deps/app"
   let legacyDepLibModule: String! = root + "/generate-legacy-deps/dep"
 
+  # Pre-1.0 configs that cannot be migrated: two declaring fields
+  # dagger-module.toml has no table for, one belonging to another SDK.
+  let migrateToolchainsModule: String! = root + "/migrate/toolchains"
+  let migrateBlueprintModule: String! = root + "/migrate/blueprint"
+  let migrateNonTsModule: String! = root + "/migrate/not-ts"
+
   # Module config in <root>/.dagger/modules/app, implementation source in
   # <root>/ci — the split layout `dagger setup` migration produces.
   let parentSourceRoot: String! = root + "/parent-source"

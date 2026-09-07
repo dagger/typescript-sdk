@@ -277,6 +277,114 @@ type GenerateChecks {
   }
 
   """
+  Regenerating a module leaves its manifest alone.
+
+  The manifest is written once, when the scope has none — clients become a
+  generated package here, not manifest dependencies, so there is nothing to
+  reconcile into one that exists. The fixture carries a dependency edge and an
+  engine pin that a rewrite would reformat or drop, and asserting the file is
+  not in the diff at all is the only form of this that cannot pass by accident.
+  """
+  generatePreservesManifestCheck(ws: Workspace!): Void @check {
+    let path = fixtures.depAppModule
+    let manifest = path + "/dagger-module.toml"
+    let changes = Gen.module(Gen.withDependency(ws), path, "generate-deps-app")
+
+    Asserts.notAdded(changes, manifest, "the manifest was already there")
+    Asserts.assert(
+      Asserts.contains(changes.modifiedPaths, manifest) == false,
+      "regenerating rewrote the manifest as: " +
+        changes.after.directory(path).file("dagger-module.toml").contents,
+    )
+
+    null
+  }
+
+  """
+  A scope still configured by a pre-1.0 dagger.json is migrated to
+  dagger-module.toml, and the dagger.json goes with it.
+
+  Leaving both would leave the module with two manifests free to disagree, and
+  the engine reads whichever it finds first. Migration only reaches a module
+  the workspace records as a scope, so it happens because someone asked for it.
+
+  The module's own source is generated, not scaffolded over: the starter is for
+  a scope with no module at all, and rendering it here would overwrite the code
+  being migrated.
+  """
+  generateMigratesLegacyConfigCheck(ws: Workspace!): Void @check {
+    let path = fixtures.generateModule
+    let changes = Gen.module(ws, path, "generate-app")
+    let manifest = changes.after.directory(path).file("dagger-module.toml").contents
+
+    Asserts.added(changes, path + "/dagger-module.toml")
+    Asserts.assert(
+      Asserts.contains(changes.removedPaths, path + "/dagger.json"),
+      "migration should remove the pre-1.0 dagger.json, got removed [" +
+        changes.removedPaths.join(", ") + "]",
+    )
+    Asserts.stringContains(
+      manifest,
+      "name = \"generate-app\"",
+      "the migrated manifest should carry the scope's recorded name",
+    )
+    Asserts.stringContains(
+      manifest,
+      "source = \"typescript\"",
+      "the migrated manifest should select the builtin typescript runtime",
+    )
+    Asserts.assert(
+      Asserts.contains(changes.modifiedPaths, path + "/src/index.ts") == false,
+      "migrating an existing module should not scaffold over its source",
+    )
+
+    null
+  }
+
+  """
+  A pre-1.0 dagger.json carrying config dagger-module.toml cannot express is
+  refused rather than migrated.
+
+  Migration deletes the dagger.json, so a field the manifest has no table for is
+  a field the module loses. The builder validates `toolchains` and `blueprint`
+  on load and emits neither, so migrating either one silently strips it —
+  refusing keeps the original config where the user left it.
+  """
+  generateRefusesUnrepresentableConfigCheck(ws: Workspace!): Void @check {
+    Asserts.stringContains(
+      Gen.failure(Gen.module(ws, fixtures.migrateToolchainsModule, "migrate-toolchains")),
+      "\"toolchains\"",
+      "migrating a dagger.json declaring toolchains should be refused",
+    )
+    Asserts.stringContains(
+      Gen.failure(Gen.module(ws, fixtures.migrateBlueprintModule, "migrate-blueprint")),
+      "\"blueprint\"",
+      "migrating a dagger.json declaring a blueprint should be refused",
+    )
+
+    null
+  }
+
+  """
+  A pre-1.0 dagger.json belonging to another SDK is refused rather than
+  migrated.
+
+  The manifest builder copies whatever `sdk` names into `[runtime]`, so a scope
+  mistakenly recorded as TypeScript over a Go module would have its config
+  rewritten as a Go manifest, its dagger.json deleted, and its source run
+  through TypeScript codegen.
+  """
+  generateRefusesForeignConfigCheck(ws: Workspace!): Void @check {
+    Asserts.stringContains(
+      Gen.failure(Gen.module(ws, fixtures.migrateNonTsModule, "migrate-not-ts")),
+      "does not use the TypeScript SDK",
+      "migrating another SDK's dagger.json should be refused",
+    )
+
+    null
+  }
+
+  """
   A module with a local dependency should get bindings for it.
 
   Dependency edges still exist in a manifest even though new wiring goes through
