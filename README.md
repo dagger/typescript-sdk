@@ -3,53 +3,54 @@
 A Dagger SDK for authoring Dagger modules and generating typed clients in
 TypeScript.
 
-This module implements the Dagger CLI 1.0 SDK contract: the engine calls its
-`initModule` and `initClient` functions when you run `dagger module init` and
-`dagger api client init`, and its `@generate` functions when you run `dagger
-generate`. It also exposes `targetRuntime` (`"typescript"`), so modules it
-creates run on the built-in TypeScript runtime.
+This module implements the Dagger CLI 1.0 SDK provider interface. The engine
+records SDK scopes in `dagger.toml`, sets the workspace cwd to one, and asks
+this module for that scope's complete desired state through `findClientRoot` and
+`generateScope`. The module writes the files it owns; the engine owns the
+workspace bookkeeping, and its builtin TypeScript runtime executes what we
+write.
 
-It has no module dependencies: workspace state, module discovery, and codegen
-all go through the engine's native `Workspace` and `ModuleSource` APIs, which
-requires an engine at `v1.0.0-beta.11` or newer.
+Workspace state, module discovery and codegen go through the engine's native
+`Workspace` and `ModuleSource` APIs, which requires an engine at
+`v1.0.0-beta.11` or newer. Module manifests are built with
+[`dagger/sdk-helpers`](https://github.com/dagger/sdk-helpers), the one module
+dependency.
 
 ## Install
 
 Install the TypeScript SDK into your workspace:
 
 ```sh
-dagger sdk install typescript
+dagger module install github.com/dagger/typescript-sdk
 ```
 
-This installs `github.com/dagger/typescript-sdk` as `[modules.dagger-typescript-sdk]`
-and registers it under the user-facing name `typescript`, so `dagger module init
-typescript` and `dagger api client init typescript` dispatch to it.
+The engine inspects the installed module. Because it implements the complete
+SDK-module interface, the engine also records it as an SDK, so `dagger module
+init typescript` and `dagger module client add typescript` dispatch to it. List
+what is registered with `dagger sdk list`.
 
-Commands that produce a `Changeset` print the diff and prompt for confirmation
-before writing anything. Pass `--auto-apply` to skip the prompt.
+Commands that write to the workspace print the diff and prompt for confirmation.
+Pass `--auto-apply` to skip the prompt.
 
 ## Create a new module
 
 Create a TypeScript SDK module under the default `.dagger/modules/<name>/`:
 
 ```sh
-dagger module init typescript my-module
+dagger module init typescript --name my-module
 ```
 
 Pick a different location with `--path`:
 
 ```sh
-dagger module init typescript my-module --path some/dir/my-module
+dagger module init typescript --name my-module --path some/dir/my-module
 ```
 
-Pick a runtime (`node` is the default; `bun` and `deno` are also supported):
+Init writes the module's `dagger-module.toml`, seeds `src/index.ts` from a
+template, and generates the module's own bindings, dispatch entrypoint and
+runtime config in one step — there is no separate `dagger generate` afterwards.
 
-```sh
-dagger module init typescript my-module --runtime bun
-dagger module init typescript my-module --runtime deno
-```
-
-`initModule` seeds `src/index.ts` plus runtime-specific config files:
+The runtime decides which config files a module gets:
 
 - `node` / `bun` → `package.json`, `tsconfig.json`
 - `deno` → `deno.json`
@@ -59,96 +60,100 @@ Init never removes what is already at the target path. If `package.json`,
 them rather than overwriting — your scripts, path aliases, unstable flags, and
 other custom settings are preserved — and any other file is left untouched.
 
-The engine owns the module's config; the SDK only contributes the template and
-config files above. Run `dagger generate` afterwards to produce the generated
-SDK bindings.
+A scope whose module is still configured by a pre-1.0 `dagger.json` is migrated
+on its first generation: the manifest is rewritten as `dagger-module.toml`, with
+`source`, `include` and `[[dependencies]]` carried over, and the `dagger.json` is
+removed. The module's own source is generated, never scaffolded over.
 
-Pick a starter with `--template` (`default` is a small working module, `empty`
-is a bare `@object` class):
+### Settings
+
+The SDK's settings become flags on `dagger module init` and `dagger module
+client add`, and are persisted per scope in `dagger.toml`:
+
+| Setting | Flag | Default |
+| --- | --- | --- |
+| `runtime` | `--runtime` | detected from the scope's config files, else `node` |
+| `template` | `--template` | `default` (a small working module; `empty` is a bare `@object` class) |
+| `packageManager` | `--package-manager` | unset |
+| `baseImage` | `--base-image` | unset |
 
 ```sh
-dagger module init typescript my-module --template empty
-```
-
-### Configure a module at creation
-
-`module init` accepts configuration flags written into the module's
-`package.json` (or `deno.json` for Deno modules):
-
-```sh
-dagger module init typescript my-module \
+dagger module init typescript --name my-module --runtime bun
+dagger module init typescript --name my-module --template empty
+dagger module init typescript --name my-module \
     --package-manager pnpm@8.15.4 \
     --base-image node:23.2.0-alpine
 ```
 
-Both flags are optional. By default no `packageManager` field is written and no
-base image override is set.
+`runtime` is detected rather than defaulted, so adopting an existing project, or
+regenerating a module created before the setting existed, does not silently move
+a Bun or Deno project onto Node. Setting it moves the scope to that runtime on
+the next generation.
 
 `--package-manager` accepts the Node-standard `name@version` syntax (e.g.
 `npm@10.7.0`, `pnpm@8.15.4`, `yarn@1.22.22`). It is only valid with the Node
 runtime; Bun and Deno bundle their own.
 
-Run `dagger sdk module-options typescript` to list the flags the installed
-version accepts.
+`--base-image` writes to `deno.json` for Deno modules and to `package.json`
+otherwise — matching where the engine reads it from.
 
 ## Generate a typed client
 
-Generate a TypeScript client bound to a module at a target path:
+Record a client for a module in the current scope:
 
 ```sh
-dagger api client init typescript ./lib/client .dagger/modules/api
+dagger module client add typescript .dagger/modules/api
+dagger module client add typescript github.com/acme/payments
 ```
 
-The positional arguments are the output `<path>` and the target `<module>` (a
-workspace-relative path or a canonical module ref). Pass `--dev` to bind the
-local development client instead of a pinned release:
+There is no path argument: the SDK picks the layout. Which scope the client
+lands in comes from `findClientRoot`, which answers with the directory of the
+nearest `package.json`, `deno.json`, `deno.jsonc` or `tsconfig.json` above your
+cwd — so a client belongs to the TypeScript project you are standing in. A
+directory with no TypeScript project above it is not a scope this SDK can claim.
 
-```sh
-dagger api client init typescript ./lib/client .dagger/modules/api --dev
-```
+Where the generated package goes depends on what the scope is:
 
-The engine records the client (generator + directory) in workspace config and
-the target module config; the SDK generates the files.
+| Scope | Client output |
+| --- | --- |
+| A module | `clients/`, beside the module's generated `sdk/` |
+| Your own project | `.dagger/clients/` |
 
-A client is a self-contained, scoped npm package holding:
+One package per scope, not one per target: the core API is the bulk of a
+generated client and every target in a scope shares it. The package holds
 
 - `dagger.gen.ts` — the core API types
-- `<module>.gen.ts` — one per module in the bound module's closure
-- `package.json`, `tsconfig.json` — pinned to the bound module's engine version
+- `<module>.gen.ts` — one per recorded client target
+- `package.json`, `tsconfig.json` — pinned to the engine release this SDK ships
+  for, and named after the scope directory
 
-It binds exactly one module and serves it through `Workspace.moduleSource`, so
-it resolves from any plain client session rather than only from a module
-runtime. If you point `@dagger.io/dagger` at a local bundle (e.g. `"./sdk"`),
-regeneration preserves that instead of resetting it to the version pin.
+A client-only package is self-contained and stands on its own. Install it
+yourself — `"@dagger.io/<scope>-client": "file:./.dagger/clients"` plus your
+package manager; the SDK never edits your own `package.json`. If you point
+`@dagger.io/dagger` at a local bundle, regeneration preserves that instead of
+resetting it to the version pin.
 
-Regeneration owns the `*.gen.ts` files and nothing else: bindings for a module
-that has left the closure are dropped, and your own files in the client
-directory are left alone.
+`clients` is the complete desired set, so `dagger module client rm` is just
+regeneration without that target: its bindings go, and the last target leaving
+takes the package with it.
 
-## Generate SDK files and clients
-
-Regenerate every registered module and client in the workspace:
+## Regenerate
 
 ```sh
 dagger generate
 ```
 
-Generation is anchored at your current directory, not the workspace root:
-running it from a subdirectory regenerates the project you're in and the
-projects beneath it, and leaves the rest of the workspace alone.
-
-Each module's local dependency closure is staged before its own codegen runs, so
-a module that imports another local module always generates against up-to-date
-bindings — including dependencies owned by a different SDK.
+The engine reads the scope list, orders it so a module is generated before
+anything holding a client for it, threads each result into the next, and calls
+this SDK once per scope.
 
 ## Module management helpers
 
 The SDK also exposes auxiliary functions for working with existing modules,
-callable directly with `dagger call`. They are addressed by the workspace
-install name (`dagger-typescript-sdk` by default):
+callable directly with `dagger call`, addressed by the workspace install name:
 
 ```sh
-dagger call dagger-typescript-sdk <function> [flags]
+dagger call typescript-sdk <function> [flags]
 ```
 
 ### Configure an existing module
@@ -156,8 +161,8 @@ dagger call dagger-typescript-sdk <function> [flags]
 Read current configuration:
 
 ```sh
-dagger call dagger-typescript-sdk mod --path my-module config package-manager
-dagger call dagger-typescript-sdk mod --path my-module config base-image
+dagger call typescript-sdk mod --path my-module config package-manager
+dagger call typescript-sdk mod --path my-module config base-image
 ```
 
 Change configuration with `config set` — pass either flag, or both in a single
@@ -165,23 +170,18 @@ call. Each returns a `Changeset` so you confirm the diff before anything is
 written:
 
 ```sh
-dagger call dagger-typescript-sdk mod --path my-module config set --package-manager pnpm@8.15.4
-dagger call dagger-typescript-sdk mod --path my-module config set --base-image node:23.2.0-alpine
-dagger call dagger-typescript-sdk mod --path my-module config set \
+dagger call typescript-sdk mod --path my-module config set --package-manager pnpm@8.15.4
+dagger call typescript-sdk mod --path my-module config set --base-image node:23.2.0-alpine
+dagger call typescript-sdk mod --path my-module config set \
     --package-manager pnpm@8.15.4 --base-image node:23.2.0-alpine
 ```
 
 Unset stays as separate commands:
 
 ```sh
-dagger call dagger-typescript-sdk mod --path my-module config unset-package-manager
-dagger call dagger-typescript-sdk mod --path my-module config unset-base-image
+dagger call typescript-sdk mod --path my-module config unset-package-manager
+dagger call typescript-sdk mod --path my-module config unset-base-image
 ```
-
-`package-manager` is only supported on Node modules; Bun and Deno bundle their
-own and the SDK rejects the flag on those runtimes. `base-image` writes to
-`deno.json` for Deno modules and to `package.json` otherwise — matching where
-the engine reads it from.
 
 `--path` may point anywhere inside the module; `mod` walks up to the nearest
 enclosing module config. Pass `--find-up=false` to address a module root
@@ -194,43 +194,46 @@ module config's `source` field can move away from the module root — the layout
 
 ```sh
 # reads and writes ci/package.json, not .dagger/modules/my-module/package.json
-dagger call dagger-typescript-sdk mod \
+dagger call typescript-sdk mod \
     --path .dagger/modules/my-module --find-up=false config package-manager
 ```
 
-### Discover and generate modules
+### Generate one module
 
 ```sh
-# Generate a single module's SDK files
-dagger call dagger-typescript-sdk mod --path my-module generate
-
-# Every TypeScript SDK module in scope, as a cwd-relative path
-dagger call dagger-typescript-sdk modules path
-
-# Generate all of them; equivalent to what `dagger generate` runs
-dagger call dagger-typescript-sdk generate-all-module
-dagger call dagger-typescript-sdk generate-all-client
+dagger call typescript-sdk mod --path my-module generate
 ```
 
-`modules` returns the modules this SDK manages — the
-`[[modules.<sdk>.as-sdk.modules]]` entries the engine owns — narrowed to the
-ones in scope from your current directory: every module at or below it, plus the
-nearest enclosing one when the directory itself is not registered. A module is
-registered by the directory holding its config, so a module whose `source`
-points elsewhere is listed at its config path, not from inside its source tree.
+Addresses one module directly, for inspecting or repairing it in isolation. It
+generates exactly the module asked for, against the workspace as it stands —
+none of the scope ordering `dagger generate` does applies. A module configured
+by a pre-1.0 `dagger.json` is refused: the engine's runtime regenerates those at
+call time, so writing files here would only leave a second, differently
+versioned copy behind.
 
 ## Development
 
-Run the end-to-end checks:
+Run the checks:
 
 ```sh
 dagger check
 ```
 
-Checks live in `.dagger/modules/e2e`, one file per SDK surface (lookup,
-discovery, init, config, generate, client), sharing the assertions in
-`util.dang` and driving the fixture tree under `.dagger/modules/e2e/fixtures`.
-List them with `dagger check -l`, or run one group with
+`e-2-e:*` drives this SDK's functions the way the engine does, one file per
+surface (lookup, discovery, init, config, generate, client), sharing the
+assertions in `util.dang` and the fixture tree under
+`.dagger/modules/e2e/fixtures`. `runtimes:*` generates a module per JavaScript
+runtime and loads it. List them with `dagger check -l`, or run one group with
 `dagger check "e-2-e:config:*"`.
 
-See [`typescript-sdk.dang`](./typescript-sdk.dang) for the full type surface.
+`engine-e-2-e:*` covers the half no dang check can reach: it builds an engine
+from dagger/dagger#13992, runs it as a playground with this checkout mounted,
+and drives the real CLI through `sdk list`, `module init` with and without
+settings, `call`, and the whole check suite. Provider validation is silent when
+it fails — the engine simply never records `[sdks.typescript]` — so this is what
+tells you the interface still matches. Bumping the branch means changing both
+the `engine-dev` dependency in `.dagger/modules/engine-e2e/dagger-module.toml`
+and `engineCommit` in `.dagger/modules/engine-e2e/main.dang`.
+
+See [`typescript-sdk.dang`](./typescript-sdk.dang) for the full type surface and
+[`design/module-max.md`](./design/module-max.md) for why it is shaped this way.

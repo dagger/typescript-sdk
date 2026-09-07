@@ -1,9 +1,14 @@
 # Adopt the module-max SDK interface
 
-Status: implemented and verified against a dev engine at `2dfc08f7`. Tracks [dagger/dagger#13992](https://github.com/dagger/dagger/pull/13992)
+Status: implemented and verified against a dev engine at `8fd9b22b`. Tracks [dagger/dagger#13992](https://github.com/dagger/dagger/pull/13992)
 ("Better SDK UX: modules-max design"), whose source of truth is
 [`future/cli-1.0.md`](https://github.com/dagger/dagger/blob/sdk-ux-module-max/future/cli-1.0.md)
 on branch `sdk-ux-module-max`. Engine line references below are from that branch.
+
+That branch rebases and force-pushes, and it has changed the SDK contract more
+than once since this document was first written. `.dagger/modules/engine-e2e`
+pins the commit and drives a real CLI against it, so the next change surfaces as
+a failing check rather than as a provider the engine quietly stops recognizing.
 
 Companion to [`module-gen.md`](./module-gen.md) and [`client-gen.md`](./client-gen.md),
 which moved module and client codegen into this repo. Those moves are **not**
@@ -38,7 +43,7 @@ dead weight after the move.
 ### The new required surface
 
 ```graphql
-detectScope(ws: Workspace!): String!
+findClientRoot(ws: Workspace!): String                      # nullable
 generateScope(ws: Workspace!, isModule: Boolean!, name: String!, clients: [ModuleSource!]!): Workspace!
 defaultModulePath(ws: Workspace!, name: String!): String!   # optional
 ```
@@ -73,20 +78,20 @@ The rewrite is concentrated in `typescript-sdk.dang`'s top layer and in
 
 ## 3. The new SDK surface
 
-### 3.1 `detectScope`
+### 3.1 `findClientRoot`
 
 Answers "which directory is the TypeScript project containing `ws.cwd`". Used
-only for **clients** (`module init` never calls it — `cli-1.0.md` §detectScope
-table). Must return a workspace-root-relative parent of `ws.cwd`, or `""`
-(`core/schema/workspace_sdk_module.go:828`).
+only for **clients** (`module init` never calls it — `cli-1.0.md` §findClientRoot
+table). Must return a workspace-root-relative parent of `ws.cwd`, or `null`
+(`core/schema/workspace_sdk_module.go`).
 
 ```dang
-detectScope(ws: Workspace!): String! {
+findClientRoot(ws: Workspace!): String {
   let found = scopeMarkers.reduce(null) { acc, name =>
     let hit = ws.findUp(name)
     if (configHitDepth(hit) > configHitDepth(acc)) { hit } else { acc }
   }
-  if (found == null) { "" } else { configDir(found) }
+  if (found == null) { null } else { configDir(found) }
 }
 ```
 
@@ -97,7 +102,7 @@ Deepest hit wins, reusing the `configHitDepth` ranking already in
 Two consequences worth stating up front:
 
 - **You cannot create the first TypeScript client scope in a directory with no
-  TypeScript project.** `detectScope` returns `""`, and `dagger module client add`
+  TypeScript project.** `findClientRoot` returns `null`, and `dagger module client add`
   fails with "client generation is not available from workspace cwd". `--sdk=typescript`
   does not help: it selects *which* provider is asked, not what it answers. This is
   defensible (a TypeScript client belongs in a TypeScript project) but it is a
@@ -131,12 +136,8 @@ generateScope(
   name: String!,
   clients: [ModuleSource!]!,
 ): Workspace! {
-  if (skipGenerate(ws)) {
-    ws
-  } else {
-    let withModule = if (isModule) { moduleFiles(ws, name) } else { ws }
-    clientPackage(withModule, clients)
-  }
+  let withModule = if (isModule) { moduleFiles(ws, name) } else { ws }
+  clientPackage(withModule, clients)
 }
 ```
 
@@ -149,7 +150,7 @@ The engine's guarantees around the call (`core/schema/workspace_sdk_module.go:89
   §Responsibility split). **We decline that permission.** It exists for SDKs whose
   project file sits above the module — the Go SDK updating a `go.mod`/`go.sum`
   above the scope. For TypeScript the scope *is* the project root by construction:
-  `detectScope` returns the directory holding `package.json`, so nothing we
+  `findClientRoot` returns the directory holding `package.json`, so nothing we
   generate belongs above it. Staying inside also keeps one generation reviewable
   as one directory.
 - We must not touch the active `dagger.toml` (`:1035`) and must not change
@@ -167,14 +168,20 @@ constructor default → `[modules.typescript-sdk.settings]` → `[sdks.typescrip
 
 ```dang
 type TypescriptSdk {
-  runtime: String! = "node"        # parsed into the internal Runtime enum
+  runtime: String! = ""            # empty = detect; parsed into the internal Runtime enum
   template: String! = "default"
   packageManager: String! = ""
   baseImage: String! = ""
   # existing: targetEngineVersion
-  # private (let): skipGenerateFilename, moduleConfigFilenames, scopeMarkers
+  # private (let): moduleConfigFilenames, scopeMarkers
 }
 ```
+
+The default is empty, not `"node"`, and that is load-bearing: empty means
+"detect from the config files already in the scope" — `deno.json` for Deno, a bun
+lockfile for Bun, Node otherwise — so adopting this SDK, or regenerating a module
+created before the setting existed, does not silently move a Bun or Deno project
+onto Node. Setting it explicitly is what moves a scope to another runtime.
 
 giving `dagger module init typescript --runtime=bun --template=empty` and
 `dagger module client add foo --typescript-runtime=bun`, persisted into
@@ -186,10 +193,9 @@ giving `dagger module init typescript --runtime=bun --template=empty` and
 typescript-sdk  runtime  node  JavaScript runtime for generated code
 ```
 
-Only knobs a user should turn are settings. `skipGenerateFilename` and the
-config-filename lists become private `let` bindings — they are internal
-constants, and as settings they would show up as noise in `dagger module settings`
-and as flags on `module init`.
+Only knobs a user should turn are settings. The config-filename lists become
+private `let` bindings — they are internal constants, and as settings they would
+show up as noise in `dagger module settings` and as flags on `module init`.
 
 **Decided: `runtime` ships as a validated `String!`, not the `Runtime` enum.**
 The enum stays internal (`ModConfig.runtime`, `moduleDirectory`); only the
@@ -217,7 +223,7 @@ is:
 
 | Scope | Client output | Package files |
 | --- | --- | --- |
-| Module (`is-module = true`) | `clients/`, beside the generated `sdk/` | none — the module's own `package.json`/`tsconfig.json` are already ours to generate, so clients are aliased into them |
+| Module (`is-module = true`) | `clients/`, beside the generated `sdk/` | self-contained: `clients/` gets its own generated `package.json` and `tsconfig.json`, same as a client-only scope |
 | Client-only | `.dagger/clients/` | self-contained: its own `package.json` and `tsconfig.json`, generated |
 
 Both land at the scope root. **Neither may go under `src/`**, and that is a hard
@@ -289,18 +295,31 @@ bindings under `src/` needs `getTsSourceCodeFiles` to stop treating them as user
 source, and `generatedClientFiles` to stop deriving its set from
 `sdk/client.gen.ts`'s siblings. Two repos, one change — worth scoping together.
 
-### 4.2 Everything becomes cwd-relative
+### 4.2 Paths stay workspace-root-relative
 
-`typescript-sdk.dang` reads and writes through workspace-root-relative paths
-(`ws.directory("/", include: [prefix + "package.json"])`, `ws.withNewDirectory("/" + sourcePath, …)`)
-because `currentModule.asSDK` handed back root-relative module paths. With
-`ws.cwd` set to the scope, all of that becomes `ws.directory(".", include: ["package.json"])`
-and `ws.withDirectory(".", …)`. `existingDir`, `existingModuleConfig`,
-`existingClientConfig`, `moduleSdkPath`, `moduleBindings`, `clientBindings` and
-every `sourcePrefix`/`includePrefix` dance collapse. `ModConfig`'s `sourceFile`
-prefixing goes the same way — though `ModConfig` is also reachable from `Mod`
-outside a `generateScope` call, so it keeps taking a path and only the
-`generateScope` caller passes `.`.
+The obvious move, once `ws.cwd` is the scope, is to work from the cwd:
+`ws.directory(".", include: ["package.json"])`, `ws.withDirectory(".", …)`, and
+every `sourcePrefix`/`includePrefix` dance collapses. **That is not what the
+implementation does, and the difference is not stylistic.** The engine resolves
+a module's local `[[dependencies]]` to workspace-root-relative paths and then
+reads them relative to `Workspace.cwd` (`ResolveDepToSource`) — so standing at
+the scope's own cwd, a sibling dependency is looked for *underneath* the module
+that declares it, and does not resolve.
+
+So `generateScope` reads the cwd the engine set exactly once, through
+`scopePath(ws)`, immediately roots the workspace with `ws.withWorkdir(".")`, and
+addresses everything from the workspace root from there on
+(`ws.directory("/", include: [scopeFile(scope, "package.json")])`,
+`ws.withNewDirectory("/" + sourcePath, …)`). It restores the engine's cwd on the
+way out, because the engine rejects a `generateScope` that returns a workspace
+standing somewhere else.
+
+One path convention, applied everywhere, is what makes that workable: `scopeFile`
+joins a scope-relative filename onto the scope, and `existingDir`,
+`existingModuleConfig`, `existingClientConfig`, `moduleSdkPath`, `moduleBindings`
+and `clientBindings` all take root-relative paths. `ModConfig` keeps taking a
+path for the same reason it always did — it is reachable from `Mod`, outside any
+`generateScope` call.
 
 ### 4.3 Changeset framing disappears
 
@@ -329,8 +348,8 @@ for the module half, where generated and user files share a directory.
 scope name from `Workspace.cwd`." Today `moduleFiles` reads
 `modSrc.moduleOriginalName`. Two knock-ons:
 
-- `moduleManifest.v1(name: name)` writes the name, so a manifest we create is
-  consistent by construction.
+- `withName(name: name)` writes the name, so a manifest we create is consistent
+  by construction.
 - For an *existing* manifest we leave alone, `dagger.toml`'s `name` and the
   manifest's `name` can disagree. The engine does not reconcile them. We should
   generate from the argument and let the mismatch surface, rather than silently
@@ -338,15 +357,35 @@ scope name from `Workspace.cwd`." Today `moduleFiles` reads
 
 ### 4.6 The manifest is ours to write
 
-`moduleManifest.v1(name:).withRuntime(source: "typescript").asFile` +
-`ws.withFile("dagger-module.toml", …)`, only when the file is absent — the marker
-that distinguishes init from regeneration (`cli-1.0.md` §generateScope). The
-builder also has `withSource`, `withEngineVersion` and `withInclude`
-(`core/module_manifest.go`); `withEngineVersion` defaults to the running engine,
-so `targetEngineVersion` should be passed explicitly to keep the bundle/engine
-pairing this repo enforces.
+The builder is **not** an engine field. It was `moduleManifest` in core when this
+document was written; the engine has since dropped it, and it now lives in
+[`github.com/dagger/sdk-helpers`](https://github.com/dagger/sdk-helpers) — a
+standalone Dang implementation declaring `engineVersion = "v0.21.9"`, so
+depending on it does not itself require a new engine. It is this repo's only
+module dependency.
 
-The builder cannot write `[[dependencies]]` — see §4.8.
+`sdkHelpers.moduleManifest.withName(name:).withLegacyTypescriptRuntime(engineVersion:)`
+plus `ws.withNewFile("dagger-module.toml", …)`, written when the scope has no
+`dagger-module.toml`. `withEngineVersion` defaults to the running engine, so
+`targetEngineVersion` is passed explicitly to keep the bundle/engine pairing this
+repo enforces.
+
+**Written when absent, not on every generation.** The manifest schema round-trips
+through the builder, so rewriting one would preserve `source`, `include`,
+`[[dependencies]]` and `[codegen]` — but this SDK records a scope's clients as a
+generated package rather than as manifest dependencies (§4.8), so it has nothing
+to reconcile into a manifest that already exists, and rewriting one would only
+reformat hand-written files. It would not even be a fixed point: the builder
+normalizes an absent `source` to `"."`, so the manifest this SDK wrote at init
+comes back changed on the very next generation, and `dagger generate` reports a
+diff nobody asked for. The Python SDK does regenerate every time, because it
+*does* write clients into `[[dependencies]]` and has to reconcile them.
+
+**A pre-1.0 `dagger.json` is migrated**, which is the one case where a scope with
+a module still needs a manifest written. The `dagger.json` is loaded, re-emitted
+as TOML and then removed: leaving both would leave the module holding two
+manifests free to disagree. Only a scope the workspace records is ever generated,
+so migration reaches a module because someone asked for it, never in passing.
 
 `source` handling: for a new module write nothing (defaults to `.`). For an
 existing one, keep reading `ws.moduleSource(".").sourceSubpath` so a migrated
@@ -379,8 +418,10 @@ emits one `<dep>.gen.ts` per dependency from `introspectionSchemaJSON`.
 For this migration: **keep the dependency path working, add the client path.**
 Existing modules with `[[dependencies]]` keep generating `sdk/<dep>.gen.ts`; new
 cross-module wiring goes through `dagger module client add`. We do not write
-dependencies into manifests we create — the manifest builder cannot, and doing it
-by hand would fight the design.
+dependencies into manifests we create — `clients` becomes a generated package,
+not a manifest edit, and turning it into one would fight the design. That is also
+what makes §4.6's "write the manifest once" safe: there is nothing about a scope's
+clients that an existing manifest has to be told.
 
 The ordering that `generateLocalDependencies` used to provide is now the engine's:
 a scope whose clients target a local module scope depends on that scope, and the
@@ -402,28 +443,31 @@ branch — and the `isWorkspaceManaged` split, and `isTypescriptConfig`'s
 `dagger.json` pattern in the *generation* path — can go.
 
 The `dagger.json` fixtures in this repo (`generate/app`, `lookup/*`, `deps/*`,
-`skip/app`, `client/app`) stop being SDK-managed. They still matter for `Mod`
-discovery and `ModConfig`, which is user-facing, so keep them there and drop them
-from the scope list.
+`client/app`) stop being SDK-managed. They still matter for `Mod` discovery and
+`ModConfig`, which is user-facing, so keep them there and drop them from the
+scope list. A `dagger.json` scope someone *does* record is migrated rather than
+refused — §4.6.
 
 ### 4.10 Skip marker
 
-**Kept as-is.** `generateScope` returns `ws` unchanged when
-`findUp(skipGenerateFilename)` hits, at a cost of one `findUp` per scope per
-generate. Only the filename moves from a public setting to a private constant
-(§3.4) — the mechanism does not change.
+**Removed.** An earlier round of this design kept it, on the reasoning that
+module-max supplies no replacement: the marker is found with `findUp`, so one
+file at a repo root disables generation for every scope beneath it, which no
+per-scope setting expresses; `[modules.typescript-sdk.generate.skip]` can only
+disable the SDK wholesale, because the engine synthesizes a single
+`typescript-sdk:generate` generator for all scopes
+(`core/schema/workspace_sdk_generator.go:16`).
 
-Module-max does not supply a replacement, despite appearances:
+All true, and beside the point. Under module-max a module is generated **because
+`dagger.toml` records it as a scope**, so "do not generate this tree" is already
+spelled by leaving it out of the scope list. The marker's only remaining job is
+to contradict a decision the workspace has already made, at a cost of one
+`findUp` per scope per generate. The argument above was really an argument that
+the scope list is the wrong granularity — which it is not, because the engine
+never asks about anything else.
 
-- A per-scope `skipGenerate` setting would be strictly *less* useful. The marker
-  is found with `findUp`, so one file at a repo root disables generation for
-  every scope beneath it; a setting has to be repeated per scope entry.
-- `[modules.typescript-sdk.generate.skip]` looks like the right tool but the
-  engine synthesizes a single `typescript-sdk:generate` generator for **all**
-  scopes (`core/schema/workspace_sdk_generator.go:16`), so that key can only
-  disable the SDK wholesale.
-- Deleting the scope from `dagger.toml` stops generation but also un-manages the
-  module, which is a different thing.
+Un-managing a module and not generating it were different things when the SDK
+discovered modules itself. They are the same thing now.
 
 ### 4.11 Idempotence is now a contract
 
@@ -446,12 +490,12 @@ rendering — has to be conditioned on the manifest marker, not on incidental st
    (`core/modulesource.go:987`), so it cannot be used. ✔
 3. Manifest-dependency ordering — **confirmed broken**, see §8.
 
-**Phase 1 — the interface, module half.** Add `detectScope` and `generateScope`
+**Phase 1 — the interface, module half.** Add `findClientRoot` and `generateScope`
 handling `isModule` only, ignoring `clients`. Delete `initModule`, `initClient`,
 the two `@generate` rollups, `modules(ws)`, `clientCwd`, `inCwdScope` and the
-`generateLocalDependencies` staging. Convert `moduleFiles` to cwd-relative and
-have it write the manifest. At this point `dagger module init typescript` and
-`dagger generate` work end to end for modules.
+`generateLocalDependencies` staging. Have `moduleFiles` write the manifest,
+keeping its paths workspace-root-relative (§4.2). At this point `dagger module
+init typescript` and `dagger generate` work end to end for modules.
 
 **Phase 2 — clients.** Extend `helpers/codegen`'s client meta to a list of bound
 modules, emit the per-scope client package at the two locations from §4.1, and
@@ -468,12 +512,15 @@ written down where it was previously read from the module.
 
 **Phase 4 — tests.** See §6.
 
-**Phase 5 — the pin.** `targetEngineVersion`, the committed bundle, and
-`[modules.sdk-sdk].settings.daggerCliVersion` all move together to the first
-release carrying this PR. The contract suite (`github.com/dagger/sdk-sdk`) drives
-a real CLI through `dagger module init` / `client add`, so it needs its own
-module-max update before it can gate us — that is an upstream dependency, not
-something this repo can land alone.
+**Phase 5 — the pin.** `targetEngineVersion` and the committed bundle move
+together to the first release carrying this PR.
+
+The contract suite (`github.com/dagger/sdk-sdk`) is **retired here**, not
+repinned. It drives a released CLI through the beta interface — `initModule`, the
+`as-sdk` marker, the `@generate` rollups, `module deps` — every piece of which
+this work removes, so its checks were reporting the removal rather than a
+regression. `.dagger/modules/engine-e2e` covers what it covered, against the
+branch that has the new interface (§6).
 
 ## 6. Test plan
 
@@ -492,19 +539,33 @@ interface change one-to-one:
   with a populated `clients` list. Needs new cases: two clients in one scope, and
   removal by regeneration with one target dropped.
 - `sdk.dang` → `targetRuntime` assertion becomes an assertion on the generated
-  manifest's `[runtime] source`. The `skipGenerateFilename` assertion cannot stay
-  as written once the field is private (§3.4): it becomes a behavioral check —
-  drop the marker in a scope, assert `generateScope` returns no changes.
-- New: a `detectScope` check per marker file, plus the `""` case.
-- New: idempotence — `generateScope` twice, second run empty.
+  manifest's `[runtime] source`. The `skipGenerateFilename` assertion goes with
+  the marker (§4.10).
+- New: a `findClientRoot` check per marker file, plus the `null` case.
+- New: idempotence — `generateScope` twice, second run empty
+  (`generateIdempotentCheck`, on a dependency-free scope so it stays cheap).
 - New: the client-only scope does not modify the user's `package.json` (§4.1) —
   the rule is easy to violate by reaching for `configUpdater` with the wrong
   `existing` directory.
 
 Beyond that, the honest gap is that unit-testing a provider in dang does not prove
 the engine accepts it. `sdkmodule.Implements` failing silently turns this SDK into
-a plain installed module, so at least one check should assert the shape the engine
-validates — realistically by driving a real CLI, which is the contract suite's job.
+a plain installed module, so at least one check has to assert the shape the engine
+validates, which means driving a real CLI.
+
+**`.dagger/modules/engine-e2e` is that check.** It builds an engine from the
+pinned dagger/dagger#13992 commit, runs it as a playground with this checkout
+mounted, and drives the CLI through `dagger sdk list`, `dagger module init`
+(default and with every setting), `dagger call`, and `dagger check` over the
+`e-2-e:**` and `runtimes:**` groups. `devSdkCheck` asserts on the
+`[sdks.typescript.scopes."…"]` block the engine writes, because a provider that
+fails validation produces no error — the engine records nothing and this repo
+becomes a plain installed module. `devSdkSettingsCheck` asserts each setting
+reaches the generated files, which is §8.2.
+
+The groups are named rather than left to a bare `dagger check`: `engine-e2e` is
+one of the workspace's own modules, so an unfiltered run inside the playground
+would build a second engine and recurse.
 
 ## 7. Decisions
 
@@ -517,15 +578,23 @@ All settled in review:
   deferred to a separate upstream change (§4.1). `sdk/` and
   `__dagger.entrypoint.ts` stay for now.
 - **`runtime` setting** — validated `String!` now, enum later (§3.4).
-- **Skip marker** — kept exactly as it works today; only the filename becomes a
-  private constant. No scope setting replaces it (§4.10).
+- **Skip marker** — removed. The scope list is what decides what is generated
+  (§4.10).
+- **The manifest** — built with `dagger/sdk-helpers`, not an engine field; written
+  when the scope has none, not on every generation; a pre-1.0 `dagger.json` is
+  migrated and removed (§4.6).
+- **The released engine stays a target** — the module selects no engine field
+  newer than `v1.0.0-beta.11`, so `[modules.e2e]` and `[modules.runtimes]` stay
+  registered and their checks run in normal CI (§8.3).
 - **Client package installation** — the user adds the `file:` dependency; we never
   edit their `package.json` (§4.1).
 - **Clients never live under `src/`** — the introspector would classify them as
   module source (§4.1).
 - **`defaultModulePath`** — not implemented (§3.2).
-- **Legacy `dagger.json` modules** — fully the engine's problem; dropped from our
-  scope list (§4.9).
+- **Legacy `dagger.json` modules** — an *unrecorded* one stays fully the engine's
+  problem, and is dropped from this repo's scope list (§4.9). A scope the
+  workspace does record is migrated to `dagger-module.toml` by this SDK, and its
+  `dagger.json` removed (§4.6).
 - **Manifest-dependency ordering** — expected to work; a gap is an engine bug, but
   verified in phase 0 because `generate-deps` is ours (§4.8).
 - **Client package name** — derived from the scope directory,
@@ -536,10 +605,11 @@ All settled in review:
 Nothing in the design is open. What the implementation found in the engine is in
 §8.
 
-## 8. Engine gaps found during implementation
+## 8. What the implementation found in the engine
 
-Both are in `dagger/dagger#13992`, not here, and both are worth reporting
-upstream before that PR merges.
+8.1 and 8.2 are gaps in `dagger/dagger#13992`, not here; 8.3 is not a gap at all,
+but it decides how this repo runs its checks and is the most expensive thing on
+this page to rediscover.
 
 ### 8.1 Manifest dependencies have no edge in the scope graph
 
@@ -566,7 +636,7 @@ costs a generated client package the fixture does not otherwise need, and it onl
 works because we control the config — a user hitting this has no equivalent lever
 short of adding a client they do not want.
 
-### 8.2 SDK settings never reach the provider
+### 8.2 SDK settings never reach the provider — fixed upstream
 
 Scope and module settings are persisted correctly and handed to
 `sdkmodule.Load`, but the constructed provider sees its declared defaults. With
@@ -591,26 +661,66 @@ Not a stale-cache issue: `LegacyWorkspaceConfigJSON` is part of
 engine test covering settings reaching a provider — `workspace_sdk_cli_test.go`
 only asserts config listing.
 
-**Not worked around.** Every SDK setting this repo exposes — `runtime`,
-`template`, `packageManager`, `baseImage` — is silently ignored by
-`dagger module init` and `dagger module client add` until this is fixed. The
-settings are persisted, so they start working the moment it is. The e2e checks
-cover the behaviour by constructing the SDK with explicit arguments, which is
-what the engine is supposed to do, so our half is verified independently.
+**Fixed on the branch.** The description above is what `2dfc08f7` did; at
+`8fd9b22b` the settings arrive. `engine-e-2-e:dev-sdk-settings-check` pins that
+down from this side — one assertion per setting, on the file it changes, so a
+regression shows up as a failing check rather than as a flag that quietly does
+nothing. The e2e checks still construct the SDK with explicit arguments, which is
+what the engine does; the two halves are verified separately.
+
+### 8.3 One missing engine field fails every check that touches the SDK
+
+Not a defect, but the constraint that decides how this repo runs CI. Dang infers
+a whole program on each call, so the moment the SDK module selects an engine
+field the running engine does not have, *every* call into that module fails —
+including a check that only reads a constant `String!` field. Selection cannot
+route around it, and check selection cannot either.
+
+That is what produced 67 red checks on the first round of this work: the module
+selected `moduleManifest` and `Workspace.withFile`, neither of which exists in
+`v1.0.0-beta.11`, so `e-2-e:*` and `runtimes:*` failed wholesale on the engine CI
+runs on. It reads as a broken SDK and is really one unavailable field.
+
+It is avoidable here, and avoiding it is worth more than it costs:
+
+- `moduleManifest` moved out of the engine and into a module dependency (§4.6),
+  which removes it from the question entirely.
+- `Workspace.withFile` has a `withNewFile` equivalent that predates it, at the
+  cost of reading the manifest's contents rather than passing a `File`.
+
+With those two, the module selects nothing newer than `v1.0.0-beta.11`, so
+`[modules.e2e]` and `[modules.runtimes]` stay registered and the whole suite runs
+in normal CI — while `engine-e2e` runs it again on the branch engine, which is the
+one this work targets. Losing that property is a real cost, not a formality: the
+alternative is unregistering the modules so the released engine never loads them,
+and then the only signal for the entire SDK is one nested-engine check.
+
+New engine fields will eventually be worth taking. The point is to notice when
+one is being spent.
 
 ## 9. What was verified
 
-Against a dev engine built from `2dfc08f7` (`dagger-dev`, runner
-`docker-container://dagger-engine.dev`):
+Against the released `v1.0.0-beta.11` engine, which is where CI runs:
 
-- `dagger sdk list` / `dagger sdk scope list` — the interface passes the engine's
-  exact-shape validation and every scope is registered.
-- `dagger generate typescript-sdk:generate` — all nine scopes generate, including
-  the dependency-ordered pair and the client-only scope; a second run reports
-  "no changes to apply" (§4.11 idempotence).
-- `dagger module init typescript --name=… --path=…` — seeds a module, and
-  `dagger call` on the result returns a value, so the generated artifact really
-  runs.
-- `dagger module init typescript --help` — all four settings register as flags
-  (they just do not take effect yet, §8.2).
-- 41 e2e checks and the `helpers/codegen` Go tests.
+- The whole `e-2-e:*` and `runtimes:*` suite, plus the `helpers/*` Go tests.
+  Nothing in the module selects a field that engine does not have (§8.3).
+
+Against a dev engine built from the pinned `8fd9b22b`, through
+`.dagger/modules/engine-e2e` rather than by hand — so it is a check that keeps
+running, not a note about one afternoon:
+
+- `dagger sdk list` — the interface passes the engine's exact-shape validation.
+- `dagger module init typescript` — seeds a module, records the scope in
+  `dagger.toml`, writes a manifest and no `dagger.json`, and `dagger call` on the
+  result returns a value, so the generated artifact really runs.
+- `dagger module init typescript --template/--package-manager/--base-image/--runtime`
+  — every setting reaches the files it should (§8.2).
+- The `e-2-e:**` and `runtimes:**` groups again, inside that engine.
+
+Idempotence (§4.11) is asserted directly, by `generateIdempotentCheck` in
+`e-2-e:generate`: generate a scope, apply the changeset, generate again, and the
+second changeset must be empty. An earlier round had also verified it by hand —
+`dagger generate typescript-sdk:generate` against `2dfc08f7`, all nine scopes
+generated including the dependency-ordered pair and the client-only scope, a
+second run reporting "no changes to apply" — which the check now covers on every
+run.

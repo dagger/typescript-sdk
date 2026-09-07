@@ -32,7 +32,7 @@ type E2e {
   }
 
   """
-  Checks for the CLI 1.0 init contract (initModule / initClient).
+  Checks for seeding a scope that has no module yet.
   """
   init: InitChecks! {
     InitChecks
