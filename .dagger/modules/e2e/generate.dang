@@ -421,6 +421,28 @@ type GenerateChecks {
   }
 
   """
+  Generating a scope twice writes nothing the second time.
+
+  Generation is the scope's whole desired state, so applying it has to be a
+  fixed point: anything that differs run to run — a timestamp, a reordered map,
+  a path written relative to the wrong root — turns every `dagger generate` into
+  a diff and makes it impossible to tell a real change from noise.
+  """
+  generateIdempotentCheck(ws: Workspace!): Void @check {
+    let path = fixtures.depLibModule
+    let settled = ws.withChanges(Gen.module(ws, path, "gendep"))
+    let again = Gen.module(settled, path, "gendep")
+
+    Asserts.assert(
+      again.isEmpty,
+      "regenerating a settled scope should write nothing, got added [" +
+        again.addedPaths.join(", ") + "], modified [" + again.modifiedPaths.join(", ") + "]",
+    )
+
+    null
+  }
+
+  """
   A module with a local dependency should get bindings for it.
 
   Dependency edges still exist in a manifest even though new wiring goes through
