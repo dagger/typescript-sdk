@@ -51,13 +51,6 @@ type TypescriptSdk {
   let skipGenerateFilename: String! = ".dagger-typescript-sdk-skip-generate"
 
   """
-  Runtime source written into the `[runtime]` table of every module this SDK
-  creates. Names the engine's builtin TypeScript runtime, which executes what we
-  generate.
-  """
-  let runtimeSource: String! = "typescript"
-
-  """
   Files that mark a TypeScript project root, and so a scope this SDK can manage.
   """
   let scopeMarkers: [String!]! = ["package.json", "deno.json", "deno.jsonc", "tsconfig.json"]
@@ -343,13 +336,13 @@ type TypescriptSdk {
       # pairing the module actually has.
       ws
         .withDirectory("/" + scope, configured)
-        .withFile(
+        .withNewFile(
           "/" + scopeFile(scope, "dagger-module.toml"),
-          moduleManifest
-            .v1(name: name)
-            .withRuntime(source: runtimeSource)
-            .withEngineVersion(version: "v" + targetEngineVersion)
-            .asFile,
+          sdkHelpers.moduleManifest
+            .withName(name: name)
+            .withLegacyTypescriptRuntime(engineVersion: "v" + targetEngineVersion)
+            .tomlFile
+            .contents,
         )
     }
   }

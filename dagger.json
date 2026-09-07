@@ -4,5 +4,11 @@
   "sdk": {
     "source": "dang"
   },
-  "source": "."
+  "source": ".",
+  "dependencies": [
+    {
+      "name": "sdk-helpers",
+      "source": "github.com/dagger/sdk-helpers"
+    }
+  ]
 }
