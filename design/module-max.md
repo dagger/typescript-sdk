@@ -607,9 +607,10 @@ Nothing in the design is open. What the implementation found in the engine is in
 
 ## 8. What the implementation found in the engine
 
-8.1 and 8.2 are gaps in `dagger/dagger#13992`, not here; 8.3 is not a gap at all,
-but it decides how this repo runs its checks and is the most expensive thing on
-this page to rediscover.
+8.1, 8.2 and 8.4 are gaps in `dagger/dagger#13992`, not here; 8.3 is not a gap at
+all, but it decides how this repo runs its checks and is the most expensive thing
+on this page to rediscover. 8.4 is the only one still blocking a user-facing
+command.
 
 ### 8.1 Manifest dependencies have no edge in the scope graph
 
@@ -697,6 +698,51 @@ and then the only signal for the entire SDK is one nested-engine check.
 
 New engine fields will eventually be worth taking. The point is to notice when
 one is being spent.
+
+### 8.4 A non-null `findClientRoot` cannot be read back, so `client add` is broken
+
+`dagger module client add` fails for **every** SDK provider whose
+`findClientRoot` answers with a path:
+
+```
+call SDK module findClientRoot: assign: Setter.SetField dagql.Result[dagql.Typed]
+  to dagql.Nullable[dagql.String]: assign: Setter.SetField dagql.DynamicOptional
+  to dagql.Nullable[dagql.String]: dynamic optional: assign: Setter.SetField
+  dagql.String to dagql.Nullable[dagql.String]: cannot set field of type
+  dagql.Nullable[dagql.String] with dagql.String
+```
+
+Nothing about the value is wrong. `Provider.FindClientRoot` selects into a
+`dagql.Nullable[dagql.String]` (`core/sdkmodule/provider.go`), the module returns
+a well-formed `DynamicOptional` wrapping a `String`, and the failure is entirely
+in reading it back:
+
+- `DynamicOptional.SetField` sees a destination whose `reflect.Kind` is `Struct`,
+  takes its `default` branch, and assigns the **unwrapped** value —
+  `assign(val, o.Value)` (`dagql/nullables.go`).
+- `assign` finds `dagql.String` is not assignable to `dagql.Nullable[dagql.String]`
+  and falls through to `String.SetField`, which only accepts a `string`
+  destination (`dagql/objects.go`, `dagql/types.go`).
+- `Nullable[T]` is `Typed` and `Derefable` but not a `Setter`, and nothing in
+  `assign` constructs a `Nullable[T]` from a `T`. There is no path that succeeds.
+
+`Valid == false` returns early and never assigns, so the **null** answer works.
+That is the whole reason this went unnoticed: `module init` never calls
+`findClientRoot` (`cli-1.0.md` §findClientRoot table), so the only command that
+reaches it is `client add`, and the only answer that had been exercised is the
+one that declines.
+
+The fix is upstream, in `Optional.SetField` and `DynamicOptional.SetField`:
+recognize a `Nullable[T]` destination and set its `Value`/`Valid` rather than
+assigning the unwrapped value into it. Nothing in this repo can work around it —
+the interface fixes the return type, and the engine never inspects what we
+returned beyond unwrapping it.
+
+Reproduced at the pinned `8fd9b22b` with two plain TypeScript modules:
+`dagger module init typescript` twice, then `dagger module client add typescript`
+from inside one of them. `.dagger/modules/engine-e2e` should grow a check for it
+— `client add` is the only command that covers this half of the interface, and
+its absence is what let this reach a user.
 
 ## 9. What was verified
 
