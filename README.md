@@ -219,18 +219,6 @@ nearest enclosing one when the directory itself is not registered. A module is
 registered by the directory holding its config, so a module whose `source`
 points elsewhere is listed at its config path, not from inside its source tree.
 
-## Skipping generation
-
-To exclude a directory tree from module generation, drop an empty
-`.dagger-typescript-sdk-skip-generate` file at or above the module root. Useful
-for fixtures, vendored modules, or anything you don't want regenerated in bulk.
-
-```sh
-touch some/fixture/.dagger-typescript-sdk-skip-generate
-```
-
-The marker only affects module generation; registered clients are unaffected.
-
 ## Development
 
 Run the end-to-end checks:

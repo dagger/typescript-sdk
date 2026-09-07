@@ -184,9 +184,6 @@ type Fixtures {
   let lookupNested: String! = lookupModule + "/nested"
   let nonTsModule: String! = root + "/lookup/not-ts"
 
-  # A module carrying the generate skip marker.
-  let skipModule: String! = root + "/skip/app"
-
   # The one fixture `dagger generate` really regenerates.
   let generateModule: String! = root + "/generate/app"
 
@@ -251,8 +248,7 @@ type Fixtures {
   let clientExisting: String! = root + "/client/existing"
 
   """
-  The module scopes this workspace records under [sdks.typescript.scopes], minus
-  the two behind a skip marker.
+  The module scopes this workspace records under [sdks.typescript.scopes].
 
   Mirrors dagger.toml by hand: a check cannot read the scope list back out of the
   engine, so this is the copy that has to be kept in step — and the check that
@@ -268,9 +264,9 @@ type Fixtures {
   ]
 
   """
-  Every fixture configured by dagger-module.toml, including the skipped ones.
-  These name an engine release, so they are the ones that can drift from the
-  release this SDK's bundle is built for.
+  Every fixture configured by dagger-module.toml, whether or not it is a
+  registered scope. These name an engine release, so they are the ones that can
+  drift from the release this SDK's bundle is built for.
   """
   let managedTomlFixtures: [String!]! = [
     managedTomlModule,

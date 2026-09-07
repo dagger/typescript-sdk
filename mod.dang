@@ -16,11 +16,6 @@ type Mod {
   let ws: Workspace!
 
   """
-  Marker filename that skips generate when found at or above this module root.
-  """
-  let skipGenerateFilename: String!
-
-  """
   This module root relative to the client's current location: "." when the cwd is
   the module itself, "sub/mod" for a module beneath it, ".." for an enclosing one.
   A cwd-relative view of rootPath, so listings read the way a shell user would.
@@ -56,13 +51,6 @@ type Mod {
   }
 
   """
-  Whether this module or an ancestor contains the configured generate skip marker.
-  """
-  skipGenerate(ws: Workspace!): Boolean! {
-    hasMarker(ws, skipGenerateFilename)
-  }
-
-  """
   Manage this module's TypeScript SDK build configuration (package.json,
   deno.json).
   """
@@ -71,14 +59,6 @@ type Mod {
       sourcePath: sourcePath,
       ws: ws,
     )
-  }
-
-  """
-  Whether this module root or an ancestor contains a marker filename.
-  """
-  let hasMarker(ws: Workspace!, filename: String!): Boolean! {
-    let markerPath = ws.findUp(name: filename, from: rootPath)
-    markerPath != null
   }
 
   """
@@ -99,8 +79,6 @@ type Mod {
       # The engine owns these end to end; this SDK generates the scopes recorded
       # in dagger.toml, and a legacy module cannot be one.
       raise "module is configured by dagger.json, which the engine's runtime generates: " + rootPath
-    } else if (skipGenerate(ws)) {
-      ws.changes(ws)
     } else {
       let sdk = TypescriptSdk()
       let generated = sdk.moduleFiles(

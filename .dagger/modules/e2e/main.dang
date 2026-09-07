@@ -10,8 +10,8 @@ layout — through a synthetic workspace built for it.
 """
 type E2e {
   """
-  Checks for the SDK-level surface: target runtime, skip marker, templates, and
-  the Go helpers' own tests.
+  Checks for the SDK-level surface: target runtime, templates, and the Go
+  helpers' own tests.
   """
   sdk: SdkChecks! {
     SdkChecks

@@ -42,15 +42,6 @@ type TypescriptSdk {
   baseImage: String! = ""
 
   """
-  Marker filename that skips generation when found at or above a scope.
-
-  Private: it is a constant repos depend on, not a knob. Dropping the file
-  anywhere above a scope disables generation for everything beneath it, which no
-  per-scope setting can express.
-  """
-  let skipGenerateFilename: String! = ".dagger-typescript-sdk-skip-generate"
-
-  """
   Files that mark a TypeScript project root, and so a scope this SDK can manage.
   """
   let scopeMarkers: [String!]! = ["package.json", "deno.json", "deno.jsonc", "tsconfig.json"]
@@ -132,9 +123,7 @@ type TypescriptSdk {
   ): Workspace! {
     let scope = scopePath(ws)
 
-    if (hasSkipMarker(ws)) {
-      ws
-    } else if (isModule) {
+    if (isModule) {
       let rt = effectiveRuntime(ws, scope)
       # One path serves init and every later generation: the manifest is what
       # separates them, and seeding is what writes it.
@@ -159,13 +148,6 @@ type TypescriptSdk {
   let scopePath(ws: Workspace!): String! {
     let cwd = ws.cwd.trimPrefix("/").trimSuffix("/")
     if (cwd == "") { "." } else { cwd }
-  }
-
-  """
-  Whether the generate skip marker sits at or above the scope.
-  """
-  let hasSkipMarker(ws: Workspace!): Boolean! {
-    ws.findUp(skipGenerateFilename) != null
   }
 
   """
@@ -227,7 +209,6 @@ type TypescriptSdk {
     Mod(
       rootPath: modPath,
       ws: ws,
-      skipGenerateFilename: skipGenerateFilename,
     )
   }
 

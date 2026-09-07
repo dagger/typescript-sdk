@@ -295,21 +295,4 @@ type GenerateChecks {
 
     null
   }
-
-  """
-  A skip marker above a module should make generate return an empty changeset.
-
-  Uses a managed scope rather than the legacy skip fixture: a dagger.json module
-  is refused before the marker is ever consulted, so it could not tell a working
-  marker from a broken one.
-  """
-  skipGenerateCheck(ws: Workspace!): Void @check {
-    let mod = typescriptSdk.mod(ws, path: fixtures.managedTomlModule)
-    let changes = mod.generate(ws)
-
-    Asserts.assert(mod.skipGenerate(ws), "skip marker was not detected")
-    Asserts.assert(changes.isEmpty, "generate returned changes for a skipped module")
-
-    null
-  }
 }

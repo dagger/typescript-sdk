@@ -1,6 +1,6 @@
 """
 Checks for the SDK-level surface the engine and callers read directly:
-the runtime it targets, the skip marker it honors, and the templates it ships.
+the runtime it targets and the templates it ships.
 """
 type SdkChecks {
   """
@@ -17,28 +17,6 @@ type SdkChecks {
       changes.layer.file(path + "/dagger-module.toml").contents,
       "source = \"typescript\"",
       "a generated manifest should select the builtin typescript runtime",
-    )
-
-    null
-  }
-
-  """
-  The generate skip marker should stop generation for everything at or below the
-  directory holding it. It is the SDK's contract with the repos that drop the
-  file: renaming it, or narrowing it to the marked directory alone, silently
-  starts regenerating trees that opted out.
-
-  Checked through the marker's effect rather than its name, because the filename
-  is private — a setting would be the wrong shape for something that has to work
-  from an ancestor.
-  """
-  skipMarkerCheck(ws: Workspace!): Void @check {
-    # The fixture carries the marker one directory above the module.
-    let changes = Gen.module(ws, Fixtures.managedTomlModule, "managed-toml-app")
-
-    Asserts.assert(
-      changes.isEmpty,
-      "a scope under the skip marker should generate nothing, got: " + changes.addedPaths.join(", "),
     )
 
     null
