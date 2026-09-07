@@ -1,0 +1,173 @@
+"""
+Checks this SDK against an engine built from dagger/dagger#13992 (branch
+sdk-ux-module-max), at the commit `engine-dev` is pinned to in
+dagger-module.toml.
+
+Every other check in this repo drives the SDK's functions directly, against
+whichever engine is running them. None of that reaches the engine half of the
+contract: whether the provider passes the exact-shape validation the engine
+applies before it will record `[sdks.typescript]`, whether a scope's settings
+arrive, whether the module generation writes actually loads. Those are only
+observable through a real CLI, and only on the branch that has the interface.
+
+Bumping the branch means changing two things: the `engine-dev` dependency in
+dagger-module.toml and `engineCommit` below.
+"""
+type EngineE2e {
+  """
+  The dagger/dagger commit the engine is built from. The same value as the
+  `engine-dev` dependency's pin; it is repeated here because the source tree is
+  fetched separately from the module.
+  """
+  let engineCommit: String! = "8fd9b22b5416f8dc7cb420ba37769adef6e874d2"
+
+  let modulePath: String! = ".dagger/modules/sdk-smoke"
+  let settingsPath: String! = ".dagger/modules/sdk-settings"
+  let denoPath: String! = ".dagger/modules/sdk-deno"
+
+  let assert(condition: Boolean!, message: String!): Void {
+    if (condition == false) {
+      raise message
+    }
+    null
+  }
+
+  """
+  This checkout, ready to mount into the playground.
+
+  `.git` is excluded and re-created inside: in a git worktree it is a file
+  pointing at a directory the container does not have, which leaves every git
+  call in the playground following a dangling pointer. The engine is content
+  with an unborn repository, so nothing is committed.
+  """
+  let checkout(ws: Workspace!): Directory! {
+    ws.directory("/", exclude: [
+      ".git",
+      ".remember",
+      "**/node_modules",
+      ".dagger/modules/e2e/fixtures/client/out",
+    ])
+  }
+
+  """
+  A container with the branch engine running and this checkout in place.
+
+  `version` is the engine commit, so the engine's state cache volume is named
+  after it. Left unset it is randomized per call, and every run starts an engine
+  with an empty cache.
+  """
+  let playground(ws: Workspace!): Container! {
+    engineDev(ws: git("https://github.com/dagger/dagger").ref(engineCommit).asWorkspace)
+      .playground(version: engineCommit)
+      .withMountedDirectory("./typescript-sdk", checkout(ws))
+      .withWorkdir("./typescript-sdk")
+      .withExec(["git", "init", "--quiet"])
+  }
+
+  """
+  The branch engine should accept this checkout as the typescript SDK, create a
+  module with it, and run that module.
+
+  Accepting it is the part no other check can reach: the engine validates the
+  provider by exact match on function names, argument names and order, and
+  return types, and a mismatch is silent — `dagger module install` simply never
+  records `[sdks.typescript]`, and this repo becomes a plain installed module.
+  Asserting on the recorded scope entry is what makes that visible here.
+  """
+  devSdkCheck(ws: Workspace!): Void @check {
+    let listed = playground(ws).withExec(["dagger", "sdk", "list"])
+    assert(listed.stdout.contains("typescript"), "the development TypeScript SDK was not listed")
+
+    let initialized = listed
+      .withExec(["dagger", "module", "init", "typescript", "--auto-apply", "--name", "sdk-smoke", "--path", modulePath])
+      .withExec(["test", "-f", modulePath + "/dagger-module.toml"])
+      .withExec(["test", "!", "-e", modulePath + "/dagger.json"])
+      .withExec(["test", "-f", modulePath + "/package.json"])
+      .withExec(["test", "-f", modulePath + "/tsconfig.json"])
+      .withExec(["test", "-f", modulePath + "/src/index.ts"])
+      .withExec(["test", "-f", modulePath + "/sdk/client.gen.ts"])
+      .withExec(["test", "-f", modulePath + "/__dagger.entrypoint.ts"])
+
+    # The whole scope entry, because the engine reserializes dagger.toml from
+    # its own writer whenever a scope path needs quoting — which every path with
+    # a slash in it does — so the block is emitted exactly this way or not at
+    # all.
+    let scopeEntry = "[sdks.typescript.scopes.\"" + modulePath + "\"]\nis-module = true\nname = \"sdk-smoke\"\n"
+    let config = initialized.file("dagger.toml").contents
+    assert(
+      config.contains(scopeEntry),
+      "dagger.toml should record the new module as a typescript scope, got: " + config,
+    )
+
+    # baseImageAddress is set by the module's constructor, so a call that
+    # returns it also says the constructor ran and its default was applied.
+    let address = initialized
+      .withExec(["dagger", "-m", modulePath, "call", "base-image-address"])
+      .stdout
+    assert(address.contains("alpine"), "calling the generated module returned: " + address)
+
+    let release = initialized
+      .withExec(["dagger", "-m", modulePath, "call", "container", "file", "--path", "/etc/alpine-release", "contents"])
+      .stdout
+    assert(release.trimSpace != "", "the generated module did not run")
+
+    null
+  }
+
+  """
+  A scope's settings should reach the provider and change what it writes.
+
+  The settings are constructor arguments the CLI flattens into flags, and they
+  are persisted into dagger.toml either way — so an engine that records them and
+  then hands the provider its declared defaults produces a module that silently
+  ignores every flag the user passed. That is what this asserts against, one
+  file per setting rather than the flag's presence in `--help`.
+  """
+  devSdkSettingsCheck(ws: Workspace!): Void @check {
+    playground(ws)
+      .withExec([
+        "dagger", "module", "init", "typescript", "--auto-apply",
+        "--name", "sdk-settings",
+        "--path", settingsPath,
+        "--template", "empty",
+        "--package-manager", "pnpm@9.1.0",
+        "--base-image", "node:24-alpine",
+      ])
+      .withExec(["grep", "-q", "export class SdkSettings {}", settingsPath + "/src/index.ts"])
+      .withExec(["grep", "-q", "pnpm@9.1.0", settingsPath + "/package.json"])
+      .withExec(["grep", "-q", "node:24-alpine", settingsPath + "/package.json"])
+      # runtime is the setting that changes which config files exist at all, so
+      # it gets its own module rather than another grep.
+      .withExec([
+        "dagger", "module", "init", "typescript", "--auto-apply",
+        "--name", "sdk-deno",
+        "--path", denoPath,
+        "--runtime", "deno",
+      ])
+      .withExec(["test", "-f", denoPath + "/deno.json"])
+      .withExec(["test", "!", "-e", denoPath + "/package.json"])
+      .sync
+
+    null
+  }
+
+  """
+  The SDK's own check suite should pass against the branch engine too.
+
+  It passes on the released engine, which is where CI runs it — but the branch
+  is the engine this work targets, and the two disagree about the interface
+  under every one of these checks. The groups are named rather than left to a
+  bare `dagger check` for three reasons: this module is one of the workspace's,
+  so an unfiltered run would build another engine inside this one and recurse;
+  `packager:*` opens a further nested privileged session of its own; and leaving
+  `engine-e2e` out of the selection keeps the inner engine from cloning
+  dagger/dagger again.
+  """
+  checksCheck(ws: Workspace!): Void @check {
+    playground(ws)
+      .withExec(["dagger", "check", "e-2-e:**", "runtimes:**"])
+      .sync
+
+    null
+  }
+}
