@@ -134,13 +134,22 @@ type TypescriptSdk {
       # neither means lay down the starter.
       let hasToml = hasScopeFile(ws, scope, "dagger-module.toml")
       let hasJSON = hasScopeFile(ws, scope, "dagger.json")
-      let seeded = if (hasToml or hasJSON) { ws } else { seedModule(ws, scope, name, rt) }
+      # Everything below addresses the workspace from its root, and the engine
+      # requires that of one thing in particular: it resolves a module's local
+      # [[dependencies]] to workspace-root-relative paths and then reads them
+      # relative to Workspace.cwd (ResolveDepToSource), so at the scope's own
+      # cwd a dependency is looked for underneath the module that declares it.
+      let rooted = ws.withWorkdir(".")
+      let seeded = if (hasToml or hasJSON) { rooted } else { seedModule(rooted, scope, name, rt) }
       let configured = if (hasToml) { seeded } else { withModuleManifest(seeded, scope, name, hasJSON) }
       # A module's files follow its manifest's `source`, which migration can aim
       # away from the directory holding the manifest.
       let source = moduleSourcePath(configured, scope)
 
+      # Back to the cwd the engine set: it rejects a generateScope that returns
+      # a workspace standing somewhere else.
       clientScope(moduleFiles(configured, scope, source, name, rt), source, true, clients)
+        .withWorkdir(scope)
     } else {
       clientScope(ws, scope, false, clients)
     }
