@@ -375,11 +375,16 @@ through the builder, so rewriting one would preserve `source`, `include`,
 `[[dependencies]]` and `[codegen]` — but this SDK records a scope's clients as a
 generated package rather than as manifest dependencies (§4.8), so it has nothing
 to reconcile into a manifest that already exists, and rewriting one would only
-reformat hand-written files. It would not even be a fixed point: the builder
-normalizes an absent `source` to `"."`, so the manifest this SDK wrote at init
-comes back changed on the very next generation, and `dagger generate` reports a
-diff nobody asked for. The Python SDK does regenerate every time, because it
-*does* write clients into `[[dependencies]]` and has to reconcile them.
+reformat what someone wrote by hand. The Python SDK does regenerate every time,
+because it *does* write clients into `[[dependencies]]` and has to reconcile
+them.
+
+Writing once also used to be what kept generation a fixed point: the builder
+spelled an absent module source out as `source = "."`, so a manifest written at
+init came back changed on the next run. `dagger/sdk-helpers@64645f1` stopped
+writing the default, and `generateMigratesLegacyConfigCheck` now asserts the
+migrated manifest leaves it unwritten — so that hazard is the dependency's to
+keep away, not an argument this decision still rests on.
 
 **A pre-1.0 `dagger.json` is migrated**, which is the one case where a scope with
 a module still needs a manifest written. The `dagger.json` is loaded, re-emitted

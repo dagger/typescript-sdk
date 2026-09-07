@@ -333,6 +333,15 @@ type GenerateChecks {
       "source = \"typescript\"",
       "the migrated manifest should select the builtin typescript runtime",
     )
+    # A dagger.json without a `source` means the manifest directory, and so does
+    # a dagger-module.toml without one — so migration has nothing to write here.
+    # The builder used to spell it out as `source = "."`, which made the file
+    # this SDK writes differ from the one it would write on the next run.
+    Asserts.stringNotContains(
+      manifest,
+      "\nsource = \".\"",
+      "the migrated manifest should leave the default module source unwritten",
+    )
     Asserts.assert(
       Asserts.contains(changes.modifiedPaths, path + "/src/index.ts") == false,
       "migrating an existing module should not scaffold over its source",

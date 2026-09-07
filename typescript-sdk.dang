@@ -319,11 +319,8 @@ type TypescriptSdk {
 
   A scope that already has a manifest does not come through here at all. This
   SDK records a scope's clients as a generated package rather than as manifest
-  dependencies, so it has nothing to reconcile into a manifest that exists —
-  and rewriting one anyway would reformat hand-written files for nothing. It
-  would not even be a round-trip: the builder normalizes an absent `source` to
-  `"."`, so a manifest this SDK wrote would come back changed on the very next
-  generation.
+  dependencies, so it has nothing to reconcile into a manifest that exists, and
+  rewriting one would only reformat what someone wrote by hand.
   """
   let withModuleManifest(ws: Workspace!, scope: String!, name: String!, hasJSON: Boolean!): Workspace! {
     let tomlPath = "/" + scopeFile(scope, "dagger-module.toml")
