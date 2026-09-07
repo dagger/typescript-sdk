@@ -85,18 +85,18 @@ type TypescriptSdk {
   let defaultTemplate: String! = "default"
 
   """
-  Detect the TypeScript project containing the workspace cwd.
+  Find the TypeScript project containing the workspace cwd.
 
   The engine calls this to decide which scope a `dagger module client add`
   belongs to, and which SDK owns it: every installed SDK is asked, and the
-  deepest answer wins. Returning "" means this SDK manages nothing here, so a
+  deepest answer wins. Answering null means this SDK manages nothing here, so a
   directory with no TypeScript project is left to another SDK rather than
   claimed.
 
   The result is workspace-root-relative and must contain the cwd; the engine
   rejects anything else.
   """
-  detectScope(ws: Workspace!): String! {
+  findClientRoot(ws: Workspace!): String {
     # Deepest marker wins, regardless of which filename found it: a package.json
     # beside the cwd describes the cwd's project, an ancestor's describes the
     # monorepo above it.
@@ -105,7 +105,7 @@ type TypescriptSdk {
       if (configHitDepth(hit) > configHitDepth(acc)) { hit } else { acc }
     }
 
-    if (found == null) { "" } else { dirOf(found) }
+    if (found == null) { null } else { dirOf(found) }
   }
 
   """

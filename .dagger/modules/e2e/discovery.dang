@@ -1,6 +1,6 @@
 """
-Checks for `typescriptSdk.detectScope` — which directory this SDK claims as the
-project containing the workspace cwd.
+Checks for `typescriptSdk.findClientRoot` — which directory this SDK claims as
+the project containing the workspace cwd.
 
 Detection replaces the engine-owned module list the beta interface handed us.
 The engine asks every installed SDK where the cwd belongs and takes the deepest
@@ -24,10 +24,10 @@ type DiscoveryChecks {
   }
 
   """
-  The scope this SDK detects from `cwd` in a workspace holding `files`.
+  The client root this SDK detects from `cwd` in a workspace holding `files`.
   """
-  let detected(files: [String!]!, cwd: String!): String! {
-    typescriptSdk.detectScope(workspaceWith(files, cwd))
+  let detected(files: [String!]!, cwd: String!): String {
+    typescriptSdk.findClientRoot(workspaceWith(files, cwd))
   }
 
   """
@@ -100,18 +100,18 @@ type DiscoveryChecks {
   """
   With no marker at or above the cwd, detection should decline.
 
-  Returning "" is how the engine learns this SDK manages nothing here, so
+  Answering null is how the engine learns this SDK manages nothing here, so
   another SDK can claim the directory. Claiming it anyway would make every
   `dagger module client add` in a non-TypeScript tree ambiguous.
   """
   detectDeclinesCheck: Void @check {
     Asserts.assert(
-      detected(["services/api/go.mod"], "services/api") == "",
+      detected(["services/api/go.mod"], "services/api") == null,
       "detection should decline a directory with no TypeScript project",
     )
     # A marker *below* the cwd is not a project the cwd belongs to.
     Asserts.assert(
-      detected(["apps/web/package.json", ".keep"], ".") == "",
+      detected(["apps/web/package.json", ".keep"], ".") == null,
       "a marker below the cwd should not be detected as its scope",
     )
 
@@ -125,11 +125,11 @@ type DiscoveryChecks {
   """
   detectRealTreeCheck(ws: Workspace!): Void @check {
     Asserts.assert(
-      typescriptSdk.detectScope(ws.withWorkdir(fixtures.existingNode)) == fixtures.existingNode,
+      typescriptSdk.findClientRoot(ws.withWorkdir(fixtures.existingNode)) == fixtures.existingNode,
       "a directory with a user package.json should be its own scope",
     )
     Asserts.assert(
-      typescriptSdk.detectScope(ws.withWorkdir(fixtures.parentSourceCode)) == fixtures.parentSourceCode,
+      typescriptSdk.findClientRoot(ws.withWorkdir(fixtures.parentSourceCode)) == fixtures.parentSourceCode,
       "the migration fixture's source tree should be a scope of its own",
     )
 
