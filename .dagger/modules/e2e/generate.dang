@@ -385,6 +385,42 @@ type GenerateChecks {
   }
 
   """
+  A module whose manifest points `source` at a Deno project elsewhere is
+  regenerated as Deno.
+
+  The runtime is detected from the config files sitting with the module's code,
+  and in the split layout `dagger setup` produces those are not beside the
+  manifest. Detecting at the manifest's directory finds no deno.json, so the
+  module is written as a Node one — package.json and tsconfig.json laid into a
+  Deno project, which then cannot resolve @dagger.io/dagger at all.
+  """
+  generateSplitSourceRuntimeCheck(ws: Workspace!): Void @check {
+    let changes = Gen.module(ws, fixtures.splitDenoModule, "split-deno-app")
+
+    Asserts.generated(changes, fixtures.splitDenoCode + "/sdk/client.gen.ts")
+    Asserts.generated(changes, fixtures.splitDenoCode + "/deno.json")
+
+    Asserts.notAdded(
+      changes,
+      fixtures.splitDenoCode + "/package.json",
+      "a split-layout Deno module should not be given a package.json",
+    )
+    Asserts.notAdded(
+      changes,
+      fixtures.splitDenoCode + "/tsconfig.json",
+      "a split-layout Deno module resolves through deno.json, not tsconfig paths",
+    )
+
+    Asserts.stringContains(
+      changes.after.directory(fixtures.splitDenoCode).file("deno.json").contents,
+      "./sdk/index.ts",
+      "deno.json should import @dagger.io/dagger from the generated sdk",
+    )
+
+    null
+  }
+
+  """
   A module with a local dependency should get bindings for it.
 
   Dependency edges still exist in a manifest even though new wiring goes through

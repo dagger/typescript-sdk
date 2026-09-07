@@ -1,0 +1,6 @@
+name = "split-deno-app"
+engineVersion = "v1.0.0-beta.11"
+source = "../../../code"
+
+[runtime]
+  source = "typescript"

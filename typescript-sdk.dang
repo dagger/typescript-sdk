@@ -127,7 +127,6 @@ type TypescriptSdk {
     let scope = scopePath(ws)
 
     if (isModule) {
-      let rt = effectiveRuntime(ws, scope)
       # One path serves init, migration and every later generation, and which
       # config the scope arrived with is what separates them: a manifest means
       # generate it as it stands, only a dagger.json means migrate it first,
@@ -140,11 +139,23 @@ type TypescriptSdk {
       # relative to Workspace.cwd (ResolveDepToSource), so at the scope's own
       # cwd a dependency is looked for underneath the module that declares it.
       let rooted = ws.withWorkdir(".")
-      let seeded = if (hasToml or hasJSON) { rooted } else { seedModule(rooted, scope, name, rt) }
+      # Seeding detects from the scope because there is no manifest yet to
+      # resolve a `source` out of — and a scope with no module is its own source
+      # directory anyway.
+      let seeded = if (hasToml or hasJSON) {
+        rooted
+      } else {
+        seedModule(rooted, scope, name, effectiveRuntime(rooted, scope))
+      }
       let configured = if (hasToml) { seeded } else { withModuleManifest(seeded, scope, name, hasJSON) }
       # A module's files follow its manifest's `source`, which migration can aim
-      # away from the directory holding the manifest.
+      # away from the directory holding the manifest. The config the runtime is
+      # detected from moves with them, so `source` has to be resolved before the
+      # runtime is: a split-layout Deno module keeps its deno.json beside its
+      # code, and detecting at the manifest's directory would regenerate it as
+      # Node and leave it unable to resolve @dagger.io/dagger at all.
       let source = moduleSourcePath(configured, scope)
+      let rt = effectiveRuntime(configured, source)
 
       # Back to the cwd the engine set: it rejects a generateScope that returns
       # a workspace standing somewhere else.
