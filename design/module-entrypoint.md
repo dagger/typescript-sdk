@@ -13,6 +13,13 @@
 >
 > Spec: `future/module-manifest-v2/spec.md` on that branch. Example:
 > `future/module-manifest-v2/example-go-sdk.md`.
+>
+> **Reads against [#13992](https://github.com/dagger/dagger/pull/13992)**
+> (`sdk-ux-module-max`), which replaces the SDK-module interface this repo
+> implements, and against its TypeScript counterpart
+> [typescript-sdk#42](https://github.com/dagger/typescript-sdk/pull/42), which is
+> the SDK-side baseline everything here builds on. The two engine PRs **disagree
+> about the manifest** — see §7.1, the one thing to settle before building.
 
 ## 1. Summary
 
@@ -257,21 +264,53 @@ module author can run a function without the engine loading the module.
 
 ## 7. Generation and the manifest
 
-- **We write `dagger-module.toml` now.** Manifest v2 has four values and the
-  engine rejects anything else, so the file is fully ours to emit. The spec
-  proposes a `moduleManifest(name).withEntrypoint(kind, source).asFile()` builder
-  for exactly this; it is **not in PR #14038**, so until it lands we render the
-  four lines ourselves.
-- **`targetRuntime` (`typescript-sdk.dang:24`) is obsolete.** There is no runtime
-  source to advertise. What replaces it is the entrypoint we generate. Whether
-  the SDK-init contract still asks for a runtime string is an open question
-  (§10.4).
-- **`moduleFiles` (`typescript-sdk.dang:614`) gains two outputs** — `entrypoint/`
-  and the manifest — and both land at `rootPath` (the manifest's directory),
-  where today only files under `sourcePath` are staged.
-- **`sourcePath` becomes ours.** Manifest v2 has no `source` field, so where the
-  implementation sits relative to the manifest is a fact only the generated
-  entrypoint needs to know — baked into the recipe.
+### 7.1 The two engine PRs disagree about the manifest
+
+Settle this first: it decides whether §10.1 and §10.2 are problems at all.
+
+| | #14038 (`manifest-v2`) | #13992 + `sdk-helpers` (`cli-1.0.md:632`) |
+| --- | --- | --- |
+| version marker | `manifestVersion = 2`, required | none — "the TOML schema has no explicit manifest version" |
+| legacy fields | **rejected**: only `manifestVersion`, `name`, `entrypoint.{kind,source}` (`core/modules/config_format.go:230`) | **coexist**: `[entrypoint]` sits beside `[runtime]`, `[[dependencies]]`, `engineVersion`, `source` |
+| old engines | reject the manifest | ignore `[entrypoint]`, use `[runtime]` |
+| new engines | entrypoint path | prefer `[entrypoint]`; error, never fall back, if it is invalid |
+| dependencies | nowhere to declare them | `[[dependencies]]`, unchanged |
+
+The `sdk-helpers` builder implements the second model today: `ModuleManifest`
+has `withDangEntrypoint(source)` / `withModuleEntrypoint(source)` alongside
+`withLegacyRuntime(…)`, validates that *at least one* is present, and emits no
+`manifestVersion`. On #14038's branch such a file parses as a v1 manifest and
+its `[entrypoint]` table is **silently ignored** — `validateCurrentModuleConfigTOML`
+does not reject unknown keys and `CurrentModuleConfig` has no `entrypoint` tag.
+
+The additive model is much better for us: a single generated module keeps
+working on engines that predate entrypoints, dependencies and `engineVersion`
+survive, and `source` stays available for migrated layouts. This design assumes
+it wins; if the versioned model wins instead, §10.1 and §10.2 become blocking.
+
+### 7.2 Plumbing (post-#13992)
+
+The SDK-module interface this repo implements is being replaced —
+`findClientRoot(ws)` plus `generateScope(ws, isModule, name, clients) -> Workspace!`,
+with `defaultModulePath` optional — and typescript-sdk#42 has already migrated
+us to it (`detectScope`, `generateScope`, `moduleFiles(ws, scope, sourcePath,
+name, rt)` returning a `Workspace`, and `seedModule` writing the manifest
+through the `sdk-helpers` builder). So the entrypoint work lands on top of that,
+not on the older `generateAll`/`moduleFiles` shape:
+
+- **The manifest is already ours to write.** `seedModule` calls the builder with
+  `.withRuntime(source: runtimeSource)`; adopting an entrypoint is
+  `.withDangEntrypoint("./entrypoint")` in the same call — plus, under the
+  additive model, keeping the legacy runtime beside it for older engines.
+- **`runtimeSource` / `targetRuntime` stays** as long as we emit a `[runtime]`
+  table for older engines; it becomes dead the day we stop.
+- **`generateScope` gains one output**: `entrypoint/main.dang`, written into the
+  scope next to the manifest. The engine sets `Workspace.cwd` to the scope before
+  generation and the SDK may write anywhere in the workspace, so this is one more
+  `withFile` in the path that already writes the manifest.
+- **Where the implementation lives is ours.** The manifest's `source` (kept under
+  the additive model) and the generated recipe must agree — the recipe bakes it
+  (§6.1), so `moduleSourcePath` is read once at generation.
 - `.gitattributes`: `entrypoint/** linguist-generated`, and neither the
   entrypoint nor the manifest may be gitignored.
 
@@ -300,23 +339,32 @@ vendoring tsx into `sdk/` (native per-platform binary), and Node's
 `--experimental-strip-types` (refuses the legacy decorators that register the
 user's classes). Bun and Deno need no loader.
 
-### 8.2 `typescript` — still a prerequisite
+### 8.2 `typescript` — half done already
+
+> **Status: the bundle half landed in typescript-sdk#42.**
+> `library/src/index.ts` no longer re-exports `entrypoint`, the committed
+> `library/bundle/core.js` is ~2400 lines smaller and contains **zero**
+> `from "typescript"` imports, and `packager:module-bundle-check` keeps it that
+> way. What remains is the consequence: `helpers/config-updater/main.go:154`
+> still pins `dependencies.typescript` in every generated `package.json`, so
+> modules still declare a dependency they no longer use — and under an entrypoint
+> that is a real install on every call. Drop the pin.
 
 All three runtimes mount the engine's prebuilt `/typescript-library` when the
 module pins the default TypeScript version, and skip installation when that is
 the only dependency (`runtime_node.go:332,391,451`). We write that pin today
 (`helpers/config-updater/main.go:154`).
 
-The dependency is one import edge wide and dead at runtime:
+The dependency was one import edge wide and dead at runtime:
 
-- `library/bundle/core.js` carries 9 top-level `import … from "typescript"`,
+- `library/bundle/core.js` carried 9 top-level `import … from "typescript"`,
   all in the introspector region (the packager builds with
   `--external=typescript`, `.dagger/modules/packager/main.dang:67`).
 - In sources, `typescript` is imported by 15 files, every one under
   `library/src/module/introspector/`.
-- The single edge pulling that region in is `library/src/index.ts` exporting
+- The single edge pulling that region in was `library/src/index.ts` exporting
   `entrypoint`, whose module imports `scan`
-  (`library/src/module/entrypoint/entrypoint.ts:8`).
+  (`library/src/module/entrypoint/entrypoint.ts:8`) — the export #42 removed.
 
 > **Not the generated entrypoint.** `entrypoint` here is the *library function*
 > `@dagger.io/dagger` exports — the legacy dynamic dispatcher that scanned the
@@ -325,11 +373,11 @@ The dependency is one import edge wide and dead at runtime:
 > `TypeDefKind`, `connection`, `dag`, `getRegisteredClass`), and under manifest
 > v2 it needs even less than that.
 
-Build the runtime-only bundle (`library/src/runtime.ts`, the barrel minus
-`export { entrypoint }`), drop the `core.d.ts` declaration and the
-`library/bundle/index.ts` re-export, stop pinning `typescript`. Then a default
-module declares no dependencies, generation bakes "no install", and `call()`
-skips package-manager setup and install outright in all three runtimes.
+With that edge gone, dropping the config-updater pin is the whole remaining
+task: a default module then declares no dependencies, generation bakes "no
+install", and `call()` skips package-manager setup and install outright in all
+three runtimes. It is also worth doing **before** any entrypoint work — it makes
+today's engine runtime stop installing too.
 
 Fallback if it slips: `npm install --omit=dev` of `typescript@5.9.3` is **1.6s
 cold** (measured), cached per module manifest — per module, where the tsx layer
@@ -368,21 +416,26 @@ type. Worth re-checking what else the runtime-only bundle can drop.
 
 ## 10. Risks and open questions
 
-**10.1 — Where do dependencies come from?** Manifest v2 rejects
-`[[dependencies]]`, and the workspace config has no per-module dependency list
-either (`core/workspace/config.go:81`). Our module codegen generates
-`sdk/<dep>.gen.ts` from the module's dependency closure, so this is load-bearing
-for us: either dependencies become workspace-scoped (every registered module is
-visible), or they move somewhere else entirely. **Blocking question for the
-engine team** — the answer changes what module codegen reads, and it interacts
-directly with [`unified-clients.md`](./unified-clients.md), where each module
-client carries its own `MODULE_REF`/`MODULE_PIN` and can serve itself.
+**10.0 — Which manifest model ships.** §7.1. Everything below marked
+*versioned-only* disappears under the additive model, so this is the first
+question to ask, not the last.
 
-**10.2 — `engineVersion` is gone from the manifest.** `targetEngineVersion`
-(`typescript-sdk.dang:36`) and the fixtures pin it today, and the committed
-bundle is built for one engine release. With no version in the manifest, the
-pairing between a generated module and the engine that runs it becomes implicit.
-Ask how version gating is expressed for v2 modules.
+**10.1 — Where do dependencies come from?** *(versioned-only.)* A
+`manifestVersion = 2` manifest rejects `[[dependencies]]`, and the workspace
+config has no per-module dependency list either (`core/workspace/config.go:81`).
+Our module codegen generates `sdk/<dep>.gen.ts` from the module's dependency
+closure, and #42's own `dagger.toml` documents modules that still depend on each
+other through the manifest — so under the versioned model, either dependencies
+become workspace-scoped or they move somewhere else entirely. It also interacts
+with [`unified-clients.md`](./unified-clients.md), where each module client
+already carries its own `MODULE_REF`/`MODULE_PIN` and can serve itself. Under
+the additive model, nothing changes.
+
+**10.2 — `engineVersion`.** *(versioned-only.)* `targetEngineVersion`
+(`typescript-sdk.dang:36`) pins the release the committed bundle is built for,
+and `seedModule` writes it into every manifest. A versioned v2 manifest has no
+field for it, making the pairing between a generated module and the engine that
+runs it implicit.
 
 **10.3 — Which workspace, and what about remote modules?** `call()` receives
 `currentWorkspace` — the *caller's* workspace. That is a real gain for local
@@ -394,10 +447,11 @@ the module context (`core/sdk/dang/shared/shared.go:53`) — but this is exactly
 the thing the embedded-runtime design forbade, so **verify it first**: it decides
 whether the recipe mounts the workspace, the module source, or both.
 
-**10.4 — What the SDK contract becomes.** With no runtime to advertise and the
-engine writing no manifest, it is unclear what `targetRuntime`, `initModule` and
-the `@generate` rollup look like for a v2 SDK. The spec's `moduleManifest`
-builder suggests the SDK owns the manifest; confirm before building around it.
+**10.4 — Two moving contracts at once.** The SDK-module interface is being
+replaced by #13992 (`findClientRoot` / `generateScope`) at the same time as the
+module-loading contract is replaced by #14038 (`types` / `call`). #42 lands the
+first; this design lands the second on top. They are independent — but the
+entrypoint work should not start until #42 settles, or it rebases twice.
 
 **10.5 — Error fidelity.** Today the dispatcher returns structured errors
 (`dag.error(msg).withValue(k, v)` via `returnError`, carrying extensions). Under
@@ -420,17 +474,20 @@ needs neither, which softens it considerably.
 
 ## 11. Rollout
 
-1. **§8.2 first** — runtime-only bundle, drop the `entrypoint` export and its
-   declaration, stop pinning `typescript`. Independently correct and landable
-   against today's engine.
-2. **Answer §10.1 and §10.3** with the engine team. Dependencies and module-source
-   access decide the shape of both codegen and the recipe.
+0. **Land typescript-sdk#42** — the module-max interface is the floor this
+   builds on, and the runtime-only bundle came with it (§8.2).
+1. **Drop the `typescript` pin** from `helpers/config-updater`. What is left of
+   §8.2, independently correct, and it makes today's engine runtime stop
+   installing too.
+2. **Settle §7.1** — versioned vs. additive manifest — and with it §10.1 and
+   §10.2. Then **§10.3**: whether `currentModule.source` is reachable from an
+   entrypoint, which decides what the recipe mounts.
 3. **Retarget the typedef renderer to Dang** (§5), against the same `typedef.json`
-   the entrypoint renderer already consumes. Testable offline with golden files
+   the dispatcher renderer already consumes. Testable offline with golden files
    before any engine supports it.
 4. **Simplify the dispatcher** (§6.3) and add developer mode.
 5. **Render `call()` per JS runtime** (§6.2) with generation-time detection
-   (§6.1), and emit the v2 manifest (§7).
+   (§6.1), and write the entrypoint into `generateScope` (§7.2).
 6. **Verify end to end** against an engine built from #14038, then flip the
    fixtures (§9.3) and take the numbers (§9.6).
 7. **Legacy `dagger.json` modules stay with the engine's builtin runtime** and are
