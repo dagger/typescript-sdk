@@ -163,10 +163,23 @@ type TypescriptSdk {
       # in the schema the bindings are generated from.
       let served = withClientDependencies(configured, scope, source, targets)
 
+      # First pass. The module is loadable afterwards, which is what the self
+      # target needs.
+      let staged = moduleFiles(served, scope, source, name, rt, targets)
+      # The module's own API is a target like any other from here on: folded into
+      # its bindings so its source can call itself, and rendered into the
+      # standalone package so callers outside it can too.
+      let selfTargets = selfClientTarget(staged, scope, name)
+      let withSelf = targets + selfTargets
+
       # Back to the cwd the engine set: it rejects a generateScope that returns
       # a workspace standing somewhere else.
-      clientScope(moduleFiles(served, scope, source, name, rt, targets), source, true, targets)
-        .withWorkdir(scope)
+      clientScope(
+        withSelfBindings(staged, scope, source, name, withSelf, selfTargets),
+        source,
+        true,
+        withSelf,
+      ).withWorkdir(scope)
     } else {
       clientScope(ws, scope, false, clientTargets(clients))
     }
@@ -904,13 +917,12 @@ type TypescriptSdk {
   """
   let moduleFiles(ws: Workspace!, scope: String!, sourcePath: String!, name: String!, rt: Runtime!, targets: [ClientTarget!]!): Workspace! {
     let sourcePrefix = if (sourcePath == ".") { "" } else { sourcePath + "/" }
-    let schemaJSON = ws.moduleSource("/" + scope).introspectionSchemaJSON.contents
 
     let existing = existingDir(ws, sourcePath)
       .withoutFiles(moduleBindings(ws, sourcePath).map { entry => "sdk/" + entry })
 
     let generated = moduleDirectory(
-      schemaJSON,
+      ws.moduleSource("/" + scope).introspectionSchemaJSON.contents,
       name,
       ws.directory("/" + sourcePrefix + "src"),
       existingModuleConfig(ws, sourcePath),
@@ -922,23 +934,31 @@ type TypescriptSdk {
     # it. withNewDirectory swaps the whole directory, so writing only what we
     # generate would say everything else — the module's config and its source —
     # had been deleted.
-    let staged = ws.withNewDirectory("/" + sourcePath, existing.withDirectory(".", generated))
+    ws.withNewDirectory("/" + sourcePath, existing.withDirectory(".", generated))
+  }
 
-    # Second pass, for the self call. A module's own API is not in the schema its
-    # bindings come from, and reading the schema that does carry it means loading
-    # the module — which needs the files the first pass just wrote. Both passes
-    # run every time, from the same inputs, so the result does not depend on what
-    # was on disk when the run started.
-    let selfTarget = selfClientTarget(staged, scope, name)
-    if (selfTarget.length == 0) {
-      staged
+  """
+  Rewrite a module's bindings with its own API folded in.
+
+  The second of generation's two passes. A module's own API is not in the schema
+  its bindings come from, and reading the schema that does carry it means loading
+  the module — which needs the files the first pass just wrote. Both passes run
+  every time, from the same inputs, so the result does not depend on what was on
+  disk when the run started.
+
+  Only the bindings are redone. The entrypoint comes from scanning the user's
+  source, which the self types do not change, and it is the expensive half.
+  """
+  let withSelfBindings(ws: Workspace!, scope: String!, sourcePath: String!, name: String!, targets: [ClientTarget!]!, selfTargets: [ClientTarget!]!): Workspace! {
+    if (selfTargets.length == 0) {
+      # Nothing to fold in, so the first pass already wrote the right bindings.
+      ws
     } else {
-      # Only the bindings are redone. The entrypoint comes from scanning the
-      # user's source, which the self types do not change, and it is the
-      # expensive half.
-      staged.withNewDirectory(
+      ws.withNewDirectory(
         "/" + moduleSdkPath(sourcePath),
-        moduleSdkDirectory(generateModuleBindings(schemaJSON, name, targets + selfTarget)),
+        moduleSdkDirectory(
+          generateModuleBindings(ws.moduleSource("/" + scope).introspectionSchemaJSON.contents, name, targets),
+        ),
       )
     }
   }
@@ -954,16 +974,30 @@ type TypescriptSdk {
   could not load before a run loads with the run's changes applied.
   """
   let selfClientTarget(ws: Workspace!, scope: String!, name: String!): [ClientTarget!]! {
-    let schema = ws.moduleSource("/" + scope).clientSchemaIntrospectionJSON.contents rescue {
-      err: Error => ""
+    let selfSource = ws.moduleSource("/" + scope).{{ kind, clientSchemaIntrospectionJSON.{{ contents }} }} rescue {
+      err: Error => null
     }
 
-    if (schema == "") {
+    if (selfSource == null) {
       []
     } else {
-      # Never a dependency and never in the standalone package: a module does not
-      # depend on itself, and the engine already serves it into its own session.
-      [ClientTarget(name: name, schemaJSON: schema, kindJSON: "\"\"", isLocal: true, path: scope, ref: "", pin: "", isSelf: true)]
+      # A local module like any other from the package's point of view: the
+      # generated bootstrap serves it by resolving `scope` against the workspace,
+      # so a caller outside the module reaches it the same way it reaches a
+      # target that was added on purpose.
+      #
+      # Never a dependency, though — a module does not depend on itself, and the
+      # engine already serves it into its own session.
+      [ClientTarget(
+        name: name,
+        schemaJSON: selfSource.clientSchemaIntrospectionJSON.contents,
+        kindJSON: JSON.encode(selfSource.kind),
+        isLocal: true,
+        path: scope,
+        ref: "",
+        pin: "",
+        isSelf: true,
+      )]
     }
   }
 

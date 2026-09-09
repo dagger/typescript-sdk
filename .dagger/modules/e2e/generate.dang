@@ -267,11 +267,29 @@ type GenerateChecks {
   generateSelfCallCheck(ws: Workspace!): Void @check {
     let path = fixtures.depLibModule
     let changes = Gen.module(ws, path, "gendep")
+    let tree = changes.after.directory(path)
 
+    # Its own file, like any other module's, and re-exported so the module's
+    # source reaches it through @dagger.io/dagger.
+    Asserts.generated(changes, path + "/sdk/gendep.gen.ts")
     Asserts.stringContains(
-      changes.after.directory(path).file("sdk/client.gen.ts").contents,
-      "gendep",
-      "a module's bindings should expose its own API for the self call",
+      tree.file("sdk/client.gen.ts").contents,
+      "./gendep.gen.js",
+      "a module's bindings should re-export its own API",
+    )
+    Asserts.stringContains(
+      tree.file("sdk/gendep.gen.ts").contents,
+      "gendep()",
+      "the self accessor should be camelCase like every other member",
+    )
+
+    # And in the standalone package, so callers outside the module reach it the
+    # same way they reach a target that was added on purpose.
+    Asserts.generated(changes, path + "/clients/gendep.gen.ts")
+    Asserts.stringContains(
+      changes.after.directory(path).file("clients/dagger.gen.ts").contents,
+      path,
+      "the package's bootstrap should serve the module itself",
     )
 
     null
