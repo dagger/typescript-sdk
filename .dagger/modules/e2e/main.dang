@@ -9,6 +9,9 @@ workspace or — where a check needs to control the caller cwd or the module
 layout — through a synthetic workspace built for it.
 """
 type E2e {
+  """Checks for manifest pins and local dependency paths."""
+  manifest: ManifestChecks! { ManifestChecks() }
+
   """
   Checks for the SDK-level surface: target runtime, templates, and the Go
   helpers' own tests.
