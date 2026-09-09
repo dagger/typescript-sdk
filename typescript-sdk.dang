@@ -156,14 +156,16 @@ type TypescriptSdk {
       # Node and leave it unable to resolve @dagger.io/dagger at all.
       let source = moduleSourcePath(configured, scope)
       let rt = effectiveRuntime(configured, source)
-
-      # The same targets feed both halves: the standalone package a caller
-      # installs, and the module's own bindings so its source can bind them too.
+      # The same targets feed three things: the module's runtime dependencies,
+      # its own bindings, and the standalone package a caller installs.
       let targets = clientTargets(clients)
+      # Before the schema is read: a target that is not a dependency yet is not
+      # in the schema the bindings are generated from.
+      let served = withClientDependencies(configured, scope, source, targets)
 
       # Back to the cwd the engine set: it rejects a generateScope that returns
       # a workspace standing somewhere else.
-      clientScope(moduleFiles(configured, scope, source, name, rt, targets), source, true, targets)
+      clientScope(moduleFiles(served, scope, source, name, rt, targets), source, true, targets)
         .withWorkdir(scope)
     } else {
       clientScope(ws, scope, false, clientTargets(clients))
@@ -188,6 +190,29 @@ type TypescriptSdk {
   let dirOf(path: String!): String! {
     let dir = path.trimPrefix("/").split("/").dropLast(1).join("/")
     if (dir == "") { "." } else { dir }
+  }
+
+  """
+  `to` expressed relative to `from`, both workspace-root-relative.
+
+  A manifest records a local dependency relative to the module that declares it,
+  while everything the engine hands this SDK is measured from the workspace root.
+  """
+  let relativeFrom(from: String!, to: String!): String! {
+    let fromParts = if (from == ".") { [] } else { from.split("/") }
+    let toParts = if (to == ".") { [] } else { to.split("/") }
+
+    # Longest prefix of `from` that also prefixes `to`. Walked by length rather
+    # than by pairing elements, so it needs no indexing: a prefix of length n+1
+    # only matches when the one of length n does, which makes the fold monotonic.
+    let shared = fromParts.reduce(0) { depth, part =>
+      let candidate = fromParts.dropLast(fromParts.length - depth - 1).join("/")
+      if (to == candidate or to.hasPrefix(candidate + "/")) { depth + 1 } else { depth }
+    }
+
+    let ups = fromParts.dropFirst(shared).map { part => ".." }
+    let joined = (ups + toParts.dropFirst(shared)).join("/")
+    if (joined == "") { "." } else { joined }
   }
 
   """
@@ -321,10 +346,9 @@ type TypescriptSdk {
   pin — comes out the other side. Only a scope the workspace records is ever
   generated, so migration reaches a module because someone asked for it.
 
-  A scope that already has a manifest does not come through here at all. This
-  SDK records a scope's clients as a generated package rather than as manifest
-  dependencies, so it has nothing to reconcile into a manifest that exists, and
-  rewriting one would only reformat what someone wrote by hand.
+  A scope that already has a manifest does not come through here at all;
+  reconciling its clients into it is `withClientDependencies`, which runs for
+  every module scope rather than only the ones being created.
   """
   let withModuleManifest(ws: Workspace!, scope: String!, name: String!, hasJSON: Boolean!): Workspace! {
     let tomlPath = "/" + scopeFile(scope, "dagger-module.toml")
@@ -360,6 +384,44 @@ type TypescriptSdk {
 
     let written = ws.withNewFile(tomlPath, existing.withName(name: name).tomlFile.contents)
     if (hasJSON) { written.withoutFile(jsonPath) } else { written }
+  }
+
+  """
+  Record the scope's client targets as the module's runtime dependencies.
+
+  This is what makes a client callable rather than merely typed. A module's
+  session serves what its manifest lists; a scope's clients live in dagger.toml,
+  which only the engine reads. Without this the bindings generate, type-check,
+  and then fail at run time with `Cannot query field "<target>" on type "Query"`.
+
+  It also has to happen before the module's schema is read, because the schema is
+  what the bindings are generated from: a target that is not a dependency yet is
+  not in it.
+
+  Dependencies are upserted, never pruned. A manifest may carry entries nobody
+  here put there — written by hand, or migrated from a pre-1.0 dagger.json — and
+  they are indistinguishable from ours, so removing the ones that are missing
+  from `targets` would take those with them. The cost is that dropping a client
+  leaves its dependency behind, serving a module whose bindings are gone.
+  """
+  let withClientDependencies(ws: Workspace!, scope: String!, source: String!, targets: [ClientTarget!]!): Workspace! {
+    if (targets.length == 0) {
+      ws
+    } else {
+      let tomlPath = "/" + scopeFile(scope, "dagger-module.toml")
+      let manifest = targets.reduce(sdkHelpers.moduleManifest(loadToml: ws.file(tomlPath))) { built, target =>
+        built.withLegacyRuntimeDependency(
+          # A git target resolves from anywhere by its canonical ref; a local one
+          # is recorded the way a manifest records any local dependency, relative
+          # to the module that declares it.
+          source: if (target.isLocal) { relativeFrom(source, target.path) } else { target.ref },
+          name: target.name,
+          pin: if (target.pin == "") { null } else { target.pin },
+        )
+      }
+
+      ws.withNewFile(tomlPath, manifest.tomlFile.contents)
+    }
   }
 
   """
@@ -680,6 +742,7 @@ type TypescriptSdk {
           name: module.moduleOriginalName,
           schemaJSON: module.clientSchemaIntrospectionJSON.contents,
           kindJSON: JSON.encode(module.kind),
+          isLocal: JSON.encode(module.kind) != "\"GIT_SOURCE\"",
           # Local kinds serve by resolving this against the workspace; git
           # kinds ignore it and serve from ref+pin instead.
           path: module.sourceRootSubpath,
@@ -1066,6 +1129,12 @@ type ClientTarget {
   Encoded at projection time because the engine types it as an enum.
   """
   let kindJSON: String!
+
+  """
+  Whether this target is a local module, and so addressed by path rather than by
+  a canonical ref.
+  """
+  let isLocal: Boolean!
 
   """
   Workspace-root-relative path, for local kinds.
