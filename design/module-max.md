@@ -314,6 +314,21 @@ Two scopes with the same basename (`apps/web`, `services/web`) produce the same
 package name. That only collides if a project installs both, which is not a shape
 the layout produces on its own — worth knowing, not worth designing around.
 
+#### Deferred: one directory instead of two
+
+A module scope writes its targets twice — `sdk/` for its own source, `clients/`
+for callers outside it — and its own API now appears in both, because it is a
+target of itself like any other. That means every module has a `clients/`
+directory, including one with no targets of its own, holding just its own
+bindings.
+
+That is an intermediate state, not the intended end. Once clients are unified
+the two directories merge into `clients/` alone, and the split stops being
+visible. Until then the duplication is the honest shape: the two sets are
+reached differently — one through the bundle as `@dagger.io/dagger`, one as an
+installable package with a serve bootstrap — so a single directory today would
+have to be two things at once.
+
 #### Deferred: moving the module bundle to `src/internal/`
 
 The natural companion — `src/internal/clients` also holding the SDK bundle and
