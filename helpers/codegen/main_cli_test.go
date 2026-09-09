@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -62,9 +63,22 @@ func TestRunDispatch(t *testing.T) {
 			wantErr: "--module-name is required",
 		},
 		{
-			name:    "client without a schema",
+			// A client is generated per scope, so its inputs — one schema and one
+			// bound-module record per target — all arrive through the meta file.
+			name:    "client without meta",
 			args:    []string{"client"},
-			wantErr: "--introspection-json-path is required",
+			wantErr: "--client-meta-path is required",
+		},
+		{
+			name:    "client meta with no modules",
+			args:    []string{"client", "--client-meta-path", writeFile(t, dir, "empty-meta.json", `{"engineVersion":"v0.21.0"}`)},
+			wantErr: "client meta json lists no modules",
+		},
+		{
+			name: "client meta with an unservable module kind",
+			args: []string{"client", "--client-meta-path", writeFile(t, dir, "bad-kind.json",
+				`{"modules":[{"name":"hello","kind":"NOPE","schemaPath":"/absent.json"}]}`)},
+			wantErr: `bound module "hello" has unsupported source kind "NOPE"`,
 		},
 		{
 			name:    "library without a schema",
@@ -122,14 +136,19 @@ func TestRunClient(t *testing.T) {
 	dir := t.TempDir()
 	out := filepath.Join(dir, "out")
 	meta := writeFile(t, dir, "meta.json", `{
-	  "moduleName": "app",
 	  "engineVersion": "v1.0.0-beta.9",
-	  "module": {"kind": "DIR_SOURCE", "path": ".dagger/modules/app"}
+	  "modules": [
+	    {
+	      "name": "app",
+	      "kind": "DIR_SOURCE",
+	      "path": ".dagger/modules/app",
+	      "schemaPath": "`+writeFile(t, dir, "schema.json", minimalSchema)+`"
+	    }
+	  ]
 	}`)
 
 	err := run([]string{
 		"client",
-		"--introspection-json-path", writeFile(t, dir, "schema.json", minimalSchema),
 		"--client-meta-path", meta,
 		"--output", out,
 	})
@@ -140,16 +159,55 @@ func TestRunClient(t *testing.T) {
 	require.Contains(t, string(contents), `from "@dagger.io/dagger"`)
 }
 
-// TestRunClientRejectsUnservableModule guards the fail-closed check: a client
-// serves exactly the module it binds, and a kind with no serve path would
-// produce a client that builds and then cannot reach its module at runtime.
-func TestRunClientRejectsUnservableModule(t *testing.T) {
+// TestRunClientServesEveryTarget covers the whole point of a per-scope package:
+// several modules, one core file, and a bootstrap that serves all of them.
+func TestRunClientServesEveryTarget(t *testing.T) {
 	dir := t.TempDir()
-	meta := writeFile(t, dir, "meta.json", `{"moduleName": "app", "module": {"kind": "WAT"}}`)
+	out := filepath.Join(dir, "out")
+	meta := writeFile(t, dir, "meta.json", `{
+	  "engineVersion": "v1.0.0-beta.9",
+	  "modules": [
+	    {
+	      "name": "app",
+	      "kind": "DIR_SOURCE",
+	      "path": ".dagger/modules/app",
+	      "schemaPath": "`+writeFile(t, dir, "app.json", minimalSchema)+`"
+	    },
+	    {
+	      "name": "payments",
+	      "kind": "GIT_SOURCE",
+	      "ref": "github.com/acme/payments@main",
+	      "pin": "deadbeef",
+	      "schemaPath": "`+writeFile(t, dir, "payments.json", minimalSchema)+`"
+	    }
+	  ]
+	}`)
 
 	err := run([]string{
 		"client",
-		"--introspection-json-path", writeFile(t, dir, "schema.json", minimalSchema),
+		"--client-meta-path", meta,
+		"--output", out,
+	})
+	require.NoError(t, err)
+
+	contents, err := os.ReadFile(filepath.Join(out, "dagger.gen.ts"))
+	require.NoError(t, err)
+	core := string(contents)
+	require.Contains(t, core, `.moduleSource("/.dagger/modules/app")`)
+	require.Contains(t, core, `.moduleSource("github.com/acme/payments@main", { refPin: "deadbeef" })`)
+	// One core file, not one per target: the shared API is emitted once.
+	require.Equal(t, 1, strings.Count(core, "async function serveBoundModule"))
+}
+
+// TestRunClientRejectsUnservableModule guards the fail-closed check: a kind with
+// no serve path would produce a client that builds and then cannot reach its
+// module at runtime.
+func TestRunClientRejectsUnservableModule(t *testing.T) {
+	dir := t.TempDir()
+	meta := writeFile(t, dir, "meta.json", `{"modules": [{"name": "app", "kind": "WAT"}]}`)
+
+	err := run([]string{
+		"client",
 		"--client-meta-path", meta,
 		"--output", filepath.Join(dir, "out"),
 	})

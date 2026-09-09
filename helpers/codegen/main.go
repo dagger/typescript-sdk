@@ -37,26 +37,32 @@ func main() {
 	}
 }
 
-// clientMeta is the bound module's metadata the SDK reads off client.module /
-// client.moduleSource and writes to --client-meta-path. It mirrors the subset
-// the client generator needs (see generator.ClientGeneratorConfig).
+// clientMeta is the scope's client metadata, written by the SDK to
+// --client-meta-path. One generated package serves every module in a scope, so
+// this carries a list: each entry names a module, points at its client-facing
+// schema, and records the provenance the serve bootstrap needs.
 type clientMeta struct {
-	ModuleName    string                `json:"moduleName"`
-	EngineVersion string                `json:"engineVersion"`
-	Module        generator.BoundModule `json:"module"`
+	EngineVersion string             `json:"engineVersion"`
+	Modules       []clientMetaModule `json:"modules"`
+}
+
+// clientMetaModule is one bound module plus the path its schema was staged at.
+type clientMetaModule struct {
+	generator.BoundModule
+	SchemaPath string `json:"schemaPath"`
 }
 
 // validateBoundModuleKind fails closed on a source kind the generated client
-// has no serve path for, rather than emit a client that silently mis-serves. A
-// client serves the one module it binds to: GIT_SOURCE serves from a canonical
-// ref+pin; LOCAL_SOURCE and DIR_SOURCE (how a workspace-local module resolves in
-// practice) serve by resolving the workspace-relative path against the workspace.
+// has no serve path for, rather than emit a client that silently mis-serves:
+// GIT_SOURCE serves from a canonical ref+pin; LOCAL_SOURCE and DIR_SOURCE (how a
+// workspace-local module resolves in practice) serve by resolving the
+// workspace-relative path against the workspace.
 func validateBoundModuleKind(m generator.BoundModule) error {
 	switch m.Kind {
 	case generator.ModuleKindGit, generator.ModuleKindLocal, generator.ModuleKindDir:
 		return nil
 	default:
-		return fmt.Errorf("bound module has unsupported source kind %q", m.Kind)
+		return fmt.Errorf("bound module %q has unsupported source kind %q", m.Name, m.Kind)
 	}
 }
 
@@ -185,6 +191,7 @@ func runModule(args []string) error {
 	var (
 		introspectionPath = fs.String("introspection-json-path", "", "path to the introspection schema JSON")
 		moduleName        = fs.String("module-name", "", "name of the module to generate bindings for")
+		clientMetaPath    = fs.String("client-meta-path", "", "path to the client meta JSON whose modules are folded into these bindings")
 		outputDir         = fs.String("output", ".", "output directory for the generated bindings")
 	)
 	if err := fs.Parse(args); err != nil {
@@ -194,56 +201,208 @@ func runModule(args []string) error {
 		return fmt.Errorf("--module-name is required")
 	}
 
-	return generateFromSchema(
-		"module bindings",
-		*introspectionPath,
-		generator.Config{
-			OutputDir:    *outputDir,
-			ModuleConfig: &generator.ModuleGeneratorConfig{ModuleName: *moduleName},
-		},
-		(*typescriptgenerator.TypeScriptGenerator).GenerateModule,
-	)
+	schema, schemaVersion, err := loadSchema(*introspectionPath)
+	if err != nil {
+		return err
+	}
+
+	if *clientMetaPath != "" {
+		meta, err := loadClientMeta(*clientMetaPath)
+		if err != nil {
+			return err
+		}
+		schema, err = foldClientsIntoModuleSchema(schema, meta.Modules)
+		if err != nil {
+			return err
+		}
+		generator.SetSchemaParents(schema)
+	}
+
+	gen := &typescriptgenerator.TypeScriptGenerator{Config: generator.Config{
+		OutputDir:    *outputDir,
+		ModuleConfig: &generator.ModuleGeneratorConfig{ModuleName: *moduleName},
+	}}
+
+	ctx := context.Background()
+	state, err := gen.GenerateModule(ctx, schema, schemaVersion)
+	if err != nil {
+		return fmt.Errorf("generate module bindings: %w", err)
+	}
+
+	if err := generator.Overlay(ctx, state.Overlay, *outputDir); err != nil {
+		return fmt.Errorf("write generated module bindings: %w", err)
+	}
+
+	return nil
+}
+
+// loadClientMeta reads the scope's client metadata. Both generators consume it:
+// the client one to render the package, the module one to fold the same targets
+// into the module's own bindings.
+func loadClientMeta(path string) (clientMeta, error) {
+	var meta clientMeta
+	metaJSON, err := os.ReadFile(path)
+	if err != nil {
+		return meta, fmt.Errorf("read client meta json: %w", err)
+	}
+	if err := json.Unmarshal(metaJSON, &meta); err != nil {
+		return meta, fmt.Errorf("unmarshal client meta json: %w", err)
+	}
+	return meta, nil
+}
+
+// foldClientsIntoModuleSchema adds each client target's own types to the
+// module-facing schema, so a scope that generates a client for a module also
+// gives the module source that binds it — `sdk/<target>.gen.ts` beside
+// `client.gen.ts`, re-exported through @dagger.io/dagger.
+//
+// Only what the target contributes is folded in. A client's schema is core plus
+// one module, and its core half is the *client-facing* one, which hides nothing;
+// merging that wholesale would pull core types into a module's bindings that the
+// module-facing schema deliberately withholds. Include keeps the target's own
+// types and, on the extendable types, only the fields it contributed.
+func foldClientsIntoModuleSchema(
+	schema *introspection.Schema,
+	modules []clientMetaModule,
+) (*introspection.Schema, error) {
+	if len(modules) == 0 {
+		return schema, nil
+	}
+
+	schemas := []*introspection.Schema{schema}
+	for _, module := range modules {
+		clientSchema, _, err := loadSchema(module.SchemaPath)
+		if err != nil {
+			return nil, fmt.Errorf("client %q: %w", module.Name, err)
+		}
+		// Ask the schema which modules it carries rather than trusting the
+		// recorded name: the split is driven by source-map directives, and a
+		// target's directive name is the only one the filter matches.
+		owned := clientSchema.DependencyNames()
+		if len(owned) == 0 {
+			continue
+		}
+		schemas = append(schemas, clientSchema.Include(owned...))
+	}
+
+	return mergeSchemas(schemas), nil
 }
 
 func runClient(args []string) error {
 	fs := flag.NewFlagSet("client", flag.ExitOnError)
 	var (
-		introspectionPath = fs.String("introspection-json-path", "", "path to the introspection schema JSON")
-		clientMetaPath    = fs.String("client-meta-path", "", "path to the client meta JSON (name, engineVersion, bound module)")
-		outputDir         = fs.String("output", ".", "output directory for the generated client")
+		clientMetaPath = fs.String("client-meta-path", "", "path to the client meta JSON (engineVersion, bound modules)")
+		outputDir      = fs.String("output", ".", "output directory for the generated client")
 	)
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
+	if *clientMetaPath == "" {
+		return fmt.Errorf("--client-meta-path is required")
+	}
 
-	clientConfig := &generator.ClientGeneratorConfig{}
-	if *clientMetaPath != "" {
-		metaJSON, err := os.ReadFile(*clientMetaPath)
-		if err != nil {
-			return fmt.Errorf("read client meta json: %w", err)
-		}
-		var meta clientMeta
-		if err := json.Unmarshal(metaJSON, &meta); err != nil {
-			return fmt.Errorf("unmarshal client meta json: %w", err)
-		}
-		clientConfig.ModuleName = meta.ModuleName
-		clientConfig.EngineVersion = meta.EngineVersion
-		clientConfig.BoundModule = meta.Module
+	meta, err := loadClientMeta(*clientMetaPath)
+	if err != nil {
+		return err
+	}
+	if len(meta.Modules) == 0 {
+		return fmt.Errorf("client meta json lists no modules")
+	}
 
-		if err := validateBoundModuleKind(meta.Module); err != nil {
+	clientConfig := &generator.ClientGeneratorConfig{EngineVersion: meta.EngineVersion}
+	schemas := make([]*introspection.Schema, 0, len(meta.Modules))
+	schemaVersion := ""
+	for _, module := range meta.Modules {
+		if err := validateBoundModuleKind(module.BoundModule); err != nil {
 			return err
+		}
+		schema, version, err := loadSchema(module.SchemaPath)
+		if err != nil {
+			return fmt.Errorf("module %q: %w", module.Name, err)
+		}
+		schemas = append(schemas, schema)
+		schemaVersion = version
+		clientConfig.BoundModules = append(clientConfig.BoundModules, module.BoundModule)
+	}
+
+	schema := mergeSchemas(schemas)
+	generator.SetSchemaParents(schema)
+
+	gen := &typescriptgenerator.TypeScriptGenerator{Config: generator.Config{
+		OutputDir:    *outputDir,
+		ClientConfig: clientConfig,
+	}}
+
+	ctx := context.Background()
+	state, err := gen.GenerateClient(ctx, schema, schemaVersion)
+	if err != nil {
+		return fmt.Errorf("generate client: %w", err)
+	}
+
+	if err := generator.Overlay(ctx, state.Overlay, *outputDir); err != nil {
+		return fmt.Errorf("write generated client: %w", err)
+	}
+
+	return nil
+}
+
+// mergeSchemas folds every target's client-facing schema into one.
+//
+// Each target's schema is core plus that one module, so the core API repeats
+// across all of them while each contributes its own types and its own fields on
+// the extendable types (Query/Binding/Env). Union by name is therefore enough:
+// the first schema supplies core, and every later one adds only what is new.
+// Rendering that union once is what lets a scope's package hold a single copy of
+// the core API however many modules it serves.
+func mergeSchemas(schemas []*introspection.Schema) *introspection.Schema {
+	merged := schemas[0]
+	for _, schema := range schemas[1:] {
+		for _, typ := range schema.Types {
+			existing := merged.Types.Get(typ.Name)
+			if existing == nil {
+				merged.Types = append(merged.Types, typ)
+				continue
+			}
+			mergeTypeMembers(existing, typ)
+		}
+	}
+	return merged
+}
+
+// mergeTypeMembers adds the members of `from` that `into` does not already
+// declare. Only the extendable types actually differ between schemas, but this
+// stays general so a core type gaining a module-contributed member does not
+// silently lose it.
+func mergeTypeMembers(into, from *introspection.Type) {
+	fields := map[string]bool{}
+	for _, field := range into.Fields {
+		fields[field.Name] = true
+	}
+	for _, field := range from.Fields {
+		if !fields[field.Name] {
+			into.Fields = append(into.Fields, field)
 		}
 	}
 
-	return generateFromSchema(
-		"client",
-		*introspectionPath,
-		generator.Config{
-			OutputDir:    *outputDir,
-			ClientConfig: clientConfig,
-		},
-		(*typescriptgenerator.TypeScriptGenerator).GenerateClient,
-	)
+	inputs := map[string]bool{}
+	for _, input := range into.InputFields {
+		inputs[input.Name] = true
+	}
+	for _, input := range from.InputFields {
+		if !inputs[input.Name] {
+			into.InputFields = append(into.InputFields, input)
+		}
+	}
+
+	values := map[string]bool{}
+	for _, value := range into.EnumValues {
+		values[value.Name] = true
+	}
+	for _, value := range from.EnumValues {
+		if !values[value.Name] {
+			into.EnumValues = append(into.EnumValues, value)
+		}
+	}
 }
 
 // loadSchema reads the introspection JSON and prepares it for rendering: the

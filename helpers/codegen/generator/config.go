@@ -35,13 +35,14 @@ const (
 	ModuleKindDir   = "DIR_SOURCE"
 )
 
-// BoundModule identifies the single module a generated client serves. The
-// generated serveBoundModule bootstrap uses Kind to decide how to load it at
-// runtime: a local module (LOCAL_SOURCE/DIR_SOURCE) is resolved against the
-// workspace by its workspace-root-relative Path
+// BoundModule identifies one module a generated client serves. The generated
+// serveBoundModule bootstrap uses Kind to decide how to load it at runtime: a
+// local module (LOCAL_SOURCE/DIR_SOURCE) is resolved against the workspace by
+// its workspace-root-relative Path
 // (dag.currentWorkspace().moduleSource(Path)); a git module (GIT_SOURCE) is
 // served from its canonical Ref + Pin, which resolve from anywhere.
 type BoundModule struct {
+	Name string `json:"name"`
 	Kind string `json:"kind"`
 	Path string `json:"path"`
 	Ref  string `json:"ref"`
@@ -78,9 +79,11 @@ type ClientGeneratorConfig struct {
 	// The name of the module to generate for.
 	ModuleName string
 
-	// BoundModule is the single module the generated client serves; it drives
-	// the generated serveBoundModule bootstrap.
-	BoundModule BoundModule
+	// BoundModules are the modules the generated client serves; they drive the
+	// generated serveBoundModule bootstrap. A client is generated per SDK scope
+	// rather than per module, so one package can serve several — the core API
+	// they share is emitted once.
+	BoundModules []BoundModule
 
 	// The directory where the client will be generated.
 	ClientDir string

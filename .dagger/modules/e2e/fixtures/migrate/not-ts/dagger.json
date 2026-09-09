@@ -1,0 +1,7 @@
+{
+  "name": "migrate-not-ts",
+  "engineVersion": "latest",
+  "sdk": {
+    "source": "go"
+  }
+}

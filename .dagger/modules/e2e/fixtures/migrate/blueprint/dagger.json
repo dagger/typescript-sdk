@@ -1,7 +1,10 @@
 {
-  "name": "skip-app",
+  "name": "migrate-blueprint",
   "engineVersion": "latest",
   "sdk": {
     "source": "typescript"
+  },
+  "blueprint": {
+    "source": "./bp"
   }
 }

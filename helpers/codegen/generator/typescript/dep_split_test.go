@@ -436,7 +436,7 @@ func TestGenerate_Client_ServeBoundModule(t *testing.T) {
 		state, err := generate(generator.Config{
 			ClientConfig: &generator.ClientGeneratorConfig{
 				ModuleName:  "hello",
-				BoundModule: generator.BoundModule{Kind: "DIR_SOURCE", Path: ".dagger/modules/hello"},
+				BoundModules: []generator.BoundModule{{Name: "hello", Kind: "DIR_SOURCE", Path: ".dagger/modules/hello"}},
 			},
 		}, CoreGenFile, buildSchema(), "v0.21.0")
 		require.NoError(t, err)
@@ -458,7 +458,7 @@ func TestGenerate_Client_ServeBoundModule(t *testing.T) {
 		state, err := generate(generator.Config{
 			ClientConfig: &generator.ClientGeneratorConfig{
 				ModuleName:  "hello",
-				BoundModule: generator.BoundModule{Kind: "GIT_SOURCE", Ref: "github.com/foo/hello@main", Pin: "abcdef"},
+				BoundModules: []generator.BoundModule{{Name: "hello", Kind: "GIT_SOURCE", Ref: "github.com/foo/hello@main", Pin: "abcdef"}},
 			},
 		}, CoreGenFile, buildSchema(), "v0.21.0")
 		require.NoError(t, err)

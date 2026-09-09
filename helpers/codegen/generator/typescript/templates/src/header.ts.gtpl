@@ -16,11 +16,13 @@ import { Context, BaseClient, connect as _connect, connection as _connection, Co
 {{- end }}
 
 {{ if IsClientOnly }}
-{{- $mod := BoundModule }}
-{{- /* Serve the one module these bindings are bound to before the user's
-callback runs, so `dag.<module>()` resolves. The client schema is core + the
-bound module only, so there are no dependencies to serve. */}}
+{{- /* Serve every module these bindings are bound to before the user's callback
+runs, so each `dag.<module>()` resolves. The client schema is core plus those
+modules only, so there are no dependencies to serve. */}}
 async function serveBoundModule(client: Client): Promise<void> {
+  {{- range $mod := BoundModules }}
+
+  // {{ $mod.Name }}
   {{- if eq $mod.Kind "GIT_SOURCE" }}
   {{- /* A git module's identity is a location that resolves from anywhere:
   serve the canonical ref + pin directly. This survives being shipped away from
@@ -38,6 +40,7 @@ async function serveBoundModule(client: Client): Promise<void> {
     .moduleSource("{{ $mod.Path }}")
     .asModule()
     .serve()
+  {{- end }}
   {{- end }}
 }
 

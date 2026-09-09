@@ -1,0 +1,12 @@
+{
+  "name": "migrate-toolchains",
+  "engineVersion": "latest",
+  "sdk": {
+    "source": "typescript"
+  },
+  "toolchains": [
+    {
+      "source": "./tool"
+    }
+  ]
+}
