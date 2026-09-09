@@ -226,6 +226,53 @@ is:
 | Module (`is-module = true`) | `clients/`, beside the generated `sdk/` | self-contained: `clients/` gets its own generated `package.json` and `tsconfig.json`, same as a client-only scope |
 | Client-only | `.dagger/clients/` | self-contained: its own `package.json` and `tsconfig.json`, generated |
 
+#### A module scope's clients are generated twice
+
+A target in a **module** scope is rendered into two places, because it has two
+callers.
+
+`clients/` is for code outside the module: a standalone package carrying the
+`serveBoundModule` bootstrap that installs its targets before the caller's
+callback runs.
+
+`sdk/<target>.gen.ts` is for the module's own source. `src/index.ts` imports
+`@dagger.io/dagger`, which resolves to the generated `sdk/` directory, so a
+target only reaches the module by being bound there — beside the module's own
+types and its manifest dependencies, re-exported through `client.gen.ts`.
+Without it, `dagger module client add` run inside a module produces a package
+that module cannot use, which is the one place a user is most likely to run it.
+
+The fold is filtered, not a merge. A target's schema is core plus that one
+module, and its core half is the *client-facing* one, which hides nothing; the
+module-facing schema deliberately withholds some core types. Folding it in whole
+would hand a module bindings for types its own schema does not have. So each
+client schema is passed through `Schema.Include` first, which keeps the target's
+own types and, on the extendable types, only the fields it contributed
+(`helpers/codegen/main.go`, `foldClientsIntoModuleSchema`).
+
+One consequence for `Mod.generate`, which addresses a module by path: a scope's
+client targets come from `dagger.toml`, which only the engine reads, so that
+entry point cannot reconstruct them and regenerating would delete
+`sdk/<target>.gen.ts`. It refuses when the module has a `clients/` directory
+rather than silently pruning.
+
+**The engine half is not there yet** (§8.5). The bindings type-check, but
+nothing installs a client target into the module's own session, so
+`dag.<target>()` compiles and then fails at run time unless the target is also a
+manifest dependency. That is the engine's to close, not this SDK's — recorded
+rather than worked around.
+
+#### Naming and installability
+
+The package is named for the **scope**, not for the directory it sits in: every
+scope puts it in one called `clients`, so a name taken from that would be
+identical in every scope and two of them could not be installed side by side.
+
+It also carries a `version` (`0.0.0` when the user has not set one). npm and yarn
+both refuse a package without one, so the `file:` dependency a user adds to reach
+it would not resolve at all — a failure that lands on them, after generation
+reported success.
+
 Both land at the scope root. **Neither may go under `src/`**, and that is a hard
 constraint rather than a preference: the introspector's `getTsSourceCodeFiles`
 walks the source directory recursively and hands *every* `.ts` file it finds to
@@ -603,7 +650,11 @@ All settled in review:
 - **Manifest-dependency ordering** — expected to work; a gap is an engine bug, but
   verified in phase 0 because `generate-deps` is ours (§4.8).
 - **Client package name** — derived from the scope directory,
-  `@dagger.io/<scope-basename>-client` (§4.1).
+  `@dagger.io/<scope-basename>-client`, plus a `version` so it is installable
+  (§4.1).
+- **A module scope's clients are bound twice** — the standalone package under
+  `clients/`, and the module's own `sdk/<target>.gen.ts` so its source can reach
+  them (§4.1).
 - **`clients/` at a module scope root** — confirmed, beside the generated `sdk/`
   (§4.1).
 
@@ -748,6 +799,36 @@ Reproduced at the pinned `8fd9b22b` with two plain TypeScript modules:
 from inside one of them. `.dagger/modules/engine-e2e` should grow a check for it
 — `client add` is the only command that covers this half of the interface, and
 its absence is what let this reach a user.
+
+### 8.5 A module's client targets are not served into its own session
+
+`dagger module client add` inside a module records the target and generates both
+halves of it — the standalone package under `clients/`, and the module's own
+`sdk/<target>.gen.ts` (§4.1) — and the module's source then type-checks against
+it. At run time the call fails:
+
+```
+Cannot query field "scratchtarget" on type "Query". Did you mean "scratchhost"?
+```
+
+A module's session installs what its manifest lists in `[[dependencies]]`. Scope
+clients live in `dagger.toml` and are read only to build the generation graph and
+to hand `generateScope` its targets (`resolveSDKModuleScopeClients`); nothing
+adds them to the module the engine then runs. So the one thing `client add`
+inside a module is for — calling that module from this one — is the thing that
+does not work.
+
+Nothing here can close it. The SDK is not told which targets a scope records at
+run time, only at generation time, and the module's dependency set is the
+engine's. The alternative, having the generated entrypoint serve each target
+before dispatch, puts a workaround for engine-owned state into every generated
+module.
+
+Reproduced at `66da6410` with two modules created by `dagger module init
+typescript`, `dagger module client add typescript ../<target>` from inside one of
+them, a `dag.<target>()` call in its source, and `dagger call` on the result.
+`.dagger/modules/engine-e2e` should grow a check for it once the engine serves
+them, alongside the `client add` one §8.4 already asks for.
 
 ## 9. What was verified
 

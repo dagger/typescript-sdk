@@ -186,6 +186,19 @@ func updateClientPackageJSON(packageJSON, engineVersion, moduleName string) (str
 		}
 	}
 
+	// npm and yarn refuse to install a package with no version, so the generated
+	// client needs one to be reachable as a file: dependency at all. It is a
+	// placeholder, not a claim: the package is local and regenerated, and its
+	// real identity is the engine it was generated against, which the
+	// @dagger.io/dagger pin below already records. Only set when unset, so a user
+	// who versions their client keeps their own scheme.
+	if !gjson.Get(packageJSON, "version").Exists() {
+		packageJSON, err = sjson.Set(packageJSON, "version", "0.0.0")
+		if err != nil {
+			return "", fmt.Errorf("set version: %w", err)
+		}
+	}
+
 	// The SDK owns the @dagger.io/dagger version pin, so it tracks the engine on
 	// regeneration — but only step aside for a *local* ref the user has set (a
 	// vendored bundle). Never clobber "./sdk"/"file:"/… with a version.

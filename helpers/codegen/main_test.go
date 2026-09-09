@@ -77,3 +77,55 @@ func TestMergeSchemas(t *testing.T) {
 	require.Equal(t, []string{"container", "hello", "payments"}, fields,
 		"every module's Query entry point should survive the merge")
 }
+
+// TestFoldClientsIntoModuleSchema covers the half of a scope's clients that goes
+// into the module's own bindings. A client schema is core plus one module, and
+// its core half hides nothing — so folding it in wholesale would give a module
+// bindings for core types its own schema deliberately withholds.
+func TestFoldClientsIntoModuleSchema(t *testing.T) {
+	dir := t.TempDir()
+
+	moduleSchema := &introspection.Schema{
+		QueryType: struct {
+			Name string `json:"name,omitempty"`
+		}{Name: "Query"},
+		Types: introspection.Types{
+			{Kind: introspection.TypeKindObject, Name: "Query", Fields: []*introspection.Field{{Name: "container"}}},
+			{Kind: introspection.TypeKindObject, Name: "Container"},
+		},
+	}
+
+	// The source-map directive is what marks a type as a module's, and so what
+	// Include filters on.
+	const hello = `[{"name":"sourceMap","args":[{"name":"module","value":"\"hello\""}]}]`
+	clientSchema := `{"__schema":{"queryType":{"name":"Query"},"types":[
+		{"kind":"OBJECT","name":"Query","fields":[
+			{"name":"container","type":{"kind":"OBJECT","name":"Container"}},
+			{"name":"hello","type":{"kind":"OBJECT","name":"Hello"},"directives":` + hello + `}
+		]},
+		{"kind":"OBJECT","name":"Container"},
+		{"kind":"OBJECT","name":"Secret"},
+		{"kind":"OBJECT","name":"Hello","directives":` + hello + `}
+	]}}`
+
+	merged, err := foldClientsIntoModuleSchema(moduleSchema, []clientMetaModule{{
+		BoundModule: generator.BoundModule{Name: "hello"},
+		SchemaPath:  writeFile(t, dir, "hello.json", clientSchema),
+	}})
+	require.NoError(t, err)
+
+	names := []string{}
+	for _, typ := range merged.Types {
+		names = append(names, typ.Name)
+	}
+	require.Contains(t, names, "Hello", "the client target's own type should reach the module's bindings")
+	require.NotContains(t, names, "Secret",
+		"a core type the module-facing schema withholds must not arrive through a client schema")
+
+	fields := []string{}
+	for _, field := range merged.Types.Get("Query").Fields {
+		fields = append(fields, field.Name)
+	}
+	require.Equal(t, []string{"container", "hello"}, fields,
+		"the target's entry point should be added once, beside the module's own core fields")
+}

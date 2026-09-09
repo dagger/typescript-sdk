@@ -491,21 +491,31 @@ func TestUpdateClientPackageJSON(t *testing.T) {
 			packageJSON:   `{}`,
 			engineVersion: "v0.18.0",
 			moduleName:    "My Cool Module",
-			expected:      `{"type":"module","name":"@dagger.io/my-cool-module-client","dependencies":{"@dagger.io/dagger":"0.18.0","typescript":"5.9.3"}}`,
+			expected:      `{"type":"module","version":"0.0.0","name":"@dagger.io/my-cool-module-client","dependencies":{"@dagger.io/dagger":"0.18.0","typescript":"5.9.3"}}`,
 		},
 		{
 			name:          "existing name is preserved, sdk dep is set, typescript kept",
 			packageJSON:   `{"name":"@acme/existing","dependencies":{"typescript":"5.0.0"}}`,
 			engineVersion: "v0.19.0-dev.abc123",
 			moduleName:    "my-cool-module",
-			expected:      `{"name":"@acme/existing","type":"module","dependencies":{"@dagger.io/dagger":"0.19.0-dev.abc123","typescript":"5.0.0"}}`,
+			expected:      `{"name":"@acme/existing","type":"module","version":"0.0.0","dependencies":{"@dagger.io/dagger":"0.19.0-dev.abc123","typescript":"5.0.0"}}`,
+		},
+		{
+			// A generated client is installed as a file: dependency, which npm and
+			// yarn both refuse without a version — but a user who versions their
+			// client keeps their own scheme.
+			name:          "an existing version is preserved",
+			packageJSON:   `{"version":"2.1.0"}`,
+			engineVersion: "0.20.0",
+			moduleName:    "hello",
+			expected:      `{"version":"2.1.0","type":"module","name":"@dagger.io/hello-client","dependencies":{"@dagger.io/dagger":"0.20.0","typescript":"5.9.3"}}`,
 		},
 		{
 			name:          "empty module name falls back to client",
 			packageJSON:   `{}`,
 			engineVersion: "0.20.0",
 			moduleName:    "",
-			expected:      `{"type":"module","name":"@dagger.io/client","dependencies":{"@dagger.io/dagger":"0.20.0","typescript":"5.9.3"}}`,
+			expected:      `{"type":"module","version":"0.0.0","name":"@dagger.io/client","dependencies":{"@dagger.io/dagger":"0.20.0","typescript":"5.9.3"}}`,
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
@@ -543,17 +553,17 @@ func TestUpdateClientPackageJSON_PreservesLocalDaggerRef(t *testing.T) {
 		{
 			name:        "file: ref preserved, not overwritten with version",
 			packageJSON: `{"dependencies":{"@dagger.io/dagger":"file:../dagger2/sdk/typescript"}}`,
-			expected:    `{"type":"module","name":"@dagger.io/hello-client","dependencies":{"@dagger.io/dagger":"file:../dagger2/sdk/typescript","typescript":"5.9.3"}}`,
+			expected:    `{"type":"module","version":"0.0.0","name":"@dagger.io/hello-client","dependencies":{"@dagger.io/dagger":"file:../dagger2/sdk/typescript","typescript":"5.9.3"}}`,
 		},
 		{
 			name:        "relative path ref preserved",
 			packageJSON: `{"dependencies":{"@dagger.io/dagger":"./sdk"}}`,
-			expected:    `{"type":"module","name":"@dagger.io/hello-client","dependencies":{"@dagger.io/dagger":"./sdk","typescript":"5.9.3"}}`,
+			expected:    `{"type":"module","version":"0.0.0","name":"@dagger.io/hello-client","dependencies":{"@dagger.io/dagger":"./sdk","typescript":"5.9.3"}}`,
 		},
 		{
 			name:        "a version pin is refreshed to the engine version",
 			packageJSON: `{"dependencies":{"@dagger.io/dagger":"0.9.0"}}`,
-			expected:    `{"type":"module","name":"@dagger.io/hello-client","dependencies":{"@dagger.io/dagger":"1.0.0","typescript":"5.9.3"}}`,
+			expected:    `{"type":"module","version":"0.0.0","name":"@dagger.io/hello-client","dependencies":{"@dagger.io/dagger":"1.0.0","typescript":"5.9.3"}}`,
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {

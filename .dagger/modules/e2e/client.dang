@@ -201,6 +201,77 @@ type ClientChecks {
   }
 
   """
+  A module scope's clients should reach the module's own source too.
+
+  The standalone package is for callers outside the module; it carries the
+  bootstrap that serves its targets. Inside the module there is no such caller —
+  the source imports @dagger.io/dagger, which is the generated sdk/ directory. So
+  a target has to be bound in both places, or `dagger module client add` inside a
+  module produces a package the module it was added to cannot use.
+  """
+  moduleScopeClientBindingsCheck(ws: Workspace!): Void @check {
+    let scope = fixtures.depLibModule
+    let changes = Gen.scope(
+      ws,
+      scope,
+      "gendep",
+      clients: [ws.moduleSource("/" + fixtures.clientModule)],
+    )
+
+    # The standalone package, as any client scope gets.
+    Asserts.generated(changes, scope + "/clients/client-app.gen.ts")
+
+    # And the same target in the module's own bindings, beside its own types.
+    Asserts.generated(changes, scope + "/sdk/client-app.gen.ts")
+
+    let tree = changes.after.directory(scope)
+
+    # Module flavor, not client flavor: these bindings reach the runtime through
+    # the bundle sitting beside them, so a copy of the client package's file
+    # would import a package that is not there.
+    Asserts.stringContains(
+      tree.file("sdk/client-app.gen.ts").contents,
+      "from \"./core.js\"",
+      "a client's module bindings should import the bundled runtime",
+    )
+
+    # Re-exported, or the module's source cannot reach it: sdk/index.ts export *s
+    # client.gen.ts, which is what @dagger.io/dagger resolves to.
+    Asserts.stringContains(
+      tree.file("sdk/client.gen.ts").contents,
+      "./client-app.gen.js",
+      "the module's bindings should re-export its client targets",
+    )
+
+    null
+  }
+
+  """
+  A generated client package should be installable.
+
+  npm and yarn both refuse a package with no version, so without one the `file:`
+  dependency a user adds cannot resolve at all — and the failure lands on them,
+  after generation reported success.
+  """
+  clientPackageInstallableCheck(ws: Workspace!): Void @check {
+    let changes = generateClients(ws, fixtures.clientOutput)
+    let pkg = changes.layer.file(clientDir(fixtures.clientOutput) + "/package.json").contents
+
+    Asserts.stringContains(pkg, "\"version\"", "a generated client package should carry a version")
+
+    # Named for the scope. Every scope puts its package in a directory called
+    # `clients`, so a name taken from that directory is the same in every scope,
+    # and two of them cannot be installed side by side.
+    Asserts.stringContains(
+      pkg,
+      "\"@dagger.io/out-client\"",
+      "a generated client package should be named for its scope",
+    )
+
+    null
+  }
+
+  """
   A scope serving two targets should get one package: one core file, and one
   bindings file per target. Emitting the core API per target instead would
   duplicate the bulk of the client for every module a scope binds.

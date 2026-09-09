@@ -191,6 +191,7 @@ func runModule(args []string) error {
 	var (
 		introspectionPath = fs.String("introspection-json-path", "", "path to the introspection schema JSON")
 		moduleName        = fs.String("module-name", "", "name of the module to generate bindings for")
+		clientMetaPath    = fs.String("client-meta-path", "", "path to the client meta JSON whose modules are folded into these bindings")
 		outputDir         = fs.String("output", ".", "output directory for the generated bindings")
 	)
 	if err := fs.Parse(args); err != nil {
@@ -200,15 +201,91 @@ func runModule(args []string) error {
 		return fmt.Errorf("--module-name is required")
 	}
 
-	return generateFromSchema(
-		"module bindings",
-		*introspectionPath,
-		generator.Config{
-			OutputDir:    *outputDir,
-			ModuleConfig: &generator.ModuleGeneratorConfig{ModuleName: *moduleName},
-		},
-		(*typescriptgenerator.TypeScriptGenerator).GenerateModule,
-	)
+	schema, schemaVersion, err := loadSchema(*introspectionPath)
+	if err != nil {
+		return err
+	}
+
+	if *clientMetaPath != "" {
+		meta, err := loadClientMeta(*clientMetaPath)
+		if err != nil {
+			return err
+		}
+		schema, err = foldClientsIntoModuleSchema(schema, meta.Modules)
+		if err != nil {
+			return err
+		}
+		generator.SetSchemaParents(schema)
+	}
+
+	gen := &typescriptgenerator.TypeScriptGenerator{Config: generator.Config{
+		OutputDir:    *outputDir,
+		ModuleConfig: &generator.ModuleGeneratorConfig{ModuleName: *moduleName},
+	}}
+
+	ctx := context.Background()
+	state, err := gen.GenerateModule(ctx, schema, schemaVersion)
+	if err != nil {
+		return fmt.Errorf("generate module bindings: %w", err)
+	}
+
+	if err := generator.Overlay(ctx, state.Overlay, *outputDir); err != nil {
+		return fmt.Errorf("write generated module bindings: %w", err)
+	}
+
+	return nil
+}
+
+// loadClientMeta reads the scope's client metadata. Both generators consume it:
+// the client one to render the package, the module one to fold the same targets
+// into the module's own bindings.
+func loadClientMeta(path string) (clientMeta, error) {
+	var meta clientMeta
+	metaJSON, err := os.ReadFile(path)
+	if err != nil {
+		return meta, fmt.Errorf("read client meta json: %w", err)
+	}
+	if err := json.Unmarshal(metaJSON, &meta); err != nil {
+		return meta, fmt.Errorf("unmarshal client meta json: %w", err)
+	}
+	return meta, nil
+}
+
+// foldClientsIntoModuleSchema adds each client target's own types to the
+// module-facing schema, so a scope that generates a client for a module also
+// gives the module source that binds it — `sdk/<target>.gen.ts` beside
+// `client.gen.ts`, re-exported through @dagger.io/dagger.
+//
+// Only what the target contributes is folded in. A client's schema is core plus
+// one module, and its core half is the *client-facing* one, which hides nothing;
+// merging that wholesale would pull core types into a module's bindings that the
+// module-facing schema deliberately withholds. Include keeps the target's own
+// types and, on the extendable types, only the fields it contributed.
+func foldClientsIntoModuleSchema(
+	schema *introspection.Schema,
+	modules []clientMetaModule,
+) (*introspection.Schema, error) {
+	if len(modules) == 0 {
+		return schema, nil
+	}
+
+	schemas := []*introspection.Schema{schema}
+	for _, module := range modules {
+		clientSchema, _, err := loadSchema(module.SchemaPath)
+		if err != nil {
+			return nil, fmt.Errorf("client %q: %w", module.Name, err)
+		}
+		// Ask the schema which modules it carries rather than trusting the
+		// recorded name: the split is driven by source-map directives, and a
+		// target's directive name is the only one the filter matches.
+		owned := clientSchema.DependencyNames()
+		if len(owned) == 0 {
+			continue
+		}
+		schemas = append(schemas, clientSchema.Include(owned...))
+	}
+
+	return mergeSchemas(schemas), nil
 }
 
 func runClient(args []string) error {
@@ -224,13 +301,9 @@ func runClient(args []string) error {
 		return fmt.Errorf("--client-meta-path is required")
 	}
 
-	metaJSON, err := os.ReadFile(*clientMetaPath)
+	meta, err := loadClientMeta(*clientMetaPath)
 	if err != nil {
-		return fmt.Errorf("read client meta json: %w", err)
-	}
-	var meta clientMeta
-	if err := json.Unmarshal(metaJSON, &meta); err != nil {
-		return fmt.Errorf("unmarshal client meta json: %w", err)
+		return err
 	}
 	if len(meta.Modules) == 0 {
 		return fmt.Errorf("client meta json lists no modules")

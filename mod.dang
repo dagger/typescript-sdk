@@ -79,6 +79,13 @@ type Mod {
       # The engine owns these end to end; this SDK generates the scopes recorded
       # in dagger.toml, and a legacy module cannot be one.
       raise "module is configured by dagger.json, which the engine's runtime generates: " + rootPath
+    } else if (hasClients(ws)) {
+      # A scope's client targets come from dagger.toml, which only the engine
+      # reads; addressing the module by path says nothing about them. Their
+      # bindings sit in sdk/ alongside the module's own, and regenerating from
+      # the module-facing schema alone would take them away — so stop rather
+      # than quietly leave the module unable to resolve its clients.
+      raise "module has generated clients; regenerate it with `dagger generate`, which knows what they are: " + rootPath
     } else {
       let sdk = TypescriptSdk()
       let generated = sdk.moduleFiles(
@@ -87,10 +94,20 @@ type Mod {
         sourcePath,
         ws.moduleSource("/" + rootPath).moduleOriginalName,
         sdk.effectiveRuntime(ws, sourcePath),
+        [],
       )
 
       generated.changes(ws)
     }
+  }
+
+  """
+  Whether this module carries a generated client package, and so client bindings
+  in sdk/ that only the scope's recorded targets can reproduce.
+  """
+  let hasClients(ws: Workspace!): Boolean! {
+    let dir = if (sourcePath == ".") { "clients" } else { sourcePath + "/clients" }
+    ws.directory("/", include: [dir + "/**"]).exists(dir)
   }
 
   """

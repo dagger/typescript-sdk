@@ -157,12 +157,16 @@ type TypescriptSdk {
       let source = moduleSourcePath(configured, scope)
       let rt = effectiveRuntime(configured, source)
 
+      # The same targets feed both halves: the standalone package a caller
+      # installs, and the module's own bindings so its source can bind them too.
+      let targets = clientTargets(clients)
+
       # Back to the cwd the engine set: it rejects a generateScope that returns
       # a workspace standing somewhere else.
-      clientScope(moduleFiles(configured, scope, source, name, rt), source, true, clients)
+      clientScope(moduleFiles(configured, scope, source, name, rt, targets), source, true, targets)
         .withWorkdir(scope)
     } else {
-      clientScope(ws, scope, false, clients)
+      clientScope(ws, scope, false, clientTargets(clients))
     }
   }
 
@@ -607,21 +611,82 @@ type TypescriptSdk {
   }
 
   """
-  Generate a module's own bindings (client.gen.ts plus one <dep>.gen.ts per
-  dependency) from its module-facing introspection schema.
+  Generate a module's own bindings: client.gen.ts, one <dep>.gen.ts per manifest
+  dependency, and one <target>.gen.ts per client the scope records.
 
-  Engine-free: the schema arrives as data, so this is a plain container exec.
+  A scope's clients are generated twice over, into two different shapes, because
+  they serve two different callers. The standalone package under `clients/` is
+  for code outside the module, and carries the bootstrap that serves its targets.
+  These bindings are for the module's own source: they arrive through the bundle
+  as @dagger.io/dagger, alongside the module's dependencies, so `src/index.ts`
+  binds a client target the same way it binds anything else.
+
+  Engine-free: the schemas arrive as data, so this is a plain container exec.
   """
-  let generateModuleBindings(schemaJSON: String!, moduleName: String!): Directory! {
-    codegenBuilder
-      .withNewFile("/schema.json", schemaJSON)
+  let generateModuleBindings(schemaJSON: String!, moduleName: String!, targets: [ClientTarget!]!): Directory! {
+    let base = codegenBuilder.withNewFile("/schema.json", schemaJSON)
+    let withTargets = if (targets.length == 0) { base } else { stageTargets(base, targets) }
+
+    let clientMetaArgs = if (targets.length == 0) {
+      []
+    } else {
+      ["--client-meta-path", "/meta.json"]
+    }
+
+    withTargets
       .withExec([
         "codegen", "module",
         "--introspection-json-path", "/schema.json",
         "--module-name", moduleName,
         "--output", "/out",
-      ])
+      ] + clientMetaArgs)
       .directory("/out")
+  }
+
+  """
+  Stage every target's schema in the codegen container, plus the meta file that
+  names them. Shared by both generators: the module one folds the targets into
+  the module's bindings, the client one renders the package from them.
+  """
+  let stageTargets(builder: Container!, targets: [ClientTarget!]!): Container! {
+    let modulesJSON = targets.map { target =>
+      "{\"name\":" + JSON.encode(target.name) +
+      ",\"schemaPath\":" + JSON.encode(schemaPath(target.name)) +
+      ",\"kind\":" + target.kindJSON +
+      ",\"path\":" + JSON.encode(target.path) +
+      ",\"ref\":" + JSON.encode(target.ref) +
+      ",\"pin\":" + JSON.encode(target.pin) + "}"
+    }.join(",")
+
+    targets
+      .reduce(builder) { container, target =>
+        container.withNewFile(schemaPath(target.name), target.schemaJSON)
+      }
+      .withNewFile(
+        "/meta.json",
+        "{\"engineVersion\":" + JSON.encode(targetEngineVersion) + ",\"modules\":[" + modulesJSON + "]}",
+      )
+  }
+
+  """
+  Project the engine-resolved client targets into the pieces both generators
+  read, in one pass rather than a round-trip per field per module.
+  """
+  let clientTargets(clients: [ModuleSource!]!): [ClientTarget!]! {
+    clients
+      .{{ moduleOriginalName, kind, pin, asString, sourceRootSubpath, clientSchemaIntrospectionJSON.{{ contents }} }}
+      .map { module =>
+        ClientTarget(
+          name: module.moduleOriginalName,
+          schemaJSON: module.clientSchemaIntrospectionJSON.contents,
+          kindJSON: JSON.encode(module.kind),
+          # Local kinds serve by resolving this against the workspace; git
+          # kinds ignore it and serve from ref+pin instead.
+          path: module.sourceRootSubpath,
+          ref: module.asString,
+          pin: module.pin,
+        )
+      }
   }
 
   """
@@ -717,8 +782,9 @@ type TypescriptSdk {
     source: Directory!,
     existing: Directory!,
     runtime: Runtime!,
+    targets: [ClientTarget!]!,
   ): Directory! {
-    let sdk = moduleSdkDirectory(generateModuleBindings(schemaJSON, moduleName))
+    let sdk = moduleSdkDirectory(generateModuleBindings(schemaJSON, moduleName, targets))
     let entrypoint = generateModuleEntrypoint(moduleName, source, sdk)
 
     let configUpdater = configUpdaterBuilder
@@ -771,7 +837,7 @@ type TypescriptSdk {
   the next — so the module's schema resolves against current bindings without
   this SDK staging anything itself.
   """
-  let moduleFiles(ws: Workspace!, scope: String!, sourcePath: String!, name: String!, rt: Runtime!): Workspace! {
+  let moduleFiles(ws: Workspace!, scope: String!, sourcePath: String!, name: String!, rt: Runtime!, targets: [ClientTarget!]!): Workspace! {
     let sourcePrefix = if (sourcePath == ".") { "" } else { sourcePath + "/" }
     let modSrc = ws.moduleSource("/" + scope)
 
@@ -784,6 +850,7 @@ type TypescriptSdk {
       ws.directory("/" + sourcePrefix + "src"),
       existingModuleConfig(ws, sourcePath),
       rt,
+      targets,
     )
 
     # Write the generated files over the module's existing tree, not in place of
@@ -848,22 +915,8 @@ type TypescriptSdk {
   workspace-root-relative path against the workspace. An unknown kind fails
   codegen closed.
   """
-  let generateClientBindings(targets: [ClientTarget!]!, engineVersion: String!): Directory! {
-    let withSchemas = targets.reduce(codegenBuilder) { builder, target =>
-      builder.withNewFile(schemaPath(target.name), target.schemaJSON)
-    }
-
-    let modulesJSON = targets.map { target =>
-      "{\"name\":" + JSON.encode(target.name) +
-      ",\"schemaPath\":" + JSON.encode(schemaPath(target.name)) +
-      ",\"kind\":" + target.kindJSON +
-      ",\"path\":" + JSON.encode(target.path) +
-      ",\"ref\":" + JSON.encode(target.ref) +
-      ",\"pin\":" + JSON.encode(target.pin) + "}"
-    }.join(",")
-
-    withSchemas
-      .withNewFile("/meta.json", "{\"engineVersion\":" + JSON.encode(engineVersion) + ",\"modules\":[" + modulesJSON + "]}")
+  let generateClientBindings(targets: [ClientTarget!]!): Directory! {
+    stageTargets(codegenBuilder, targets)
       .withExec([
         "codegen", "client",
         "--client-meta-path", "/meta.json",
@@ -908,7 +961,7 @@ type TypescriptSdk {
   """
   let clientDirectory(targets: [ClientTarget!]!, name: String!, existing: Directory!): Directory! {
     configureClientNode(
-      generateClientBindings(targets, targetEngineVersion),
+      generateClientBindings(targets),
       existing,
       targetEngineVersion,
       name,
@@ -944,32 +997,21 @@ type TypescriptSdk {
   special case: `clients` is the complete desired set, so a target that is gone
   is simply not rendered, and the last one leaving takes the package with it.
   """
-  let clientScope(ws: Workspace!, base: String!, isModule: Boolean!, clients: [ModuleSource!]!): Workspace! {
+  let clientScope(ws: Workspace!, base: String!, isModule: Boolean!, targets: [ClientTarget!]!): Workspace! {
     let dir = clientDirPath(base, isModule)
 
-    if (clients.length == 0) {
+    if (targets.length == 0) {
       if (existingDir(ws, dir).entries.length == 0) { ws } else { ws.withoutDirectory("/" + dir) }
     } else {
-      let targets = clients
-        .{{ moduleOriginalName, kind, pin, asString, sourceRootSubpath, clientSchemaIntrospectionJSON.{{ contents }} }}
-        .map { module =>
-          ClientTarget(
-            name: module.moduleOriginalName,
-            schemaJSON: module.clientSchemaIntrospectionJSON.contents,
-            kindJSON: JSON.encode(module.kind),
-            # Local kinds serve by resolving this against the workspace; git
-            # kinds ignore it and serve from ref+pin instead.
-            path: module.sourceRootSubpath,
-            ref: module.asString,
-            pin: module.pin,
-          )
-        }
-
       # Replace rather than merge, the reverse of seeding: merging can only add,
       # and dropping the bindings of a target that has left the scope is the
       # point. The package's own config survives because it is read back out of
       # `ws` and layered under the fresh bindings.
-      ws.withNewDirectory("/" + dir, clientDirectory(targets, dirName(dir), existingClientConfig(ws, dir)))
+      # Named for the scope, not for the directory the package sits in: every
+      # scope puts it in one called `clients`, so naming it after that gives
+      # every generated package in a workspace the same name — and they collide
+      # the moment a project installs two of them.
+      ws.withNewDirectory("/" + dir, clientDirectory(targets, dirName(base), existingClientConfig(ws, dir)))
     }
   }
 
