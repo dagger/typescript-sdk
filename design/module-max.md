@@ -256,11 +256,9 @@ entry point cannot reconstruct them and regenerating would delete
 `sdk/<target>.gen.ts`. It refuses when the module has a `clients/` directory
 rather than silently pruning.
 
-**The engine half is not there yet** (§8.5). The bindings type-check, but
-nothing installs a client target into the module's own session, so
-`dag.<target>()` compiles and then fails at run time unless the target is also a
-manifest dependency. That is the engine's to close, not this SDK's — recorded
-rather than worked around.
+Bindings alone are not enough: a module serves what its manifest lists, so the
+target is also recorded as a `[[dependencies]]` entry (§8.5). Without that the
+bindings type-check and then fail at run time.
 
 #### Naming and installability
 
@@ -652,9 +650,10 @@ All settled in review:
 - **Client package name** — derived from the scope directory,
   `@dagger.io/<scope-basename>-client`, plus a `version` so it is installable
   (§4.1).
-- **A module scope's clients are bound twice** — the standalone package under
-  `clients/`, and the module's own `sdk/<target>.gen.ts` so its source can reach
-  them (§4.1).
+- **A module scope's clients are recorded three times** — the standalone package
+  under `clients/`, the module's own `sdk/<target>.gen.ts`, and a
+  `[[dependencies]]` entry in its manifest, which is what makes the target
+  callable rather than merely typed (§4.1, §8.5).
 - **`clients/` at a module scope root** — confirmed, beside the generated `sdk/`
   (§4.1).
 
@@ -800,35 +799,39 @@ from inside one of them. `.dagger/modules/engine-e2e` should grow a check for it
 — `client add` is the only command that covers this half of the interface, and
 its absence is what let this reach a user.
 
-### 8.5 A module's client targets are not served into its own session
+### 8.5 A module's client targets have to be recorded as dependencies
 
-`dagger module client add` inside a module records the target and generates both
-halves of it — the standalone package under `clients/`, and the module's own
-`sdk/<target>.gen.ts` (§4.1) — and the module's source then type-checks against
-it. At run time the call fails:
+Not an engine gap after all — the SDK's, and fixed. Kept because the failure was
+silent and the reasoning that led away from the fix was wrong.
+
+`dagger module client add` inside a module recorded the target and generated
+both halves of it, and the module's source type-checked against the result. At
+run time:
 
 ```
-Cannot query field "scratchtarget" on type "Query". Did you mean "scratchhost"?
+Cannot query field "hello" on type "Query". Did you mean "llm"?
 ```
 
-A module's session installs what its manifest lists in `[[dependencies]]`. Scope
-clients live in `dagger.toml` and are read only to build the generation graph and
-to hand `generateScope` its targets (`resolveSDKModuleScopeClients`); nothing
-adds them to the module the engine then runs. So the one thing `client add`
-inside a module is for — calling that module from this one — is the thing that
-does not work.
+A module's session serves what its manifest lists in `[[dependencies]]`. A
+scope's clients live in `dagger.toml`, which only the engine reads.
 
-Nothing here can close it. The SDK is not told which targets a scope records at
-run time, only at generation time, and the module's dependency set is the
-engine's. The alternative, having the generated entrypoint serve each target
-before dispatch, puts a workaround for engine-owned state into every generated
-module.
+The wrong conclusion was that closing this needed the engine to install scope
+clients into the module session, and that nothing here could do it. The Go SDK
+had already answered it: it writes its scope's clients into the manifest, so the
+runtime serves them like any other dependency. This SDK now does the same
+(`withClientDependencies`) — a git target by canonical ref and pin, a local one
+by its path relative to the module that declares it.
 
-Reproduced at `66da6410` with two modules created by `dagger module init
-typescript`, `dagger module client add typescript ../<target>` from inside one of
-them, a `dag.<target>()` call in its source, and `dagger call` on the result.
-`.dagger/modules/engine-e2e` should grow a check for it once the engine serves
-them, alongside the `client add` one §8.4 already asks for.
+Two consequences worth keeping in view:
+
+- It runs **before** the module's schema is read, not only when the manifest is
+  created. The schema is what the bindings are generated from, and a target that
+  is not a dependency yet is not in it.
+- Dependencies are upserted, never pruned. A manifest may carry entries written
+  by hand or migrated from a pre-1.0 `dagger.json`, indistinguishable from ours,
+  so removing what is missing from the client set would take those with it.
+  `client rm` therefore leaves the dependency behind, serving a module whose
+  bindings are gone. A marker in the manifest would let this prune safely.
 
 ## 9. What was verified
 
