@@ -2,8 +2,8 @@
 # Any Dagger command may update this file; always commit it with your changes.
 # Run `dagger workspace update` to refresh the pinned versions.
 [["version","2"]]
-["","git-latest",["github.com/dagger/sdk-helpers"],"refs/tags/v1",[["version","v1"]]]
-["","git-sha",["github.com/dagger/sdk-helpers","refs/tags/v1"],"ea44eba7c5e566aef8c1b0ef73abe76dd6c1e62d"]
+["","git-latest",["github.com/dagger/sdk-helpers"],"refs/tags/v1.0.1",[["version","v1"]]]
+["","git-sha",["github.com/dagger/sdk-helpers","refs/tags/v1.0.1"],"d2780115934d74f4bdd1ff4396ba70ba1195507d"]
 ["","git-sha",["https://github.com/containernetworking/plugins","refs/tags/v1.9.0"],"9b3772e1a7abf93cbb7c6526a28bc0d27b830e02"]
 ["","git-sha",["https://github.com/libfuse/sshfs.git","refs/tags/sshfs-3.7.6"],"7a2d988775446ebe7af9b01c99b3b8e86bddb05a"]
 ["","git-sha",["https://github.com/opencontainers/runc","refs/tags/v1.4.2"],"c241c0bb5e60a8e8c1b2e53d4eca8d0068d8d57e"]
