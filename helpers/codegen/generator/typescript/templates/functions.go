@@ -9,6 +9,7 @@ import (
 	"sort"
 	"strings"
 	"text/template"
+	"unicode"
 
 	"golang.org/x/mod/semver"
 
@@ -113,6 +114,7 @@ func (funcs typescriptTemplateFuncs) FuncMap() template.FuncMap {
 		"FormatOutputType":          commonFunc.FormatOutputType,
 		"FormatEnum":                funcs.formatEnum,
 		"FormatName":                funcs.formatName,
+		"FormatMemberName":          funcs.formatMemberName,
 		"QueryToClient":             funcs.queryToClient,
 		"GetOptionalArgs":           funcs.getOptionalArgs,
 		"GetRequiredArgs":           funcs.getRequiredArgs,
@@ -422,6 +424,21 @@ func (funcs typescriptTemplateFuncs) formatName(s string) string {
 		return s + "_"
 	}
 	return s
+}
+
+// formatMemberName renders a schema field as a TypeScript member. Fields are
+// camelCase by convention and this is a no-op for them, but a module whose name
+// starts with an underscore gets a capitalised field, and the binding for it
+// would then be the one member of the API not shaped like the rest. The wire
+// name is rendered separately from the raw field, so lowering the first letter
+// here changes what the caller writes, not what is selected.
+func (funcs typescriptTemplateFuncs) formatMemberName(s string) string {
+	if s == "" {
+		return s
+	}
+	runes := []rune(s)
+	runes[0] = unicode.ToLower(runes[0])
+	return funcs.formatName(string(runes))
 }
 
 func (funcs typescriptTemplateFuncs) queryToClient(s string) string {

@@ -297,7 +297,7 @@ func TestGenerate_SplitsDependencyFiles(t *testing.T) {
 
 // TestGenerate_KeepsOwnTypesInClient checks that only dependencies are split:
 // the module being generated for keeps its own types in client.gen.ts.
-func TestGenerate_KeepsOwnTypesInClient(t *testing.T) {
+func TestGenerate_SplitsOwnTypesLikeADependency(t *testing.T) {
 	appModule := newSourceMapDirective("app")
 	depModule := newSourceMapDirective("dep")
 	strField := func(name string) *introspection.Field {
@@ -326,15 +326,14 @@ func TestGenerate_KeepsOwnTypesInClient(t *testing.T) {
 	core := readOverlay(t, state, "client.gen.ts")
 	depFile := readOverlay(t, state, "dep.gen.ts")
 
-	// The module's own type stays in client.gen.ts (not split out).
-	require.Contains(t, core, "export class App extends BaseClient")
+	// The module's own type splits out like any other, and the core file holds
+	// only core types plus the re-exports.
+	require.NotContains(t, core, "export class App extends BaseClient")
 	require.Contains(t, core, `export * from "./dep.gen.js"`)
-	require.NotContains(t, core, `export * from "./app.gen.js"`)
+	require.Contains(t, core, `export * from "./app.gen.js"`)
 
-	// Only the dependency gets its own file.
 	require.Contains(t, depFile, "export class Dep extends BaseClient")
-	_, err = state.Overlay.Open("app.gen.ts")
-	require.Error(t, err, "the module's own types must not be split into app.gen.ts")
+	require.Contains(t, readOverlay(t, state, "app.gen.ts"), "export class App extends BaseClient")
 }
 
 // TestGenerate_Client_SplitsBoundModule checks the standalone-client layout:

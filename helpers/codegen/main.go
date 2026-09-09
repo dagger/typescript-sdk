@@ -279,7 +279,7 @@ func foldClientsIntoModuleSchema(
 			return nil, fmt.Errorf("client %q: %w", module.Name, err)
 		}
 		if module.Self {
-			schemas = append(schemas, selfContribution(clientSchema, module.Name))
+			schemas = append(schemas, selfContribution(clientSchema, module.Name, schema))
 			continue
 		}
 		// Ask the schema which modules it carries rather than trusting the
@@ -445,10 +445,13 @@ func loadSchema(path string) (*introspection.Schema, string, error) {
 // client schema — only the Query field that reaches them does. So the fields
 // come from Include and the types come from walking out of them.
 //
-// The walk is bounded by what the merge does with the result: mergeSchemas only
-// adds types the module-facing schema lacks, so anything core the walk passes
-// through is already there and is dropped.
-func selfContribution(schema *introspection.Schema, moduleName string) *introspection.Schema {
+// `base` is the module-facing schema, and it is what separates the module's own
+// types from the core ones the walk passes through: core is already in base, so
+// anything the walk finds that base does not have belongs to the module. Those
+// get the sourceMap directive stamped on, which is what lets everything
+// downstream — the split, the re-exports, the augmentations — treat a module's
+// own API exactly like a dependency's and render it into its own file.
+func selfContribution(schema *introspection.Schema, moduleName string, base *introspection.Schema) *introspection.Schema {
 	contributed := schema.Include(moduleName)
 
 	byName := map[string]*introspection.Type{}
@@ -463,12 +466,14 @@ func selfContribution(schema *introspection.Schema, moduleName string) *introspe
 			if ref.Name == "" || seen[ref.Name] {
 				continue
 			}
+			seen[ref.Name] = true
 			typ, ok := byName[ref.Name]
-			if !ok {
+			if !ok || base.Types.Get(ref.Name) != nil {
+				// Core, or already the module's own: either way not something
+				// this module contributes.
 				continue
 			}
-			seen[ref.Name] = true
-			contributed.Types = append(contributed.Types, typ)
+			contributed.Types = append(contributed.Types, stampSourceMap(typ, moduleName))
 			for _, field := range typ.Fields {
 				walk(field.TypeRef)
 				for _, arg := range field.Args {
@@ -491,4 +496,20 @@ func selfContribution(schema *introspection.Schema, moduleName string) *introspe
 	}
 
 	return contributed
+}
+
+// stampSourceMap returns a copy of typ marked as belonging to moduleName. The
+// copy matters: the type is shared with the schema it was read from, and the
+// directive changes how it is filtered.
+func stampSourceMap(typ *introspection.Type, moduleName string) *introspection.Type {
+	if typ.Directives.SourceMap() != nil {
+		return typ
+	}
+	value := `"` + moduleName + `"`
+	stamped := *typ
+	stamped.Directives = append(introspection.Directives{{
+		Name: "sourceMap",
+		Args: []*introspection.DirectiveArg{{Name: "module", Value: &value}},
+	}}, typ.Directives...)
+	return &stamped
 }

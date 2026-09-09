@@ -73,18 +73,13 @@ func generate(config generator.Config, target string, schema *introspection.Sche
 	// fields are dropped and re-attached as prototype augmentations in each
 	// per-module file.
 	//
-	// A standalone client splits *every* module — including the one it binds —
-	// so the bound module (e.g. hello) lands in hello.gen.ts and the core file
-	// (dagger.gen.ts) holds only core types. Module codegen keeps the module's
-	// own types in the core file (client.gen.ts) and splits only dependencies.
-	selfModule := selfModuleName(config)
-	var splitModules []string
-	if config.ClientConfig != nil {
-		splitModules = schema.DependencyNames()
-		selfModule = ""
-	} else {
-		splitModules = templates.DependencyModules(schema, selfModule)
-	}
+	// Every module in the schema is split, including the one being generated
+	// for: its own API lands in <module>.gen.ts beside its dependencies', and
+	// the core file holds only core types. Nothing distinguishes a module's own
+	// API from a dependency's here — it is reached through the same client, and
+	// keeping it in the core file would make the one binding a reader goes
+	// looking for the only one not where the others are.
+	splitModules := schema.DependencyNames()
 
 	coreSchema := schema
 	if len(splitModules) > 0 {
@@ -94,7 +89,7 @@ func generate(config generator.Config, target string, schema *introspection.Sche
 	// The template funcs always get the full schema so the module-splitting
 	// helpers can enumerate modules regardless of which (possibly filtered)
 	// schema a given file is rendered from.
-	tmpl := templates.New(schemaVersion, schema, selfModule, config)
+	tmpl := templates.New(schemaVersion, schema, "", config)
 
 	mfs := memfs.New()
 

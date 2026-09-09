@@ -69,13 +69,15 @@ func TestGenerateModule_Layout(t *testing.T) {
 	require.NotContains(t, core, `from "@dagger.io/dagger"`)
 	require.Contains(t, dep, `from "./core.js"`)
 
-	// The module's own types stay in the core file; only dependencies split out.
-	require.Contains(t, core, "export class App extends BaseClient")
+	// Every module splits into its own file, the module being generated for
+	// included: its API is reached through the same client as a dependency's, so
+	// keeping it in the core file would put the one binding a reader goes looking
+	// for in the only place the others are not.
 	require.Contains(t, core, `export * from "./gendep.gen.js"`)
+	require.Contains(t, core, `export * from "./app.gen.js"`)
 	require.Contains(t, dep, "export class Gendep extends BaseClient")
-
-	_, err = state.Overlay.Open("app.gen.ts")
-	require.Error(t, err, "the module's own types must not be split into app.gen.ts")
+	require.NotContains(t, core, "export class App extends BaseClient")
+	require.Contains(t, readOverlay(t, state, "app.gen.ts"), "export class App extends BaseClient")
 }
 
 // TestGenerateModule_SourceMapPathIsRelativeToSDKDir pins the source-map
@@ -90,7 +92,7 @@ func TestGenerateModule_SourceMapPathIsRelativeToSDKDir(t *testing.T) {
 	state, err := gen.GenerateModule(context.Background(), moduleSchema(t), "v0.21.0")
 	require.NoError(t, err)
 
-	require.Contains(t, readOverlay(t, state, "client.gen.ts"), "// app (../src/index.ts:12:0)")
+	require.Contains(t, readOverlay(t, state, "app.gen.ts"), "// app (../src/index.ts:12:0)")
 }
 
 // TestGenerateLibrary_ImportsRuntimeFromSource covers the third import arm: the
