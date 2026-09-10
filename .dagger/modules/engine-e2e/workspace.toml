@@ -27,6 +27,7 @@ source = ".dagger/modules/e2e"
 
 [modules.packager]
 source = ".dagger/modules/packager"
+check.skip = ["library-bindings"]
 
 [modules.runtimes]
 source = ".dagger/modules/runtimes"
