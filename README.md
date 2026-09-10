@@ -223,15 +223,18 @@ dagger check
 surface (lookup, discovery, init, config, generate, client), sharing the
 assertions in `util.dang` and the fixture tree under
 `.dagger/modules/e2e/fixtures`. `runtimes:*` generates a module per JavaScript
-runtime and loads it. List them with `dagger check -l`, or run one group with
-`dagger check "e-2-e:config:*"`.
+runtime and loads it. These checks, the packager checks, and fixture generation
+run inside the pinned development engine. The outer workspace loads only the
+engine harness; its inner workspace configuration lives in
+`.dagger/modules/engine-e2e/workspace.toml`. `dagger generate` uses that same
+engine to refresh the library artifacts and fixtures.
 
 `engine-e-2-e:*` covers the half no dang check can reach: it builds an engine
-from dagger/dagger#13992, runs it as a playground with this checkout mounted,
+from a pinned dagger/dagger commit, runs it as a playground with this checkout mounted,
 and drives the real CLI through `sdk list`, `module init` with and without
 settings, `call`, and the whole check suite. Provider validation is silent when
 it fails — the engine simply never records `[sdks.typescript]` — so this is what
-tells you the interface still matches. Bumping the branch means changing both
+tells you the interface still matches. Bumping the engine commit means changing both
 the `engine-dev` dependency in `.dagger/modules/engine-e2e/dagger-module.toml`
 and `engineCommit` in `.dagger/modules/engine-e2e/main.dang`.
 

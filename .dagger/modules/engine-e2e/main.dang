@@ -51,6 +51,7 @@ type EngineE2e {
       .playground(version: engineCommit)
       .withMountedDirectory("./typescript-sdk", checkout(ws))
       .withWorkdir("./typescript-sdk")
+      .withFile("dagger.toml", ws.file("/.dagger/modules/engine-e2e/workspace.toml"))
       .withExec(["git", "init", "--quiet"])
   }
 
@@ -141,23 +142,27 @@ type EngineE2e {
     null
   }
 
-  """
-  The SDK's own check suite should pass against the pinned main engine too.
-
-  It passes on the released engine, which is where CI runs it — but the branch
-  is the engine this work targets, and the two disagree about the interface
-  under every one of these checks. The groups are named rather than left to a
-  bare `dagger check` for three reasons: this module is one of the workspace's,
-  so an unfiltered run would build another engine inside this one and recurse;
-  `packager:*` opens a further nested privileged session of its own; and leaving
-  `engine-e2e` out of the selection keeps the inner engine from cloning
-  dagger/dagger again.
-  """
+  """Run all SDK checks and generated-file checks inside the pinned engine."""
   checksCheck(ws: Workspace!): Void @check {
     playground(ws)
-      .withExec(["dagger", "check", "e-2-e:**", "runtimes:**"])
+      .withExec(["dagger", "check"])
       .sync
 
     null
+  }
+
+  """Regenerate library artifacts and fixtures with the pinned engine."""
+  generate(ws: Workspace!): Changeset! @generate {
+    # Bundle generation consumes the bindings, and fixture generation consumes
+    # the bundle. Run these stages in order against the updated checkout.
+    let generated = playground(ws)
+      .withExec(["dagger", "generate", "--auto-apply", "packager:library-bindings"])
+      .withExec(["dagger", "generate", "--auto-apply", "packager:library-bundle"])
+      .withExec(["dagger", "generate", "--auto-apply"])
+      .directory(".")
+      .withoutDirectory(".git")
+      .withFile("dagger.toml", ws.file("/dagger.toml"))
+
+    ws.withDirectory("/", generated).changes(ws)
   }
 }
