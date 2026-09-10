@@ -1,17 +1,7 @@
 """
-Checks this SDK against an engine built from dagger/dagger#13992 (branch
-sdk-ux-module-max), at the commit `engine-dev` is pinned to in
-dagger-module.toml.
-
-Every other check in this repo drives the SDK's functions directly, against
-whichever engine is running them. None of that reaches the engine half of the
-contract: whether the provider passes the exact-shape validation the engine
-applies before it will record `[sdks.typescript]`, whether a scope's settings
-arrive, whether the module generation writes actually loads. Those are only
-observable through a real CLI, and only on the branch that has the interface.
-
-Bumping the branch means changing two things: the `engine-dev` dependency in
-dagger-module.toml and `engineCommit` below.
+Checks SDK registration, module initialization, settings, and the complete
+TypeScript suite against a pinned main engine. Keep engineCommit and the
+engine-dev dependency in dagger-module.toml aligned.
 """
 type EngineE2e {
   """
@@ -19,7 +9,7 @@ type EngineE2e {
   `engine-dev` dependency's pin; it is repeated here because the source tree is
   fetched separately from the module.
   """
-  let engineCommit: String! = "8fd9b22b5416f8dc7cb420ba37769adef6e874d2"
+  let engineCommit: String! = "0d031c08ef3e379c6f4eb7f8f5cad4638a168863"
 
   let modulePath: String! = ".dagger/modules/sdk-smoke"
   let settingsPath: String! = ".dagger/modules/sdk-settings"
@@ -50,7 +40,7 @@ type EngineE2e {
   }
 
   """
-  A container with the branch engine running and this checkout in place.
+  A container with the pinned main engine running and this checkout in place.
 
   `version` is the engine commit, so the engine's state cache volume is named
   after it. Left unset it is randomized per call, and every run starts an engine
@@ -65,7 +55,7 @@ type EngineE2e {
   }
 
   """
-  The branch engine should accept this checkout as the typescript SDK, create a
+  The pinned main engine should accept this checkout as the typescript SDK, create a
   module with it, and run that module.
 
   Accepting it is the part no other check can reach: the engine validates the
@@ -152,7 +142,7 @@ type EngineE2e {
   }
 
   """
-  The SDK's own check suite should pass against the branch engine too.
+  The SDK's own check suite should pass against the pinned main engine too.
 
   It passes on the released engine, which is where CI runs it — but the branch
   is the engine this work targets, and the two disagree about the interface

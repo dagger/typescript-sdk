@@ -20,8 +20,9 @@ type ManifestChecks {
     Asserts.assert(!unlockedAgain.directory(".").exists("dagger.json"), "generation retained JSON")
     Asserts.assert(unlockedAgain.cwd == input.cwd, "generation changed cwd")
     Asserts.assert(unlockedAgain.file("keep.txt").contents == "keep", "generation changed another file")
+    # Loaded manifests preserve pins; only supplied ModuleSources provide missing pins.
     let lockedAgain = typescriptSdk(lock: true).generateScope(unlockedAgain, isModule: true, name: "manifest-pins", clients: [])
-    Asserts.stringContains(lockedAgain.file("dagger-module.toml").contents, "pin = \"" + commit + "\"", "missing Git pin was not resolved")
+    Asserts.stringNotContains(lockedAgain.file("dagger-module.toml").contents, "pin =", "locking invented a pin without a supplied module source")
     let repeated = typescriptSdk(lock: true).generateScope(lockedAgain, isModule: true, name: "manifest-pins", clients: [])
     Asserts.assert(repeated.changes(lockedAgain).isEmpty, "repeated generation changed the workspace")
     null
