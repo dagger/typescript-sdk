@@ -1,15 +1,17 @@
 """
 Checks SDK registration, module initialization, settings, and the complete
-TypeScript suite against a pinned main engine. Keep engineCommit and the
-engine-dev dependency in dagger-module.toml aligned.
+TypeScript suite against the engine-dev dependency's locked revision.
 """
 type EngineE2e {
-  """
-  The dagger/dagger commit the engine is built from. The same value as the
-  `engine-dev` dependency's pin; it is repeated here because the source tree is
-  fetched separately from the module.
-  """
-  let engineCommit: String! = "0d031c08ef3e379c6f4eb7f8f5cad4638a168863"
+  """Build the same revision that Dagger resolved for the engine-dev dependency."""
+  let engineCommit(ws: Workspace!): String! {
+    let dependency = ws.moduleSource("/.dagger/modules/engine-e2e").dependencies.{{moduleName, pin}}
+      .filter { dep => dep.moduleName == "engine-dev" }[0]
+    if (dependency == null) {
+      raise "engine-dev dependency is missing"
+    }
+    dependency.pin
+  }
 
   let modulePath: String! = ".dagger/modules/sdk-smoke"
   let settingsPath: String! = ".dagger/modules/sdk-settings"
@@ -47,11 +49,11 @@ type EngineE2e {
   with an empty cache.
   """
   let playground(ws: Workspace!): Container! {
+    let engineCommit = self.engineCommit(ws)
     engineDev(ws: git("https://github.com/dagger/dagger").ref(engineCommit).asWorkspace)
       .playground(version: engineCommit)
       .withMountedDirectory("./typescript-sdk", checkout(ws))
       .withWorkdir("./typescript-sdk")
-      .withFile("dagger.toml", ws.file("/.dagger/modules/engine-e2e/workspace.toml"))
       .withExec(["git", "init", "--quiet"])
   }
 
@@ -161,7 +163,6 @@ type EngineE2e {
       .withExec(["dagger", "generate", "--auto-apply"])
       .directory(".")
       .withoutDirectory(".git")
-      .withFile("dagger.toml", ws.file("/dagger.toml"))
 
     ws.withDirectory("/", generated).changes(ws)
   }
