@@ -32,6 +32,9 @@ type TypescriptSdk {
   """
   template: String! = "default"
 
+  """Write selected Git commits as manifest pins."""
+  lock: Boolean! = false
+
   """
   packageManager pin for package.json, as `name@version` or just `name`. Empty
   writes no field. Node only; Bun and Deno bundle their own.
@@ -161,7 +164,7 @@ type TypescriptSdk {
       let targets = clientTargets(clients)
       # Before the schema is read: a target that is not a dependency yet is not
       # in the schema the bindings are generated from.
-      let served = withClientDependencies(configured, scope, source, targets)
+      let served = withClientDependencies(configured, scope, clients)
 
       # First pass. The module is loadable afterwards, which is what the self
       # target needs.
@@ -203,29 +206,6 @@ type TypescriptSdk {
   let dirOf(path: String!): String! {
     let dir = path.trimPrefix("/").split("/").dropLast(1).join("/")
     if (dir == "") { "." } else { dir }
-  }
-
-  """
-  `to` expressed relative to `from`, both workspace-root-relative.
-
-  A manifest records a local dependency relative to the module that declares it,
-  while everything the engine hands this SDK is measured from the workspace root.
-  """
-  let relativeFrom(from: String!, to: String!): String! {
-    let fromParts = if (from == ".") { [] } else { from.split("/") }
-    let toParts = if (to == ".") { [] } else { to.split("/") }
-
-    # Longest prefix of `from` that also prefixes `to`. Walked by length rather
-    # than by pairing elements, so it needs no indexing: a prefix of length n+1
-    # only matches when the one of length n does, which makes the fold monotonic.
-    let shared = fromParts.reduce(0) { depth, part =>
-      let candidate = fromParts.dropLast(fromParts.length - depth - 1).join("/")
-      if (to == candidate or to.hasPrefix(candidate + "/")) { depth + 1 } else { depth }
-    }
-
-    let ups = fromParts.dropFirst(shared).map { part => ".." }
-    let joined = (ups + toParts.dropFirst(shared)).join("/")
-    if (joined == "") { "." } else { joined }
   }
 
   """
@@ -364,7 +344,6 @@ type TypescriptSdk {
   every module scope rather than only the ones being created.
   """
   let withModuleManifest(ws: Workspace!, scope: String!, name: String!, hasJSON: Boolean!): Workspace! {
-    let tomlPath = "/" + scopeFile(scope, "dagger-module.toml")
     let configPath = scopeFile(scope, "dagger.json")
     let jsonPath = "/" + configPath
 
@@ -395,8 +374,9 @@ type TypescriptSdk {
       sdkHelpers.moduleManifest.withLegacyTypescriptRuntime(engineVersion: "v" + targetEngineVersion)
     }
 
-    let written = ws.withNewFile(tomlPath, existing.withName(name: name).tomlFile.contents)
-    if (hasJSON) { written.withoutFile(jsonPath) } else { written }
+    existing.withName(name: name)
+      .generate(ws.withWorkdir(scope), lock: lock, legacyJson: false)
+      .withWorkdir(".")
   }
 
   """
@@ -414,27 +394,15 @@ type TypescriptSdk {
   Dependencies are upserted, never pruned. A manifest may carry entries nobody
   here put there — written by hand, or migrated from a pre-1.0 dagger.json — and
   they are indistinguishable from ours, so removing the ones that are missing
-  from `targets` would take those with them. The cost is that dropping a client
+  from `clients` would take those with them. The cost is that dropping a client
   leaves its dependency behind, serving a module whose bindings are gone.
+  Generation also applies the lock setting when there are no clients.
   """
-  let withClientDependencies(ws: Workspace!, scope: String!, source: String!, targets: [ClientTarget!]!): Workspace! {
-    if (targets.length == 0) {
-      ws
-    } else {
-      let tomlPath = "/" + scopeFile(scope, "dagger-module.toml")
-      let manifest = targets.reduce(sdkHelpers.moduleManifest(loadToml: ws.file(tomlPath))) { built, target =>
-        built.withLegacyRuntimeDependency(
-          # A git target resolves from anywhere by its canonical ref; a local one
-          # is recorded the way a manifest records any local dependency, relative
-          # to the module that declares it.
-          source: if (target.isLocal) { relativeFrom(source, target.path) } else { target.ref },
-          name: target.name,
-          pin: if (target.pin == "") { null } else { target.pin },
-        )
-      }
-
-      ws.withNewFile(tomlPath, manifest.tomlFile.contents)
-    }
+  let withClientDependencies(ws: Workspace!, scope: String!, clients: [ModuleSource!]!): Workspace! {
+    let tomlPath = "/" + scopeFile(scope, "dagger-module.toml")
+    clients.reduce(sdkHelpers.moduleManifest(loadToml: ws.file(tomlPath))) { manifest, client =>
+      manifest.withLegacyRuntimeDependency(module: client)
+    }.generate(ws.withWorkdir(scope), lock: lock, legacyJson: false).withWorkdir(".")
   }
 
   """

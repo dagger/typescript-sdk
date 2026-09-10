@@ -1,25 +1,17 @@
 """
-Checks this SDK against an engine built from dagger/dagger#13992 (branch
-sdk-ux-module-max), at the commit `engine-dev` is pinned to in
-dagger-module.toml.
-
-Every other check in this repo drives the SDK's functions directly, against
-whichever engine is running them. None of that reaches the engine half of the
-contract: whether the provider passes the exact-shape validation the engine
-applies before it will record `[sdks.typescript]`, whether a scope's settings
-arrive, whether the module generation writes actually loads. Those are only
-observable through a real CLI, and only on the branch that has the interface.
-
-Bumping the branch means changing two things: the `engine-dev` dependency in
-dagger-module.toml and `engineCommit` below.
+Checks SDK registration, module initialization, settings, and the complete
+TypeScript suite against the engine-dev dependency's locked revision.
 """
 type EngineE2e {
-  """
-  The dagger/dagger commit the engine is built from. The same value as the
-  `engine-dev` dependency's pin; it is repeated here because the source tree is
-  fetched separately from the module.
-  """
-  let engineCommit: String! = "8fd9b22b5416f8dc7cb420ba37769adef6e874d2"
+  """Build the same revision that Dagger resolved for the engine-dev dependency."""
+  let engineCommit(ws: Workspace!): String! {
+    let dependency = ws.moduleSource("/.dagger/modules/engine-e2e").dependencies.{{moduleName, pin}}
+      .filter { dep => dep.moduleName == "engine-dev" }[0]
+    if (dependency == null) {
+      raise "engine-dev dependency is missing"
+    }
+    dependency.pin
+  }
 
   let modulePath: String! = ".dagger/modules/sdk-smoke"
   let settingsPath: String! = ".dagger/modules/sdk-settings"
@@ -46,17 +38,18 @@ type EngineE2e {
       ".remember",
       "**/node_modules",
       ".dagger/modules/e2e/fixtures/client/out",
-    ])
+    ]).withFile("dagger.toml", ws.file("/.dagger/modules/engine-e2e/workspace.toml"))
   }
 
   """
-  A container with the branch engine running and this checkout in place.
+  A container with the pinned main engine running and this checkout in place.
 
   `version` is the engine commit, so the engine's state cache volume is named
   after it. Left unset it is randomized per call, and every run starts an engine
   with an empty cache.
   """
   let playground(ws: Workspace!): Container! {
+    let engineCommit = self.engineCommit(ws)
     engineDev(ws: git("https://github.com/dagger/dagger").ref(engineCommit).asWorkspace)
       .playground(version: engineCommit)
       .withMountedDirectory("./typescript-sdk", checkout(ws))
@@ -65,7 +58,7 @@ type EngineE2e {
   }
 
   """
-  The branch engine should accept this checkout as the typescript SDK, create a
+  The pinned main engine should accept this checkout as the typescript SDK, create a
   module with it, and run that module.
 
   Accepting it is the part no other check can reach: the engine validates the
@@ -151,23 +144,30 @@ type EngineE2e {
     null
   }
 
-  """
-  The SDK's own check suite should pass against the branch engine too.
-
-  It passes on the released engine, which is where CI runs it — but the branch
-  is the engine this work targets, and the two disagree about the interface
-  under every one of these checks. The groups are named rather than left to a
-  bare `dagger check` for three reasons: this module is one of the workspace's,
-  so an unfiltered run would build another engine inside this one and recurse;
-  `packager:*` opens a further nested privileged session of its own; and leaving
-  `engine-e2e` out of the selection keeps the inner engine from cloning
-  dagger/dagger again.
-  """
+  """Run all SDK checks and generated-file checks inside the pinned engine."""
   checksCheck(ws: Workspace!): Void @check {
     playground(ws)
-      .withExec(["dagger", "check", "e-2-e:**", "runtimes:**"])
+      .withExec(["dagger", "check"])
       .sync
 
     null
+  }
+
+  """Regenerate library artifacts and fixtures with the pinned engine."""
+  generate(ws: Workspace!): Changeset! @generate {
+    # Bundle generation consumes the bindings, and fixture generation consumes
+    # the bundle. Run these stages in order against the updated checkout.
+    let generated = playground(ws)
+      .withExec(["dagger", "generate", "--auto-apply", "packager:library-bindings"])
+      .withExec(["dagger", "generate", "--auto-apply", "packager:library-bundle"])
+      .withExec(["dagger", "generate", "--auto-apply"])
+      .directory(".")
+      .withoutDirectory(".git")
+
+    let result = generated
+      .withFile(".dagger/modules/engine-e2e/workspace.toml", generated.file("dagger.toml"))
+      .withFile("dagger.toml", ws.file("/dagger.toml"))
+
+    ws.withDirectory("/", result).changes(ws)
   }
 }

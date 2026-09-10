@@ -317,13 +317,8 @@ type GenerateChecks {
   }
 
   """
-  Regenerating a module leaves its manifest alone.
-
-  The manifest is written once, when the scope has none — clients become a
-  generated package here, not manifest dependencies, so there is nothing to
-  reconcile into one that exists. The fixture carries a dependency edge and an
-  engine pin that a rewrite would reformat or drop, and asserting the file is
-  not in the diff at all is the only form of this that cannot pass by accident.
+  Regenerating a current manifest preserves its engine version and dependencies.
+  A manifest already in the helper's output format needs no change.
   """
   generatePreservesManifestCheck(ws: Workspace!): Void @check {
     let path = fixtures.depAppModule

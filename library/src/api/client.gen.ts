@@ -52,6 +52,11 @@ export type BuildArg = {
 }
 
 /**
+ * Arbitrary binary data, represented as a base64-encoded string.
+ */
+export type Bytes = string & {__Bytes: never}
+
+/**
  * Sharing mode of the cache volume.
  */
 export enum CacheSharingMode {
@@ -385,6 +390,11 @@ export type ContainerFileOpts = {
 }
 
 export type ContainerFromOpts = {
+  /**
+   * Version query used to select an image tag. The address must not contain a tag or digest.
+   */
+  version?: string
+
   /**
    * Service to use as the registry endpoint for the image address.
    * 
@@ -1758,6 +1768,13 @@ export type GeneratorGroupChangesOpts = {
   onConflict?: ChangesetsMergeConflict
 }
 
+export type GeneratorGroupWorkspaceOpts = {
+  /**
+   * Strategy to apply on conflicts between generators
+   */
+  onConflict?: ChangesetsMergeConflict
+}
+
 export type GitCommitAncestorReleaseTagOpts = {
   /**
    * Include pre-release tags when choosing the latest tag.
@@ -1844,11 +1861,32 @@ export type GitRepositoryBranchesOpts = {
   patterns?: string[]
 }
 
+export type GitRepositoryBundleOpts = {
+  /**
+   * A Git ref whose reachable objects are omitted and recorded as a prerequisite.
+   */
+  base?: GitRef
+}
+
+export type GitRepositoryLatestOpts = {
+  /**
+   * Version query used to select the greatest matching release ref.
+   */
+  version?: string
+}
+
 export type GitRepositoryTagsOpts = {
   /**
    * Glob patterns (e.g., "refs/tags/v*").
    */
   patterns?: string[]
+}
+
+export type GitRepositoryWithBundleOpts = {
+  /**
+   * An optional remote ref hint for fetching a prerequisite when the remote does not allow fetches by object ID.
+   */
+  prerequisiteRef?: string
 }
 
 export type HostDirectoryOpts = {
@@ -2471,6 +2509,13 @@ export type PortForward = {
   protocol?: NetworkProtocol
 }
 
+export type ClientBlobOpts = {
+  /**
+   * Permissions of the new file. Example: 0600
+   */
+  permissions?: number
+}
+
 export type ClientCacheVolumeOpts = {
   /**
    * Identifier of the directory to use as the cache volume's root.
@@ -2615,6 +2660,11 @@ export type ClientLLMOpts = {
 }
 
 export type ClientModuleSourceOpts = {
+  /**
+   * Version query for a Git module source.
+   */
+  version?: string
+
   /**
    * The pinned version of the module source
    */
@@ -3243,6 +3293,25 @@ export type WorkspaceServicesOpts = {
   include?: string[]
 }
 
+export type WorkspaceTerminalsOpts = {
+  /**
+   * Only include terminal targets matching the specified patterns
+   */
+  include?: string[]
+}
+
+export type WorkspaceWithClientOpts = {
+  /**
+   * Optional SDK name. Inspect all installed SDKs when omitted.
+   */
+  sdk?: string
+
+  /**
+   * Explicit SDK-module constructor setting overrides for this scope. Requires an explicit SDK name.
+   */
+  settings?: JSON
+}
+
 export type WorkspaceWithConfigEnvOpts = {
   /**
    * Write to the workspace config directory at the workspace cwd.
@@ -3262,53 +3331,28 @@ export type WorkspaceWithConfigValueOpts = {
   here?: boolean
 }
 
-export type WorkspaceWithInitClientOpts = {
+export type WorkspaceWithFileOpts = {
   /**
-   * SDK-specific init arguments.
+   * Permissions of the added file. Defaults to the source file permissions.
    */
-  args?: JSON
-
-  /**
-   * Write to the workspace config directory at the workspace cwd.
-   */
-  here?: boolean
-
-  /**
-   * Skip running the SDK's generators for the new client.
-   */
-  noGenerate?: boolean
+  permissions?: number
 }
 
 export type WorkspaceWithInitModuleOpts = {
   /**
-   * Path for the new module, relative to the workspace cwd; a leading "/" is relative to the workspace root. Defaults to .dagger/modules/<name> beside the workspace config.
+   * Module name. The engine infers it from path, the active config file, or the workspace root when omitted.
+   */
+  name?: string
+
+  /**
+   * Module path relative to the workspace cwd, or an absolute workspace path. Defaults to .dagger/modules/<name> beside the active workspace config.
    */
   path?: string
 
   /**
-   * Source subpath within the new module.
+   * Explicit SDK-module constructor setting overrides for this scope.
    */
-  source?: string
-
-  /**
-   * Additional include patterns for the module.
-   */
-  include?: string[]
-
-  /**
-   * SDK-specific init arguments.
-   */
-  args?: JSON
-
-  /**
-   * Write to the workspace config directory at the workspace cwd.
-   */
-  here?: boolean
-
-  /**
-   * Skip running the SDK's generators for the new module.
-   */
-  noGenerate?: boolean
+  settings?: JSON
 }
 
 export type WorkspaceWithModuleOpts = {
@@ -3342,9 +3386,47 @@ export type WorkspaceWithSdkOpts = {
   here?: boolean
 
   /**
-   * User-facing SDK name to persist under `[modules.<name>.as-sdk] name = ...`.
+   * Optional override for the SDK name conventionally derived from the installed module name.
    */
   asSdkName?: string
+}
+
+export type WorkspaceWithUpdatedClientsOpts = {
+  /**
+   * Recorded client targets to update. All targets in the selected scopes are updated when omitted.
+   */
+  modules?: string[]
+
+  /**
+   * Select clients in every scope instead of only the scopes containing the workspace cwd.
+   */
+  all?: boolean
+
+  /**
+   * Optional SDK name. All installed SDK modules are selected when omitted.
+   */
+  sdk?: string
+}
+
+export type WorkspaceWithUpdatedLockOpts = {
+  /**
+   * Do not regenerate SDK client scopes.
+   */
+  noGenerate?: boolean
+}
+
+export type WorkspaceWithUpdatedModulesOpts = {
+  /**
+   * Installed module names to refresh. An empty list refreshes all installed modules.
+   */
+  names?: string[]
+}
+
+export type WorkspaceWithoutClientOpts = {
+  /**
+   * Optional SDK name. Search all installed SDKs when omitted.
+   */
+  sdk?: string
 }
 
 export type WorkspaceWithoutConfigEnvOpts = {
@@ -3553,6 +3635,17 @@ export class Address extends BaseClient {
     )
     return new Volume(ctx)
   }
+
+  /**
+   * Load a workspace from a module reference.
+   */
+  workspace = (): Workspace => {
+
+    const ctx = this._ctx.select(
+      "workspace",
+    )
+    return new Workspace(ctx)
+  }
 }
 
 
@@ -3722,6 +3815,8 @@ export class AgentGroup extends BaseClient {
     return response.map((r) => new Agent(ctx.copy().selectNode(r.id, "Agent")))
   }
 }
+
+
 
 
 
@@ -4873,6 +4968,7 @@ export class Container extends BaseClient {
    * @param address Address of the container image to download, in standard OCI ref format. Example: "registry.dagger.io/engine:latest".
    * 
    * An address without a tag or digest selects the greatest stable release tag, falling back to the literal "latest" tag when no eligible release exists.
+   * @param opts.version Version query used to select an image tag. The address must not contain a tag or digest.
    * @param opts.registryService Service to use as the registry endpoint for the image address.
    * 
    * The service will be started only for this pull.
@@ -6087,21 +6183,6 @@ export class CurrentModule extends BaseClient {
   }
 
   /**
-   * Treat the currently executing module as an SDK installed in the given workspace, exposing the modules and clients it manages.
-   * 
-   * Errors if the current module is not installed as an SDK in this workspace.
-   * @param workspace The workspace to resolve SDK-role data against.
-   */
-  asSDK = (workspace: Workspace): CurrentModuleAsSDK => {
-
-    const ctx = this._ctx.select(
-      "asSDK",
-      { workspace },
-    )
-    return new CurrentModuleAsSDK(ctx)
-  }
-
-  /**
    * The dependencies of the module.
    */
   dependencies = async (): Promise<Module_[]> => {
@@ -6200,269 +6281,6 @@ export class CurrentModule extends BaseClient {
       { path },
     )
     return new File(ctx)
-  }
-}
-
-/**
- * The SDK-role data for the currently executing module, as installed in the supplied workspace.
- */
-export class CurrentModuleAsSDK extends BaseClient {
-  private readonly _id?: ID = undefined
-  private readonly _name?: string = undefined
-
-  /**
-   * Constructor is used for internal usage only, do not create object from it.
-   */
-   constructor(
-    ctx?: Context,
-     _id?: ID,
-     _name?: string,
-   ) {
-     super(ctx)
-
-     this._id = _id
-     this._name = _name
-   }
-
-  /**
-   * A unique identifier for this CurrentModuleAsSDK.
-   */
-  id = async (): Promise<ID> => {
-    if (this._id) {
-      return this._id
-    }
-
-    const ctx = this._ctx.select(
-      "id",
-    )
-
-    const response: Awaited<ID> = await ctx.execute()
-
-    
-    return response
-  }
-
-  /**
-   * The generated clients this SDK produces in the workspace.
-   */
-  clients = async (): Promise<CurrentModuleAsSDKClient[]> => {
-    type clients = {
-      id: ID
-    }
-
-    const ctx = this._ctx.select(
-      "clients",
-    ).select("id")
-
-    const response: Awaited<clients[]> = await ctx.execute()
-
-    
-    return response.map((r) => new CurrentModuleAsSDKClient(ctx.copy().selectNode(r.id, "CurrentModuleAsSDKClient")))
-  }
-
-  /**
-   * The managed modules relevant to the bound workspace cwd: every module at or below it, plus the nearest enclosing module when the cwd itself is not managed.
-   */
-  modules = async (): Promise<CurrentModuleAsSDKModule[]> => {
-    type modules = {
-      id: ID
-    }
-
-    const ctx = this._ctx.select(
-      "modules",
-    ).select("id")
-
-    const response: Awaited<modules[]> = await ctx.execute()
-
-    
-    return response.map((r) => new CurrentModuleAsSDKModule(ctx.copy().selectNode(r.id, "CurrentModuleAsSDKModule")))
-  }
-
-  /**
-   * The user-facing name of this SDK in the workspace.
-   */
-  name = async (): Promise<string> => {
-    if (this._name) {
-      return this._name
-    }
-
-    const ctx = this._ctx.select(
-      "name",
-    )
-
-    const response: Awaited<string> = await ctx.execute()
-
-    
-    return response
-  }
-}
-
-/**
- * A generated client the current SDK produces in the workspace.
- */
-export class CurrentModuleAsSDKClient extends BaseClient {
-  private readonly _id?: ID = undefined
-  private readonly _module?: string = undefined
-  private readonly _path?: string = undefined
-  private readonly _pin?: string = undefined
-
-  /**
-   * Constructor is used for internal usage only, do not create object from it.
-   */
-   constructor(
-    ctx?: Context,
-     _id?: ID,
-     _module?: string,
-     _path?: string,
-     _pin?: string,
-   ) {
-     super(ctx)
-
-     this._id = _id
-     this._module = _module
-     this._path = _path
-     this._pin = _pin
-   }
-
-  /**
-   * A unique identifier for this CurrentModuleAsSDKClient.
-   */
-  id = async (): Promise<ID> => {
-    if (this._id) {
-      return this._id
-    }
-
-    const ctx = this._ctx.select(
-      "id",
-    )
-
-    const response: Awaited<ID> = await ctx.execute()
-
-    
-    return response
-  }
-
-  /**
-   * The module the client is bound to (workspace-relative path or canonical ref).
-   */
-  module_ = async (): Promise<string> => {
-    if (this._module) {
-      return this._module
-    }
-
-    const ctx = this._ctx.select(
-      "module",
-    )
-
-    const response: Awaited<string> = await ctx.execute()
-
-    
-    return response
-  }
-
-  /**
-   * The resolved module source this client is bound to, including its dependency closure and pinned version.
-   */
-  moduleSource = (): ModuleSource => {
-
-    const ctx = this._ctx.select(
-      "moduleSource",
-    )
-    return new ModuleSource(ctx)
-  }
-
-  /**
-   * Workspace-root-relative path of the generated client.
-   */
-  path = async (): Promise<string> => {
-    if (this._path) {
-      return this._path
-    }
-
-    const ctx = this._ctx.select(
-      "path",
-    )
-
-    const response: Awaited<string> = await ctx.execute()
-
-    
-    return response
-  }
-
-  /**
-   * The pinned version of the bound module, if any.
-   */
-  pin = async (): Promise<string> => {
-    if (this._pin) {
-      return this._pin
-    }
-
-    const ctx = this._ctx.select(
-      "pin",
-    )
-
-    const response: Awaited<string> = await ctx.execute()
-
-    
-    return response
-  }
-}
-
-/**
- * A workspace-local module managed by the current SDK.
- */
-export class CurrentModuleAsSDKModule extends BaseClient {
-  private readonly _id?: ID = undefined
-  private readonly _path?: string = undefined
-
-  /**
-   * Constructor is used for internal usage only, do not create object from it.
-   */
-   constructor(
-    ctx?: Context,
-     _id?: ID,
-     _path?: string,
-   ) {
-     super(ctx)
-
-     this._id = _id
-     this._path = _path
-   }
-
-  /**
-   * A unique identifier for this CurrentModuleAsSDKModule.
-   */
-  id = async (): Promise<ID> => {
-    if (this._id) {
-      return this._id
-    }
-
-    const ctx = this._ctx.select(
-      "id",
-    )
-
-    const response: Awaited<ID> = await ctx.execute()
-
-    
-    return response
-  }
-
-  /**
-   * Workspace-root-relative path to the managed module.
-   */
-  path = async (): Promise<string> => {
-    if (this._path) {
-      return this._path
-    }
-
-    const ctx = this._ctx.select(
-      "path",
-    )
-
-    const response: Awaited<string> = await ctx.execute()
-
-    
-    return response
   }
 }
 
@@ -8786,6 +8604,17 @@ export class File extends BaseClient {
   }
 
   /**
+   * Interpret this file as a Git bundle by lazily parsing its header.
+   */
+  asGitBundle = (): GitBundle => {
+
+    const ctx = this._ctx.select(
+      "asGitBundle",
+    )
+    return new GitBundle(ctx)
+  }
+
+  /**
    * Parse the file contents as JSON.
    */
   asJSON = (): JSONValue => {
@@ -10027,14 +9856,19 @@ export class Generator extends BaseClient {
   }
 
   /**
-   * The original module in which the generator has been defined
+   * The module that defined the generator, or null for an engine-defined generator
    */
-  originalModule = (): Module_ => {
-
+  originalModule = async (): Promise<Module_ | null> => {
     const ctx = this._ctx.select(
       "originalModule",
-    )
-    return new Module_(ctx)
+    ).select("id")
+
+    const response: Awaited<string | null> = await ctx.execute()
+
+    if (response === null) {
+      return null
+    }
+    return new Module_(ctx.copy().selectNode(response, "Module"))
   }
 
   /**
@@ -10194,12 +10028,250 @@ export class GeneratorGroup extends BaseClient {
   }
 
   /**
+   * The workspace with the combined output from the last generator run
+   * @param opts.onConflict Strategy to apply on conflicts between generators
+   */
+  workspace = (opts?: GeneratorGroupWorkspaceOpts): Workspace => {
+	const metadata = {
+	    onConflict: { is_enum: true, value_to_name: ChangesetsMergeConflictValueToName },
+	}
+
+
+    const ctx = this._ctx.select(
+      "workspace",
+      { ...opts, __metadata: metadata },
+    )
+    return new Workspace(ctx)
+  }
+
+  /**
    * Call the provided function with current GeneratorGroup.
    *
    * This is useful for reusability and readability by not breaking the calling chain.
    */
   with = (arg: (param: GeneratorGroup) => GeneratorGroup) => {
     return arg(this)
+  }
+}
+
+/**
+ * A Git bundle: a self-describing container of refs and the objects needed to reconstruct them, optionally rooted at prerequisite commits.
+ */
+export class GitBundle extends BaseClient {
+  private readonly _id?: ID = undefined
+  private readonly _objectFormat?: string = undefined
+  private readonly _version?: number = undefined
+
+  /**
+   * Constructor is used for internal usage only, do not create object from it.
+   */
+   constructor(
+    ctx?: Context,
+     _id?: ID,
+     _objectFormat?: string,
+     _version?: number,
+   ) {
+     super(ctx)
+
+     this._id = _id
+     this._objectFormat = _objectFormat
+     this._version = _version
+   }
+
+  /**
+   * A unique identifier for this GitBundle.
+   */
+  id = async (): Promise<ID> => {
+    if (this._id) {
+      return this._id
+    }
+
+    const ctx = this._ctx.select(
+      "id",
+    )
+
+    const response: Awaited<ID> = await ctx.execute()
+
+    
+    return response
+  }
+
+  /**
+   * Return the bundle bytes as a File.
+   */
+  asFile = (): File => {
+
+    const ctx = this._ctx.select(
+      "asFile",
+    )
+    return new File(ctx)
+  }
+
+  /**
+   * Object format capability: sha1 or sha256.
+   */
+  objectFormat = async (): Promise<string> => {
+    if (this._objectFormat) {
+      return this._objectFormat
+    }
+
+    const ctx = this._ctx.select(
+      "objectFormat",
+    )
+
+    const response: Awaited<string> = await ctx.execute()
+
+    
+    return response
+  }
+
+  /**
+   * Commits that must already exist wherever this bundle is applied.
+   */
+  prerequisiteSHAs = async (): Promise<string[]> => {
+    const ctx = this._ctx.select(
+      "prerequisiteSHAs",
+    )
+
+    const response: Awaited<string[]> = await ctx.execute()
+
+    
+    return response
+  }
+
+  /**
+   * Refs advertised by the bundle and the object IDs they resolve to.
+   */
+  refs = async (): Promise<GitBundleRef[]> => {
+    type refs = {
+      id: ID
+    }
+
+    const ctx = this._ctx.select(
+      "refs",
+    ).select("id")
+
+    const response: Awaited<refs[]> = await ctx.execute()
+
+    
+    return response.map((r) => new GitBundleRef(ctx.copy().selectNode(r.id, "GitBundleRef")))
+  }
+
+  /**
+   * Perform full structural verification of the bundle and error if it is malformed.
+   */
+  validate = (): GitBundle => {
+
+    const ctx = this._ctx.select(
+      "validate",
+    )
+    return new GitBundle(ctx)
+  }
+
+  /**
+   * Bundle format version (2 or 3).
+   */
+  version = async (): Promise<number> => {
+    if (this._version) {
+      return this._version
+    }
+
+    const ctx = this._ctx.select(
+      "version",
+    )
+
+    const response: Awaited<number> = await ctx.execute()
+
+    
+    return response
+  }
+
+  /**
+   * Call the provided function with current GitBundle.
+   *
+   * This is useful for reusability and readability by not breaking the calling chain.
+   */
+  with = (arg: (param: GitBundle) => GitBundle) => {
+    return arg(this)
+  }
+}
+
+/**
+ * A ref advertised by a Git bundle.
+ */
+export class GitBundleRef extends BaseClient {
+  private readonly _id?: ID = undefined
+  private readonly _name?: string = undefined
+  private readonly _sha?: string = undefined
+
+  /**
+   * Constructor is used for internal usage only, do not create object from it.
+   */
+   constructor(
+    ctx?: Context,
+     _id?: ID,
+     _name?: string,
+     _sha?: string,
+   ) {
+     super(ctx)
+
+     this._id = _id
+     this._name = _name
+     this._sha = _sha
+   }
+
+  /**
+   * A unique identifier for this GitBundleRef.
+   */
+  id = async (): Promise<ID> => {
+    if (this._id) {
+      return this._id
+    }
+
+    const ctx = this._ctx.select(
+      "id",
+    )
+
+    const response: Awaited<ID> = await ctx.execute()
+
+    
+    return response
+  }
+
+  /**
+   * The advertised ref name.
+   */
+  name = async (): Promise<string> => {
+    if (this._name) {
+      return this._name
+    }
+
+    const ctx = this._ctx.select(
+      "name",
+    )
+
+    const response: Awaited<string> = await ctx.execute()
+
+    
+    return response
+  }
+
+  /**
+   * The object ID the advertised ref resolves to.
+   */
+  sha = async (): Promise<string> => {
+    if (this._sha) {
+      return this._sha
+    }
+
+    const ctx = this._ctx.select(
+      "sha",
+    )
+
+    const response: Awaited<string> = await ctx.execute()
+
+    
+    return response
   }
 }
 
@@ -10828,6 +10900,20 @@ export class GitRepository extends BaseClient {
   }
 
   /**
+   * Pack the given refs and the objects needed to reconstruct them into a Git bundle.
+   * @param refs Refs to advertise in the bundle. At least one named ref is required.
+   * @param opts.base A Git ref whose reachable objects are omitted and recorded as a prerequisite.
+   */
+  bundle = (refs: string[], opts?: GitRepositoryBundleOpts): GitBundle => {
+
+    const ctx = this._ctx.select(
+      "bundle",
+      { refs, ...opts },
+    )
+    return new GitBundle(ctx)
+  }
+
+  /**
    * Returns details of a commit.
    * @param id Identifier of the commit (e.g., "b6315d8f2810962c601af73f86831f6866ea798b").
    */
@@ -10855,11 +10941,13 @@ export class GitRepository extends BaseClient {
    * Return the latest stable release tag, falling back to HEAD when no release exists.
    * 
    * Release selection accepts an optional "v" prefix, incomplete versions, and zero-padded numeric components. This operation is pinned.
+   * @param opts.version Version query used to select the greatest matching release ref.
    */
-  latest = (): GitRef => {
+  latest = (opts?: GitRepositoryLatestOpts): GitRef => {
 
     const ctx = this._ctx.select(
       "latest",
+      { ...opts },
     )
     return new GitRef(ctx)
   }
@@ -10934,6 +11022,29 @@ export class GitRepository extends BaseClient {
 
     
     return response
+  }
+
+  /**
+   * Import a Git bundle after fetching and verifying all of its prerequisites.
+   * @param bundle The Git bundle to import.
+   * @param opts.prerequisiteRef An optional remote ref hint for fetching a prerequisite when the remote does not allow fetches by object ID.
+   */
+  withBundle = (bundle: GitBundle, opts?: GitRepositoryWithBundleOpts): GitRepository => {
+
+    const ctx = this._ctx.select(
+      "withBundle",
+      { bundle, ...opts },
+    )
+    return new GitRepository(ctx)
+  }
+
+  /**
+   * Call the provided function with current GitRepository.
+   *
+   * This is useful for reusability and readability by not breaking the calling chain.
+   */
+  with = (arg: (param: GitRepository) => GitRepository) => {
+    return arg(this)
   }
 }
 
@@ -13774,21 +13885,6 @@ export class ModuleSource extends BaseClient {
   }
 
   /**
-   * Generate this module's transitive local dependency closure and return the staged changes as a single changeset against the unstaged workspace root.
-   * 
-   * Each local dependency is generated by its own SDK against a workspace scoped to it, carrying the dependency's own already-generated dependencies. Remote (git) dependencies are assumed committed and skipped. Overlay the result onto the workspace before generating this module; it is not this module's own generated code.
-   * @param workspace The workspace to generate the local dependencies against.
-   */
-  generateLocalDependencies = (workspace: Workspace): Changeset => {
-
-    const ctx = this._ctx.select(
-      "generateLocalDependencies",
-      { workspace },
-    )
-    return new Changeset(ctx)
-  }
-
-  /**
    * The generated files and directories made on top of the module source's context directory, returned as a Changeset.
    */
   generatedContextChangeset = (): Changeset => {
@@ -14791,6 +14887,21 @@ export class Client extends BaseClient {
   }
 
   /**
+   * Creates a file from arbitrary binary contents.
+   * @param name Name of the new file. Example: "archive.tar"
+   * @param contents Binary contents of the new file, encoded as base64 at the GraphQL boundary.
+   * @param opts.permissions Permissions of the new file. Example: 0600
+   */
+  blob = (name: string, contents: Bytes, opts?: ClientBlobOpts): File => {
+
+    const ctx = this._ctx.select(
+      "blob",
+      { name, contents, ...opts },
+    )
+    return new File(ctx)
+  }
+
+  /**
    * Constructs a cache volume for a given cache key.
    * @param key A string identifier to target this cache volume (e.g., "modules-cache").
    * @param opts.source Identifier of the directory to use as the cache volume's root.
@@ -15132,6 +15243,7 @@ export class Client extends BaseClient {
   /**
    * Create a new module source instance from a source ref string
    * @param refString The string ref representation of the module source
+   * @param opts.version Version query for a Git module source.
    * @param opts.refPin The pinned version of the module source
    * @param opts.disableFindUp If true, do not attempt to find a module config file in a parent directory of the provided path. Only relevant for local module sources.
    * @param opts.allowNotExists If true, do not error out if the provided ref string is a local path and does not exist yet. Useful when initializing new modules in directories that don't exist yet.
@@ -16536,6 +16648,181 @@ export class Terminal extends BaseClient {
   }
 }
 
+
+export class TerminalGroup extends BaseClient {
+  private readonly _id?: ID = undefined
+
+  /**
+   * Constructor is used for internal usage only, do not create object from it.
+   */
+   constructor(
+    ctx?: Context,
+     _id?: ID,
+   ) {
+     super(ctx)
+
+     this._id = _id
+   }
+
+  /**
+   * A unique identifier for this TerminalGroup.
+   */
+  id = async (): Promise<ID> => {
+    if (this._id) {
+      return this._id
+    }
+
+    const ctx = this._ctx.select(
+      "id",
+    )
+
+    const response: Awaited<ID> = await ctx.execute()
+
+    
+    return response
+  }
+
+  /**
+   * Return the selected terminal targets and their details
+   */
+  list = async (): Promise<TerminalTarget[]> => {
+    type list = {
+      id: ID
+    }
+
+    const ctx = this._ctx.select(
+      "list",
+    ).select("id")
+
+    const response: Awaited<list[]> = await ctx.execute()
+
+    
+    return response.map((r) => new TerminalTarget(ctx.copy().selectNode(r.id, "TerminalTarget")))
+  }
+
+  /**
+   * Open the selected terminal target
+   */
+  run = (): TerminalGroup => {
+
+    const ctx = this._ctx.select(
+      "run",
+    )
+    return new TerminalGroup(ctx)
+  }
+
+  /**
+   * Call the provided function with current TerminalGroup.
+   *
+   * This is useful for reusability and readability by not breaking the calling chain.
+   */
+  with = (arg: (param: TerminalGroup) => TerminalGroup) => {
+    return arg(this)
+  }
+}
+
+
+export class TerminalTarget extends BaseClient {
+  private readonly _id?: ID = undefined
+  private readonly _description?: string = undefined
+  private readonly _name?: string = undefined
+
+  /**
+   * Constructor is used for internal usage only, do not create object from it.
+   */
+   constructor(
+    ctx?: Context,
+     _id?: ID,
+     _description?: string,
+     _name?: string,
+   ) {
+     super(ctx)
+
+     this._id = _id
+     this._description = _description
+     this._name = _name
+   }
+
+  /**
+   * A unique identifier for this TerminalTarget.
+   */
+  id = async (): Promise<ID> => {
+    if (this._id) {
+      return this._id
+    }
+
+    const ctx = this._ctx.select(
+      "id",
+    )
+
+    const response: Awaited<ID> = await ctx.execute()
+
+    
+    return response
+  }
+
+  /**
+   * The description of the terminal target
+   */
+  description = async (): Promise<string> => {
+    if (this._description) {
+      return this._description
+    }
+
+    const ctx = this._ctx.select(
+      "description",
+    )
+
+    const response: Awaited<string> = await ctx.execute()
+
+    
+    return response
+  }
+
+  /**
+   * Return the fully qualified name of the terminal target
+   */
+  name = async (): Promise<string> => {
+    if (this._name) {
+      return this._name
+    }
+
+    const ctx = this._ctx.select(
+      "name",
+    )
+
+    const response: Awaited<string> = await ctx.execute()
+
+    
+    return response
+  }
+
+  /**
+   * The module in which the terminal target is defined
+   */
+  originalModule = (): Module_ => {
+
+    const ctx = this._ctx.select(
+      "originalModule",
+    )
+    return new Module_(ctx)
+  }
+
+  /**
+   * The path of the terminal target within its module
+   */
+  path = async (): Promise<string[]> => {
+    const ctx = this._ctx.select(
+      "path",
+    )
+
+    const response: Awaited<string[]> = await ctx.execute()
+
+    
+    return response
+  }
+}
+
 /**
  * A definition of a parameter or return type in a Module.
  */
@@ -17157,6 +17444,7 @@ export class Workspace extends BaseClient {
   private readonly _configFile?: string = undefined
   private readonly _configRead?: string = undefined
   private readonly _cwd?: string = undefined
+  private readonly _detectScope?: string = undefined
   private readonly _export?: Void = undefined
   private readonly _findUp?: string = undefined
 
@@ -17170,6 +17458,7 @@ export class Workspace extends BaseClient {
      _configFile?: string,
      _configRead?: string,
      _cwd?: string,
+     _detectScope?: string,
      _export?: Void,
      _findUp?: string,
    ) {
@@ -17180,6 +17469,7 @@ export class Workspace extends BaseClient {
      this._configFile = _configFile
      this._configRead = _configRead
      this._cwd = _cwd
+     this._detectScope = _detectScope
      this._export = _export
      this._findUp = _findUp
    }
@@ -17332,6 +17622,26 @@ export class Workspace extends BaseClient {
   }
 
   /**
+   * Return the selected SDK module's current scope at this workspace location.
+   * @param sdk SDK name to probe. Required.
+   */
+  detectScope = async (sdk: string): Promise<string> => {
+    if (this._detectScope) {
+      return this._detectScope
+    }
+
+    const ctx = this._ctx.select(
+      "detectScope",
+      { sdk},
+    )
+
+    const response: Awaited<string> = await ctx.execute()
+
+    
+    return response
+  }
+
+  /**
    * Returns a Directory from the workspace.
    * 
    * Relative paths resolve from the workspace cwd. Absolute paths resolve from the workspace root.
@@ -17364,7 +17674,9 @@ export class Workspace extends BaseClient {
   }
 
   /**
-   * Write this workspace's pending changes to its local Git workspace.
+   * Write this workspace's pending changes to its local Git workspace on the current client's host.
+   * 
+   * Like Directory.export, the write is a side effect on the client that makes the call — never on the client that created the workspace. Inside a module, this cannot reach the caller's host.
    */
   export = async (): Promise<void> => {
     if (this._export) {
@@ -17644,6 +17956,19 @@ export class Workspace extends BaseClient {
   }
 
   /**
+   * Return all terminal targets from modules loaded in the workspace.
+   * @param opts.include Only include terminal targets matching the specified patterns
+   */
+  terminals = (opts?: WorkspaceTerminalsOpts): TerminalGroup => {
+
+    const ctx = this._ctx.select(
+      "terminals",
+      { ...opts },
+    )
+    return new TerminalGroup(ctx)
+  }
+
+  /**
    * Return this workspace with a changeset applied, without mutating the source.
    * @param changes Changes to apply.
    */
@@ -17652,6 +17977,24 @@ export class Workspace extends BaseClient {
     const ctx = this._ctx.select(
       "withChanges",
       { changes },
+    )
+    return new Workspace(ctx)
+  }
+
+  /**
+   * Return this workspace with a generated module client added to one SDK scope.
+   * 
+   * Select the deepest detected or registered scope. Fail if several SDKs have that deepest scope.
+   * @param module Explicit local path or module address to generate a client for. Installed module names are not supported.
+   * @param opts.sdk Optional SDK name. Inspect all installed SDKs when omitted.
+   * @param opts.settings Explicit SDK-module constructor setting overrides for this scope. Requires an explicit SDK name.
+   */
+  withClient = (module_: string, opts?: WorkspaceWithClientOpts): Workspace => {
+
+    const ctx = this._ctx.select(
+      "withClient",
+      { 
+	        module:module_, ...opts },
     )
     return new Workspace(ctx)
   }
@@ -17705,44 +18048,34 @@ export class Workspace extends BaseClient {
   }
 
   /**
-   * Return this workspace with a generated API client initialized.
-   * 
-   * The SDK's generators run for the new client, so the returned workspace carries its generated bindings.
-   * @param path Output directory for the generated client, relative to the workspace cwd; a leading "/" is relative to the workspace root.
-   * @param sdk Workspace SDK name or module entry name to use.
-   * @param module Workspace-relative path or canonical ref for the module the client binds to.
-   * @param opts.args SDK-specific init arguments.
-   * @param opts.here Write to the workspace config directory at the workspace cwd.
-   * @param opts.noGenerate Skip running the SDK's generators for the new client.
+   * Return this workspace with a file added or replaced, without mutating the source.
+   * @param path Destination path. Relative paths resolve from the workspace cwd.
+   * @param source File to add.
+   * @param opts.permissions Permissions of the added file. Defaults to the source file permissions.
    */
-  withInitClient = (path: string, sdk: string, module_: string, opts?: WorkspaceWithInitClientOpts): Workspace => {
+  withFile = (path: string, source: File, opts?: WorkspaceWithFileOpts): Workspace => {
 
     const ctx = this._ctx.select(
-      "withInitClient",
-      { path, sdk, 
-	        module:module_, ...opts },
+      "withFile",
+      { path, source, ...opts },
     )
     return new Workspace(ctx)
   }
 
   /**
-   * Return this workspace with a new module initialized.
+   * Return this workspace with a location initialized as a module scope.
    * 
-   * The SDK's generators run for the new module, so the returned workspace carries the generated code it needs to be loadable.
-   * @param name Name of the new module.
-   * @param sdk Workspace SDK name or module entry name to use.
-   * @param opts.path Path for the new module, relative to the workspace cwd; a leading "/" is relative to the workspace root. Defaults to .dagger/modules/<name> beside the workspace config.
-   * @param opts.source Source subpath within the new module.
-   * @param opts.include Additional include patterns for the module.
-   * @param opts.args SDK-specific init arguments.
-   * @param opts.here Write to the workspace config directory at the workspace cwd.
-   * @param opts.noGenerate Skip running the SDK's generators for the new module.
+   * The selected SDK module records the scope and generates the module source.
+   * @param sdk Workspace SDK name or module entry name to use. Required.
+   * @param opts.name Module name. The engine infers it from path, the active config file, or the workspace root when omitted.
+   * @param opts.path Module path relative to the workspace cwd, or an absolute workspace path. Defaults to .dagger/modules/<name> beside the active workspace config.
+   * @param opts.settings Explicit SDK-module constructor setting overrides for this scope.
    */
-  withInitModule = (name: string, sdk: string, opts?: WorkspaceWithInitModuleOpts): Workspace => {
+  withInitModule = (sdk: string, opts?: WorkspaceWithInitModuleOpts): Workspace => {
 
     const ctx = this._ctx.select(
       "withInitModule",
-      { name, sdk, ...opts },
+      { sdk, ...opts },
     )
     return new Workspace(ctx)
   }
@@ -17832,7 +18165,7 @@ export class Workspace extends BaseClient {
    * @param ref SDK module reference to install.
    * @param opts.name Override name for the installed SDK entry.
    * @param opts.here Write to the workspace config directory at the workspace cwd.
-   * @param opts.asSdkName User-facing SDK name to persist under `[modules.<name>.as-sdk] name = ...`.
+   * @param opts.asSdkName Optional override for the SDK name conventionally derived from the installed module name.
    */
   withSDK = (ref: string, opts?: WorkspaceWithSdkOpts): Workspace => {
 
@@ -17844,12 +18177,50 @@ export class Workspace extends BaseClient {
   }
 
   /**
-   * Return this workspace with refreshed lockfile state.
+   * Return this workspace with the selected module clients updated.
+   * 
+   * The engine re-reads the source of each selected client target and writes the lock entries that those targets reach.
+   * 
+   * The selected SDK module then regenerates every scope that owns one of the targets.
+   * @param opts.modules Recorded client targets to update. All targets in the selected scopes are updated when omitted.
+   * @param opts.all Select clients in every scope instead of only the scopes containing the workspace cwd.
+   * @param opts.sdk Optional SDK name. All installed SDK modules are selected when omitted.
    */
-  withUpdatedLock = (): Workspace => {
+  withUpdatedClients = (opts?: WorkspaceWithUpdatedClientsOpts): Workspace => {
+
+    const ctx = this._ctx.select(
+      "withUpdatedClients",
+      { ...opts },
+    )
+    return new Workspace(ctx)
+  }
+
+  /**
+   * Return this workspace with refreshed lockfile state.
+   * 
+   * SDK client scopes are regenerated unless noGenerate is true.
+   * @param opts.noGenerate Do not regenerate SDK client scopes.
+   */
+  withUpdatedLock = (opts?: WorkspaceWithUpdatedLockOpts): Workspace => {
 
     const ctx = this._ctx.select(
       "withUpdatedLock",
+      { ...opts },
+    )
+    return new Workspace(ctx)
+  }
+
+  /**
+   * Return this workspace with refreshed lockfile state for installed modules.
+   * 
+   * An SDK client scope is regenerated when it targets an updated module.
+   * @param opts.names Installed module names to refresh. An empty list refreshes all installed modules.
+   */
+  withUpdatedModules = (opts?: WorkspaceWithUpdatedModulesOpts): Workspace => {
+
+    const ctx = this._ctx.select(
+      "withUpdatedModules",
+      { ...opts },
     )
     return new Workspace(ctx)
   }
@@ -17863,6 +18234,25 @@ export class Workspace extends BaseClient {
     const ctx = this._ctx.select(
       "withWorkdir",
       { path },
+    )
+    return new Workspace(ctx)
+  }
+
+  /**
+   * Return this workspace with a module client removed from the deepest matching recorded scope.
+   * 
+   * Fail if several SDKs have that deepest scope. The selected SDK module regenerates the complete scope.
+   * 
+   * If invalid client targets remain, save the removal and skip generation until those targets are corrected or removed.
+   * @param module The recorded target to remove.
+   * @param opts.sdk Optional SDK name. Search all installed SDKs when omitted.
+   */
+  withoutClient = (module_: string, opts?: WorkspaceWithoutClientOpts): Workspace => {
+
+    const ctx = this._ctx.select(
+      "withoutClient",
+      { 
+	        module:module_, ...opts },
     )
     return new Workspace(ctx)
   }
@@ -18258,6 +18648,20 @@ export class WorkspaceModule extends BaseClient {
   }
 
   /**
+   * List the functions of this module's main object, in GraphQL field form.
+   */
+  functions = async (): Promise<string[]> => {
+    const ctx = this._ctx.select(
+      "functions",
+    )
+
+    const response: Awaited<string[]> = await ctx.execute()
+
+    
+    return response
+  }
+
+  /**
    * The module name.
    */
   name = async (): Promise<string> => {
@@ -18319,6 +18723,7 @@ export class WorkspaceModuleSetting extends BaseClient {
   private readonly _id?: ID = undefined
   private readonly _description?: string = undefined
   private readonly _isList?: boolean = undefined
+  private readonly _isObject?: boolean = undefined
   private readonly _key?: string = undefined
   private readonly _value?: string = undefined
 
@@ -18330,6 +18735,7 @@ export class WorkspaceModuleSetting extends BaseClient {
      _id?: ID,
      _description?: string,
      _isList?: boolean,
+     _isObject?: boolean,
      _key?: string,
      _value?: string,
    ) {
@@ -18338,6 +18744,7 @@ export class WorkspaceModuleSetting extends BaseClient {
      this._id = _id
      this._description = _description
      this._isList = _isList
+     this._isObject = _isObject
      this._key = _key
      this._value = _value
    }
@@ -18388,6 +18795,24 @@ export class WorkspaceModuleSetting extends BaseClient {
 
     const ctx = this._ctx.select(
       "isList",
+    )
+
+    const response: Awaited<boolean> = await ctx.execute()
+
+    
+    return response
+  }
+
+  /**
+   * Whether the setting is an object type resolved from an address string (Container, Directory, File, Secret, Service, ...), which may be a module reference.
+   */
+  isObject = async (): Promise<boolean> => {
+    if (this._isObject) {
+      return this._isObject
+    }
+
+    const ctx = this._ctx.select(
+      "isObject",
     )
 
     const response: Awaited<boolean> = await ctx.execute()
