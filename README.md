@@ -213,32 +213,27 @@ versioned copy behind.
 
 ## Development
 
-Run the complete suite inside the locked development engine:
+Run the checks:
 
 ```sh
-dagger -m .dagger/modules/engine-e2e check
+dagger check
 ```
 
-CI must select this harness explicitly. It loads only the engine-dev dependency
-in the host engine, then builds that dependency's resolved revision and runs the
-SDK checks, runtime tests, packager checks, and fixture checks inside it. It also
-tests SDK registration, module initialization, settings, and calls through the CLI.
+`e-2-e:*` drives this SDK's functions the way the engine does, one file per
+surface (lookup, discovery, init, config, generate, client), sharing the
+assertions in `util.dang` and the fixture tree under
+`.dagger/modules/e2e/fixtures`. `runtimes:*` generates a module per JavaScript
+runtime and loads it. List them with `dagger check -l`, or run one group with
+`dagger check "e-2-e:config:*"`.
 
-The normal workspace stays at the repository root. With a compatible engine,
-`dagger check` runs its checks directly, and a group can be selected with
-`dagger check "e-2-e:config:*"`. The root workspace does not register the harness,
-so running its checks inside the development engine cannot recurse.
-
-To regenerate using the locked development engine:
-
-```sh
-dagger -m .dagger/modules/engine-e2e call generate --ws . export --path .
-```
-
-The harness builds the engine from the resolved `engine-dev` dependency pin;
-there is no second commit constant to update. On the main CLI, refresh the
-workspace lockfile with `dagger workspace update --no-generate` (on beta.11,
-`dagger update`). Commit the resulting lockfile change.
+`engine-e-2-e:*` covers the half no dang check can reach: it builds an engine
+from dagger/dagger#13992, runs it as a playground with this checkout mounted,
+and drives the real CLI through `sdk list`, `module init` with and without
+settings, `call`, and the whole check suite. Provider validation is silent when
+it fails — the engine simply never records `[sdks.typescript]` — so this is what
+tells you the interface still matches. Bumping the branch means changing both
+the `engine-dev` dependency in `.dagger/modules/engine-e2e/dagger-module.toml`
+and `engineCommit` in `.dagger/modules/engine-e2e/main.dang`.
 
 See [`typescript-sdk.dang`](./typescript-sdk.dang) for the full type surface and
 [`design/module-max.md`](./design/module-max.md) for why it is shaped this way.

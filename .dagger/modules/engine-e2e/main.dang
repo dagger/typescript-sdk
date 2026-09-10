@@ -38,7 +38,7 @@ type EngineE2e {
       ".remember",
       "**/node_modules",
       ".dagger/modules/e2e/fixtures/client/out",
-    ])
+    ]).withFile("dagger.toml", ws.file("/.dagger/modules/engine-e2e/workspace.toml"))
   }
 
   """
@@ -164,6 +164,10 @@ type EngineE2e {
       .directory(".")
       .withoutDirectory(".git")
 
-    ws.withDirectory("/", generated).changes(ws)
+    let result = generated
+      .withFile(".dagger/modules/engine-e2e/workspace.toml", generated.file("dagger.toml"))
+      .withFile("dagger.toml", ws.file("/dagger.toml"))
+
+    ws.withDirectory("/", result).changes(ws)
   }
 }
