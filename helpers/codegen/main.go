@@ -47,9 +47,12 @@ type clientMeta struct {
 }
 
 // clientMetaModule is one bound module plus the path its schema was staged at.
+// Self marks the module the bindings are being generated for, which is folded in
+// differently (see foldClientsIntoModuleSchema).
 type clientMetaModule struct {
 	generator.BoundModule
 	SchemaPath string `json:"schemaPath"`
+	Self       bool   `json:"self,omitempty"`
 }
 
 // validateBoundModuleKind fails closed on a source kind the generated client
@@ -275,6 +278,10 @@ func foldClientsIntoModuleSchema(
 		if err != nil {
 			return nil, fmt.Errorf("client %q: %w", module.Name, err)
 		}
+		if module.Self {
+			schemas = append(schemas, selfContribution(clientSchema, module.Name, schema))
+			continue
+		}
 		// Ask the schema which modules it carries rather than trusting the
 		// recorded name: the split is driven by source-map directives, and a
 		// target's directive name is the only one the filter matches.
@@ -428,4 +435,81 @@ func loadSchema(path string) (*introspection.Schema, string, error) {
 	generator.SetSchemaParents(resp.Schema)
 
 	return resp.Schema, resp.SchemaVersion, nil
+}
+
+// selfContribution extracts what a module contributes to its own client schema:
+// the entry points on the extendable types, plus the types those reach.
+//
+// Include cannot do this alone. It selects a module's types by their type-level
+// sourceMap directive, and a module's own types do not carry one in its own
+// client schema — only the Query field that reaches them does. So the fields
+// come from Include and the types come from walking out of them.
+//
+// `base` is the module-facing schema, and it is what separates the module's own
+// types from the core ones the walk passes through: core is already in base, so
+// anything the walk finds that base does not have belongs to the module. Those
+// get the sourceMap directive stamped on, which is what lets everything
+// downstream — the split, the re-exports, the augmentations — treat a module's
+// own API exactly like a dependency's and render it into its own file.
+func selfContribution(schema *introspection.Schema, moduleName string, base *introspection.Schema) *introspection.Schema {
+	contributed := schema.Include(moduleName)
+
+	byName := map[string]*introspection.Type{}
+	for _, typ := range schema.Types {
+		byName[typ.Name] = typ
+	}
+
+	seen := map[string]bool{}
+	var walk func(ref *introspection.TypeRef)
+	walk = func(ref *introspection.TypeRef) {
+		for ; ref != nil; ref = ref.OfType {
+			if ref.Name == "" || seen[ref.Name] {
+				continue
+			}
+			seen[ref.Name] = true
+			typ, ok := byName[ref.Name]
+			if !ok || base.Types.Get(ref.Name) != nil {
+				// Core, or already the module's own: either way not something
+				// this module contributes.
+				continue
+			}
+			contributed.Types = append(contributed.Types, stampSourceMap(typ, moduleName))
+			for _, field := range typ.Fields {
+				walk(field.TypeRef)
+				for _, arg := range field.Args {
+					walk(arg.TypeRef)
+				}
+			}
+			for _, input := range typ.InputFields {
+				walk(input.TypeRef)
+			}
+		}
+	}
+
+	for _, typ := range contributed.Types {
+		for _, field := range typ.Fields {
+			walk(field.TypeRef)
+			for _, arg := range field.Args {
+				walk(arg.TypeRef)
+			}
+		}
+	}
+
+	return contributed
+}
+
+// stampSourceMap returns a copy of typ marked as belonging to moduleName. The
+// copy matters: the type is shared with the schema it was read from, and the
+// directive changes how it is filtered.
+func stampSourceMap(typ *introspection.Type, moduleName string) *introspection.Type {
+	if typ.Directives.SourceMap() != nil {
+		return typ
+	}
+	value := `"` + moduleName + `"`
+	stamped := *typ
+	stamped.Directives = append(introspection.Directives{{
+		Name: "sourceMap",
+		Args: []*introspection.DirectiveArg{{Name: "module", Value: &value}},
+	}}, typ.Directives...)
+	return &stamped
 }

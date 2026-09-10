@@ -12,7 +12,7 @@
 	{{- template "method_comment" . }}
 
 	{{- /* Write method name. */ -}}
-	{{- "" }}  {{ .Name | FormatName }} = (
+	{{- "" }}  {{ .Name | FormatMemberName }} = (
 
 	{{- /* Write required arguments. */ -}}
 	{{- if $required }}

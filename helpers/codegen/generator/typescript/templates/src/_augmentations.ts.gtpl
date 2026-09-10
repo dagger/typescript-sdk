@@ -90,7 +90,7 @@ the `interface X { ... }` block. The dot is an introspection.Field. */ -}}
 	{{- $optionals := GetOptionalArgs .Args -}}
 	{{- $parentName := .ParentObject.Name -}}
 	{{- if eq $parentName "Query" }}{{ $parentName = "Client" }}{{ end -}}
-	{{ .Name | FormatName }}(
+	{{ .Name | FormatMemberName }}(
 		{{- if $required }}{{ template "args" . }}{{ end -}}
 		{{- if $optionals -}}
 			{{- if $required }}, {{ end }}opts?: {{ $parentName }}{{ .Name | PascalCase }}Opts
@@ -111,7 +111,7 @@ ESM cycle). The body is shared with the class-field methods. */ -}}
 	{{- $optionals := GetOptionalArgs $field.Args -}}
 	{{- $parentName := $field.ParentObject.Name -}}
 	{{- if eq $parentName "Query" }}{{ $parentName = "Client" }}{{ end -}}
-{{ $parent }}.prototype.{{ $field.Name | FormatName }} = {{ if Solve $field }}async {{ end }}function (this: any
+{{ $parent }}.prototype.{{ $field.Name | FormatMemberName }} = {{ if Solve $field }}async {{ end }}function (this: any
 	{{- /* `this: any` is always the first param, so required args and opts each
 	always need a leading comma. */ -}}
 	{{- if $required -}}, {{ template "args" $field }}{{- end -}}

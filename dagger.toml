@@ -43,7 +43,7 @@ module = "typescript-sdk"
 
 [sdks.typescript.scopes.".dagger/modules/e2e/fixtures/client/out"]
 clients = [
-  ".dagger/modules/e2e/fixtures/client/app",
+  "./.dagger/modules/e2e/fixtures/client/app",
 ]
 
 [sdks.typescript.scopes.".dagger/modules/e2e/fixtures/generate-deno/app"]
@@ -54,7 +54,7 @@ name = "generate-deno-app"
 is-module = true
 name = "generate-deps-app"
 clients = [
-  ".dagger/modules/e2e/fixtures/generate-deps/dep",
+  "./.dagger/modules/e2e/fixtures/generate-deps/dep",
 ]
 
 [sdks.typescript.scopes.".dagger/modules/e2e/fixtures/generate-deps/dep"]
