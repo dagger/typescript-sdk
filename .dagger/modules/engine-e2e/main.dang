@@ -3,7 +3,15 @@ Checks SDK registration, module initialization, settings, and the complete
 TypeScript suite against the engine-dev dependency's locked revision.
 """
 type EngineE2e {
-  """Build the same revision that Dagger resolved for the engine-dev dependency."""
+  """
+  Build the revision the engine-dev dependency is pinned to.
+
+  The pin is in dagger-module.toml, not only in the lock. Tracking `@main`
+  without one made this resolve to whatever main's HEAD was at the time, so
+  every generator run rewrote the lock with a newer commit and the
+  generated-file check went red again as soon as anyone merged upstream. Bump it
+  with `dagger module update engine-dev`, deliberately.
+  """
   let engineCommit(ws: Workspace!): String! {
     let dependency = ws.moduleSource("/.dagger/modules/engine-e2e").dependencies.{{moduleName, pin}}
       .filter { dep => dep.moduleName == "engine-dev" }[0]
@@ -11,6 +19,13 @@ type EngineE2e {
       raise "engine-dev dependency is missing"
     }
     dependency.pin
+  }
+
+  """Where the playground workspace's own lock is kept between runs."""
+  let workspaceLock: String! = ".dagger/modules/engine-e2e/workspace.lock"
+
+  let hasFile(ws: Workspace!, path: String!): Boolean! {
+    ws.directory("/", include: [path]).exists(path)
   }
 
   let modulePath: String! = ".dagger/modules/sdk-smoke"
@@ -33,12 +48,20 @@ type EngineE2e {
   with an unborn repository, so nothing is committed.
   """
   let checkout(ws: Workspace!): Directory! {
-    ws.directory("/", exclude: [
+    let tree = ws.directory("/", exclude: [
       ".git",
       ".remember",
       "**/node_modules",
       ".dagger/modules/e2e/fixtures/client/out",
     ]).withFile("dagger.toml", ws.file("/.dagger/modules/engine-e2e/workspace.toml"))
+
+    # The lock travels the same way as the config, under a name of its own. It
+    # is absent the first time, before `generate` has produced one.
+    if (hasFile(ws, workspaceLock)) {
+      tree.withFile("dagger.lock", ws.file("/" + workspaceLock))
+    } else {
+      tree
+    }
   }
 
   """
@@ -164,9 +187,21 @@ type EngineE2e {
       .directory(".")
       .withoutDirectory(".git")
 
+    # The playground runs a different workspace than the one this file sits in:
+    # `checkout` swaps workspace.toml in as dagger.toml, and workspace.toml
+    # leaves engine-e2e out on purpose, or the nested `dagger check` would
+    # recurse into itself. So the config and lock it resolved describe that
+    # workspace, and are stashed under their own names.
+    #
+    # The lock cannot come back as `dagger.lock`: the engine keeps the lock out
+    # of a Workspace's own directory view, so a changeset carrying one always
+    # reports it as an addition, and a generator that returns one can never
+    # satisfy its own check.
     let result = generated
       .withFile(".dagger/modules/engine-e2e/workspace.toml", generated.file("dagger.toml"))
+      .withFile(workspaceLock, generated.file("dagger.lock"))
       .withFile("dagger.toml", ws.file("/dagger.toml"))
+      .withoutFile("dagger.lock")
 
     ws.withDirectory("/", result).changes(ws)
   }

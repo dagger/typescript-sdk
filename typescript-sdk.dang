@@ -48,6 +48,20 @@ type TypescriptSdk {
   baseImage: String! = ""
 
   """
+  Marker filename that stops generation for the tree it sits in.
+
+  Found with findUp from the scope, so one file disables generation for
+  everything beneath it — which is the point, and what no per-scope config
+  expresses. A scope can be recorded so that `mod` resolution and config reading
+  still see it, while `dagger generate` writes nothing into it.
+
+  A setting, so a caller that has to generate a marked tree anyway can say so:
+  empty means no marker, and the e2e checks use that to exercise generation on
+  the very fixtures the marker keeps `dagger generate` out of.
+  """
+  skipGenerateFilename: String! = ".typescript-ignore-generate"
+
+  """
   Files that mark a TypeScript project root, and so a scope this SDK can manage.
   """
   let scopeMarkers: [String!]! = ["package.json", "deno.json", "deno.jsonc", "tsconfig.json"]
@@ -129,7 +143,11 @@ type TypescriptSdk {
   ): Workspace! {
     let scope = scopePath(ws)
 
-    if (isModule) {
+    if (hasSkipMarker(ws)) {
+      # Nothing to write, and nothing to say: an unchanged workspace is an empty
+      # changeset, which is what a generated-file check needs to stay green.
+      ws
+    } else if (isModule) {
       # One path serves init, migration and every later generation, and which
       # config the scope arrived with is what separates them: a manifest means
       # generate it as it stands, only a dagger.json means migrate it first,
@@ -185,6 +203,17 @@ type TypescriptSdk {
       ).withWorkdir(scope)
     } else {
       clientScope(ws, scope, false, clientTargets(clients))
+    }
+  }
+
+  """
+  Whether the generate skip marker sits at or above the scope.
+  """
+  let hasSkipMarker(ws: Workspace!): Boolean! {
+    if (skipGenerateFilename == "") {
+      false
+    } else {
+      ws.findUp(skipGenerateFilename) != null
     }
   }
 

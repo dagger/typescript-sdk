@@ -2,4 +2,3 @@
 
 [modules.engine-e2e]
 source = ".dagger/modules/engine-e2e"
-check.skip = ["generate"]
