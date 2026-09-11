@@ -256,6 +256,36 @@ type GenerateChecks {
   }
 
   """
+  A marked tree should generate nothing.
+
+  The marker is how a scope stays recorded — so `mod` resolution and config
+  reading still find it — while `dagger generate` writes nothing into it. Found
+  with findUp, so one file covers everything beneath it; the fixtures rely on
+  that, and so does any repo that vendors modules it does not want regenerated.
+
+  Uses the default marker name rather than Gen's opt-out, which is what every
+  other check here passes.
+  """
+  skipGenerateCheck(ws: Workspace!): Void @check {
+    let changes = typescriptSdk
+      .generateScope(
+        ws.withWorkdir(fixtures.depLibModule),
+        isModule: true,
+        name: "gendep",
+        clients: [],
+      )
+      .withWorkdir(".")
+      .changes(ws.withWorkdir("."))
+
+    Asserts.assert(
+      changes.isEmpty,
+      "a scope under the skip marker should generate nothing, got: " + changes.addedPaths.join(", "),
+    )
+
+    null
+  }
+
+  """
   A module's bindings should carry its own API, so it can call itself.
 
   The schema a module's bindings come from is core plus its dependencies: at

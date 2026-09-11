@@ -123,6 +123,10 @@ type Gen {
       template: template,
       packageManager: packageManager,
       baseImage: baseImage,
+      # The fixtures carry the skip marker so `dagger generate` writes nothing
+      # into them. These checks are the reason they exist, so they opt out of it
+      # and generate the tree the marker protects.
+      skipGenerateFilename: "",
     )
       .generateScope(ws.withWorkdir(path), isModule: isModule, name: name, clients: clients)
       # withWorkdir sets the cwd from the workspace root, so "." puts the result
