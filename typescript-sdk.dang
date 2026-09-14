@@ -61,8 +61,11 @@ type TypescriptSdk {
   Turning it on is not free. A manifest v2 holds exactly four values, and the
   engine rejects every other key outright, so the table drops what it has nowhere
   to put: `[[dependencies]]`, `engineVersion`, `source`, `[codegen]` and
-  `[[clients]]`. A module that depends on another module cannot be expressed at
-  all yet. Leave it off unless you are testing the entrypoint path.
+  `[[clients]]`. Leave it off unless you are testing the entrypoint path.
+
+  A scope's clients still work. With no `[[dependencies]]` to declare them in,
+  the dispatcher serves them into its own session at run time instead — see
+  serveBoundModules in the generated __dagger.dispatch.ts.
   """
   entrypoint: Boolean! = false
 
@@ -841,7 +844,7 @@ type TypescriptSdk {
   names them. Shared by both generators: the module one folds the targets into
   the module's bindings, the client one renders the package from them.
   """
-  let stageTargets(builder: Container!, targets: [ClientTarget!]!): Container! {
+  let targetsMetaJSON(targets: [ClientTarget!]!): String! {
     let modulesJSON = targets.map { target =>
       "{\"name\":" + JSON.encode(target.name) +
       ",\"schemaPath\":" + JSON.encode(schemaPath(target.name)) +
@@ -852,14 +855,26 @@ type TypescriptSdk {
       ",\"self\":" + (if (target.isSelf) { "true" } else { "false" }) + "}"
     }.join(",")
 
+    "{\"engineVersion\":" + JSON.encode(targetEngineVersion) + ",\"modules\":[" + modulesJSON + "]}"
+  }
+
+  let stageTargets(builder: Container!, targets: [ClientTarget!]!): Container! {
     targets
       .reduce(builder) { container, target =>
         container.withNewFile(schemaPath(target.name), target.schemaJSON)
       }
-      .withNewFile(
-        "/meta.json",
-        "{\"engineVersion\":" + JSON.encode(targetEngineVersion) + ",\"modules\":[" + modulesJSON + "]}",
-      )
+      .withNewFile("/meta.json", targetsMetaJSON(targets))
+  }
+
+  """
+  Stage only the target metadata, without their schemas.
+
+  The dispatcher needs to know which modules to serve and how to address them,
+  not what they contain — it never generates bindings. Staging the schemas too
+  would copy a megabyte of JSON per target into a container that ignores it.
+  """
+  let stageTargetMeta(builder: Container!, targets: [ClientTarget!]!): Container! {
+    builder.withNewFile("/meta.json", targetsMetaJSON(targets))
   }
 
   """
@@ -984,15 +999,23 @@ type TypescriptSdk {
   module through an entrypoint yet, so this is a new file nothing reads — and
   the module keeps running through the built-in runtime either way.
   """
-  let generateModuleDispatcher(typedef: String!): File! {
-    entrypointCodegen(typedef)
+  let generateModuleDispatcher(typedef: String!, targets: [ClientTarget!]!): File! {
+    let base = entrypointCodegen(typedef)
+    let staged = if (targets.length == 0) { base } else { stageTargetMeta(base, targets) }
+    let metaArgs = if (targets.length == 0) {
+      []
+    } else {
+      ["--client-meta-path", "/meta.json"]
+    }
+
+    staged
       .withExec([
         "codegen", "entrypoint", "--dispatch",
         "--typedef-json-path", "/typedef.json",
         "--output", "/out",
         "--module-root", "/work",
         "--source-dir", "src",
-      ])
+      ] + metaArgs)
       .file("/out/__dagger.dispatch.ts")
   }
 
@@ -1054,7 +1077,7 @@ type TypescriptSdk {
   ): Directory! {
     let sdk = moduleSdkDirectory(generateModuleBindings(schemaJSON, moduleName, targets))
     let typedef = moduleTypedefJSON(moduleName, source, sdk)
-    let dispatcher = generateModuleDispatcher(typedef)
+    let dispatcher = generateModuleDispatcher(typedef, targets)
     let dangEntrypoint = generateDangEntrypoint(typedef, sourcePath, runtime)
 
     let configUpdater = configUpdaterBuilder

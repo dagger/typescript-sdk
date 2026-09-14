@@ -94,4 +94,8 @@ type EntrypointOptions struct {
 	// stdout, and has no register() because the typedefs now live in the Dang
 	// entrypoint. invoke() and every state helper are identical.
 	DispatchMode bool
+
+	// BoundModules are the modules the dispatcher serves into its own session
+	// before dispatching, so `dag.<module>()` resolves. Dispatch mode only.
+	BoundModules []generator.BoundModule
 }

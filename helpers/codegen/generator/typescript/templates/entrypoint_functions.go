@@ -8,6 +8,8 @@ import (
 	"strings"
 	"text/template"
 	"unicode"
+
+	"codegen/generator"
 )
 
 // EntrypointTemplateFuncs returns the template.FuncMap used by
@@ -40,6 +42,8 @@ func EntrypointTemplateFuncs(module *TypedefModule, opts EntrypointOptions) temp
 		"hasDefault":           hasDefault,
 		"engineIfaceTypeName":  c.engineIfaceTypeName,
 		"plannedImports":       c.plannedImports,
+		"boundModules":         func() []generator.BoundModule { return c.opts.BoundModules },
+		"workspaceModulePath":  workspaceModulePath,
 		"isVariadic":           func(a *TypedefArgument) bool { return a.IsVariadic },
 		"propFieldName":        propFieldName,
 		"sortedKeysObjects":    sortedObjectKeys,
@@ -72,6 +76,19 @@ type entrypointFuncCtx struct {
 
 func (c *entrypointFuncCtx) isExportedClass(obj *TypedefObject) bool {
 	return obj.Kind == "class" && obj.IsExported
+}
+
+// workspaceModulePath turns a bound module's workspace-root-relative path into
+// one the dispatcher can resolve.
+//
+// It has to be absolute. The workspace a module is handed has its cwd at the
+// module's own directory, not the workspace root, so a relative path is joined
+// onto the module — asking for ".dagger/modules/dep" from a module living at
+// ".dagger/modules/app" looks for ".dagger/modules/app/.dagger/modules/dep".
+// The standalone client package gets to use the relative form because its cwd is
+// the workspace root; this one does not.
+func workspaceModulePath(mod generator.BoundModule) string {
+	return "/" + strings.TrimPrefix(strings.TrimPrefix(mod.Path, "./"), "/")
 }
 
 // entrypointReservedBindings are the module-scope identifiers the generated
@@ -466,6 +483,12 @@ func (c *entrypointFuncCtx) plannedImports() []importLine {
 	names := []string{"Context", "Error as DaggerError", "FunctionCachePolicy", "TypeDefKind", "connection", "dag", "getRegisteredClass"}
 	if c.opts.DispatchMode {
 		names = []string{"Context", "connection", "getRegisteredClass"}
+		// dag comes back only to serve bound modules. A module that binds none
+		// never touches it, and an unused import in generated code invites the
+		// reader to go looking for the use.
+		if len(c.opts.BoundModules) > 0 {
+			names = []string{"Context", "connection", "dag", "getRegisteredClass"}
+		}
 	}
 
 	var lines []importLine

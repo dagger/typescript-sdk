@@ -110,12 +110,32 @@ func runEntrypoint(args []string) error {
 		sdkImport   = fs.String("sdk-import", "@dagger.io/dagger", "bare specifier the entrypoint imports runtime helpers from")
 		sourceDir   = fs.String("source-dir", "src", "the module's source directory, relative to its root")
 		dispatch    = fs.Bool("dispatch", false, "render the manifest-v2 dispatcher (stdin/stdout, no register) instead of the legacy entrypoint")
+		clientMeta  = fs.String("client-meta-path", "", "path to the client meta JSON whose modules the dispatcher serves at run time")
 	)
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
 	if *typedefPath == "" {
 		return fmt.Errorf("--typedef-json-path is required")
+	}
+
+	var bound []generator.BoundModule
+	if *clientMeta != "" {
+		meta, err := loadClientMeta(*clientMeta)
+		if err != nil {
+			return err
+		}
+		for _, mod := range meta.Modules {
+			// The engine serves a module into its own session already, so the
+			// self target is a binding, not something to serve.
+			if mod.Self {
+				continue
+			}
+			if err := validateBoundModuleKind(mod.BoundModule); err != nil {
+				return err
+			}
+			bound = append(bound, mod.BoundModule)
+		}
 	}
 
 	// The default output filename follows the mode, so --dispatch alone writes
@@ -134,6 +154,7 @@ func runEntrypoint(args []string) error {
 			SDKImportPath:   *sdkImport,
 			SourceDir:       *sourceDir,
 			DispatchMode:    *dispatch,
+			BoundModules:    bound,
 		},
 	}
 	gen := &typescriptgenerator.TypeScriptGenerator{Config: cfg}

@@ -81,6 +81,12 @@ type EntrypointGeneratorConfig struct {
 	// entrypoint: one JSON request on stdin, one JSON result on stdout, and no
 	// register(). See EntrypointOptions.DispatchMode.
 	DispatchMode bool
+
+	// BoundModules are the modules the dispatcher serves into its own session
+	// before dispatching. Dispatch mode only: a v2 manifest has no
+	// [[dependencies]] table to declare them in, so the serve happens at run
+	// time instead. Empty means the module binds no clients.
+	BoundModules []BoundModule
 }
 
 // Specific configuration for generating the Dang module entrypoint — the program
