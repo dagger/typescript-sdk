@@ -226,7 +226,12 @@ type TypescriptSdk {
       # runtime is: a split-layout Deno module keeps its deno.json beside its
       # code, and detecting at the manifest's directory would regenerate it as
       # Node and leave it unable to resolve @dagger.io/dagger at all.
-      let source = moduleSourcePath(configured, scope)
+      # A v2 manifest has no `source` field to aim anywhere else, so a module's
+      # files are simply its scope. Asking the engine gives the wrong answer
+      # rather than no answer: sourceSubpath comes back unset, moduleSourcePath
+      # reads that as ".", and generation then looks for src/ at the workspace
+      # root instead of inside the module.
+      let source = if (entrypoint) { scope } else { moduleSourcePath(configured, scope) }
       let rt = effectiveRuntime(configured, source)
       # The same targets feed the module's runtime dependencies and its own
       # bindings, and — with dualClients — the standalone package a caller
