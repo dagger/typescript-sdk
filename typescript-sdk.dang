@@ -125,6 +125,15 @@ type TypescriptSdk {
   let dangEntrypointDir: String! = "entrypoint"
 
   """
+  The dispatcher the engine's builtin TypeScript runtime loads.
+
+  Only written for a module that still declares a `[runtime]`: under an
+  entrypoint nothing reads it, and a stale copy left beside the real dispatcher
+  is an invitation to edit the wrong file.
+  """
+  let legacyEntrypointFile: String! = "__dagger.entrypoint.ts"
+
+  """
   Starter used by init when none is named.
   """
   let defaultTemplate: String! = "default"
@@ -1045,7 +1054,6 @@ type TypescriptSdk {
   ): Directory! {
     let sdk = moduleSdkDirectory(generateModuleBindings(schemaJSON, moduleName, targets))
     let typedef = moduleTypedefJSON(moduleName, source, sdk)
-    let entrypoint = generateModuleEntrypoint(typedef)
     let dispatcher = generateModuleDispatcher(typedef)
     let dangEntrypoint = generateDangEntrypoint(typedef, sourcePath, runtime)
 
@@ -1064,12 +1072,21 @@ type TypescriptSdk {
         .directory("/out")
     }
 
-    directory
+    let base = directory
       .withDirectory("sdk", sdk)
-      .withFile("__dagger.entrypoint.ts", entrypoint)
       .withFile("__dagger.dispatch.ts", dispatcher)
       .withFile(dangEntrypointDir + "/main.dang", dangEntrypoint)
-      .withDirectory(".", config)
+
+    # The legacy dispatcher is only written for a module that still declares a
+    # [runtime]. Skipping it also skips rendering it: the File is never pulled,
+    # so the codegen exec behind it never runs.
+    let withLegacy = if (entrypoint) {
+      base
+    } else {
+      base.withFile(legacyEntrypointFile, generateModuleEntrypoint(typedef))
+    }
+
+    withLegacy.withDirectory(".", config)
   }
 
   """
@@ -1153,7 +1170,35 @@ type TypescriptSdk {
   permissions they were rendered with.
   """
   let moduleFiles(ws: Workspace!, sourcePath: String!, generated: Directory!): Workspace! {
-    writeChanged(prunedBindings(ws, sourcePath, generated), sourcePath, generated)
+    writeChanged(
+      prunedLegacyEntrypoint(prunedBindings(ws, sourcePath, generated), sourcePath),
+      sourcePath,
+      generated,
+    )
+  }
+
+  """
+  Take the legacy dispatcher with the setting when a module moves to an
+  entrypoint.
+
+  Writing stops on its own — moduleDirectory no longer renders the file — but
+  writing is all that stops. A module generated before the switch keeps the copy
+  already on disk, beside a real dispatcher with almost the same name, and
+  nothing loads it. Deleting is explicit here for the same reason stale bindings
+  are: what is no longer generated is not removed by not generating it.
+  """
+  let prunedLegacyEntrypoint(ws: Workspace!, sourcePath: String!): Workspace! {
+    let path = if (sourcePath == ".") {
+      "/" + legacyEntrypointFile
+    } else {
+      "/" + sourcePath + "/" + legacyEntrypointFile
+    }
+
+    if (entrypoint and existingDir(ws, sourcePath).exists(legacyEntrypointFile)) {
+      ws.withoutFile(path)
+    } else {
+      ws
+    }
   }
 
   """
