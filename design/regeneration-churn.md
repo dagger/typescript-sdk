@@ -1,10 +1,9 @@
 # Whole-file rewrites on an incremental `dagger generate`
 
-> **Status: diagnosed. A fix is identified and prototyped, not yet implemented.**
-> Reported 2026-09-14 while manually testing
+> **Status: fixed.** Reported 2026-09-14 while manually testing
 > [typescript-sdk#52](https://github.com/dagger/typescript-sdk/pull/52); not
-> caused by it. This note records the cause, two fixes that were measured and
-> rejected, and the prototype that works.
+> caused by it. The fix is in this commit. Most of this note is the two fixes
+> that were measured and rejected first, and how to test the next one.
 
 ## 1. The report
 
@@ -100,56 +99,83 @@ all 59 checks stay green. Only the addition direction fails.
 197001010000.00`), so they are stable without a copy-up layer. No effect at all:
 byte-for-byte the same report as `main`. This rules out the timestamp theory.
 
-## 5. The fix that works
+## 5. The fix
 
-Prototyped against the reproduction below. Both directions, two full cycles:
-**2 files, ±24 lines** — exactly the files the edit reaches. Two changes, and
-both are needed; either alone leaves part of the churn:
+Generation writes what it changed and nothing else. Three changes, all needed;
+each one alone leaves part of the churn.
 
-1. **Write generated files individually, skipping unchanged ones.** For each
-   generated file, compare `File.digest(excludeMetadata: true)` against the same
-   path in the workspace, and call `Workspace.withNewFile` only on a mismatch.
-   `excludeMetadata: true` matters — the default digest includes metadata, and
-   an unchanged file's digest differs without it.
-2. **Keep the first binding pass out of the workspace the engine diffs.** Run it
-   on a workspace used only to load the module and read its self schema, then
-   write the final tree once onto the pre-pass workspace.
+1. **File-by-file writes.** `moduleFiles` and `clientScope` walk the generated
+   tree and write a file only when `File.digest(excludeMetadata: true)` differs
+   from the same path in the workspace. `excludeMetadata: true` is doing real
+   work — the default digest covers metadata, and two renders of the same bytes
+   differ there every time. Written with `Workspace.withFile` rather than
+   `withNewFile`, so what lands keeps the permissions it was rendered with.
 
-### What a production version still needs
+   Deletions no longer come for free, so they are explicit: `prunedBindings`
+   drops the `*.gen.ts` in `sdk/` this run does not generate, and
+   `prunedClientFiles` drops anything in the client package we no longer render.
 
-The prototype is not shippable as written:
+2. **The first binding pass never reaches the workspace the engine diffs.** It
+   is staged with `stagedModule` onto a throwaway workspace, purely to make the
+   module loadable so its own client schema can be read. `withSelfBindings` now
+   returns a Directory — the first pass's tree with its bindings replaced —
+   which `moduleFiles` writes once onto the pre-pass workspace. Reusing the
+   first pass's entrypoint keeps the introspector scan running once, which is
+   what `withSelfBindings` was always for.
 
-- It re-runs `moduleFiles` for the second pass, which re-runs the introspector
-  scan of the user's source. That scan is the expensive half of generation.
-  `withSelfBindings` exists today precisely to avoid it, and the final version
-  should reuse the first pass's entrypoint and config rather than rebuild them.
-- Stale binding removal changes from "replace the directory" to an explicit
-  `Workspace.withoutFile` for each `*.gen.ts` no longer generated.
-  `generatePrunesStaleBindingsCheck` covers this and must stay green.
-- `Workspace.withNewFile` writes content only, so generated files lose their
-  current permissions (`*.gen.ts` are `0600` today).
-- `clientScope` still replaces the whole `clients/` directory, so a scope with
-  `dualClients: true` will still churn. It needs the same treatment.
+3. **The manifest is kept only when it differs.** `withClientDependencies`
+   re-emits `dagger-module.toml` every run and it comes out the same nearly
+   every time. Everything the builder records lands in that one file, so
+   comparing it is enough to say the run changed nothing, and the whole updated
+   workspace is discarded when it matches. Without this the manifest replaces
+   the bindings as the file reported on every edit — the whole-directory write
+   used to mask it.
 
-## 6. Reproducing it
+Measured on a module scope, adding and removing one `@func()`, three full
+cycles:
 
-The e2e harness **cannot** reproduce this. `Gen.module` compares two in-engine
-workspaces, so the baseline is an overlay rather than files on disk, and that
-diff compares content and is correctly quiet. A check written against
-`Changeset.layer` in that harness passes on a broken fix.
+| | files | lines |
+| --- | --- | --- |
+| before | 5 | +18268 |
+| after | 2 | ±24 |
 
-Reproducing needs generated files really on disk:
+With `dualClients: true` it is 3 files, the third being the client package's own
+bindings — which is correct, since the module's API changed.
+
+### Two checks had to change
+
+Both were reading a file out of `changes.after`, which worked only because
+generation used to write every file whether or not it changed:
+
+- `generateWorkspaceModuleCheck` asserts on the fixture's `package.json` and
+  `tsconfig.json`, which a correct run leaves alone. It now reads the workspace
+  with the changes applied.
+- `generatePreservesManifestCheck` built its failure message from the manifest's
+  contents. Dang evaluates the message whether or not the assertion fails, so it
+  broke even while passing. Same fix.
+
+## 6. Testing it
+
+`generate-source-edit-is-scoped-check` guards it, and it asserts on
+`Changeset.layer` rather than on the changeset's reported paths. That choice is
+the whole reason the check works: the reported paths are diffed by content, so a
+file rewritten with its own bytes is absent from them and a check reading them
+passes on the bug. The layer records what was written, which is the thing being
+fixed.
+
+What the harness cannot show is the end-to-end symptom, because `Gen.scope`
+compares two in-engine workspaces rather than files on disk. For that:
 
 ```
 dagger module init typescript --path .dagger/modules/<name>
 dagger generate -y typescript-sdk:generate          # settle
 # append a @func() to src/index.ts
-dagger generate --no-apply typescript-sdk:generate  # main: 5 files, +18k
+dagger generate --no-apply typescript-sdk:generate  # expect 2 files, ±24 lines
 ```
 
-Then remove the function and repeat. Both directions must stay at two files.
-Exercise both: the `withTimestamps` attempt passes if only the removal direction
-is checked.
+Then remove the function and repeat. **Run both directions.** The
+`withTimestamps` attempt was clean on removal and three times worse on addition,
+so a one-directional test would have passed it.
 
 ## 7. Unrelated trap found while investigating
 

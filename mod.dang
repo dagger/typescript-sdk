@@ -90,11 +90,15 @@ type Mod {
       let sdk = TypescriptSdk()
       let generated = sdk.moduleFiles(
         ws,
-        rootPath,
         sourcePath,
-        ws.moduleSource("/" + rootPath).moduleOriginalName,
-        sdk.effectiveRuntime(ws, sourcePath),
-        [],
+        sdk.moduleGenerated(
+          ws,
+          rootPath,
+          sourcePath,
+          ws.moduleSource("/" + rootPath).moduleOriginalName,
+          sdk.effectiveRuntime(ws, sourcePath),
+          [],
+        ),
       )
 
       generated.changes(ws)
