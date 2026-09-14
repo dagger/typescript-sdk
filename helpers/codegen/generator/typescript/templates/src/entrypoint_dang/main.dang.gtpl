@@ -15,19 +15,6 @@ collide.
 
 type Entrypoint implements ModuleEntrypoint {
   """
-  The container a call runs in, minus the exec that runs it.
-
-  Every value here was decided when this file was generated: the image, the
-  loader, the mount layout. Nothing is re-derived at call time, so changing the
-  runtime or the module's layout means re-running `dagger generate`. Keeping the
-  exec out of this helper is what lets the whole build be shared across calls,
-  and across modules that share a prefix.
-  """
-  let runtime(workspace: Workspace!): Container! {
-    {{ dangRuntimeChain }}
-  }
-
-  """
   Every type this module defines.
 
   Evaluated in the engine, with no container: these are the same typedefs the
@@ -75,6 +62,19 @@ type Entrypoint implements ModuleEntrypoint {
         experimentalPrivilegedNesting: true,
       )
       .stdout :: JSON!)
+  }
+
+  """
+  The container a call runs in, minus the exec that runs it.
+
+  Every value here was decided when this file was generated: the image, the
+  loader, the mount layout. Nothing is re-derived at call time, so changing the
+  runtime or the module's layout means re-running `dagger generate`. Keeping the
+  exec out of this helper is what lets the whole build be shared across calls,
+  and across modules that share a prefix.
+  """
+  let runtime(workspace: Workspace!): Container! {
+    {{ dangRuntimeChain }}
   }
 }
 {{- end -}}
