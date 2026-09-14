@@ -76,6 +76,7 @@ client add`, and are persisted per scope in `dagger.toml`:
 | `template` | `--template` | `default` (a small working module; `empty` is a bare `@object` class) |
 | `packageManager` | `--package-manager` | unset |
 | `baseImage` | `--base-image` | unset |
+| `dualClients` | `--dual-clients` | `false` |
 
 ```sh
 dagger module init typescript --name my-module --runtime bun
@@ -97,6 +98,10 @@ runtime; Bun and Deno bundle their own.
 `--base-image` writes to `deno.json` for Deno modules and to `package.json`
 otherwise — matching where the engine reads it from.
 
+`--dual-clients` only affects module scopes, and only the standalone client
+package described below — see [Generate a typed client](#generate-a-typed-client).
+It is temporary, and goes away when a module's two client shapes become one.
+
 ## Generate a typed client
 
 Record a client for a module in the current scope:
@@ -112,12 +117,18 @@ nearest `package.json`, `deno.json`, `deno.jsonc` or `tsconfig.json` above your
 cwd — so a client belongs to the TypeScript project you are standing in. A
 directory with no TypeScript project above it is not a scope this SDK can claim.
 
-Where the generated package goes depends on what the scope is:
+What a scope gets depends on what the scope is:
 
 | Scope | Client output |
 | --- | --- |
-| A module | `clients/`, beside the module's generated `sdk/` |
+| A module | `sdk/`, the module's own bindings; plus `clients/` with `--dual-clients` |
 | Your own project | `.dagger/clients/` |
+
+A module binds its targets into the `sdk/` directory it already generates, which
+is what its source reaches through `@dagger.io/dagger` — so a client added inside
+a module is usable from it straight away. The standalone package under `clients/`
+is for code outside the module, and nothing needs it to build the module, so it
+is only written with `--dual-clients`.
 
 One package per scope, not one per target: the core API is the bulk of a
 generated client and every target in a scope shares it. The package holds
