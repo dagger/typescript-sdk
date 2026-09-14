@@ -54,6 +54,16 @@ type Asserts {
   }
 
   """
+  Assert that a changeset did not produce a path, neither added nor modified.
+  """
+  let notGenerated(changes: Changeset!, path: String!, message: String!): Void {
+    assert(
+      contains(changes.addedPaths, path) == false and contains(changes.modifiedPaths, path) == false,
+      message,
+    )
+  }
+
+  """
   Assert that a string contains a substring.
   """
   let stringContains(value: String!, want: String!, message: String!): Void {
@@ -117,12 +127,14 @@ type Gen {
     template: String! = "default",
     packageManager: String! = "",
     baseImage: String! = "",
+    dualClients: Boolean! = false,
   ): Changeset! {
     typescriptSdk(
       runtime: runtime,
       template: template,
       packageManager: packageManager,
       baseImage: baseImage,
+      dualClients: dualClients,
       # The fixtures carry the skip marker so `dagger generate` writes nothing
       # into them. These checks are the reason they exist, so they opt out of it
       # and generate the tree the marker protects.

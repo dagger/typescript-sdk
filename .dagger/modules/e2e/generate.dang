@@ -314,10 +314,12 @@ type GenerateChecks {
     )
 
     # And in the standalone package, so callers outside the module reach it the
-    # same way they reach a target that was added on purpose.
-    Asserts.generated(changes, path + "/clients/gendep.gen.ts")
+    # same way they reach a target that was added on purpose — which only a
+    # dualClients scope writes at all.
+    let dual = Gen.scope(ws, path, "gendep", dualClients: true)
+    Asserts.generated(dual, path + "/clients/gendep.gen.ts")
     Asserts.stringContains(
-      changes.after.directory(path).file("clients/dagger.gen.ts").contents,
+      dual.after.directory(path).file("clients/dagger.gen.ts").contents,
       path,
       "the package's bootstrap should serve the module itself",
     )

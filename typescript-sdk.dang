@@ -36,6 +36,20 @@ type TypescriptSdk {
   lock: Boolean! = false
 
   """
+  Whether a module scope also generates the standalone client package.
+
+  A module scope binds its targets twice, into two shapes with two callers: the
+  module's own `sdk/` bindings, which its source reaches through
+  @dagger.io/dagger, and a standalone package under `clients/` for code outside
+  the module. Only the first is needed to build the module, so the second is off
+  unless asked for. A client-only scope ignores this — the standalone package is
+  its only output, and withholding it would leave the scope with nothing.
+
+  Temporary: it goes away when the two shapes become one.
+  """
+  dualClients: Boolean! = false
+
+  """
   packageManager pin for package.json, as `name@version` or just `name`. Empty
   writes no field. Node only; Bun and Deno bundle their own.
   """
@@ -177,8 +191,9 @@ type TypescriptSdk {
       # Node and leave it unable to resolve @dagger.io/dagger at all.
       let source = moduleSourcePath(configured, scope)
       let rt = effectiveRuntime(configured, source)
-      # The same targets feed three things: the module's runtime dependencies,
-      # its own bindings, and the standalone package a caller installs.
+      # The same targets feed the module's runtime dependencies and its own
+      # bindings, and — with dualClients — the standalone package a caller
+      # installs.
       let targets = clientTargets(clients)
       # Before the schema is read: a target that is not a dependency yet is not
       # in the schema the bindings are generated from.
@@ -188,20 +203,19 @@ type TypescriptSdk {
       # target needs.
       let staged = moduleFiles(served, scope, source, name, rt, targets)
       # The module's own API is a target like any other from here on: folded into
-      # its bindings so its source can call itself, and rendered into the
-      # standalone package so callers outside it can too.
+      # its bindings so its source can call itself, and — where the standalone
+      # package is generated — rendered into it so callers outside it can too.
       let selfTargets = selfClientTarget(staged, scope, name)
       let withSelf = targets + selfTargets
+      let bound = withSelfBindings(staged, scope, source, name, withSelf, selfTargets)
+      let complete = if (dualClients) { clientScope(bound, source, true, withSelf) } else { bound }
 
       # Back to the cwd the engine set: it rejects a generateScope that returns
       # a workspace standing somewhere else.
-      clientScope(
-        withSelfBindings(staged, scope, source, name, withSelf, selfTargets),
-        source,
-        true,
-        withSelf,
-      ).withWorkdir(scope)
+      complete.withWorkdir(scope)
     } else {
+      # The standalone package is the only output here, so dualClients does not
+      # apply: withholding it would leave the scope with nothing generated.
       clientScope(ws, scope, false, clientTargets(clients))
     }
   }
