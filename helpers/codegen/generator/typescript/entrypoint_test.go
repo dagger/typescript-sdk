@@ -154,9 +154,13 @@ func TestGenerateEntrypointDispatchDropsRegister(t *testing.T) {
 	require.Contains(t, got, "function rebuildSmoke(")
 	require.Contains(t, got, "async function serializeSmoke(")
 
-	// Both modes, as the Go SDK example has them.
-	require.Contains(t, got, `case "engine-call":`)
-	require.Contains(t, got, `case "call":`)
+	// One mode, and only one. A hand-invoked mode was tried and dropped: a
+	// module's own client cannot obtain a Workspace — the module-facing schema
+	// has no currentWorkspace and no host access — so the default template's
+	// `constructor(ws: Workspace)` could only ever have been called with an
+	// undefined receiver.
+	require.Contains(t, got, `mode !== "engine-call"`)
+	require.NotContains(t, got, "developerCall")
 }
 
 // TestGenerateEntrypoint_RequiresTypedef guards the one input the renderer

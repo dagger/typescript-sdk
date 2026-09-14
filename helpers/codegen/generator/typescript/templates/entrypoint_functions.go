@@ -40,8 +40,6 @@ func EntrypointTemplateFuncs(module *TypedefModule, opts EntrypointOptions) temp
 		"hasDefault":           hasDefault,
 		"engineIfaceTypeName":  c.engineIfaceTypeName,
 		"plannedImports":       c.plannedImports,
-		"mainObjectName":       c.mainObjectName,
-		"dispatchFileName":     c.dispatchFileName,
 		"isVariadic":           func(a *TypedefArgument) bool { return a.IsVariadic },
 		"propFieldName":        propFieldName,
 		"sortedKeysObjects":    sortedObjectKeys,
@@ -74,34 +72,6 @@ type entrypointFuncCtx struct {
 
 func (c *entrypointFuncCtx) isExportedClass(obj *TypedefObject) bool {
 	return obj.Kind == "class" && obj.IsExported
-}
-
-// dispatchFileName is the dispatcher's own filename, used only in the developer
-// mode usage line so a copied-and-pasted command names the right file.
-func (c *entrypointFuncCtx) dispatchFileName() string {
-	if c.opts.DispatchFileName == "" {
-		return DefaultDispatchFile
-	}
-	return c.opts.DispatchFileName
-}
-
-// mainObjectName is the receiver the dispatcher's developer mode calls into.
-//
-// It follows the engine's manifest-v2 rule — the object that declares a
-// constructor, rather than the one whose name matches the module — and falls
-// back to the first object by name so a constructor-less module is still
-// callable by hand.
-func (c *entrypointFuncCtx) mainObjectName() string {
-	names := sortedObjectKeys(c.module.Objects)
-	for _, name := range names {
-		if c.module.Objects[name].Constructor != nil {
-			return c.module.Objects[name].Name
-		}
-	}
-	if len(names) > 0 {
-		return c.module.Objects[names[0]].Name
-	}
-	return ""
 }
 
 // entrypointReservedBindings are the module-scope identifiers the generated

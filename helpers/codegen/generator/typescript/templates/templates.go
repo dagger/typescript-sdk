@@ -94,8 +94,4 @@ type EntrypointOptions struct {
 	// stdout, and has no register() because the typedefs now live in the Dang
 	// entrypoint. invoke() and every state helper are identical.
 	DispatchMode bool
-
-	// DispatchFileName is the dispatcher's own filename, shown in its developer
-	// mode usage line (defaults to "__dagger.dispatch.ts").
-	DispatchFileName string
 }

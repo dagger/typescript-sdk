@@ -180,65 +180,15 @@ async function engineCall(): Promise<void> {
   )
 }
 
-// Developer mode: run a function without the engine loading the module at all.
-//
-//   npx tsx __dagger.dispatch.ts call <FUNCTION> [--arg value ...]
-//
-// The receiver is built by running its constructor with no arguments, so a
-// module whose constructor has required arguments is engine-only for now.
-async function developerCall(argv: string[]): Promise<void> {
-  const fnName = argv[0]
-  if (fnName === undefined) {
-    throw new Error("usage: call <FUNCTION> [--arg value ...]")
-  }
-
-  const args: Record<string, any> = {}
-  for (let i = 1; i < argv.length; i++) {
-    const flag = argv[i]
-    if (!flag.startsWith("--")) {
-      throw new Error(`expected a --flag, got ${JSON.stringify(flag)}`)
-    }
-    const name = flag.slice(2)
-    const next = argv[i + 1]
-    // A flag with no value, or followed by another flag, is a boolean.
-    if (next === undefined || next.startsWith("--")) {
-      args[name] = true
-      continue
-    }
-    try {
-      args[name] = JSON.parse(next)
-    } catch {
-      args[name] = next
-    }
-    i++
-  }
-
-  await connection(
-    async () => {
-      const parent = await invoke("Smoke", "", null, {})
-      const result = await invoke("Smoke", fnName, parent, args)
-      const out =
-        result === undefined || result === null
-          ? "null"
-          : typeof result === "string"
-            ? result
-            : JSON.stringify(result)
-      process.stdout.write(out + "\n")
-    },
-    { LogOutput: process.stderr },
-  )
-}
-
+// The mode is checked rather than ignored so that a stale entrypoint — one
+// generated against a different protocol — fails here with something readable
+// instead of hanging on a stdin that never arrives.
 async function main(): Promise<void> {
-  const [mode, ...rest] = process.argv.slice(2)
-  switch (mode) {
-    case "engine-call":
-      return engineCall()
-    case "call":
-      return developerCall(rest)
-    default:
-      throw new Error(`unknown mode ${JSON.stringify(mode ?? "")}; want "engine-call" or "call"`)
+  const mode = process.argv[2]
+  if (mode !== "engine-call") {
+    throw new Error(`unknown mode ${JSON.stringify(mode ?? "")}; want "engine-call"`)
   }
+  return engineCall()
 }
 
 main().catch((e) => {
