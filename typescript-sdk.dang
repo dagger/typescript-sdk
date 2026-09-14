@@ -854,8 +854,15 @@ type TypescriptSdk {
       .withExec(["bun", "add", "--no-save", "typescript@" + tsVersion])
   }
 
-  let generateModuleEntrypoint(moduleName: String!, source: Directory!, sdk: Directory!): File! {
-    let typedef = introspector
+  """
+  Scan the user's source into the typedef JSON every generated dispatch file is
+  rendered from.
+
+  Split out from the renderers because all three read it and the scan is the
+  expensive half: one node, one cache entry, however many files come out of it.
+  """
+  let moduleTypedefJSON(moduleName: String!, source: Directory!, sdk: Directory!): String! {
+    introspector
       .withWorkdir("/work")
       .withDirectory("/work/src", source)
       .withDirectory("/work/sdk", sdk)
@@ -863,9 +870,14 @@ type TypescriptSdk {
       .withExec(["bun", "/introspector/introspector.js", moduleName, "src", "sdk/client.gen.ts"])
       .file("/work/typedef.json")
       .contents
+  }
 
-    codegenBuilder
-      .withNewFile("/typedef.json", typedef)
+  let entrypointCodegen(typedef: String!): Container! {
+    codegenBuilder.withNewFile("/typedef.json", typedef)
+  }
+
+  let generateModuleEntrypoint(typedef: String!): File! {
+    entrypointCodegen(typedef)
       .withExec([
         "codegen", "entrypoint",
         "--typedef-json-path", "/typedef.json",
@@ -877,23 +889,86 @@ type TypescriptSdk {
   }
 
   """
+  The manifest-v2 dispatcher: one JSON request on stdin, one JSON result on
+  stdout, and no register().
+
+  Written beside __dagger.entrypoint.ts rather than over it. No engine loads a
+  module through an entrypoint yet, so this is a new file nothing reads — and
+  the module keeps running through the built-in runtime either way.
+  """
+  let generateModuleDispatcher(typedef: String!): File! {
+    entrypointCodegen(typedef)
+      .withExec([
+        "codegen", "entrypoint", "--dispatch",
+        "--typedef-json-path", "/typedef.json",
+        "--output", "/out",
+        "--module-root", "/work",
+        "--source-dir", "src",
+      ])
+      .file("/out/__dagger.dispatch.ts")
+  }
+
+  """
+  The Dang program an engine loads under a manifest `[entrypoint]` table: the
+  module's typedefs as literals, plus the container recipe that runs a call.
+
+  `sourcePath` is baked into that recipe as the container workdir. It cannot be
+  read at call time: the entrypoint is handed the *caller's* workspace, whose cwd
+  is wherever the caller happened to be.
+  """
+  let generateDangEntrypoint(typedef: String!, sourcePath: String!, rt: Runtime!): File! {
+    entrypointCodegen(typedef)
+      .withExec([
+        "codegen", "dang-entrypoint",
+        "--typedef-json-path", "/typedef.json",
+        "--output", "/out",
+        "--runtime", runtimeName(rt),
+        "--module-path", sourcePath,
+      ])
+      .file("/out/entrypoint/main.dang")
+  }
+
+  """
+  The runtime's name as the codegen CLI spells it.
+  """
+  let runtimeName(rt: Runtime!): String! {
+    if (rt == Runtime.BUN) {
+      "bun"
+    } else if (rt == Runtime.DENO) {
+      "deno"
+    } else {
+      "node"
+    }
+  }
+
+  """
   Build the complete set of generated files for a module: its sdk/ directory,
   the dispatch entrypoint, and the config the runtime reads.
 
   `existing` supplies the module's current config files so user settings
   survive; `runtime` selects which config files are written. The result is
   rooted at the module's source directory.
+
+  Two of the files are for a contract no engine implements yet —
+  __dagger.dispatch.ts and entrypoint/main.dang, the halves of a manifest-v2
+  module entrypoint. They are written alongside the ones the built-in runtime
+  reads, never in place of them, so generating them cannot break a module that
+  still loads the old way.
   """
   let moduleDirectory(
     schemaJSON: String!,
     moduleName: String!,
+    sourcePath: String!,
     source: Directory!,
     existing: Directory!,
     runtime: Runtime!,
     targets: [ClientTarget!]!,
   ): Directory! {
     let sdk = moduleSdkDirectory(generateModuleBindings(schemaJSON, moduleName, targets))
-    let entrypoint = generateModuleEntrypoint(moduleName, source, sdk)
+    let typedef = moduleTypedefJSON(moduleName, source, sdk)
+    let entrypoint = generateModuleEntrypoint(typedef)
+    let dispatcher = generateModuleDispatcher(typedef)
+    let dangEntrypoint = generateDangEntrypoint(typedef, sourcePath, runtime)
 
     let configUpdater = configUpdaterBuilder
       .withDirectory("/existing", existing)
@@ -913,6 +988,8 @@ type TypescriptSdk {
     directory
       .withDirectory("sdk", sdk)
       .withFile("__dagger.entrypoint.ts", entrypoint)
+      .withFile("__dagger.dispatch.ts", dispatcher)
+      .withFile("entrypoint/main.dang", dangEntrypoint)
       .withDirectory(".", config)
   }
 
@@ -951,6 +1028,7 @@ type TypescriptSdk {
     moduleDirectory(
       ws.moduleSource("/" + scope).introspectionSchemaJSON.contents,
       name,
+      sourcePath,
       ws.directory("/" + sourcePrefix + "src"),
       existingModuleConfig(ws, sourcePath),
       rt,

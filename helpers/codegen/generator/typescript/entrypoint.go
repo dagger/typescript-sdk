@@ -40,20 +40,30 @@ func (g *TypeScriptGenerator) GenerateEntrypoint(ctx context.Context) (*generato
 		return nil, fmt.Errorf("parse typedef json: %w", err)
 	}
 
-	tmpl := templates.NewEntrypoint(&module, templates.EntrypointOptions{
-		SDKImportPath: cfg.SDKImportPath,
-		ModuleRoot:    cfg.ModuleRoot,
-		SourceDir:     cfg.SourceDir,
-	})
-
-	var buf bytes.Buffer
-	if err := tmpl.ExecuteTemplate(&buf, "entrypoint", &module); err != nil {
-		return nil, fmt.Errorf("render entrypoint: %w", err)
-	}
-
 	outFile := cfg.OutputFile
 	if outFile == "" {
 		outFile = DefaultEntrypointFile
+		if cfg.DispatchMode {
+			outFile = DefaultDispatchFile
+		}
+	}
+
+	tmpl := templates.NewEntrypoint(&module, templates.EntrypointOptions{
+		SDKImportPath:    cfg.SDKImportPath,
+		ModuleRoot:       cfg.ModuleRoot,
+		SourceDir:        cfg.SourceDir,
+		DispatchMode:     cfg.DispatchMode,
+		DispatchFileName: outFile,
+	})
+
+	topLevel := "entrypoint"
+	if cfg.DispatchMode {
+		topLevel = "dispatch_entrypoint"
+	}
+
+	var buf bytes.Buffer
+	if err := tmpl.ExecuteTemplate(&buf, topLevel, &module); err != nil {
+		return nil, fmt.Errorf("render entrypoint: %w", err)
 	}
 
 	mfs := memfs.New()

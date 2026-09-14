@@ -60,6 +60,19 @@ func NewEntrypoint(module *TypedefModule, opts EntrypointOptions) *template.Temp
 	)
 }
 
+// NewDangEntrypoint creates a template that renders `entrypoint/main.dang`, the
+// Dang program the engine loads under a module entrypoint. It consumes the same
+// typedef JSON as NewEntrypoint: the typedefs it emits as Dang literals are the
+// ones the dispatcher's register() used to chain back at the engine from inside
+// a container.
+func NewDangEntrypoint(module *TypedefModule, opts DangEntrypointOptions) *template.Template {
+	return template.Must(
+		template.New("dang_entrypoint").
+			Funcs(DangEntrypointTemplateFuncs(module, opts)).
+			ParseFS(srcs, "src/entrypoint_dang/*.gtpl"),
+	)
+}
+
 // EntrypointOptions controls how user-source imports and SDK references are
 // rendered in the generated entrypoint.
 type EntrypointOptions struct {
@@ -74,4 +87,15 @@ type EntrypointOptions struct {
 	// SourceDir is the user's source directory name relative to ModuleRoot
 	// (defaults to "src").
 	SourceDir string
+
+	// DispatchMode renders the manifest-v2 dispatcher rather than the legacy
+	// entrypoint. The two differ only in how they talk to the engine: the
+	// dispatcher reads one JSON request on stdin and writes one JSON result on
+	// stdout, and has no register() because the typedefs now live in the Dang
+	// entrypoint. invoke() and every state helper are identical.
+	DispatchMode bool
+
+	// DispatchFileName is the dispatcher's own filename, shown in its developer
+	// mode usage line (defaults to "__dagger.dispatch.ts").
+	DispatchFileName string
 }
