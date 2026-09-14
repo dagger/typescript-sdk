@@ -50,6 +50,23 @@ type TypescriptSdk {
   dualClients: Boolean! = false
 
   """
+  Declare a module entrypoint instead of a legacy runtime.
+
+  Experimental, and engine-gated: only an engine carrying dagger/dagger#14038
+  loads a module this way. Everything the entrypoint needs is generated
+  regardless of this setting — entrypoint/main.dang and __dagger.dispatch.ts are
+  written either way — so this switch is only about which manifest is written,
+  and with it which loader the engine picks.
+
+  Turning it on is not free. A manifest v2 holds exactly four values, and the
+  engine rejects every other key outright, so the table drops what it has nowhere
+  to put: `[[dependencies]]`, `engineVersion`, `source`, `[codegen]` and
+  `[[clients]]`. A module that depends on another module cannot be expressed at
+  all yet. Leave it off unless you are testing the entrypoint path.
+  """
+  entrypoint: Boolean! = false
+
+  """
   packageManager pin for package.json, as `name@version` or just `name`. Empty
   writes no field. Node only; Bun and Deno bundle their own.
   """
@@ -96,6 +113,16 @@ type TypescriptSdk {
   A managed module is discovered by whichever it uses.
   """
   let moduleConfigFilenames: [String!]! = ["dagger-module.toml", "dagger.json"]
+
+  """
+  Directory holding the generated Dang entrypoint, relative to the module root.
+
+  Outside sdk/ on purpose: that tree is mounted as the @dagger.io/dagger package,
+  and a Dang program has no business inside a node package. The manifest names it
+  with a leading "./" so the engine classifies it as a local path outright rather
+  than falling through to a directory probe.
+  """
+  let dangEntrypointDir: String! = "entrypoint"
 
   """
   Starter used by init when none is named.
@@ -182,7 +209,17 @@ type TypescriptSdk {
       } else {
         seedModule(rooted, scope, name, effectiveRuntime(rooted, scope))
       }
-      let configured = if (hasToml) { seeded } else { withModuleManifest(seeded, scope, name, hasJSON) }
+      # The entrypoint manifest is written unconditionally rather than only when
+      # the scope has none: its four values carry nothing worth preserving, and
+      # writing it every time is what lets an existing module be flipped onto an
+      # entrypoint by turning the setting on.
+      let configured = if (entrypoint) {
+        withEntrypointManifest(seeded, scope, name)
+      } else if (hasToml) {
+        seeded
+      } else {
+        withModuleManifest(seeded, scope, name, hasJSON)
+      }
       # A module's files follow its manifest's `source`, which migration can aim
       # away from the directory holding the manifest. The config the runtime is
       # detected from moves with them, so `source` has to be resolved before the
@@ -197,7 +234,17 @@ type TypescriptSdk {
       let targets = clientTargets(clients)
       # Before the schema is read: a target that is not a dependency yet is not
       # in the schema the bindings are generated from.
-      let served = withClientDependencies(configured, scope, clients)
+      #
+      # Skipped entirely under an entrypoint, because a v2 manifest has no
+      # [[dependencies]] table and the engine rejects the key rather than
+      # ignoring it — upserting one would not add a dependency, it would make the
+      # manifest unparseable. The consequence is real and has no workaround here:
+      # a module with an entrypoint cannot serve a client yet.
+      let served = if (entrypoint) {
+        configured
+      } else {
+        withClientDependencies(configured, scope, clients)
+      }
 
       # First pass, staged on a workspace nothing reads back. Its only job is to
       # make the module loadable, which is what the self target needs; its
@@ -427,6 +474,33 @@ type TypescriptSdk {
     existing.withName(name: name)
       .generate(ws.withWorkdir(scope), lock: lock, legacyJson: false)
       .withWorkdir(".")
+  }
+
+  """
+  Write the manifest that selects the generated module entrypoint.
+
+  Four values, and the engine rejects any other key outright — not just the
+  tables a legacy manifest carries, but `engineVersion` too, which it fills in
+  from whatever engine is running. So there is nothing here to preserve from
+  what was on disk, and nothing the sdk-helpers builder can contribute: that
+  builder never emits `manifestVersion`, and without it the engine takes the
+  legacy path and reads `[entrypoint]` as an unknown key it silently ignores.
+  Writing the four lines directly is the whole job.
+
+  This overwrites rather than merges, which is what makes flipping an existing
+  module onto an entrypoint work at all. It is a one-way trip: everything the v2
+  schema cannot hold is gone from the file afterwards.
+  """
+  let withEntrypointManifest(ws: Workspace!, scope: String!, name: String!): Workspace! {
+    ws.withNewFile(
+      "/" + scopeFile(scope, "dagger-module.toml"),
+      "manifestVersion = 2\n" +
+        "name = " + JSON.encode(name) + "\n" +
+        "\n" +
+        "[entrypoint]\n" +
+        "  kind = \"dang\"\n" +
+        "  source = " + JSON.encode("./" + dangEntrypointDir) + "\n",
+    )
   }
 
   """
@@ -989,7 +1063,7 @@ type TypescriptSdk {
       .withDirectory("sdk", sdk)
       .withFile("__dagger.entrypoint.ts", entrypoint)
       .withFile("__dagger.dispatch.ts", dispatcher)
-      .withFile("entrypoint/main.dang", dangEntrypoint)
+      .withFile(dangEntrypointDir + "/main.dang", dangEntrypoint)
       .withDirectory(".", config)
   }
 
