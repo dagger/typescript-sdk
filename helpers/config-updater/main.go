@@ -58,13 +58,21 @@ func run(args []string) error {
 	case "package-json":
 		updated, err = updatePackageJSON(input)
 	case "tsconfig":
-		// tsconfig INPUT OUTPUT [MODULE...] — one @dagger.io/dagger/<module>
-		// path alias per generated module client.
-		updated, err = updateTSConfig(input, extra)
+		// tsconfig INPUT OUTPUT CLIENTS_DIR [MODULE...] — one @dagger.io/<module>
+		// path alias per generated module client, pointing at
+		// ./<CLIENTS_DIR>/<module>.gen.ts (or ./<module>.gen.ts when CLIENTS_DIR
+		// is empty, for a flat client scope).
+		if len(extra) < 1 {
+			return fmt.Errorf("usage: config-updater tsconfig INPUT_PATH OUTPUT_PATH CLIENTS_DIR [MODULE...]")
+		}
+		updated, err = updateTSConfig(input, extra[0], extra[1:])
 	case "deno-config":
-		// deno-config INPUT OUTPUT [MODULE...] — same per-module aliases, as
-		// import-map entries.
-		updated, err = updateDenoConfig(input, extra)
+		// deno-config INPUT OUTPUT CLIENTS_DIR [MODULE...] — same per-module
+		// aliases, as import-map entries.
+		if len(extra) < 1 {
+			return fmt.Errorf("usage: config-updater deno-config INPUT_PATH OUTPUT_PATH CLIENTS_DIR [MODULE...]")
+		}
+		updated, err = updateDenoConfig(input, extra[0], extra[1:])
 	case "client-package-json":
 		// client-package-json INPUT OUTPUT ENGINE_VERSION MODULE_NAME
 		if len(extra) != 2 {
@@ -331,7 +339,7 @@ func updateClientDenoConfig(denoConfig, engineVersion string) (string, error) {
 	return denoConfig, nil
 }
 
-func updateTSConfig(tsConfig string, modules []string) (string, error) {
+func updateTSConfig(tsConfig, clientsDir string, modules []string) (string, error) {
 	tsConfig, err := sjson.Set(tsConfig,
 		"compilerOptions.paths."+gjson.Escape(daggerLibPathAlias),
 		[]string{daggerLibPath},
@@ -348,7 +356,7 @@ func updateTSConfig(tsConfig string, modules []string) (string, error) {
 		return "", fmt.Errorf("set dagger telemetry path alias: %w", err)
 	}
 
-	tsConfig, err = syncModuleAliases(tsConfig, "compilerOptions.paths", modules, true)
+	tsConfig, err = syncModuleAliases(tsConfig, "compilerOptions.paths", clientsDir, modules, true)
 	if err != nil {
 		return "", err
 	}
@@ -372,8 +380,11 @@ func moduleAlias(module string) string {
 	return moduleAliasScope + module
 }
 
-func moduleAliasTarget(module string) string {
-	return "./clients/" + module + ".gen.ts"
+func moduleAliasTarget(clientsDir, module string) string {
+	if clientsDir == "" {
+		return "./" + module + ".gen.ts"
+	}
+	return "./" + clientsDir + "/" + module + ".gen.ts"
 }
 
 // isModuleAlias reports whether a config key is one of the per-module client
@@ -393,7 +404,7 @@ func isModuleAlias(key string) bool {
 // entries for modules that left the closure removed. The core @dagger.io/dagger
 // aliases and any non-module key are untouched. asArray selects tsconfig's
 // []string value shape over deno's plain string.
-func syncModuleAliases(jsonStr, keyPath string, modules []string, asArray bool) (string, error) {
+func syncModuleAliases(jsonStr, keyPath, clientsDir string, modules []string, asArray bool) (string, error) {
 	keep := map[string]bool{}
 	for _, module := range modules {
 		keep[moduleAlias(module)] = true
@@ -415,9 +426,9 @@ func syncModuleAliases(jsonStr, keyPath string, modules []string, asArray bool) 
 		}
 	}
 	for _, module := range modules {
-		var value any = moduleAliasTarget(module)
+		var value any = moduleAliasTarget(clientsDir, module)
 		if asArray {
-			value = []string{moduleAliasTarget(module)}
+			value = []string{moduleAliasTarget(clientsDir, module)}
 		}
 		jsonStr, err = sjson.Set(jsonStr, keyPath+"."+gjson.Escape(moduleAlias(module)), value)
 		if err != nil {
@@ -427,7 +438,7 @@ func syncModuleAliases(jsonStr, keyPath string, modules []string, asArray bool) 
 	return jsonStr, nil
 }
 
-func updateDenoConfig(denoConfig string, modules []string) (string, error) {
+func updateDenoConfig(denoConfig, clientsDir string, modules []string) (string, error) {
 	// Deno resolves dependencies through this map rather than node_modules, so
 	// the compiler the module's own code needs has to be declared here.
 	denoConfig, err := setIfNotExists(denoConfig, "imports.typescript", "npm:typescript@"+defaultTypeScriptVersion)
@@ -468,7 +479,7 @@ func updateDenoConfig(denoConfig string, modules []string) (string, error) {
 		return "", fmt.Errorf("set dagger telemetry import: %w", err)
 	}
 
-	denoConfig, err = syncModuleAliases(denoConfig, "imports", modules, false)
+	denoConfig, err = syncModuleAliases(denoConfig, "imports", clientsDir, modules, false)
 	if err != nil {
 		return "", err
 	}

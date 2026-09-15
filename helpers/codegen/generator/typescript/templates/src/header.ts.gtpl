@@ -9,70 +9,8 @@ inherited by futures objects and common types.
  */
  {{- if IsBundle }}
 import { Context, BaseClient } from "./core.js"
-{{- else if (not IsClientOnly)}}
-import { Context, BaseClient } from "../common/context.js"
 {{- else }}
-import { Context, BaseClient, connect as _connect, connection as _connection, ConnectOpts, CallbackFct } from "@dagger.io/dagger"
-{{- end }}
-
-{{ if IsClientOnly }}
-{{- /* Serve every module these bindings are bound to before the user's callback
-runs, so each `dag.<module>()` resolves. The client schema is core plus those
-modules only, so there are no dependencies to serve. */}}
-async function serveBoundModule(client: Client): Promise<void> {
-  {{- range $mod := BoundModules }}
-
-  // {{ $mod.Name }}
-  {{- if eq $mod.Kind "GIT_SOURCE" }}
-  {{- /* A git module's identity is a location that resolves from anywhere:
-  serve the canonical ref + pin directly. This survives being shipped away from
-  the project tree. */}}
-  await client
-    .moduleSource("{{ $mod.Ref }}", { refPin: "{{ $mod.Pin }}" })
-    .asModule()
-    .serve()
-  {{- else }}
-  {{- /* A local module is resolved against the workspace (discovered by find-up
-  from the session cwd — a stable reference point anywhere in the project tree)
-  by its workspace-root-relative path, not the client's cwd. */}}
-  await client
-    .currentWorkspace()
-    .moduleSource("{{ $mod.Path }}")
-    .asModule()
-    .serve()
-  {{- end }}
-  {{- end }}
-}
-
-export async function connection(
-  fct: () => Promise<void>,
-  cfg: ConnectOpts = {},
-) {
-  const wrapperFunc = async (): Promise<void> => {
-    await serveBoundModule(dag)
-
-    // Call the callback
-    await fct()
-  }
-
-  return await _connection(wrapperFunc, cfg)
-}
-
-export async function connect(
-  fct: CallbackFct,
-  cfg: ConnectOpts = {},
-) {
-  // Serve the bound module before calling the callback
-  const wrapperFunc = async (client: Client): Promise<void> => {
-    await serveBoundModule(client)
-
-    // Call the callback with the client
-    // This requires to use `any` to pass the type system
-    await fct(client as any)
-  }
-
-  return await _connect(wrapperFunc as unknown as CallbackFct, cfg)
-}
+import { Context, BaseClient } from "../common/context.js"
 {{- end }}
 
 /**

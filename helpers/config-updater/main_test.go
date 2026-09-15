@@ -148,10 +148,11 @@ func TestUpdatePackageJSON(t *testing.T) {
 
 func TestUpdateTSConfig(t *testing.T) {
 	type testCase struct {
-		name     string
-		tsConfig string
-		modules  []string
-		expected string
+		name       string
+		tsConfig   string
+		clientsDir string
+		modules    []string
+		expected   string
 	}
 
 	for _, tc := range []testCase{
@@ -215,9 +216,10 @@ func TestUpdateTSConfig(t *testing.T) {
 }`,
 		},
 		{
-			name:     "tsconfig with modules adds one alias per module client",
-			tsConfig: `{}`,
-			modules:  []string{"my-dep", "app"},
+			name:       "tsconfig with modules adds one alias per module client",
+			tsConfig:   `{}`,
+			clientsDir: "clients",
+			modules:    []string{"my-dep", "app"},
 			expected: `{
   "compilerOptions": {
     "experimentalDecorators": true,
@@ -243,7 +245,8 @@ func TestUpdateTSConfig(t *testing.T) {
     }
   }
 }`,
-			modules: []string{"kept"},
+			clientsDir: "clients",
+			modules:    []string{"kept"},
 			expected: `{
   "compilerOptions": {
     "experimentalDecorators": true,
@@ -279,7 +282,7 @@ func TestUpdateTSConfig(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			res, err := updateTSConfig(removeJSONComments(tc.tsConfig), tc.modules)
+			res, err := updateTSConfig(removeJSONComments(tc.tsConfig), tc.clientsDir, tc.modules)
 			require.NoError(t, err)
 			require.JSONEq(t, tc.expected, res)
 		})
@@ -290,6 +293,7 @@ func TestUpdateDenoConfig(t *testing.T) {
 	type testCase struct {
 		name       string
 		denoConfig string
+		clientsDir string
 		modules    []string
 		expected   string
 	}
@@ -301,7 +305,8 @@ func TestUpdateDenoConfig(t *testing.T) {
     "@dagger.io/gone": "./clients/gone.gen.ts"
   }
 }`,
-		modules: []string{"kept"},
+		clientsDir: "clients",
+		modules:    []string{"kept"},
 		expected: `{
   "imports": {
     "typescript": "npm:typescript@5.9.3",
@@ -493,7 +498,7 @@ func TestUpdateDenoConfig(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			res, err := updateDenoConfig(removeJSONComments(tc.denoConfig), tc.modules)
+			res, err := updateDenoConfig(removeJSONComments(tc.denoConfig), tc.clientsDir, tc.modules)
 			require.NoError(t, err)
 			require.JSONEq(t, tc.expected, res)
 		})

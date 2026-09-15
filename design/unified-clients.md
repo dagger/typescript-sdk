@@ -67,14 +67,17 @@
 > existing `selfContribution` fold is kept), §7 externalization (one npm package
 > per module).
 >
-> **Known gap — standalone consumer resolution.** A module scope's `clients/`
-> resolve through the tsconfig aliases, verified. The client-only standalone
-> package (`.dagger/clients/`, flat) is different: it is installed as an npm
-> package and reached by its name, but its `dagger.gen.ts` no longer re-exports
-> the module files, and nothing yet gives the package the subpath `exports` map
-> a consumer needs to `import { hey } from "@pkg/hey"`. The files generate and
-> type-check; wiring `package.json` `exports` is the remaining piece of §7 (kept
-> a shared `clients/` dir resolved by aliases, per the layout decision).
+> - **The standalone client scope converges with a module.** A client-only scope
+>   (`.dagger/clients/`) no longer renders the old `dagger.gen.ts` +
+>   `serveBoundModule`/`connect` shape against a remote `@dagger.io/dagger`. It
+>   now vendors the library under `sdk/` and renders the same per-module clients
+>   as a module — flat `<module>.gen.ts`, each serving its own module on use,
+>   importing `@dagger.io/dagger` (aliased to the local `sdk/`). The `ClientConfig`
+>   / `IsClientOnly` path is deleted; `ModuleGeneratorConfig` drives both, with
+>   `FlatClients` (flat vs `clients/`) and `EmitLoader` (module only) the only
+>   knobs. So a shared `.dagger/clients/` can eventually back both a module and
+>   the user's code. Verified offline: the vendored-sdk scope type-checks under
+>   `tsc --strict` with no remote dependency.
 >
 > **Verification.** Unit + golden tests green (`helpers/codegen`,
 > `helpers/config-updater`); a generated module tree — `sdk/` library +

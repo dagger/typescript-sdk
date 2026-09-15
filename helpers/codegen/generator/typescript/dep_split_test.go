@@ -470,7 +470,7 @@ func TestGenerate_Module_EmitsLoader(t *testing.T) {
 	generator.SetSchemaParents(schema)
 
 	state, err := generate(generator.Config{
-		ModuleConfig: &generator.ModuleGeneratorConfig{ModuleName: "app"},
+		ModuleConfig: &generator.ModuleGeneratorConfig{ModuleName: "app", EmitLoader: true},
 	}, ClientGenFile, schema, "v0.21.0")
 	require.NoError(t, err)
 
@@ -500,32 +500,33 @@ func TestGenerate_RejectsReservedModuleNames(t *testing.T) {
 		return schema
 	}
 
-	// In module codegen the clients live under clients/, apart from the core
+	// A module scope keeps its clients under clients/, apart from the core
 	// client.gen.ts, so "loader" (a sibling of the module files) is the only
 	// reserved name; "client" no longer collides.
 	_, err := generate(generator.Config{
-		ModuleConfig: &generator.ModuleGeneratorConfig{ModuleName: "app"},
+		ModuleConfig: &generator.ModuleGeneratorConfig{ModuleName: "app", EmitLoader: true},
 	}, ClientGenFile, buildSchema("loader"), "v0.21.0")
-	require.Error(t, err, `module named "loader" must be rejected in module mode`)
+	require.Error(t, err, `module named "loader" must be rejected in a module scope`)
 	require.ErrorContains(t, err, "loader")
 
 	_, err = generate(generator.Config{
-		ModuleConfig: &generator.ModuleGeneratorConfig{ModuleName: "app"},
+		ModuleConfig: &generator.ModuleGeneratorConfig{ModuleName: "app", EmitLoader: true},
 	}, ClientGenFile, buildSchema("client"), "v0.21.0")
 	require.NoError(t, err, `"client" is a directory apart from the module clients now`)
 
-	// A standalone client keeps everything in one directory, so its core file's
-	// name ("dagger") is reserved there.
+	// A flat standalone client shares its root with the core client.gen.ts, so
+	// "client" is reserved there (and the loader is not emitted, so it isn't).
 	_, err = generate(generator.Config{
-		ClientConfig: &generator.ClientGeneratorConfig{ModuleName: "dagger"},
-	}, CoreGenFile, buildSchema("dagger"), "v0.21.0")
-	require.Error(t, err, `module named "dagger" must be rejected in client mode`)
+		ModuleConfig: &generator.ModuleGeneratorConfig{FlatClients: true},
+	}, ClientGenFile, buildSchema("client"), "v0.21.0")
+	require.Error(t, err, `module named "client" must be rejected in a flat client scope`)
+	require.ErrorContains(t, err, "client")
 }
 
-// TestGenerate_Client_SplitsBoundModule checks the standalone-client layout:
-// the core file is dagger.gen.ts and holds only core types, the bound module is
-// split into its own <module>.gen.ts self-contained client importing the SDK
-// package. No client.gen.ts and no loader are produced.
+// TestGenerate_Client_SplitsBoundModule checks the standalone-client layout
+// converges with a module's: a core client.gen.ts backed by the vendored
+// library (./core.js), the bound module split into its own flat <module>.gen.ts
+// client importing @dagger.io/dagger, and no loader.
 func TestGenerate_Client_SplitsBoundModule(t *testing.T) {
 	helloModule := newSourceMapDirective("hello")
 
@@ -552,111 +553,47 @@ func TestGenerate_Client_SplitsBoundModule(t *testing.T) {
 				Fields:     []*introspection.Field{{Name: "id", TypeRef: &introspection.TypeRef{Kind: introspection.TypeKindNonNull, OfType: &introspection.TypeRef{Kind: introspection.TypeKindScalar, Name: "HelloID"}}}},
 			},
 			{Kind: introspection.TypeKindScalar, Name: "HelloID", Directives: introspection.Directives{helloModule}},
-			// A pure core type stays in dagger.gen.ts.
+			// A pure core type stays in the core file.
 			{Kind: introspection.TypeKindObject, Name: "Container", Fields: []*introspection.Field{{Name: "id", TypeRef: &introspection.TypeRef{Kind: introspection.TypeKindScalar, Name: "ContainerID"}}}},
 		},
 	}
 	generator.SetSchemaParents(schema)
 
 	state, err := generate(generator.Config{
-		ClientConfig: &generator.ClientGeneratorConfig{ModuleName: "hello"},
-	}, CoreGenFile, schema, "v0.21.0")
+		ModuleConfig: &generator.ModuleGeneratorConfig{
+			FlatClients:  true,
+			BoundModules: []generator.BoundModule{{Name: "hello", Kind: "GIT_SOURCE", Ref: "github.com/foo/hello@main", Pin: "abcdef"}},
+		},
+	}, ClientGenFile, schema, "v0.21.0")
 	require.NoError(t, err)
 
-	// Core file is dagger.gen.ts and holds only core types.
-	core := readOverlay(t, state, "dagger.gen.ts")
+	// Core file is client.gen.ts, backed by the vendored library, holding only
+	// core types.
+	core := readOverlay(t, state, "client.gen.ts")
+	require.Contains(t, core, `from "./core.js"`)
 	require.NotContains(t, core, "export class Hello extends BaseClient",
 		"the bound module's type must be split out of the core file")
 	require.Contains(t, core, "export class Container extends BaseClient",
-		"a pure core type stays in dagger.gen.ts")
+		"a pure core type stays in the core file")
 	require.NotContains(t, core, "export *")
 	require.NotContains(t, core, "hello.gen.js")
 
-	// The bound module lands in hello.gen.ts as its own client, resolving the
-	// runtime through the SDK package.
+	// The bound module lands flat in hello.gen.ts as its own client, serving its
+	// module on use and reaching the runtime through the package.
 	hello := readOverlay(t, state, "hello.gen.ts")
 	require.Contains(t, hello, "export class Hello extends BaseClient")
 	require.Contains(t, hello, "export class Client extends BaseClient")
-	require.Contains(t, hello, "export const dag = new Client()")
+	require.Contains(t, hello, "export const dag = new Client(")
+	require.Contains(t, hello, `.moduleSource("github.com/foo/hello@main", { refPin: "abcdef" }).asModule().serve()`)
 	require.Contains(t, hello, "export function hi(): Promise<string> {")
 	require.Contains(t, hello, `import { Context, BaseClient } from "@dagger.io/dagger"`)
 	require.NotContains(t, hello, "declare module")
 
-	// A client emits neither client.gen.ts nor a loader.
-	_, err = state.Overlay.Open("client.gen.ts")
-	require.Error(t, err, "client generation must not emit client.gen.ts")
+	// A flat client emits no dagger.gen.ts and no loader.
+	_, err = state.Overlay.Open("dagger.gen.ts")
+	require.Error(t, err, "client generation must not emit dagger.gen.ts")
 	_, err = state.Overlay.Open("loader.gen.ts")
 	require.Error(t, err, "client generation must not emit a loader")
-}
-
-// TestGenerate_Client_ServeBoundModule checks the runtime bootstrap the client
-// bakes to serve the one module it is bound to (per
-// hack/designs/generated-client-module-loading.md): a local module resolves
-// against the workspace by a workspace-root-relative path, a git module serves
-// from its canonical ref + pin, and the old dependency-serve loop /
-// includeDependencies are gone.
-func TestGenerate_Client_ServeBoundModule(t *testing.T) {
-	helloModule := newSourceMapDirective("hello")
-	buildSchema := func() *introspection.Schema {
-		schema := &introspection.Schema{
-			QueryType: struct {
-				Name string `json:"name,omitempty"`
-			}{Name: "Query"},
-			Types: introspection.Types{
-				{
-					Kind: introspection.TypeKindObject,
-					Name: "Query",
-					Fields: []*introspection.Field{
-						{
-							Name:       "hi",
-							TypeRef:    &introspection.TypeRef{Kind: introspection.TypeKindNonNull, OfType: &introspection.TypeRef{Kind: introspection.TypeKindScalar, Name: "String"}},
-							Directives: introspection.Directives{helloModule},
-						},
-					},
-				},
-			},
-		}
-		generator.SetSchemaParents(schema)
-		return schema
-	}
-
-	t.Run("local module resolves against the workspace by a root-relative path", func(t *testing.T) {
-		state, err := generate(generator.Config{
-			ClientConfig: &generator.ClientGeneratorConfig{
-				ModuleName:   "hello",
-				BoundModules: []generator.BoundModule{{Name: "hello", Kind: "DIR_SOURCE", Path: ".dagger/modules/hello"}},
-			},
-		}, CoreGenFile, buildSchema(), "v0.21.0")
-		require.NoError(t, err)
-
-		core := readOverlay(t, state, "dagger.gen.ts")
-		require.Contains(t, core, "async function serveBoundModule")
-		require.Contains(t, core, ".currentWorkspace()")
-		// A bare relative path is forced absolute so it resolves from the
-		// workspace root (cwd-independent), not the client process's cwd.
-		require.Contains(t, core, `.moduleSource("/.dagger/modules/hello")`)
-		require.Contains(t, core, ".asModule()")
-		// The dependency-serve loop and includeDependencies are gone.
-		require.NotContains(t, core, "serveModuleDependencies")
-		require.NotContains(t, core, "includeDependencies")
-		require.NotContains(t, core, "configExists")
-	})
-
-	t.Run("git module serves from its canonical ref + pin", func(t *testing.T) {
-		state, err := generate(generator.Config{
-			ClientConfig: &generator.ClientGeneratorConfig{
-				ModuleName:   "hello",
-				BoundModules: []generator.BoundModule{{Name: "hello", Kind: "GIT_SOURCE", Ref: "github.com/foo/hello@main", Pin: "abcdef"}},
-			},
-		}, CoreGenFile, buildSchema(), "v0.21.0")
-		require.NoError(t, err)
-
-		core := readOverlay(t, state, "dagger.gen.ts")
-		require.Contains(t, core, "async function serveBoundModule")
-		require.Contains(t, core, `.moduleSource("github.com/foo/hello@main", { refPin: "abcdef" })`)
-		require.NotContains(t, core, ".currentWorkspace()")
-		require.NotContains(t, core, "includeDependencies")
-	})
 }
 
 // TestClientTemplate_CoreValuesAreValueImported guards the systemic gap where a

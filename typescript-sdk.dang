@@ -703,7 +703,7 @@ type TypescriptSdk {
     let withConfig = if (runtime == Runtime.NODE) {
       builder
         .withExec(["config-updater", "package-json", existingPrefix + "package.json", "/rendered/package.json"])
-        .withExec(["config-updater", "tsconfig", existingPrefix + "tsconfig.json", "/rendered/tsconfig.json"])
+        .withExec(["config-updater", "tsconfig", existingPrefix + "tsconfig.json", "/rendered/tsconfig.json", "clients"])
     } else if (runtime == Runtime.BUN) {
       # The Dagger TypeScript runtime picks bun over node by spotting bun.lock,
       # so we emit an empty one for a fresh init. If the workspace already has
@@ -711,7 +711,7 @@ type TypescriptSdk {
       # directory, so writing it here would truncate the user's lockfile.
       let nodeConfig = builder
         .withExec(["config-updater", "package-json", existingPrefix + "package.json", "/rendered/package.json"])
-        .withExec(["config-updater", "tsconfig", existingPrefix + "tsconfig.json", "/rendered/tsconfig.json"])
+        .withExec(["config-updater", "tsconfig", existingPrefix + "tsconfig.json", "/rendered/tsconfig.json", "clients"])
       if (existing.exists(wsPrefix + "bun.lock")) {
         nodeConfig
       } else {
@@ -719,7 +719,7 @@ type TypescriptSdk {
       }
     } else {
       builder
-        .withExec(["config-updater", "deno-config", existingPrefix + "deno.json", "/rendered/deno.json"])
+        .withExec(["config-updater", "deno-config", existingPrefix + "deno.json", "/rendered/deno.json", "clients"])
     }
 
     withConfig.directory("/rendered")
@@ -1151,7 +1151,7 @@ type TypescriptSdk {
     # materializes (kebab-cased differently, or a module that cannot load) is
     # corrected rather than kept.
     let aliasModules = bindingAliasModules(bindings).filter { m => m != moduleName } + [moduleName]
-    base.withDirectory(".", moduleConfigDirectory(existing, runtime, aliasModules))
+    base.withDirectory(".", moduleConfigDirectory(existing, runtime, "clients", aliasModules))
   }
 
   """
@@ -1167,24 +1167,25 @@ type TypescriptSdk {
   }
 
   """
-  A module's config files, with one @dagger.io/<module> alias per
-  generated module client so the module's source can import each client through
-  its own specifier. The alias set must agree with the binding files sitting in
-  sdk/, so callers derive it from the bindings of the pass they are writing.
+  A scope's config files, with one @dagger.io/<module> alias per generated
+  client so its source can import each through its own specifier. `clientsDir`
+  is where the client files sit relative to the config — "clients" for a module,
+  "" for a flat standalone client — so the alias points at the right path.
+  Callers derive the alias set from the bindings of the pass they are writing.
   """
-  let moduleConfigDirectory(existing: Directory!, runtime: Runtime!, aliasModules: [String!]!): Directory! {
+  let moduleConfigDirectory(existing: Directory!, runtime: Runtime!, clientsDir: String!, aliasModules: [String!]!): Directory! {
     let configUpdater = configUpdaterBuilder
       .withDirectory("/existing", existing)
       .withDirectory("/out", directory)
 
     if (runtime == Runtime.DENO) {
       configUpdater
-        .withExec(["config-updater", "deno-config", "/existing/deno.json", "/out/deno.json"] + aliasModules)
+        .withExec(["config-updater", "deno-config", "/existing/deno.json", "/out/deno.json", clientsDir] + aliasModules)
         .directory("/out")
     } else {
       configUpdater
         .withExec(["config-updater", "package-json", "/existing/package.json", "/out/package.json"])
-        .withExec(["config-updater", "tsconfig", "/existing/tsconfig.json", "/out/tsconfig.json"] + aliasModules)
+        .withExec(["config-updater", "tsconfig", "/existing/tsconfig.json", "/out/tsconfig.json", clientsDir] + aliasModules)
         .directory("/out")
     }
   }
@@ -1416,7 +1417,7 @@ type TypescriptSdk {
       generated
         .withoutDirectory("clients")
         .withDirectory("clients", moduleClientsDirectory(bindings))
-        .withDirectory(".", moduleConfigDirectory(generated, rt, bindingAliasModules(bindings)))
+        .withDirectory(".", moduleConfigDirectory(generated, rt, "clients", bindingAliasModules(bindings)))
     }
   }
 
@@ -1507,19 +1508,15 @@ type TypescriptSdk {
   }
 
   """
-  Generate the raw client bindings for a whole scope: one dagger.gen.ts holding
-  the core API, plus one <module>.gen.ts per target.
+  Generate a standalone client scope's bindings: one client.gen.ts holding the
+  core API (the vendored library's bindings), plus one flat <module>.gen.ts
+  client per target.
 
-  This is the engine-free core of client generation, run in the codegen
-  container. Each target contributes its client-facing schema — core plus that
-  one module — and codegen merges them, so the core API is emitted once however
-  many modules the scope serves.
-
-  Each target also carries the provenance the generated serveBoundModule
-  bootstrap needs: a GIT_SOURCE module is served from its canonical ref+pin
-  (which resolve anywhere), a LOCAL_SOURCE/DIR_SOURCE module by resolving its
-  workspace-root-relative path against the workspace. An unknown kind fails
-  codegen closed.
+  Rendered exactly like a module's clients — each is a self-contained client
+  that serves its own module on use (git by ref+pin, local by workspace path) —
+  so the two converge. The only differences are layout: flat, and no entrypoint
+  loader. Each target contributes its client-facing schema (core plus that one
+  module); codegen merges them so the core API is emitted once.
   """
   let generateClientBindings(targets: [ClientTarget!]!): Directory! {
     stageTargets(codegenBuilder, targets)
@@ -1539,39 +1536,36 @@ type TypescriptSdk {
   }
 
   """
-  Layer the scoped-package config files (package.json, tsconfig.json) onto a set
-  of generated Node/Bun client bindings.
-
-  `existing` supplies the client dir's current config so user customizations are
-  preserved; pass an empty directory for a brand-new client. `package.json` gets
-  type=module, an SDK-owned @dagger.io/dagger pinned to `engineVersion`, a
-  typescript pin, and a scoped name derived from `moduleName` when unnamed.
+  The client file names a flat client scope aliases, one per <module>.gen.ts at
+  the bindings root, with the core client.gen.ts left out.
   """
-  let configureClientNode(bindings: Directory!, existing: Directory!, engineVersion: String!, moduleName: String!): Directory! {
-    configUpdaterBuilder
-      .withDirectory("/out", bindings)
-      .withDirectory("/existing", existing)
-      .withExec(["config-updater", "client-package-json", "/existing/package.json", "/out/package.json", engineVersion, moduleName])
-      .withExec(["config-updater", "client-tsconfig", "/existing/tsconfig.json", "/out/tsconfig.json"])
-      .directory("/out")
+  let flatAliasModules(bindings: Directory!): [String!]! {
+    bindings.entries
+      .filter { entry => entry.trimSuffix(".gen.ts") != entry }
+      .map { entry => entry.trimSuffix(".gen.ts") }
+      .filter { name => name != "client" }
   }
 
   """
-  Build the complete client package for a scope: merged bindings plus the
-  package.json and tsconfig.json that make it installable on its own.
+  Build the complete standalone client scope: the vendored library under sdk/,
+  the flat per-module clients beside it, and the config that aliases
+  @dagger.io/dagger to the local sdk and @dagger.io/<module> to each client.
 
-  `existing` supplies the package's current config so user edits are preserved —
-  in particular a @dagger.io/dagger the user has repointed at a local bundle.
-  `name` names the package and is the scope's, not any one module's: the package
-  serves all of them.
+  Same shape as a module's sdk/ + clients + config, so the two converge: no
+  remote @dagger.io/dagger dependency, and clients identical to a module's.
+  `existing` supplies the scope's current config so user edits survive.
   """
-  let clientDirectory(targets: [ClientTarget!]!, name: String!, existing: Directory!): Directory! {
-    configureClientNode(
-      generateClientBindings(targets),
-      existing,
-      targetEngineVersion,
-      name,
-    )
+  let clientDirectory(targets: [ClientTarget!]!, existing: Directory!, runtime: Runtime!): Directory! {
+    let bindings = generateClientBindings(targets)
+    let sdk = moduleSdkDirectory(bindings)
+    # The clients are flat at the scope root; only client.gen.ts moves into the
+    # vendored library under sdk/.
+    let clientFiles = bindings.withoutFile("client.gen.ts")
+
+    directory
+      .withDirectory("sdk", sdk)
+      .withDirectory(".", clientFiles)
+      .withDirectory(".", moduleConfigDirectory(existing, runtime, "", flatAliasModules(bindings)))
   }
 
   """
@@ -1611,13 +1605,11 @@ type TypescriptSdk {
     } else {
       # The whole directory is this SDK's, so anything in it we no longer render
       # is dropped — the bindings of a target that has left the scope are the
-      # point. The package's own config survives because it is read back out of
+      # point. The scope's own config survives because it is read back out of
       # `ws` and layered under the fresh bindings.
-      # Named for the scope, not for the directory the package sits in: every
-      # scope puts it in one called `clients`, so naming it after that gives
-      # every generated package in a workspace the same name — and they collide
-      # the moment a project installs two of them.
-      let generated = clientDirectory(targets, dirName(base), existingClientConfig(ws, dir))
+      let existing = existingClientConfig(ws, dir)
+      let rt = if (existing.exists("deno.json")) { Runtime.DENO } else { Runtime.NODE }
+      let generated = clientDirectory(targets, existing, rt)
       writeChanged(prunedClientFiles(ws, dir, generated), dir, generated)
     }
   }
@@ -1648,19 +1640,6 @@ type TypescriptSdk {
   """
   let clientDirPath(base: String!, isModule: Boolean!): String! {
     scopeFile(base, if (isModule) { "clients" } else { ".dagger/clients" })
-  }
-
-  """
-  Last segment of a workspace path, empty at the root — the scope's own name,
-  which names the client package it owns.
-  """
-  let dirName(path: String!): String! {
-    if (path == ".") {
-      ""
-    } else {
-      let segments = path.split("/")
-      segments.dropFirst(segments.length - 1).join("/")
-    }
   }
 
 }

@@ -55,7 +55,7 @@ func moduleSchema(t *testing.T) *introspection.Schema {
 // bundled library sitting next to them.
 func TestGenerateModule_Layout(t *testing.T) {
 	gen := &TypeScriptGenerator{Config: generator.Config{
-		ModuleConfig: &generator.ModuleGeneratorConfig{ModuleName: "app"},
+		ModuleConfig: &generator.ModuleGeneratorConfig{ModuleName: "app", EmitLoader: true},
 	}}
 
 	state, err := gen.GenerateModule(context.Background(), moduleSchema(t), "v0.21.0")
@@ -124,22 +124,33 @@ func TestGenerateLibrary_ImportsRuntimeFromSource(t *testing.T) {
 	require.NotContains(t, core, `from "@dagger.io/dagger"`)
 }
 
-// TestGenerateClient_ImportsPackage covers the remaining arm: a standalone
-// client resolves the SDK through the npm package it depends on.
-func TestGenerateClient_ImportsPackage(t *testing.T) {
+// TestGenerateClient_Converges covers that a standalone client renders the same
+// shape as a module: a core client.gen.ts backed by the vendored library, and
+// flat per-module clients reaching the runtime through the package.
+func TestGenerateClient_Converges(t *testing.T) {
 	gen := &TypeScriptGenerator{Config: generator.Config{
-		ClientConfig: &generator.ClientGeneratorConfig{
-			ModuleName:   "app",
-			BoundModules: []generator.BoundModule{{Name: "app", Kind: generator.ModuleKindDir, Path: ".dagger/modules/app"}},
+		ModuleConfig: &generator.ModuleGeneratorConfig{
+			FlatClients:  true,
+			BoundModules: []generator.BoundModule{{Name: "gendep", Kind: generator.ModuleKindDir, Path: ".dagger/modules/gendep"}},
 		},
 	}}
 
-	state, err := gen.GenerateClient(context.Background(), moduleSchema(t), "v0.21.0")
+	state, err := gen.GenerateModule(context.Background(), moduleSchema(t), "v0.21.0")
 	require.NoError(t, err)
 
-	core := readOverlay(t, state, "dagger.gen.ts")
-	require.Contains(t, core, `from "@dagger.io/dagger"`)
-	require.NotContains(t, core, `from "./core.js"`)
+	// Core file is client.gen.ts, backed by the vendored library.
+	core := readOverlay(t, state, "client.gen.ts")
+	require.Contains(t, core, `from "./core.js"`)
+
+	// The clients are flat and reach the runtime through the package, same as a
+	// module's clients/ files.
+	dep := readOverlay(t, state, "gendep.gen.ts")
+	require.Contains(t, dep, `from "@dagger.io/dagger"`)
+	require.Contains(t, dep, "export const dag = new Client(")
+
+	require.Contains(t, readOverlay(t, state, "app.gen.ts"), "export class App extends BaseClient")
+	_, err = state.Overlay.Open("loader.gen.ts")
+	require.Error(t, err)
 }
 
 func newSourceMapFileDirective(moduleName, filename string, line int) *introspection.Directive {
