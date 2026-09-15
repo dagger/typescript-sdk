@@ -64,6 +64,23 @@ type Asserts {
   }
 
   """
+  Assert that a changeset does not carry a path at all — not in the paths it
+  reports, and not in the snapshot it hands the engine to apply and export.
+
+  The two can disagree, and the second one is the one that bites. Reported paths
+  are diffed by content, so a file rewritten with its own bytes is correctly
+  absent from them. The layer records what was *written*, identical or not, and
+  that is what the engine applies, exports, and diffs the next run against. A
+  file that reaches the layer is written to disk and turns up as a whole-file
+  addition later, however quiet the report was — so notGenerated passing is not
+  enough to say a file was left alone.
+  """
+  let untouched(changes: Changeset!, path: String!, message: String!): Void {
+    notGenerated(changes, path, message)
+    assert(changes.layer.exists(path) == false, message + " (carried in the changeset layer)")
+  }
+
+  """
   Assert that a string contains a substring.
   """
   let stringContains(value: String!, want: String!, message: String!): Void {

@@ -52,8 +52,13 @@ type GenerateChecks {
   """
   generateWorkspaceModuleCheck(ws: Workspace!): Void @check {
     let path = fixtures.depAppModule
-    let changes = Gen.module(Gen.withDependency(ws), path, "generate-deps-app")
-    let tree = changes.after.directory(path)
+    let staged = Gen.withDependency(ws)
+    let changes = Gen.module(staged, path, "generate-deps-app")
+    # The module as it stands once the changes are applied, not the changeset's
+    # own after side. Generation writes only the files it changes, so a file it
+    # correctly left alone — this fixture's package.json and tsconfig.json — is
+    # not in the changeset at all, and reading one out of it fails outright.
+    let tree = staged.withChanges(changes).directory("/" + path)
 
     Asserts.generated(changes, path + "/sdk/client.gen.ts")
     Asserts.generated(changes, path + "/sdk/core.js")
@@ -61,10 +66,6 @@ type GenerateChecks {
     Asserts.generated(changes, path + "/sdk/index.ts")
     Asserts.generated(changes, path + "/sdk/telemetry.ts")
     Asserts.generated(changes, path + "/__dagger.entrypoint.ts")
-
-    # package.json and tsconfig.json are asserted on the resulting tree rather
-    # than the changeset: this fixture already carries correct ones, so a
-    # correctly-behaving generate leaves them untouched and out of the diff.
 
     # The bindings must reach the runtime through the bundle sitting beside
     # them, not through the npm package: sdk/ *is* @dagger.io/dagger here.
@@ -355,14 +356,23 @@ type GenerateChecks {
   generatePreservesManifestCheck(ws: Workspace!): Void @check {
     let path = fixtures.depAppModule
     let manifest = path + "/dagger-module.toml"
-    let changes = Gen.module(Gen.withDependency(ws), path, "generate-deps-app")
+    let staged = Gen.withDependency(ws)
+    let changes = Gen.module(staged, path, "generate-deps-app")
 
     Asserts.notAdded(changes, manifest, "the manifest was already there")
     Asserts.assert(
       Asserts.contains(changes.modifiedPaths, manifest) == false,
+      # From the workspace with the changes applied, not the changeset: the
+      # message is built whether or not the assertion fails, and a manifest that
+      # was left alone is not written, so it is not in the changeset to read.
       "regenerating rewrote the manifest as: " +
-        changes.after.directory(path).file("dagger-module.toml").contents,
+        staged.withChanges(changes).file("/" + manifest).contents,
     )
+
+    # Nothing wrote it at all, which is the stronger statement and the one the
+    # reported paths cannot make: they are diffed by content, so a manifest
+    # re-emitted identically is absent from them either way.
+    Asserts.untouched(changes, manifest, "regenerating should not rewrite the manifest")
 
     null
   }
@@ -514,6 +524,67 @@ type GenerateChecks {
       "regenerating a settled scope should write nothing, got added [" +
         again.addedPaths.join(", ") + "], modified [" + again.modifiedPaths.join(", ") + "]",
     )
+
+    null
+  }
+
+  """
+  Editing a module's source should write only the files that edit reaches.
+
+  Generation re-renders every file whether or not the edit changed it, and most
+  of them come out identical: the core API bindings describe the engine's
+  schema, and the client package's config describes the package, neither of
+  which a new function touches. Writing them anyway is not a harmless no-op. The
+  changeset the engine hands back records what was *written*, not what changed,
+  so a file rewritten with its own bytes is carried in it and reported against a
+  base sized from the paths that really changed — as an addition, whole. One
+  added function used to report both binding files, 18k unchanged lines, as
+  brand new.
+
+  Asserted on the changeset's layer, not on the paths it reports. The reported
+  paths are diffed by content and were right all along, so a check reading them
+  passes on the bug; the layer is what carries the rewrite. The end-to-end
+  symptom needs generated files on disk, which no check here has —
+  `design/regeneration-churn.md` records how to reproduce it by hand, and that
+  it must be done in both directions, since the first attempt at a fix was clean
+  on removal and three times worse on addition.
+
+  dualClients, because the standalone package is half of what churned.
+  """
+  generateSourceEditIsScopedCheck(ws: Workspace!): Void @check {
+    let path = fixtures.depLibModule
+    let source = path + "/src/index.ts"
+    let settled = ws.withChanges(Gen.scope(ws, path, "gendep", dualClients: true))
+
+    # A new @func, so the module's own schema really does change and its self
+    # bindings and entrypoint really are re-rendered. Anything less and this
+    # passes on a run that generated nothing.
+    let edited = settled.withNewFile(
+      "/" + source,
+      settled.file("/" + source).contents.trimSuffix("}\n") +
+        "\n  @func()\n  extra(): string {\n    return \"extra\"\n  }\n}\n",
+    )
+    let changes = Gen.scope(edited, path, "gendep", dualClients: true)
+
+    Asserts.generated(changes, path + "/sdk/gendep.gen.ts")
+    Asserts.generated(changes, path + "/clients/gendep.gen.ts")
+    Asserts.generated(changes, path + "/__dagger.entrypoint.ts")
+
+    [
+      "/sdk/client.gen.ts",
+      "/sdk/core.js",
+      "/clients/dagger.gen.ts",
+      "/clients/package.json",
+      "/clients/tsconfig.json",
+      "/package.json",
+      "/tsconfig.json",
+    ].each { name =>
+      Asserts.untouched(
+        changes,
+        path + name,
+        "editing a module's source should not rewrite " + name.trimPrefix("/"),
+      )
+    }
 
     null
   }

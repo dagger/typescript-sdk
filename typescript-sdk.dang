@@ -199,15 +199,22 @@ type TypescriptSdk {
       # in the schema the bindings are generated from.
       let served = withClientDependencies(configured, scope, clients)
 
-      # First pass. The module is loadable afterwards, which is what the self
-      # target needs.
-      let staged = moduleFiles(served, scope, source, name, rt, targets)
+      # First pass, staged on a workspace nothing reads back. Its only job is to
+      # make the module loadable, which is what the self target needs; its
+      # bindings are not the ones that belong on disk, so `served` — not this —
+      # is what the result is written onto.
+      let firstPass = moduleGenerated(served, scope, source, name, rt, targets)
+      let staged = stagedModule(served, source, firstPass)
       # The module's own API is a target like any other from here on: folded into
       # its bindings so its source can call itself, and — where the standalone
       # package is generated — rendered into it so callers outside it can too.
       let selfTargets = selfClientTarget(staged, scope, name)
       let withSelf = targets + selfTargets
-      let bound = withSelfBindings(staged, scope, source, name, withSelf, selfTargets)
+      let bound = moduleFiles(
+        served,
+        source,
+        withSelfBindings(staged, scope, name, firstPass, withSelf, selfTargets),
+      )
       let complete = if (dualClients) { clientScope(bound, source, true, withSelf) } else { bound }
 
       # Back to the cwd the engine set: it rejects a generateScope that returns
@@ -440,12 +447,24 @@ type TypescriptSdk {
   from `clients` would take those with them. The cost is that dropping a client
   leaves its dependency behind, serving a module whose bindings are gone.
   Generation also applies the lock setting when there are no clients.
+
+  The manifest is re-emitted every run and comes out the same nearly every time,
+  so the result is kept only when it differs. Everything the builder records
+  lands in that one file, which makes comparing it enough to say the run changed
+  nothing — and a workspace that wrote a file is a workspace that reports it,
+  identical bytes or not.
   """
   let withClientDependencies(ws: Workspace!, scope: String!, clients: [ModuleSource!]!): Workspace! {
     let tomlPath = "/" + scopeFile(scope, "dagger-module.toml")
-    clients.reduce(sdkHelpers.moduleManifest(loadToml: ws.file(tomlPath))) { manifest, client =>
+    let updated = clients.reduce(sdkHelpers.moduleManifest(loadToml: ws.file(tomlPath))) { manifest, client =>
       manifest.withLegacyRuntimeDependency(module: client)
     }.generate(ws.withWorkdir(scope), lock: lock, legacyJson: false).withWorkdir(".")
+
+    if (updated.file(tomlPath).digest(excludeMetadata: true) == ws.file(tomlPath).digest(excludeMetadata: true)) {
+      ws
+    } else {
+      updated
+    }
   }
 
   """
@@ -919,20 +938,17 @@ type TypescriptSdk {
   }
 
   """
-  Generate a module's own files and write them into its source directory.
+  A module's complete generated tree, rooted at its source directory.
 
-  The workspace handed in already carries whatever the engine generated for this
-  scope's dependencies — it orders scopes leaf-first and threads each result into
-  the next — so the module's schema resolves against current bindings without
-  this SDK staging anything itself.
+  Separate from writing it because generation needs it twice over, and only the
+  second one may be written: the first pass exists to make the module loadable
+  so its own client schema can be read, and its bindings differ from the ones
+  that end up on disk.
   """
-  let moduleFiles(ws: Workspace!, scope: String!, sourcePath: String!, name: String!, rt: Runtime!, targets: [ClientTarget!]!): Workspace! {
+  let moduleGenerated(ws: Workspace!, scope: String!, sourcePath: String!, name: String!, rt: Runtime!, targets: [ClientTarget!]!): Directory! {
     let sourcePrefix = if (sourcePath == ".") { "" } else { sourcePath + "/" }
 
-    let existing = existingDir(ws, sourcePath)
-      .withoutFiles(moduleBindings(ws, sourcePath).map { entry => "sdk/" + entry })
-
-    let generated = moduleDirectory(
+    moduleDirectory(
       ws.moduleSource("/" + scope).introspectionSchemaJSON.contents,
       name,
       ws.directory("/" + sourcePrefix + "src"),
@@ -940,35 +956,136 @@ type TypescriptSdk {
       rt,
       targets,
     )
+  }
 
-    # Write the generated files over the module's existing tree, not in place of
-    # it. withNewDirectory swaps the whole directory, so writing only what we
-    # generate would say everything else — the module's config and its source —
-    # had been deleted.
+  """
+  Stage a generated tree over a module's existing one, for a workspace nothing
+  reads back.
+
+  Whole-directory write, which is the cheap way to get a loadable module and the
+  wrong way to produce a result: the engine's changeset carries every file
+  written, so a workspace built this way reports the whole tree. Only
+  `moduleFiles` is allowed to reach the caller.
+
+  The existing bindings come out before the generated ones go in, because this
+  tree has to compile: a `<dep>.gen.ts` left over from a dependency that is gone
+  exports an API against a module no longer served, and the module cannot be
+  loaded — which is the one thing this staging exists to do.
+  """
+  let stagedModule(ws: Workspace!, sourcePath: String!, generated: Directory!): Workspace! {
+    let existing = existingDir(ws, sourcePath)
+      .withoutFiles(moduleBindings(ws, sourcePath).map { entry => "sdk/" + entry })
+
     ws.withNewDirectory("/" + sourcePath, existing.withDirectory(".", generated))
   }
 
   """
-  Rewrite a module's bindings with its own API folded in.
+  Write a module's generated tree into its source directory, one file at a time,
+  skipping every file whose content is already what we would write.
+
+  Skipping is the whole point, and it is not an optimization. The changeset the
+  engine hands back records what was *written*, not what changed — a file
+  rewritten with its own bytes is in it just the same, and then reads as a whole
+  new file against a base that was sized from the paths that really changed. One
+  added function reported both binding files, 18k unchanged lines, as brand new.
+
+  Compared on content alone: the default digest covers metadata too, and two
+  renders of the same bytes differ there every time.
+
+  Written with withFile rather than withNewFile so the generated files keep the
+  permissions they were rendered with.
+  """
+  let moduleFiles(ws: Workspace!, sourcePath: String!, generated: Directory!): Workspace! {
+    writeChanged(prunedBindings(ws, sourcePath, generated), sourcePath, generated)
+  }
+
+  """
+  Every file in a directory, as paths relative to it, directories left out.
+  """
+  let filePaths(dir: Directory!): [String!]! {
+    dir.glob("**").filter { path => path.trimSuffix("/") == path }
+  }
+
+  """
+  Write a generated tree into a workspace directory, one file at a time, and
+  skip every file whose content is already what we would write.
+
+  Skipping is the whole point, and it is not an optimization. The changeset the
+  engine hands back records what was *written*, not what changed — a file
+  rewritten with its own bytes is in it just the same, and then reads as a whole
+  new file against a base that was sized from the paths that really changed. One
+  added function reported both binding files, 18k unchanged lines, as brand new.
+
+  Compared on content alone: the default digest covers metadata too, and two
+  renders of the same bytes differ there every time.
+
+  withFile rather than withNewFile, so what lands keeps the permissions it was
+  rendered with.
+  """
+  let writeChanged(ws: Workspace!, dirPath: String!, generated: Directory!): Workspace! {
+    let prefix = if (dirPath == ".") { "/" } else { "/" + dirPath + "/" }
+
+    filePaths(generated).reduce(ws) { acc, path =>
+      let target = prefix + path
+      let current = acc.file(target).digest(excludeMetadata: true) rescue {
+        # Nothing there yet, so nothing to compare against and nothing to skip.
+        err: Error => ""
+      }
+      if (current == generated.file(path).digest(excludeMetadata: true)) {
+        acc
+      } else {
+        acc.withFile(target, generated.file(path))
+      }
+    }
+  }
+
+  """
+  Drop the `*.gen.ts` files in a module's sdk/ that this run does not generate.
+
+  Regeneration owns that set: a dependency that has left the module's closure
+  must lose its file, or it goes on exporting an API against a module no longer
+  served and a default tsc rejects it. Writing file by file can only add, so the
+  removals are made explicitly here — the whole-directory write this replaced
+  got them for free by replacing everything.
+  """
+  let prunedBindings(ws: Workspace!, sourcePath: String!, generated: Directory!): Workspace! {
+    let sdkPath = moduleSdkPath(sourcePath)
+    let kept = generated.directory("sdk").entries
+
+    moduleBindings(ws, sourcePath)
+      .filter { entry => kept.filter { name => name == entry }.length == 0 }
+      .reduce(ws) { acc, entry => acc.withoutFile("/" + sdkPath + "/" + entry) }
+  }
+
+  """
+  The first pass's tree with its bindings replaced by ones carrying the module's
+  own API.
 
   The second of generation's two passes. A module's own API is not in the schema
   its bindings come from, and reading the schema that does carry it means loading
-  the module — which needs the files the first pass just wrote. Both passes run
-  every time, from the same inputs, so the result does not depend on what was on
-  disk when the run started.
+  the module — which is what the first pass is staged for. Both passes run every
+  time, from the same inputs, so the result does not depend on what was on disk
+  when the run started.
 
-  Only the bindings are redone. The entrypoint comes from scanning the user's
-  source, which the self types do not change, and it is the expensive half.
+  Only the bindings are redone: everything else in the tree comes through from
+  the first pass. The entrypoint is the expensive half and it comes from scanning
+  the user's source, which the self types do not change.
+
+  A Directory rather than a Workspace, because the first pass's bindings must
+  never be written to the workspace the engine diffs. They differ from these —
+  that is the entire reason for a second pass — so writing them would put
+  client.gen.ts in the changeset on every run that touches the module's source,
+  long after the file itself stopped changing.
   """
-  let withSelfBindings(ws: Workspace!, scope: String!, sourcePath: String!, name: String!, targets: [ClientTarget!]!, selfTargets: [ClientTarget!]!): Workspace! {
+  let withSelfBindings(staged: Workspace!, scope: String!, name: String!, generated: Directory!, targets: [ClientTarget!]!, selfTargets: [ClientTarget!]!): Directory! {
     if (selfTargets.length == 0) {
-      # Nothing to fold in, so the first pass already wrote the right bindings.
-      ws
+      # Nothing to fold in, so the first pass's bindings are already the right ones.
+      generated
     } else {
-      ws.withNewDirectory(
-        "/" + moduleSdkPath(sourcePath),
+      generated.withDirectory(
+        "sdk",
         moduleSdkDirectory(
-          generateModuleBindings(ws.moduleSource("/" + scope).introspectionSchemaJSON.contents, name, targets),
+          generateModuleBindings(staged.moduleSource("/" + scope).introspectionSchemaJSON.contents, name, targets),
         ),
       )
     }
@@ -1155,16 +1272,32 @@ type TypescriptSdk {
     if (targets.length == 0) {
       if (existingDir(ws, dir).entries.length == 0) { ws } else { ws.withoutDirectory("/" + dir) }
     } else {
-      # Replace rather than merge, the reverse of seeding: merging can only add,
-      # and dropping the bindings of a target that has left the scope is the
+      # The whole directory is this SDK's, so anything in it we no longer render
+      # is dropped — the bindings of a target that has left the scope are the
       # point. The package's own config survives because it is read back out of
       # `ws` and layered under the fresh bindings.
       # Named for the scope, not for the directory the package sits in: every
       # scope puts it in one called `clients`, so naming it after that gives
       # every generated package in a workspace the same name — and they collide
       # the moment a project installs two of them.
-      ws.withNewDirectory("/" + dir, clientDirectory(targets, dirName(base), existingClientConfig(ws, dir)))
+      let generated = clientDirectory(targets, dirName(base), existingClientConfig(ws, dir))
+      writeChanged(prunedClientFiles(ws, dir, generated), dir, generated)
     }
+  }
+
+  """
+  Drop the files in a scope's client package that this run does not render.
+
+  The package is generated in full, so its desired state is exactly what came
+  out of the renderer and anything else is left over from a target that has
+  gone. Writing file by file can only add, so the removals are made explicitly.
+  """
+  let prunedClientFiles(ws: Workspace!, dir: String!, generated: Directory!): Workspace! {
+    let kept = generated.glob("**")
+
+    filePaths(existingDir(ws, dir))
+      .filter { path => kept.filter { name => name == path }.length == 0 }
+      .reduce(ws) { acc, path => acc.withoutFile("/" + dir + "/" + path) }
   }
 
   """
