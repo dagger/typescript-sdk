@@ -78,10 +78,9 @@ export class Client extends BaseClient {}
 {{- end }}
 
 {{ if .Bound }}
-{{- /* Serve this module into the session before the first query that reaches it,
-so a caller — this module's source, another module, or the entrypoint loading a
-value of this module's type — resolves it without a central serve. Memoized per
-session by the module's own source. */}}
+{{- /* Serve this module into the session before this client's first query, so a
+caller reaching it — this module's source, or another module — resolves it
+without a central serve. Memoized per session by the module's own source. */}}
 async function __serveModule(): Promise<void> {
 {{- if IsGitModule .Bound.Kind }}
   await __dag.moduleSource({{ JSString .Bound.Ref }}, { refPin: {{ JSString .Bound.Pin }} }).asModule().serve()
@@ -95,22 +94,12 @@ async function __serveModule(): Promise<void> {
 {{- end }}
 }
 
-// A context that serves this module before its first query. `dag` uses it, and
-// the entrypoint loader uses it to wrap a received value of this module's type,
-// so both paths serve the module lazily on use.
-export function __servedContext(): Context {
-  return new Context().withServe({ key: {{ JSString .DepName }}, run: __serveModule })
-}
+export const dag = new Client(
+  new Context().withServe({ key: {{ JSString .DepName }}, run: __serveModule }),
+)
 {{- else }}
-{{- /* No bound source (a manifest dependency the engine serves, or the library's
-own bindings): the context serves nothing. Exported all the same so the loader
-can treat every module client uniformly. */}}
-export function __servedContext(): Context {
-  return new Context()
-}
+{{ template "default" . }}
 {{- end }}
-
-export const dag = new Client(__servedContext())
 
 {{- /* Top-level functions mirroring the root fields, bound to this module's
 dag. A root field named like a TS keyword stays reachable through dag only — a
