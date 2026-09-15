@@ -224,8 +224,8 @@ func TestUpdateTSConfig(t *testing.T) {
     "paths": {
       "@dagger.io/dagger": ["./sdk/index.ts"],
       "@dagger.io/dagger/telemetry": ["./sdk/telemetry.ts"],
-      "@dagger.io/dagger/my-dep": ["./clients/my-dep.gen.ts"],
-      "@dagger.io/dagger/app": ["./clients/app.gen.ts"]
+      "@dagger.io/my-dep": ["./clients/my-dep.gen.ts"],
+      "@dagger.io/app": ["./clients/app.gen.ts"]
     }
   }
 }`,
@@ -238,8 +238,8 @@ func TestUpdateTSConfig(t *testing.T) {
       "@user/lib": ["./src/lib.ts"],
       "@dagger.io/dagger": ["./sdk/index.ts"],
       "@dagger.io/dagger/telemetry": ["./sdk/telemetry.ts"],
-      "@dagger.io/dagger/gone": ["./clients/gone.gen.ts"],
-      "@dagger.io/dagger/kept": ["./clients/kept.gen.ts"]
+      "@dagger.io/gone": ["./clients/gone.gen.ts"],
+      "@dagger.io/kept": ["./clients/kept.gen.ts"]
     }
   }
 }`,
@@ -251,7 +251,7 @@ func TestUpdateTSConfig(t *testing.T) {
       "@user/lib": ["./src/lib.ts"],
       "@dagger.io/dagger": ["./sdk/index.ts"],
       "@dagger.io/dagger/telemetry": ["./sdk/telemetry.ts"],
-      "@dagger.io/dagger/kept": ["./clients/kept.gen.ts"]
+      "@dagger.io/kept": ["./clients/kept.gen.ts"]
     }
   }
 }`,
@@ -298,7 +298,7 @@ func TestUpdateDenoConfig(t *testing.T) {
 		name: "deno.json with modules adds and prunes import-map aliases",
 		denoConfig: `{
   "imports": {
-    "@dagger.io/dagger/gone": "./clients/gone.gen.ts"
+    "@dagger.io/gone": "./clients/gone.gen.ts"
   }
 }`,
 		modules: []string{"kept"},
@@ -307,7 +307,7 @@ func TestUpdateDenoConfig(t *testing.T) {
     "typescript": "npm:typescript@5.9.3",
     "@dagger.io/dagger": "./sdk/index.ts",
     "@dagger.io/dagger/telemetry": "./sdk/telemetry.ts",
-    "@dagger.io/dagger/kept": "./clients/kept.gen.ts"
+    "@dagger.io/kept": "./clients/kept.gen.ts"
   },
   "nodeModulesDir": "auto",
   "compilerOptions": {

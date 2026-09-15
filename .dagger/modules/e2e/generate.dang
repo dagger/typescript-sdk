@@ -301,7 +301,7 @@ type GenerateChecks {
     let tree = changes.after.directory(path)
 
     # Its own client file under clients/, like any other module's, reached from
-    # the module's source through its own @dagger.io/dagger/gendep specifier.
+    # the module's source through its own @dagger.io/gendep specifier.
     Asserts.generated(changes, path + "/clients/gendep.gen.ts")
     let selfClient = tree.file("clients/gendep.gen.ts").contents
     Asserts.stringContains(
@@ -316,7 +316,7 @@ type GenerateChecks {
     )
     Asserts.stringContains(
       tree.file("tsconfig.json").contents,
-      "\"@dagger.io/dagger/gendep\"",
+      "\"@dagger.io/gendep\"",
       "the second pass should alias the module's own client",
     )
 

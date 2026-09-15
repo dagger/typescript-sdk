@@ -202,7 +202,7 @@ type ClientChecks {
 
   """
   A module scope's clients live in clients/, apart from the library, and the
-  module's own source reaches each through its @dagger.io/dagger/<module>
+  module's own source reaches each through its @dagger.io/<module>
   specifier.
 
   A client added inside a module lands in clients/<target>.gen.ts, beside the
@@ -252,7 +252,7 @@ type ClientChecks {
     Asserts.generated(changes, scope + "/clients/loader.gen.ts")
     Asserts.stringContains(
       tree.file("tsconfig.json").contents,
-      "\"@dagger.io/dagger/client-app\"",
+      "\"@dagger.io/client-app\"",
       "the module's tsconfig should alias each generated module client",
     )
 

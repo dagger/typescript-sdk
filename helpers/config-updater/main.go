@@ -362,30 +362,46 @@ func updateTSConfig(tsConfig string, modules []string) (string, error) {
 }
 
 // moduleAliasPrefix scopes the per-module specifiers a module's source imports
-// its generated clients through: @dagger.io/dagger/<module> resolves to
-// ./clients/<module>.gen.ts. The telemetry alias shares the prefix but is
-// static runtime surface, not a module client, so the sweep below leaves it
-// alone.
-const moduleAliasPrefix = daggerLibPathAlias + "/"
+// its generated clients through: @dagger.io/<module> resolves to
+// ./clients/<module>.gen.ts. It is the @dagger.io npm scope, one segment per
+// module — the same name a client would carry if published — and deliberately
+// not under @dagger.io/dagger, which is the core library.
+const moduleAliasScope = "@dagger.io/"
+
+func moduleAlias(module string) string {
+	return moduleAliasScope + module
+}
 
 func moduleAliasTarget(module string) string {
 	return "./clients/" + module + ".gen.ts"
 }
 
-// syncModuleAliases makes the config's @dagger.io/dagger/<module> entries under
+// isModuleAlias reports whether a config key is one of the per-module client
+// aliases this writer owns: an @dagger.io scoped name with a single segment,
+// excluding the core library @dagger.io/dagger (and thus its /telemetry
+// sub-path). Those two are static runtime surface, never pruned.
+func isModuleAlias(key string) bool {
+	rest, ok := strings.CutPrefix(key, moduleAliasScope)
+	if !ok || rest == "dagger" || strings.Contains(rest, "/") {
+		return false
+	}
+	return true
+}
+
+// syncModuleAliases makes the config's @dagger.io/<module> entries under
 // keyPath match the given module list exactly: one alias per module, stale
-// entries for modules that left the closure removed. User-owned aliases outside
-// the prefix are untouched. asArray selects tsconfig's []string value shape
-// over deno's plain string.
+// entries for modules that left the closure removed. The core @dagger.io/dagger
+// aliases and any non-module key are untouched. asArray selects tsconfig's
+// []string value shape over deno's plain string.
 func syncModuleAliases(jsonStr, keyPath string, modules []string, asArray bool) (string, error) {
-	keep := map[string]bool{daggerTelemetryPathAlias: true}
+	keep := map[string]bool{}
 	for _, module := range modules {
-		keep[moduleAliasPrefix+module] = true
+		keep[moduleAlias(module)] = true
 	}
 
 	var stale []string
 	gjson.Get(jsonStr, keyPath).ForEach(func(key, _ gjson.Result) bool {
-		if k := key.String(); strings.HasPrefix(k, moduleAliasPrefix) && !keep[k] {
+		if k := key.String(); isModuleAlias(k) && !keep[k] {
 			stale = append(stale, k)
 		}
 		return true
@@ -403,7 +419,7 @@ func syncModuleAliases(jsonStr, keyPath string, modules []string, asArray bool) 
 		if asArray {
 			value = []string{moduleAliasTarget(module)}
 		}
-		jsonStr, err = sjson.Set(jsonStr, keyPath+"."+gjson.Escape(moduleAliasPrefix+module), value)
+		jsonStr, err = sjson.Set(jsonStr, keyPath+"."+gjson.Escape(moduleAlias(module)), value)
 		if err != nil {
 			return "", fmt.Errorf("set module alias for %s: %w", module, err)
 		}

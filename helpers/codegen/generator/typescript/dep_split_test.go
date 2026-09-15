@@ -182,10 +182,57 @@ func TestClientTemplate_ImportsSiblingModuleTypes(t *testing.T) {
 
 	out := renderModuleClientTemplate(t, tmpl, depSchema, "hello")
 
-	require.Regexp(t, `import \{[^}]*\bOther\b[^}]*\} from "\./other\.gen\.js"`, out,
-		"a sibling-owned class must be value-imported from the sibling's file")
+	require.Regexp(t, `import \{[^}]*\bOther\b[^}]*\} from "@dagger\.io/other"`, out,
+		"a sibling-owned class must be value-imported from the sibling's package")
 	require.Contains(t, out, "return new Other(ctx)",
 		"the body must construct the imported sibling class")
+}
+
+// TestClientTemplate_ImportsRootArgTypes locks that a core type referenced only
+// as an argument to a module's root field — its constructor's `ws: Workspace`,
+// never constructed or returned — is still imported. The field becomes a method
+// on the file's own Client, so its argument types have to be resolvable.
+func TestClientTemplate_ImportsRootArgTypes(t *testing.T) {
+	helloModule := newSourceMapDirective("hello")
+
+	full := &introspection.Schema{
+		QueryType: struct {
+			Name string `json:"name,omitempty"`
+		}{Name: "Query"},
+		Types: introspection.Types{
+			{
+				Kind: introspection.TypeKindObject,
+				Name: "Query",
+				Fields: []*introspection.Field{
+					{
+						Name:       "hello",
+						TypeRef:    &introspection.TypeRef{Kind: introspection.TypeKindNonNull, OfType: &introspection.TypeRef{Kind: introspection.TypeKindObject, Name: "Hello"}},
+						Directives: introspection.Directives{helloModule},
+						// A core object used only as a required argument.
+						Args: introspection.InputValues{
+							{Name: "ws", TypeRef: &introspection.TypeRef{Kind: introspection.TypeKindNonNull, OfType: &introspection.TypeRef{Kind: introspection.TypeKindObject, Name: "Workspace"}}},
+						},
+					},
+				},
+			},
+			{Kind: introspection.TypeKindObject, Name: "Hello", Directives: introspection.Directives{helloModule}, Fields: []*introspection.Field{{Name: "id", TypeRef: &introspection.TypeRef{Kind: introspection.TypeKindScalar, Name: "HelloID"}}}},
+			{Kind: introspection.TypeKindScalar, Name: "HelloID", Directives: introspection.Directives{helloModule}},
+			{Kind: introspection.TypeKindObject, Name: "Workspace", Fields: []*introspection.Field{{Name: "id", TypeRef: &introspection.TypeRef{Kind: introspection.TypeKindScalar, Name: "WorkspaceID"}}}},
+		},
+	}
+	generator.SetSchemaParents(full)
+	depSchema := full.Include("hello")
+	generator.SetSchemaParents(depSchema)
+
+	tmpl := templates.New("v0.21.0", full, "", generator.Config{
+		ModuleConfig: &generator.ModuleGeneratorConfig{ModuleName: "host"},
+	})
+
+	out := renderModuleClientTemplate(t, tmpl, depSchema, "hello")
+
+	require.Contains(t, out, "hello = (ws: Workspace", "the root field's arg must render")
+	require.Regexp(t, `import \{[^}]*\bWorkspace\b[^}]*\} from "@dagger\.io/dagger"`, out,
+		"a core type used only as a root-field argument must still be imported")
 }
 
 // TestHeaderTemplate_KeepsCoreOnly renders the header template against a schema
@@ -368,7 +415,7 @@ func TestGenerate_Module_EmitsLoader(t *testing.T) {
 
 	loader := readOverlay(t, state, "clients/loader.gen.ts")
 	require.Contains(t, loader, `import * as __core from "@dagger.io/dagger"`)
-	require.Contains(t, loader, `import * as __modMyDep from "./my-dep.gen.js"`)
+	require.Contains(t, loader, `import * as __modMyDep from "@dagger.io/my-dep"`)
 	require.Contains(t, loader, `"Container": __core.Container,`)
 	require.Contains(t, loader, `"MyDep": __modMyDep.MyDep,`)
 	require.Contains(t, loader, "export function __loadObject(")

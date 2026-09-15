@@ -127,12 +127,12 @@ functions, reached through its own specifier. `sdk/` stays the core-only
 
 ```ts
 import { dag, Container } from "@dagger.io/dagger" // core API (sdk/)
-import { api } from "@dagger.io/dagger/api"        // a bound module (clients/api.gen.ts)
+import { api } from "@dagger.io/api"               // a bound module (clients/api.gen.ts)
 
 api().deploy(dag.container().from("alpine"))
 ```
 
-The `@dagger.io/dagger/<module>` aliases are written into `tsconfig.json` (or
+The `@dagger.io/<module>` aliases are written into `tsconfig.json` (or
 `deno.json`) at generation, so a client added inside a module is usable from it
 straight away.
 

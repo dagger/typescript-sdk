@@ -85,11 +85,11 @@ func TestGenerateModule_Layout(t *testing.T) {
 	require.NotContains(t, core, "export class App extends BaseClient")
 	require.Contains(t, readOverlay(t, state, "clients/app.gen.ts"), "export class App extends BaseClient")
 
-	// The loader lives beside the module clients and imports each from its
-	// relative sibling. (This schema carries no core object types, so the
-	// package import is exercised in TestGenerate_Module_EmitsLoader.)
+	// The loader lives beside the module clients and imports each through its
+	// package specifier. (This schema carries no core object types, so the
+	// core import is exercised in TestGenerate_Module_EmitsLoader.)
 	loader := readOverlay(t, state, "clients/loader.gen.ts")
-	require.Contains(t, loader, `import * as __modGendep from "./gendep.gen.js"`)
+	require.Contains(t, loader, `import * as __modGendep from "@dagger.io/gendep"`)
 	require.Contains(t, loader, `"Gendep": __modGendep.Gendep,`)
 	require.Contains(t, loader, `"App": __modApp.App,`)
 }

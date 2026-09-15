@@ -19,14 +19,16 @@
 >   the library, not inside it, so `sdk/` stays the core-only `@dagger.io/dagger`
 >   package it will one day be pulled as. The client files reach the library
 >   through the `@dagger.io/dagger` specifier (they no longer sit next to the
->   bundle), and a sibling module relatively. This subsumes the `clients/`
->   directory the old `dualClients` setting produced, so **`dualClients` is
->   removed**: a module scope has one client directory now.
+>   bundle), and a sibling module through its own `@dagger.io/<module>`
+>   specifier — the same name a user writes, forward-compatible with publishing
+>   one package per module. This subsumes the `clients/` directory the old
+>   `dualClients` setting produced, so **`dualClients` is removed**: a module
+>   scope has one client directory now.
 > - **The core file holds core types only** — no `export *` of module files, no
 >   footer. `sdk/index.ts` still `export *`s `client.gen.ts` (core), so
 >   `import { Container } from "@dagger.io/dagger"` keeps working; the breaking
 >   change is that `import { Hi } from "@dagger.io/dagger"` no longer resolves —
->   dependency types come from `@dagger.io/dagger/<module>` (§8).
+>   dependency types come from `@dagger.io/<module>` (§8).
 > - **Cross-module references import from the owning file** (`ClientImports`,
 >   owner-aware), replacing the fail-closed sibling guard — which was already
 >   wrong for a self client returning a dependency's type (§5.3, §9.2).
@@ -40,7 +42,7 @@
 >   (`test(this.ws)…`) resolved nothing and failed. Codegen now serves the
 >   module into that session too, via `--self-serve-path` (a local
 >   `currentWorkspace().moduleSource(path).asModule().serve()`).
-> - **`config-updater` writes one `@dagger.io/dagger/<module>` alias per module
+> - **`config-updater` writes one `@dagger.io/<module>` alias per module
 >   client** into `tsconfig.json` / `deno.json` (pointing at
 >   `./clients/<module>.gen.ts`), synced (stale entries pruned), and the dang
 >   side derives the alias set from each pass's bindings (§5.4).
@@ -67,7 +69,7 @@
 > **Verification.** Unit + golden tests green (`helpers/codegen`,
 > `helpers/config-updater`); a generated module tree — `sdk/` library +
 > `clients/<module>.gen.ts` + `clients/loader.gen.ts` + dispatcher (serving a
-> git dep and self) + user source importing `@dagger.io/dagger/<mod>` —
+> git dep and self) + user source importing `@dagger.io/<mod>` —
 > type-checks clean under `tsc --strict`. Not yet exercised against a live
 > engine.
 
@@ -195,7 +197,7 @@ sdk/<dep>.gen.ts     declare module +      sdk/<dep>.gen.ts    standalone client
                                            sdk/<self>.gen.ts   NEW: the self client
 sdk/index.ts         core.js + export *    sdk/index.ts        core surface only
                      client.gen.ts
-tsconfig.json        2 path aliases        tsconfig.json       + @dagger.io/dagger/<mod> per module
+tsconfig.json        2 path aliases        tsconfig.json       + @dagger.io/<mod> per module
 ```
 
 Every generated client package has the same shape, whether it is a dependency,
@@ -280,7 +282,7 @@ reference each other), so prefer type-only imports and construct through the
 
 - `helpers/config-updater` writes exactly two path aliases today
   (`main.go:20-21`). It needs a variable list: one
-  `@dagger.io/dagger/<module>` → `./sdk/<module>.gen.ts` entry per module in the
+  `@dagger.io/<module>` → `./sdk/<module>.gen.ts` entry per module in the
   closure, for both `tsconfig` and `deno-config` modes. Resolution in the
   container flows through tsconfig `paths` (tsx runs with `--tsconfig`), so this
   is what makes the bare specifiers resolve at runtime, not just for tsc.
