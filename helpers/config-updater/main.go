@@ -58,9 +58,13 @@ func run(args []string) error {
 	case "package-json":
 		updated, err = updatePackageJSON(input)
 	case "tsconfig":
-		updated, err = updateTSConfig(input)
+		// tsconfig INPUT OUTPUT [MODULE...] — one @dagger.io/dagger/<module>
+		// path alias per generated module client.
+		updated, err = updateTSConfig(input, extra)
 	case "deno-config":
-		updated, err = updateDenoConfig(input)
+		// deno-config INPUT OUTPUT [MODULE...] — same per-module aliases, as
+		// import-map entries.
+		updated, err = updateDenoConfig(input, extra)
 	case "client-package-json":
 		// client-package-json INPUT OUTPUT ENGINE_VERSION MODULE_NAME
 		if len(extra) != 2 {
@@ -327,7 +331,7 @@ func updateClientDenoConfig(denoConfig, engineVersion string) (string, error) {
 	return denoConfig, nil
 }
 
-func updateTSConfig(tsConfig string) (string, error) {
+func updateTSConfig(tsConfig string, modules []string) (string, error) {
 	tsConfig, err := sjson.Set(tsConfig,
 		"compilerOptions.paths."+gjson.Escape(daggerLibPathAlias),
 		[]string{daggerLibPath},
@@ -344,6 +348,11 @@ func updateTSConfig(tsConfig string) (string, error) {
 		return "", fmt.Errorf("set dagger telemetry path alias: %w", err)
 	}
 
+	tsConfig, err = syncModuleAliases(tsConfig, "compilerOptions.paths", modules, true)
+	if err != nil {
+		return "", err
+	}
+
 	tsConfig, err = sjson.Set(tsConfig, "compilerOptions.experimentalDecorators", true)
 	if err != nil {
 		return "", fmt.Errorf("set experimentalDecorators: %w", err)
@@ -352,7 +361,56 @@ func updateTSConfig(tsConfig string) (string, error) {
 	return tsConfig, nil
 }
 
-func updateDenoConfig(denoConfig string) (string, error) {
+// moduleAliasPrefix scopes the per-module specifiers a module's source imports
+// its generated clients through: @dagger.io/dagger/<module> resolves to
+// ./sdk/<module>.gen.ts. The telemetry alias shares the prefix but is static
+// runtime surface, not a module client, so the sweep below leaves it alone.
+const moduleAliasPrefix = daggerLibPathAlias + "/"
+
+func moduleAliasTarget(module string) string {
+	return "./sdk/" + module + ".gen.ts"
+}
+
+// syncModuleAliases makes the config's @dagger.io/dagger/<module> entries under
+// keyPath match the given module list exactly: one alias per module, stale
+// entries for modules that left the closure removed. User-owned aliases outside
+// the prefix are untouched. asArray selects tsconfig's []string value shape
+// over deno's plain string.
+func syncModuleAliases(jsonStr, keyPath string, modules []string, asArray bool) (string, error) {
+	keep := map[string]bool{daggerTelemetryPathAlias: true}
+	for _, module := range modules {
+		keep[moduleAliasPrefix+module] = true
+	}
+
+	var stale []string
+	gjson.Get(jsonStr, keyPath).ForEach(func(key, _ gjson.Result) bool {
+		if k := key.String(); strings.HasPrefix(k, moduleAliasPrefix) && !keep[k] {
+			stale = append(stale, k)
+		}
+		return true
+	})
+
+	var err error
+	for _, k := range stale {
+		jsonStr, err = sjson.Delete(jsonStr, keyPath+"."+gjson.Escape(k))
+		if err != nil {
+			return "", fmt.Errorf("remove stale module alias %s: %w", k, err)
+		}
+	}
+	for _, module := range modules {
+		var value any = moduleAliasTarget(module)
+		if asArray {
+			value = []string{moduleAliasTarget(module)}
+		}
+		jsonStr, err = sjson.Set(jsonStr, keyPath+"."+gjson.Escape(moduleAliasPrefix+module), value)
+		if err != nil {
+			return "", fmt.Errorf("set module alias for %s: %w", module, err)
+		}
+	}
+	return jsonStr, nil
+}
+
+func updateDenoConfig(denoConfig string, modules []string) (string, error) {
 	// Deno resolves dependencies through this map rather than node_modules, so
 	// the compiler the module's own code needs has to be declared here.
 	denoConfig, err := setIfNotExists(denoConfig, "imports.typescript", "npm:typescript@"+defaultTypeScriptVersion)
@@ -391,6 +449,11 @@ func updateDenoConfig(denoConfig string) (string, error) {
 	)
 	if err != nil {
 		return "", fmt.Errorf("set dagger telemetry import: %w", err)
+	}
+
+	denoConfig, err = syncModuleAliases(denoConfig, "imports", modules, false)
+	if err != nil {
+		return "", err
 	}
 
 	return denoConfig, nil

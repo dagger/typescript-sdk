@@ -150,6 +150,7 @@ func TestUpdateTSConfig(t *testing.T) {
 	type testCase struct {
 		name     string
 		tsConfig string
+		modules  []string
 		expected string
 	}
 
@@ -214,6 +215,48 @@ func TestUpdateTSConfig(t *testing.T) {
 }`,
 		},
 		{
+			name:    "tsconfig with modules adds one alias per module client",
+			tsConfig: `{}`,
+			modules: []string{"my-dep", "app"},
+			expected: `{
+  "compilerOptions": {
+    "experimentalDecorators": true,
+    "paths": {
+      "@dagger.io/dagger": ["./sdk/index.ts"],
+      "@dagger.io/dagger/telemetry": ["./sdk/telemetry.ts"],
+      "@dagger.io/dagger/my-dep": ["./sdk/my-dep.gen.ts"],
+      "@dagger.io/dagger/app": ["./sdk/app.gen.ts"]
+    }
+  }
+}`,
+		},
+		{
+			name: "tsconfig drops aliases for modules that left, keeps user paths and telemetry",
+			tsConfig: `{
+  "compilerOptions": {
+    "paths": {
+      "@user/lib": ["./src/lib.ts"],
+      "@dagger.io/dagger": ["./sdk/index.ts"],
+      "@dagger.io/dagger/telemetry": ["./sdk/telemetry.ts"],
+      "@dagger.io/dagger/gone": ["./sdk/gone.gen.ts"],
+      "@dagger.io/dagger/kept": ["./sdk/kept.gen.ts"]
+    }
+  }
+}`,
+			modules: []string{"kept"},
+			expected: `{
+  "compilerOptions": {
+    "experimentalDecorators": true,
+    "paths": {
+      "@user/lib": ["./src/lib.ts"],
+      "@dagger.io/dagger": ["./sdk/index.ts"],
+      "@dagger.io/dagger/telemetry": ["./sdk/telemetry.ts"],
+      "@dagger.io/dagger/kept": ["./sdk/kept.gen.ts"]
+    }
+  }
+}`,
+		},
+		{
 			name: "tsconfig with comments has comments stripped",
 			tsConfig: `{
   // Compiler settings
@@ -236,7 +279,7 @@ func TestUpdateTSConfig(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			res, err := updateTSConfig(removeJSONComments(tc.tsConfig))
+			res, err := updateTSConfig(removeJSONComments(tc.tsConfig), tc.modules)
 			require.NoError(t, err)
 			require.JSONEq(t, tc.expected, res)
 		})
@@ -247,10 +290,39 @@ func TestUpdateDenoConfig(t *testing.T) {
 	type testCase struct {
 		name       string
 		denoConfig string
+		modules    []string
 		expected   string
 	}
 
-	for _, tc := range []testCase{
+	moduleCase := testCase{
+		name:       "deno.json with modules adds and prunes import-map aliases",
+		denoConfig: `{
+  "imports": {
+    "@dagger.io/dagger/gone": "./sdk/gone.gen.ts"
+  }
+}`,
+		modules: []string{"kept"},
+		expected: `{
+  "imports": {
+    "typescript": "npm:typescript@5.9.3",
+    "@dagger.io/dagger": "./sdk/index.ts",
+    "@dagger.io/dagger/telemetry": "./sdk/telemetry.ts",
+    "@dagger.io/dagger/kept": "./sdk/kept.gen.ts"
+  },
+  "nodeModulesDir": "auto",
+  "compilerOptions": {
+    "experimentalDecorators": true
+  },
+  "unstable": [
+    "bare-node-builtins",
+    "sloppy-imports",
+    "node-globals",
+    "byonm"
+  ]
+}`,
+	}
+
+	for _, tc := range append([]testCase{moduleCase}, []testCase{
 		{
 			name:       "empty deno.json",
 			denoConfig: `{}`,
@@ -417,11 +489,11 @@ func TestUpdateDenoConfig(t *testing.T) {
   ]
 }`,
 		},
-	} {
+	}...) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			res, err := updateDenoConfig(removeJSONComments(tc.denoConfig))
+			res, err := updateDenoConfig(removeJSONComments(tc.denoConfig), tc.modules)
 			require.NoError(t, err)
 			require.JSONEq(t, tc.expected, res)
 		})
