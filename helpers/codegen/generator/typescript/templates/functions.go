@@ -1103,4 +1103,3 @@ func (funcs typescriptTemplateFuncs) exportedTypeName(t *introspection.Type) str
 		return t.Name
 	}
 }
-
