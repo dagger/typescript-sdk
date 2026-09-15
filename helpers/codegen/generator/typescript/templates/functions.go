@@ -901,9 +901,15 @@ func (funcs typescriptTemplateFuncs) coreImportSpec() string {
 }
 
 // siblingImportSpec is where a client file imports another module's types from.
-// The module files are co-located — under clients/ for a module, in the package
-// root for a standalone client — so a sibling is always a relative import.
+// A module client reaches a sibling through its own package specifier
+// (@dagger.io/<module>) — the same name a user writes and the tsconfig/import-map
+// alias resolves — so the clients are forward-compatible with being published
+// one package per module. A standalone client keeps its siblings relative, since
+// they share one package directory.
 func (funcs typescriptTemplateFuncs) siblingImportSpec(owner string) string {
+	if funcs.cfg.ModuleConfig != nil {
+		return "@dagger.io/" + funcs.depFileName(owner)
+	}
 	return "./" + funcs.depFileName(owner) + ".gen.js"
 }
 
@@ -1076,44 +1082,46 @@ func (funcs typescriptTemplateFuncs) loaderFiles() []LoaderFile {
 	}
 
 	const coreSpec = "@dagger.io/dagger"
-	byFrom := map[string][]LoaderEntry{}
+	// Keyed by owner module ("" for core) so the namespace alias derives from
+	// the module name, not from the import specifier's shape.
+	byOwner := map[string][]LoaderEntry{}
 	for _, t := range funcs.fullSchema.Types {
 		if t.Kind != introspection.TypeKindObject || len(t.Fields) == 0 || !funcs.isExportableType(t) {
 			continue
 		}
-		from := coreSpec
-		if owner := typeOwner(t); owner != "" {
-			from = funcs.siblingImportSpec(owner)
-		}
-		byFrom[from] = append(byFrom[from], LoaderEntry{
+		owner := typeOwner(t)
+		byOwner[owner] = append(byOwner[owner], LoaderEntry{
 			TypeName:  t.Name,
 			ClassName: funcs.exportedTypeName(t),
 		})
 	}
 
-	froms := make([]string, 0, len(byFrom))
-	for from := range byFrom {
-		froms = append(froms, from)
+	owners := make([]string, 0, len(byOwner))
+	for owner := range byOwner {
+		owners = append(owners, owner)
 	}
-	sort.Slice(froms, func(i, j int) bool {
-		if (froms[i] == coreSpec) != (froms[j] == coreSpec) {
-			return froms[i] == coreSpec
+	sort.Slice(owners, func(i, j int) bool {
+		if (owners[i] == "") != (owners[j] == "") {
+			return owners[i] == ""
 		}
-		return froms[i] < froms[j]
+		return owners[i] < owners[j]
 	})
 
-	out := make([]LoaderFile, 0, len(froms))
-	for _, from := range froms {
-		entries := byFrom[from]
+	out := make([]LoaderFile, 0, len(owners))
+	for _, owner := range owners {
+		entries := byOwner[owner]
 		sort.Slice(entries, func(a, b int) bool { return entries[a].TypeName < entries[b].TypeName })
+		if owner == "" {
+			out = append(out, LoaderFile{Alias: "__core", From: coreSpec, Entries: entries})
+			continue
+		}
 		// "__core" is reserved for the library, so a module named "core"
 		// ("__modCore") cannot collide with it.
-		alias := "__core"
-		if from != coreSpec {
-			base := strings.TrimSuffix(strings.TrimPrefix(from, "./"), ".gen.js")
-			alias = "__mod" + strcase.ToCamel(base)
-		}
-		out = append(out, LoaderFile{Alias: alias, From: from, Entries: entries})
+		out = append(out, LoaderFile{
+			Alias:   "__mod" + strcase.ToCamel(funcs.depFileName(owner)),
+			From:    funcs.siblingImportSpec(owner),
+			Entries: entries,
+		})
 	}
 	return out
 }
