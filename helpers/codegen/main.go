@@ -301,8 +301,12 @@ func runModule(args []string) error {
 	}
 
 	gen := &typescriptgenerator.TypeScriptGenerator{Config: generator.Config{
-		OutputDir:    *outputDir,
-		ModuleConfig: &generator.ModuleGeneratorConfig{ModuleName: *moduleName, BoundModules: bound},
+		OutputDir: *outputDir,
+		ModuleConfig: &generator.ModuleGeneratorConfig{
+			ModuleName:   *moduleName,
+			BoundModules: bound,
+			EmitLoader:   true,
+		},
 	}}
 
 	ctx := context.Background()
@@ -395,7 +399,11 @@ func runClient(args []string) error {
 		return fmt.Errorf("client meta json lists no modules")
 	}
 
-	clientConfig := &generator.ClientGeneratorConfig{EngineVersion: meta.EngineVersion}
+	// A standalone client scope is a module scope with no module of its own:
+	// every target is external, rendered as the same per-module client with the
+	// same vendored-library imports. The clients sit flat (the scope is nothing
+	// but its clients) and there is no entrypoint, so no loader.
+	var bound []generator.BoundModule
 	schemas := make([]*introspection.Schema, 0, len(meta.Modules))
 	schemaVersion := ""
 	for _, module := range meta.Modules {
@@ -408,19 +416,23 @@ func runClient(args []string) error {
 		}
 		schemas = append(schemas, schema)
 		schemaVersion = version
-		clientConfig.BoundModules = append(clientConfig.BoundModules, module.BoundModule)
+		bound = append(bound, module.BoundModule)
 	}
 
 	schema := mergeSchemas(schemas)
 	generator.SetSchemaParents(schema)
 
 	gen := &typescriptgenerator.TypeScriptGenerator{Config: generator.Config{
-		OutputDir:    *outputDir,
-		ClientConfig: clientConfig,
+		OutputDir: *outputDir,
+		ModuleConfig: &generator.ModuleGeneratorConfig{
+			BoundModules: bound,
+			FlatClients:  true,
+			EmitLoader:   false,
+		},
 	}}
 
 	ctx := context.Background()
-	state, err := gen.GenerateClient(ctx, schema, schemaVersion)
+	state, err := gen.GenerateModule(ctx, schema, schemaVersion)
 	if err != nil {
 		return fmt.Errorf("generate client: %w", err)
 	}

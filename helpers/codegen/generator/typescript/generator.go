@@ -18,18 +18,14 @@ import (
 )
 
 const (
-	// ClientGenFile is the core file name for module codegen: it holds core
-	// Dagger types only and belongs to the @dagger.io/dagger library (the sdk/
-	// directory), not to any one module. The library's index.ts re-exports it.
+	// ClientGenFile is the core file name: it holds core Dagger types only and
+	// belongs to the @dagger.io/dagger library (the sdk/ directory), not to any
+	// one module. The library's index.ts re-exports it.
 	ClientGenFile = "client.gen.ts"
-	// CoreGenFile is the core file name for a standalone client: it holds only
-	// core Dagger types, with every module (including the bound one) split into
-	// its own <module>.gen.ts. Named to match the Go SDK's dagger.gen.go.
-	CoreGenFile = "dagger.gen.ts"
 	// LoaderGenFile is the entrypoint object loader. "loader" is a reserved
 	// module name: a module kebab-cased to it would claim the same file.
 	LoaderGenFile = "loader.gen.ts"
-	// ModuleClientsDir is where module codegen puts the per-module client files
+	// ModuleClientsDir is where a module scope puts the per-module client files
 	// and the loader — beside the library, not inside it. The library (sdk/)
 	// stays core-only so it can become an npm package; the clients that depend
 	// on it live here and reach it through the @dagger.io/dagger specifier.
@@ -40,14 +36,11 @@ type TypeScriptGenerator struct {
 	Config generator.Config
 }
 
-// GenerateModule generates a module's own embedded bindings, flat in the output
-// directory: the caller lays the result down as the module's sdk/ directory.
+// GenerateModule generates a scope's client bindings — a module's own or a
+// standalone client's: one core client.gen.ts plus one <module>.gen.ts per
+// module. Layout follows Config.ModuleConfig (EmitLoader / FlatClients).
 func (g *TypeScriptGenerator) GenerateModule(_ context.Context, schema *introspection.Schema, schemaVersion string) (*generator.GeneratedState, error) {
 	return generate(g.Config, ClientGenFile, schema, schemaVersion)
-}
-
-func (g *TypeScriptGenerator) GenerateClient(_ context.Context, schema *introspection.Schema, schemaVersion string) (*generator.GeneratedState, error) {
-	return generate(g.Config, CoreGenFile, schema, schemaVersion)
 }
 
 func (g *TypeScriptGenerator) GenerateLibrary(_ context.Context, schema *introspection.Schema, schemaVersion string) (*generator.GeneratedState, error) {
@@ -90,13 +83,19 @@ func generate(config generator.Config, target string, schema *introspection.Sche
 	// in a standalone client they sit together in one package directory.
 	splitModules := schema.DependencyNames()
 
-	// In module codegen the module files live under clients/, a directory apart
-	// from the library's core file, so the two can never collide by name — only
-	// the loader, a sibling of the module files, is reserved. A standalone
-	// client keeps them together, so its core file's name is reserved too.
-	module := config.ModuleConfig != nil
-	reserved := map[string]bool{strings.TrimSuffix(LoaderGenFile, ".gen.ts"): true}
-	if !module {
+	// A module scope keeps its client files in a clients/ subdirectory apart
+	// from the core file (its sdk/ and src/ share the root), so the two never
+	// collide by name — only the loader, their sibling, is reserved. Everything
+	// else — a flat standalone client, the library's own bindings — puts the
+	// client files in the output root beside the core file, so the core file's
+	// name is reserved too.
+	nest := config.ModuleConfig != nil && !config.ModuleConfig.FlatClients
+	emitLoader := config.ModuleConfig != nil && config.ModuleConfig.EmitLoader
+	reserved := map[string]bool{}
+	if emitLoader {
+		reserved[strings.TrimSuffix(LoaderGenFile, ".gen.ts")] = true
+	}
+	if !nest {
 		reserved[strings.TrimSuffix(filepath.Base(target), ".gen.ts")] = true
 	}
 	for _, depName := range splitModules {
@@ -105,10 +104,8 @@ func generate(config generator.Config, target string, schema *introspection.Sche
 		}
 	}
 
-	// Module files (and the loader) land under clients/ in module codegen; a
-	// standalone client keeps everything in the output root.
 	moduleDir := filepath.Dir(target)
-	if module {
+	if nest {
 		moduleDir = filepath.Join(moduleDir, ModuleClientsDir)
 	}
 
@@ -162,11 +159,10 @@ func generate(config generator.Config, target string, schema *introspection.Sche
 		}
 	}
 
-	// Module bindings also carry the entrypoint loader: the generated
-	// entrypoints receive core- and module-typed values as IDs, and with every
-	// module in its own file only codegen knows which file declares which
-	// class. A standalone client has no entrypoint, so no loader.
-	if module {
+	// A module scope also carries the entrypoint loader: the entrypoint loads
+	// core objects by ID, and only codegen knows which generated file declares
+	// which class. A standalone client has no entrypoint, so no loader.
+	if emitLoader {
 		loaderTarget := filepath.Join(moduleDir, LoaderGenFile)
 		if err := renderTemplate(mfs, tmpl, "loader", loaderTarget, depFileData{
 			Schema:        schema,
@@ -180,19 +176,6 @@ func generate(config generator.Config, target string, schema *introspection.Sche
 	return &generator.GeneratedState{
 		Overlay: mfs,
 	}, nil
-}
-
-// selfModuleName returns the name of the module the client is generated for
-// (from the module or client config), or "" when generating outside a module
-// (e.g. the SDK's own library client).
-func selfModuleName(config generator.Config) string {
-	if config.ModuleConfig != nil {
-		return config.ModuleConfig.ModuleName
-	}
-	if config.ClientConfig != nil {
-		return config.ClientConfig.ModuleName
-	}
-	return ""
 }
 
 // depFileData is the template "dot" for the core "api" template, the

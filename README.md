@@ -117,7 +117,7 @@ What a scope gets depends on what the scope is:
 | Scope | Client output |
 | --- | --- |
 | A module | `sdk/` (the library) plus `clients/` (its per-module clients) |
-| Your own project | `.dagger/clients/` |
+| Your own project | `.dagger/clients/` — `sdk/` (the vendored library) plus flat per-module clients |
 
 A module keeps its targets in a `clients/` directory beside the library:
 every module — a dependency, a recorded target, the module itself — becomes its
@@ -136,23 +136,18 @@ The `@dagger.io/<module>` aliases are written into `tsconfig.json` (or
 `deno.json`) at generation, so a client added inside a module is usable from it
 straight away.
 
-One package per scope, not one per target: the core API is the bulk of a
-generated client and every target in a scope shares it. The package holds
-
-- `dagger.gen.ts` — the core API types
-- `<module>.gen.ts` — one per recorded client target
-- `package.json`, `tsconfig.json` — pinned to the engine release this SDK ships
-  for, and named after the scope directory
-
-A client-only package is self-contained and stands on its own. Install it
-yourself — `"@dagger.io/<scope>-client": "file:./.dagger/clients"` plus your
-package manager; the SDK never edits your own `package.json`. If you point
-`@dagger.io/dagger` at a local bundle, regeneration preserves that instead of
-resetting it to the version pin.
+A standalone client scope (`.dagger/clients/`) renders the **same** thing: the
+`@dagger.io/dagger` library vendored under `sdk/`, one flat `<module>.gen.ts`
+client per target — each serving its own module on use, exactly like a module's
+clients — and a `tsconfig.json` aliasing `@dagger.io/dagger` to the local
+`sdk/`. It vendors the library rather than depending on a remote
+`@dagger.io/dagger`, so it resolves offline, and the SDK never edits your own
+project's config. The two shapes converge, so a shared `.dagger/clients/` can
+back both a module and your own code.
 
 `clients` is the complete desired set, so `dagger module client rm` is just
-regeneration without that target: its bindings go, and the last target leaving
-takes the package with it.
+regeneration without that target: its client goes, and the last target leaving
+takes the scope with it.
 
 ## Regenerate
 

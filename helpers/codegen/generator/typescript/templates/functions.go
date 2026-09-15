@@ -135,8 +135,6 @@ func (funcs typescriptTemplateFuncs) FuncMap() template.FuncMap {
 		"CheckVersionCompatibility": commonFunc.CheckVersionCompatibility,
 		"ModuleRelPath":             funcs.moduleRelPath,
 		"FormatProtected":           funcs.formatProtected,
-		"IsClientOnly":              funcs.isClientOnly,
-		"BoundModules":              funcs.boundModules,
 		"IsBundle":                  funcs.isBundle,
 		"LegacyTypeScriptSDKCompat": funcs.legacyTypeScriptSDKCompat,
 		"LegacyIDableTypes":         funcs.legacyIDableTypes,
@@ -712,32 +710,11 @@ func (funcs typescriptTemplateFuncs) legacyIDableTypes(fileTypes []*introspectio
 	return types
 }
 
-func (funcs typescriptTemplateFuncs) isClientOnly() bool {
-	return funcs.cfg.ClientConfig != nil
-}
-
-// boundModules returns the modules the generated client serves, with local
-// paths normalized to a workspace-root-absolute form. Workspace.moduleSource
-// resolves a leading-slash path from the workspace root and a bare relative path
-// from the client process's cwd; the design contract requires root-relative
-// resolution (cwd-independent), so a local path is forced absolute. Git modules
-// use Ref, never Path, so their identity is left untouched.
-func (funcs typescriptTemplateFuncs) boundModules() []generator.BoundModule {
-	modules := make([]generator.BoundModule, 0, len(funcs.cfg.ClientConfig.BoundModules))
-	for _, m := range funcs.cfg.ClientConfig.BoundModules {
-		if m.Kind != generator.ModuleKindGit && m.Path != "" && !strings.HasPrefix(m.Path, "/") {
-			m.Path = "/" + m.Path
-		}
-		modules = append(modules, m)
-	}
-	return modules
-}
-
-// isBundle reports whether the bindings sit next to the bundled SDK library and
-// must import it from ./core.js. That is exactly module codegen: the generated
-// files land in the module's sdk/ directory alongside core.js. A standalone
-// client imports "@dagger.io/dagger" instead, and the library's own bindings
-// import the runtime they ship with.
+// isBundle reports whether the core file sits next to the bundled SDK library
+// and must import it from ./core.js. That is any scope's client bindings — a
+// module's or a standalone client's — since both vendor the library as sdk/.
+// Only the library's own bindings (no ModuleConfig) import the runtime they
+// ship with, by relative source path.
 func (funcs typescriptTemplateFuncs) isBundle() bool {
 	return funcs.cfg.ModuleConfig != nil
 }
@@ -748,15 +725,10 @@ func (funcs typescriptTemplateFuncs) depFileName(moduleName string) string {
 	return strcase.ToKebab(moduleName)
 }
 
-// coreFile is the basename (no extension) of the core generated file that per-
-// module files import the extendable classes from. A standalone client splits
-// every module (including the one it binds) into its own <module>.gen.ts and
-// keeps only core types in "dagger.gen" (matching the Go SDK's dagger.gen.go);
-// module codegen keeps the module's own types in "client.gen".
+// coreFile is the basename (no extension) of the core generated file the
+// client files import the runtime classes from: always client.gen, the
+// vendored library's bindings.
 func (funcs typescriptTemplateFuncs) coreFile() string {
-	if funcs.cfg.ClientConfig != nil {
-		return "dagger.gen"
-	}
 	return "client.gen"
 }
 
@@ -901,23 +873,20 @@ type ClientImport struct {
 	Types  []string
 }
 
-// clientRuntimeImport is the specifier a per-module client file imports Context
-// and BaseClient from. In module and standalone-client codegen the client files
-// reach the runtime as a package (module clients sit under clients/, a
-// directory apart from the vendored library; standalone clients depend on the
-// npm package); only the library's own bindings import the runtime by relative
-// source path.
+// clientRuntimeImport is the specifier a client file imports Context and
+// BaseClient from. A scope's client files (module or standalone) reach the
+// runtime through the @dagger.io/dagger package (resolved to the vendored sdk/
+// by a tsconfig/import-map alias); only the library's own bindings import the
+// runtime by relative source path.
 func (funcs typescriptTemplateFuncs) clientRuntimeImport() string {
-	if funcs.cfg.ModuleConfig == nil && funcs.cfg.ClientConfig == nil {
+	if funcs.cfg.ModuleConfig == nil {
 		return "../common/context.js"
 	}
 	return "@dagger.io/dagger"
 }
 
-// coreImportSpec is where a client file imports core types and values from. A
-// module client sits under clients/, apart from the library, so it reaches core
-// through the package specifier; a standalone client keeps the core file beside
-// it and imports it relatively.
+// coreImportSpec is where a client file imports core types and values from: the
+// @dagger.io/dagger package, aliased to the vendored library's sdk/ directory.
 func (funcs typescriptTemplateFuncs) coreImportSpec() string {
 	if funcs.cfg.ModuleConfig != nil {
 		return "@dagger.io/dagger"
