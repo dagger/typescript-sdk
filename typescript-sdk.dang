@@ -1462,7 +1462,7 @@ type TypescriptSdk {
   }
 
   """
-  The client file names a flat client scope aliases, one per <module>.gen.ts at
+  The module names in a flat client-scope rendering, one per <module>.gen.ts at
   the bindings root, with the core client.gen.ts left out.
   """
   let flatAliasModules(bindings: Directory!): [String!]! {
@@ -1473,118 +1473,103 @@ type TypescriptSdk {
   }
 
   """
-  Build the complete standalone client scope: the vendored library under sdk/,
-  the flat per-module clients beside it, and the config that aliases
-  @dagger.io/dagger to the local sdk and @dagger.io/<module> to each client.
+  Build the complete standalone client scope: one npm-installable package per
+  module, plus the vendored library as its own @dagger.io/dagger package.
 
-  Same shape as a module's sdk/ + clients + config, so the two converge: no
-  remote @dagger.io/dagger dependency, and clients identical to a module's.
-  `existing` supplies the scope's current config so user edits survive.
+  ```
+  .dagger/clients/
+    dagger/          the vendored @dagger.io/dagger library
+    <module>/        one package per target, named @dagger.io/<module>
+  ```
+
+  The packages resolve through npm — `npm install ./.dagger/clients/<module>`
+  gives the scope's code `import { x } from "@dagger.io/<module>"` with no
+  config aliases anywhere — and each client package declares its dependencies
+  as file: links, so installing a client pulls the library (and any sibling it
+  references) along. The client files themselves are the same rendering a
+  module's clients/ directory gets; only the packaging differs, and it is what
+  will one day let a published registry package replace the file: link.
   """
-  let clientDirectory(bindings: Directory!, existing: Directory!, runtime: Runtime!): Directory! {
-    let sdk = moduleSdkDirectory(bindings)
-    # The clients are flat at the scope root; only client.gen.ts moves into the
-    # vendored library under sdk/.
-    let clientFiles = bindings.withoutFile("client.gen.ts")
+  let clientDirectory(bindings: Directory!): Directory! {
+    let modules = flatAliasModules(bindings)
 
-    directory
-      .withDirectory("sdk", sdk)
-      .withDirectory(".", clientFiles)
-      .withDirectory(".", moduleConfigDirectory(existing, runtime, "", flatAliasModules(bindings)))
+    modules.reduce(
+      directory.withDirectory("dagger", moduleSdkDirectory(bindings).withNewFile("package.json", libraryPackageJSON)),
+    ) { acc, name =>
+      acc.withDirectory(
+        name,
+        directory
+          .withFile(name + ".gen.ts", bindings.file(name + ".gen.ts"))
+          .withNewFile("package.json", clientPackageJSON(name, modules)),
+      )
+    }
+  }
+
+  """
+  The vendored library's package manifest: @dagger.io/dagger, entry at the
+  hand-written index.ts (which re-exports the runtime and the generated core
+  bindings), telemetry as its one sub-path.
+  """
+  let libraryPackageJSON: String! {
+    "{\n" +
+      "  \"name\": \"@dagger.io/dagger\",\n" +
+      "  \"version\": \"0.0.0\",\n" +
+      "  \"type\": \"module\",\n" +
+      "  \"exports\": {\n" +
+      "    \".\": \"./index.ts\",\n" +
+      "    \"./telemetry\": \"./telemetry.ts\"\n" +
+      "  }\n" +
+      "}\n"
+  }
+
+  """
+  A client package's manifest: named @dagger.io/<module> — the specifier the
+  code imports, and the name it would publish under — with a file: dependency
+  on the library package and on every sibling package in the scope, so
+  installing one client links everything it can reference. The version is a
+  placeholder npm requires for a file: dependency to resolve at all.
+  """
+  let clientPackageJSON(name: String!, modules: [String!]!): String! {
+    let deps = ["  \"@dagger.io/dagger\": \"file:../dagger\""] +
+      modules
+        .filter { sibling => sibling != name }
+        .map { sibling => "  \"@dagger.io/" + sibling + "\": \"file:../" + sibling + "\"" }
+
+    "{\n" +
+      "  \"name\": \"@dagger.io/" + name + "\",\n" +
+      "  \"version\": \"0.0.0\",\n" +
+      "  \"type\": \"module\",\n" +
+      "  \"exports\": {\n" +
+      "    \".\": \"./" + name + ".gen.ts\"\n" +
+      "  },\n" +
+      "  \"dependencies\": {\n  " +
+      deps.join(",\n  ") + "\n" +
+      "  }\n" +
+      "}\n"
   }
 
   """
   Read the client dir's current config files (package.json, tsconfig.json,
-  deno.json) so config-updater preserves user customizations on regeneration —
-  in particular a @dagger.io/dagger dependency the user has pointed at a local
-  bundle. Filters from the workspace root so a not-yet-created client dir simply
-  yields an empty directory.
   """
-  let existingClientConfig(ws: Workspace!, path: String!): Directory! {
-    let filtered = ws.directory("/", include: [
-      path + "/package.json",
-      path + "/tsconfig.json",
-      path + "/deno.json",
-    ])
-    if (filtered.exists(path)) {
-      filtered.directory(path)
-    } else {
-      directory
-    }
-  }
+  Generate the client half of a scope: one npm-installable package per target
+  under .dagger/clients, with the vendored library beside them.
 
-  """
-  Generate the client half of a scope: one installable package serving every
-  target the scope records.
-
-  One package rather than one per target, because the core API is the bulk of a
-  generated client and every target in a scope shares it. Removal needs no
-  special case: `clients` is the complete desired set, so a target that is gone
-  is simply not rendered, and the last one leaving takes the package with it.
+  The whole directory is generated, so nothing in it is the user's; the user's
+  own config is never touched — they wire the packages in themselves with
+  `npm install ./.dagger/clients/<module>`. Removal needs no special case:
+  `clients` is the complete desired set, so a target that is gone is simply not
+  rendered, and the last one leaving takes the directory with it.
   """
   let clientScope(ws: Workspace!, base: String!, isModule: Boolean!, targets: [ClientTarget!]!): Workspace! {
     let dir = clientDirPath(base, isModule)
-    # The scope's own project flavor decides both config file kinds: a deno.json
-    # at the scope root means a Deno project, everything else is Node-shaped.
-    let isDeno = hasScopeFile(ws, base, "deno.json")
 
     if (targets.length == 0) {
-      let cleaned = if (existingDir(ws, dir).entries.length == 0) { ws } else { ws.withoutDirectory("/" + dir) }
-      # The generated tree is gone, so the aliases pointing into it go too.
-      scopeAliasConfig(cleaned, base, isDeno, [])
+      if (existingDir(ws, dir).entries.length == 0) { ws } else { ws.withoutDirectory("/" + dir) }
     } else {
-      # The whole directory is this SDK's, so anything in it we no longer render
-      # is dropped — the bindings of a target that has left the scope are the
-      # point. The scope's own config survives because it is read back out of
-      # `ws` and layered under the fresh bindings.
-      let existing = existingClientConfig(ws, dir)
-      let rt = if (isDeno) { Runtime.DENO } else { Runtime.NODE }
-      let bindings = generateClientBindings(targets)
-      let generated = clientDirectory(bindings, existing, rt)
-      let written = writeChanged(prunedClientFiles(ws, dir, generated), dir, generated)
-      # The scope's own code imports the clients through the same specifiers a
-      # module's source does, so the scope config gets the aliases — pointing
-      # into .dagger/clients, where this scope's generated tree lives.
-      scopeAliasConfig(written, base, isDeno, flatAliasModules(bindings))
-    }
-  }
-
-  """
-  Sync the SDK-owned aliases into a client-only scope's own config file, so the
-  scope's code imports the generated clients the same way a module's source
-  does: @dagger.io/dagger resolves to the vendored library and
-  @dagger.io/<module> to each client under .dagger/clients.
-
-  Only those aliases are written — the file is the user's, so nothing else in
-  it is touched, and package.json is never. An empty module list removes every
-  SDK-owned alias (the generated tree is gone), and a scope that never had the
-  config file is not given one just to hold zero aliases.
-  """
-  let scopeAliasConfig(ws: Workspace!, base: String!, isDeno: Boolean!, aliasModules: [String!]!): Workspace! {
-    let configName = if (isDeno) { "deno.json" } else { "tsconfig.json" }
-    let mode = if (isDeno) { "scope-deno-config" } else { "scope-tsconfig" }
-
-    if (aliasModules.length == 0 and hasScopeFile(ws, base, configName) == false) {
-      ws
-    } else {
-      # Empty dirs tell config-updater to remove the aliases rather than point
-      # them somewhere.
-      let sdkDir = if (aliasModules.length == 0) { "" } else { ".dagger/clients/sdk" }
-      let clientsDir = if (aliasModules.length == 0) { "" } else { ".dagger/clients" }
-
-      # Staged by its workspace path so a scope at the root works too; a config
-      # that does not exist yet reaches config-updater as absent and starts
-      # from "{}".
-      let configPath = scopeFile(base, configName)
-      let updated = configUpdaterBuilder
-        .withDirectory("/existing", ws.directory("/", include: [configPath]))
-        .withDirectory("/out", directory)
-        .withExec(
-          ["config-updater", mode, "/existing/" + configPath, "/out/" + configName, sdkDir, clientsDir] + aliasModules,
-        )
-        .directory("/out")
-
-      writeChanged(ws, base, updated)
+      # Anything in the directory we no longer render is dropped — the package
+      # of a target that has left the scope is the point.
+      let generated = clientDirectory(generateClientBindings(targets))
+      writeChanged(prunedClientFiles(ws, dir, generated), dir, generated)
     }
   }
 

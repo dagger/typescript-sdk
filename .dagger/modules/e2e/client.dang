@@ -1,11 +1,11 @@
 """
 Checks for typed client generation, the client half of `generateScope`.
 
-A standalone client scope renders the same shape as a module: the vendored
-@dagger.io/dagger library under sdk/, one flat <module>.gen.ts client per target
-serving its own module on use, plus package.json and tsconfig.json aliasing
-@dagger.io/dagger to the local sdk. No remote dependency, and clients identical
-to a module's.
+A standalone client scope renders one npm-installable package per target under
+.dagger/clients, beside the vendored library as its own @dagger.io/dagger
+package. The client files are the same rendering a module's clients get — each
+serves its own module on use — and the user wires them in with
+`npm install ./.dagger/clients/<module>`; nothing of the user's is edited.
 """
 type ClientChecks {
   let fixtures: Fixtures! = Fixtures
@@ -31,24 +31,25 @@ type ClientChecks {
   }
 
   """
-  Assert that a changeset holds a complete client scope for `scope`: the vendored
-  library under sdk/, the flat target client, and the config.
+  Assert that a changeset holds a complete client scope for `scope`: the library
+  package plus one package per target.
   """
   let clientPackage(changes: Changeset!, scope: String!): Void {
     let path = clientDir(scope)
-    Asserts.generated(changes, path + "/sdk/client.gen.ts")
-    Asserts.generated(changes, path + "/sdk/core.js")
-    Asserts.generated(changes, path + "/sdk/index.ts")
-    Asserts.generated(changes, path + "/client-app.gen.ts")
-    Asserts.generated(changes, path + "/package.json")
-    Asserts.generated(changes, path + "/tsconfig.json")
+    Asserts.generated(changes, path + "/dagger/package.json")
+    Asserts.generated(changes, path + "/dagger/client.gen.ts")
+    Asserts.generated(changes, path + "/dagger/core.js")
+    Asserts.generated(changes, path + "/dagger/index.ts")
+    Asserts.generated(changes, path + "/client-app/package.json")
+    Asserts.generated(changes, path + "/client-app/client-app.gen.ts")
     null
   }
 
   """
-  A scope with one client target should produce a complete client scope: the
-  vendored library, the target's flat client, and the config aliasing
-  @dagger.io/dagger to the local sdk.
+  A scope with one client target should produce the two packages, correctly
+  named and linked: the client imports the library by its package name, serves
+  its own module on use, and declares the library as a file: dependency so
+  installing the client pulls it along.
   """
   generateClientCheck(ws: Workspace!): Void @check {
     let changes = generateClients(ws, fixtures.clientOutput)
@@ -57,60 +58,52 @@ type ClientChecks {
     let path = clientDir(fixtures.clientOutput)
     let tree = changes.after.directory(path)
 
-    # The client serves its own module (a git target, by ref+pin) and reaches
-    # the runtime through the vendored library, same as a module's client.
-    let client = tree.file("client-app.gen.ts").contents
+    let client = tree.file("client-app/client-app.gen.ts").contents
     Asserts.stringContains(client, "from \"@dagger.io/dagger\"", "a client should import the library as a package")
     Asserts.stringContains(client, "asModule().serve()", "a client should serve its own module on use")
 
-    # The config aliases @dagger.io/dagger to the vendored sdk — no remote dep.
-    Asserts.stringContains(
-      tree.file("tsconfig.json").contents,
-      "\"@dagger.io/dagger\": [\"./sdk/index.ts\"]",
-      "tsconfig should alias the library to the vendored sdk",
-    )
-    Asserts.assert(
-      tree.file("package.json").contents.contains("\"@dagger.io/dagger\"") == false,
-      "the client package should not depend on a remote @dagger.io/dagger",
-    )
+    let clientPkg = tree.file("client-app/package.json").contents
+    Asserts.stringContains(clientPkg, "\"name\": \"@dagger.io/client-app\"", "a client package is named for its module")
+    Asserts.stringContains(clientPkg, "\"@dagger.io/dagger\": \"file:../dagger\"", "a client package links the library beside it")
 
-    # The scope's own config gains the same aliases, pointing into
-    # .dagger/clients — that is what makes the clients importable from the
-    # user's own code, the way a module's source imports its own.
-    let scopeConfig = changes.after.directory(fixtures.clientOutput).file("tsconfig.json").contents
-    Asserts.stringContains(
-      scopeConfig,
-      "\"@dagger.io/dagger\": [\"./.dagger/clients/sdk/index.ts\"]",
-      "the scope's tsconfig should alias the library into .dagger/clients",
-    )
-    Asserts.stringContains(
-      scopeConfig,
-      "\"@dagger.io/client-app\": [\"./.dagger/clients/client-app.gen.ts\"]",
-      "the scope's tsconfig should alias each generated client",
-    )
+    let libPkg = tree.file("dagger/package.json").contents
+    Asserts.stringContains(libPkg, "\"name\": \"@dagger.io/dagger\"", "the library package carries the SDK's name")
+    Asserts.stringContains(libPkg, "\"./telemetry\": \"./telemetry.ts\"", "the library package exposes telemetry as a sub-path")
 
     null
   }
 
   """
-  A generated client must type-check against its own vendored library. The scope
-  ships @dagger.io/dagger under sdk/ and its tsconfig aliases resolve to it, so
-  compile it as-is — no external build — catching binding/tsconfig bugs that
-  file-presence checks miss. core.js is the compiled bundle, excluded from the
-  type-check.
+  The generated packages must install and type-check the way a user consumes
+  them: `npm install ./.dagger/clients/<module>` in a project above the
+  generated tree, then a plain nodenext tsc with no path aliases — package
+  resolution alone. This is the installability contract, checked end to end.
   """
   generateClientCompilesCheck(ws: Workspace!): Void @check {
     let changes = generateClients(ws, fixtures.clientOutput)
     let generated = changes.layer.directory(clientDir(fixtures.clientOutput))
 
+    let mainTs = "import { connection, dag } from \"@dagger.io/dagger\"\n" +
+      "import { clientApp } from \"@dagger.io/client-app\"\n" +
+      "export async function run(): Promise<string> {\n" +
+      "  let out = \"\"\n" +
+      "  await connection(async () => {\n" +
+      "    void dag\n" +
+      "    out = await clientApp().hello(\"world\")\n" +
+      "  })\n" +
+      "  return out\n" +
+      "}\n"
+
     let out = container
       .from("node:22-alpine")
       .withMountedCache("/root/.npm", cacheVolume("npm-cache"))
-      .withDirectory("/client", generated)
-      .withWorkdir("/client")
-      .withNewFile("/client/tsconfig.check.json", "{\n  \"extends\": \"./tsconfig.json\",\n  \"exclude\": [\"sdk/core.js\", \"node_modules\"]\n}")
-      .withExec(["npm", "install", "--no-audit", "--no-fund", "typescript@5.9.3", "@types/node@22"])
-      .withExec(["npx", "--no-install", "tsc", "--noEmit", "-p", "tsconfig.check.json"])
+      .withDirectory("/app/.dagger/clients", generated)
+      .withWorkdir("/app")
+      .withNewFile("/app/package.json", "{\n  \"name\": \"app\",\n  \"version\": \"1.0.0\",\n  \"type\": \"module\"\n}")
+      .withNewFile("/app/tsconfig.json", "{\n  \"compilerOptions\": {\n    \"module\": \"nodenext\",\n    \"target\": \"esnext\",\n    \"strict\": true,\n    \"skipLibCheck\": true,\n    \"types\": []\n  },\n  \"include\": [\"main.ts\"]\n}")
+      .withNewFile("/app/main.ts", mainTs)
+      .withExec(["npm", "install", "--no-audit", "--no-fund", "./.dagger/clients/client-app", "./.dagger/clients/dagger", "typescript@5.9.3"])
+      .withExec(["npx", "--no-install", "tsc", "--noEmit", "-p", "tsconfig.json"])
       .stdout
 
     null
@@ -178,7 +171,7 @@ type ClientChecks {
       Asserts.contains(entries, "stale-dep.gen.ts") == false,
       "bindings for a target that left the scope must be pruned: " + kept,
     )
-    Asserts.assert(Asserts.contains(entries, "sdk"), "regeneration must write the vendored library: " + kept)
+    Asserts.assert(Asserts.contains(entries, "dagger"), "regeneration must write the library package: " + kept)
 
     null
   }
@@ -196,12 +189,6 @@ type ClientChecks {
       Asserts.contains(removed.removedPaths, clientDir(fixtures.clientOutput) + "/"),
       "dropping the last target should remove the generated package, got: "
         + removed.removedPaths.join(", "),
-    )
-
-    # The scope config's aliases go with the tree they pointed into.
-    Asserts.assert(
-      generated.withChanges(removed).directory("/" + fixtures.clientOutput).file("tsconfig.json").contents.contains("@dagger.io/") == false,
-      "removing the clients should remove their aliases from the scope config",
     )
 
     null
@@ -267,14 +254,14 @@ type ClientChecks {
   }
 
   """
-  A client scope vendors the whole @dagger.io/dagger library under sdk/, so it
-  resolves offline with no remote dependency — the point of vendoring it.
+  A client scope vendors the whole @dagger.io/dagger library as a package, so
+  it resolves offline with no remote dependency — the point of vendoring it.
   """
   clientVendorsLibraryCheck(ws: Workspace!): Void @check {
     let path = clientDir(fixtures.clientOutput)
     let changes = generateClients(ws, fixtures.clientOutput)
 
-    ["sdk/core.js", "sdk/core.d.ts", "sdk/index.ts", "sdk/telemetry.ts", "sdk/client.gen.ts"].each { file =>
+    ["dagger/core.js", "dagger/core.d.ts", "dagger/index.ts", "dagger/telemetry.ts", "dagger/client.gen.ts", "dagger/package.json"].each { file =>
       Asserts.generated(changes, path + "/" + file)
     }
 
@@ -282,9 +269,10 @@ type ClientChecks {
   }
 
   """
-  A scope serving two targets gets one shared core file and one client per
-  target, each serving its own module — no per-target duplication of the core
-  API, and no central serve.
+  A scope serving two targets gets one shared library package and one package
+  per target, each serving its own module — no per-target duplication of the
+  core API, no central serve, and each package linking the sibling it might
+  reference.
   """
   multipleClientsCheck(ws: Workspace!): Void @check {
     let path = clientDir(fixtures.clientOutput)
@@ -299,17 +287,21 @@ type ClientChecks {
       ],
     )
 
-    # One shared core file under the vendored library, plus one flat client per
-    # target.
-    Asserts.generated(changes, path + "/sdk/client.gen.ts")
-    Asserts.generated(changes, path + "/client-app.gen.ts")
-    Asserts.generated(changes, path + "/generate-app.gen.ts")
+    # One shared library package, plus one package per target.
+    Asserts.generated(changes, path + "/dagger/client.gen.ts")
+    Asserts.generated(changes, path + "/client-app/client-app.gen.ts")
+    Asserts.generated(changes, path + "/generate-app/generate-app.gen.ts")
 
     # Each client serves its own module, in its own file — not a central
-    # bootstrap in the core.
+    # bootstrap in the core — and links its sibling as a file: dependency.
     let tree = changes.after.directory(path)
-    Asserts.stringContains(tree.file("client-app.gen.ts").contents, "asModule().serve()", "the first target's client should serve its own module")
-    Asserts.stringContains(tree.file("generate-app.gen.ts").contents, "asModule().serve()", "the second target's client should serve its own module")
+    Asserts.stringContains(tree.file("client-app/client-app.gen.ts").contents, "asModule().serve()", "the first target's client should serve its own module")
+    Asserts.stringContains(tree.file("generate-app/generate-app.gen.ts").contents, "asModule().serve()", "the second target's client should serve its own module")
+    Asserts.stringContains(
+      tree.file("client-app/package.json").contents,
+      "\"@dagger.io/generate-app\": \"file:../generate-app\"",
+      "a client package should link its siblings",
+    )
 
     null
   }

@@ -136,25 +136,32 @@ The `@dagger.io/<module>` aliases are written into `tsconfig.json` (or
 `deno.json`) at generation, so a client added inside a module is usable from it
 straight away.
 
-A standalone client scope (`.dagger/clients/`) renders the **same** thing: the
-`@dagger.io/dagger` library vendored under `sdk/`, one flat `<module>.gen.ts`
-client per target — each serving its own module on use, exactly like a module's
-clients — and a `tsconfig.json` aliasing `@dagger.io/dagger` to the local
-`sdk/`. It vendors the library rather than depending on a remote
-`@dagger.io/dagger`, so it resolves offline.
+A standalone client scope renders the same client files as a module, packaged
+as real npm packages:
 
-Generation also syncs those aliases into your project's own `tsconfig.json`
-(or `deno.json`) — pointing into `.dagger/clients/` — so your code imports the
-clients straight away:
+```
+.dagger/clients/
+  dagger/          the vendored @dagger.io/dagger library
+  <module>/        one package per target, named @dagger.io/<module>
+```
+
+Install what you use — a client's `file:` dependencies pull the library (and
+any sibling it references) along:
+
+```sh
+npm install ./.dagger/clients/api
+```
 
 ```ts
 import { connection, dag } from "@dagger.io/dagger"
 import { api } from "@dagger.io/api"
 ```
 
-Only the `@dagger.io/*` alias keys are written there, and your `package.json`
-is never touched. The two shapes converge, so a shared `.dagger/clients/` can
-back both a module and your own code.
+No path aliases, no remote `@dagger.io/dagger` dependency — plain package
+resolution against the vendored, offline tree — and nothing of yours is
+edited; you run the install. The same packages can later come from a registry
+instead of a `file:` link, and a shared `.dagger/clients/` can back both a
+module and your own code.
 
 `clients` is the complete desired set, so `dagger module client rm` is just
 regeneration without that target: its client goes, and the last target leaving
