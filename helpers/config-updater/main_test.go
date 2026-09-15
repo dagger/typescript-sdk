@@ -215,9 +215,9 @@ func TestUpdateTSConfig(t *testing.T) {
 }`,
 		},
 		{
-			name:    "tsconfig with modules adds one alias per module client",
+			name:     "tsconfig with modules adds one alias per module client",
 			tsConfig: `{}`,
-			modules: []string{"my-dep", "app"},
+			modules:  []string{"my-dep", "app"},
 			expected: `{
   "compilerOptions": {
     "experimentalDecorators": true,
@@ -295,7 +295,7 @@ func TestUpdateDenoConfig(t *testing.T) {
 	}
 
 	moduleCase := testCase{
-		name:       "deno.json with modules adds and prunes import-map aliases",
+		name: "deno.json with modules adds and prunes import-map aliases",
 		denoConfig: `{
   "imports": {
     "@dagger.io/dagger/gone": "./sdk/gone.gen.ts"
