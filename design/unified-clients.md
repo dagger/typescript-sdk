@@ -62,22 +62,28 @@
 >   (rebuilt through the packager) and preserves the fluent sync API — the
 >   constructor stays synchronous, the serve happens lazily at execute.
 >
+> - **The standalone client scope converges with a module — as npm packages.**
+>   A client-only scope no longer renders the old `dagger.gen.ts` +
+>   `serveBoundModule`/`connect` shape against a remote `@dagger.io/dagger`.
+>   It renders the same per-module client files as a module, packaged for
+>   `npm install`: `.dagger/clients/dagger/` is the vendored library as a real
+>   `@dagger.io/dagger` package (exports `.` and `./telemetry`), and each
+>   target gets `.dagger/clients/<module>/` named `@dagger.io/<module>` with
+>   `exports` at its client file and `file:` dependencies on the library and
+>   its siblings. The user consumes with `npm install ./.dagger/clients/<m>` —
+>   plain package resolution, no tsconfig aliases, nothing of the user's
+>   edited — and the same packages can later come from a registry instead of a
+>   `file:` link. (An earlier attempt synced aliases into the user's tsconfig;
+>   rejected — packages are the durable mechanism.) The `ClientConfig` /
+>   `IsClientOnly` path is deleted; `ModuleGeneratorConfig` drives both, with
+>   `FlatClients` and `EmitLoader` the only knobs; dang assembles the package
+>   dirs. Verified offline end to end: `npm install` + nodenext `tsc` clean,
+>   and a tsx run resolves the packages and fires the serve-on-use hook.
+>
 > **Not done here** (unchanged from the proposal's out-of-scope list):
 > §5.1 runtime `globalThis` anchor, §5.6 self-client input via `dag.schema` (the
 > existing `selfContribution` fold is kept), §7 externalization (one npm package
 > per module).
->
-> - **The standalone client scope converges with a module.** A client-only scope
->   (`.dagger/clients/`) no longer renders the old `dagger.gen.ts` +
->   `serveBoundModule`/`connect` shape against a remote `@dagger.io/dagger`. It
->   now vendors the library under `sdk/` and renders the same per-module clients
->   as a module — flat `<module>.gen.ts`, each serving its own module on use,
->   importing `@dagger.io/dagger` (aliased to the local `sdk/`). The `ClientConfig`
->   / `IsClientOnly` path is deleted; `ModuleGeneratorConfig` drives both, with
->   `FlatClients` (flat vs `clients/`) and `EmitLoader` (module only) the only
->   knobs. So a shared `.dagger/clients/` can eventually back both a module and
->   the user's code. Verified offline: the vendored-sdk scope type-checks under
->   `tsc --strict` with no remote dependency.
 >
 > **Verification.** Unit + golden tests green (`helpers/codegen`,
 > `helpers/config-updater`); a generated module tree — `sdk/` library +

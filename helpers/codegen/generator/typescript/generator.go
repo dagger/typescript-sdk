@@ -88,7 +88,9 @@ func generate(config generator.Config, target string, schema *introspection.Sche
 	// collide by name — only the loader, their sibling, is reserved. Everything
 	// else — a flat standalone client, the library's own bindings — puts the
 	// client files in the output root beside the core file, so the core file's
-	// name is reserved too.
+	// name is reserved too. A flat client scope also packages each client into
+	// its own directory beside the library's ("dagger"), so that name is
+	// reserved there as well.
 	nest := config.ModuleConfig != nil && !config.ModuleConfig.FlatClients
 	emitLoader := config.ModuleConfig != nil && config.ModuleConfig.EmitLoader
 	reserved := map[string]bool{}
@@ -97,6 +99,9 @@ func generate(config generator.Config, target string, schema *introspection.Sche
 	}
 	if !nest {
 		reserved[strings.TrimSuffix(filepath.Base(target), ".gen.ts")] = true
+	}
+	if config.ModuleConfig != nil && config.ModuleConfig.FlatClients {
+		reserved["dagger"] = true
 	}
 	for _, depName := range splitModules {
 		if name := strcase.ToKebab(depName); reserved[name] {
