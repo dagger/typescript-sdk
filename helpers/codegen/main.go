@@ -10,7 +10,10 @@
 //	codegen library — the SDK library's own bindings, importing the runtime they
 //	                 ship alongside.
 //	codegen entrypoint — a module's static dispatch entrypoint, from the typedef
-//	                 JSON the SDK introspector emits.
+//	                 JSON the SDK introspector emits. With --dispatch, the
+//	                 manifest-v2 dispatcher instead: stdin/stdout, no register().
+//	codegen dang-entrypoint — the Dang program the engine loads under a manifest
+//	                 `[entrypoint]` table, from the same typedef JSON.
 //
 // Generation is engine-free: the schema and the bound module's metadata are
 // supplied as files, so no session is opened. `codegen introspect` is the one
@@ -83,10 +86,12 @@ func run(args []string) error {
 		return runLibrary(args[1:])
 	case "entrypoint":
 		return runEntrypoint(args[1:])
+	case "dang-entrypoint":
+		return runDangEntrypoint(args[1:])
 	case "introspect":
 		return runIntrospect(args[1:])
 	default:
-		return fmt.Errorf("unknown command %q (want module, client, library, entrypoint or introspect)", args[0])
+		return fmt.Errorf("unknown command %q (want module, client, library, entrypoint, dang-entrypoint or introspect)", args[0])
 	}
 }
 
@@ -104,6 +109,8 @@ func runEntrypoint(args []string) error {
 		moduleRoot  = fs.String("module-root", "", "absolute path of the module root, used to resolve source-import paths")
 		sdkImport   = fs.String("sdk-import", "@dagger.io/dagger", "bare specifier the entrypoint imports runtime helpers from")
 		sourceDir   = fs.String("source-dir", "src", "the module's source directory, relative to its root")
+		dispatch    = fs.Bool("dispatch", false, "render the manifest-v2 dispatcher (stdin/stdout, no register) instead of the legacy entrypoint")
+		clientMeta  = fs.String("client-meta-path", "", "path to the client meta JSON whose modules the dispatcher serves at run time")
 	)
 	if err := fs.Parse(args); err != nil {
 		return err
@@ -112,14 +119,42 @@ func runEntrypoint(args []string) error {
 		return fmt.Errorf("--typedef-json-path is required")
 	}
 
+	var bound []generator.BoundModule
+	if *clientMeta != "" {
+		meta, err := loadClientMeta(*clientMeta)
+		if err != nil {
+			return err
+		}
+		for _, mod := range meta.Modules {
+			// The engine serves a module into its own session already, so the
+			// self target is a binding, not something to serve.
+			if mod.Self {
+				continue
+			}
+			if err := validateBoundModuleKind(mod.BoundModule); err != nil {
+				return err
+			}
+			bound = append(bound, mod.BoundModule)
+		}
+	}
+
+	// The default output filename follows the mode, so --dispatch alone writes
+	// beside the legacy entrypoint rather than over it.
+	outName := *outputFile
+	if *dispatch && outName == typescriptgenerator.DefaultEntrypointFile {
+		outName = typescriptgenerator.DefaultDispatchFile
+	}
+
 	cfg := generator.Config{
 		OutputDir: *outputDir,
 		EntrypointConfig: &generator.EntrypointGeneratorConfig{
 			TypedefJSONPath: *typedefPath,
-			OutputFile:      *outputFile,
+			OutputFile:      outName,
 			ModuleRoot:      *moduleRoot,
 			SDKImportPath:   *sdkImport,
 			SourceDir:       *sourceDir,
+			DispatchMode:    *dispatch,
+			BoundModules:    bound,
 		},
 	}
 	gen := &typescriptgenerator.TypeScriptGenerator{Config: cfg}
@@ -132,6 +167,60 @@ func runEntrypoint(args []string) error {
 
 	if err := generator.Overlay(ctx, state.Overlay, cfg.OutputDir); err != nil {
 		return fmt.Errorf("write generated entrypoint: %w", err)
+	}
+
+	return nil
+}
+
+// runDangEntrypoint renders the Dang program the engine loads under a manifest
+// `[entrypoint]` table. It reads the same typedef JSON as the dispatcher, so the
+// types it declares and the calls the dispatcher routes come from one scan.
+func runDangEntrypoint(args []string) error {
+	fs := flag.NewFlagSet("dang-entrypoint", flag.ExitOnError)
+	var (
+		typedefPath  = fs.String("typedef-json-path", "", "path to the typedef JSON emitted by the SDK introspector")
+		outputDir    = fs.String("output", ".", "output directory for the generated entrypoint")
+		outputFile   = fs.String("output-file", typescriptgenerator.DefaultDangEntrypointFile, "path to write within the output directory")
+		moduleName   = fs.String("module-name", "", "the module's name, used in the error a missing generated file raises")
+		runtime      = fs.String("runtime", "node", "JS runtime the call() recipe targets: node, bun or deno")
+		modulePath   = fs.String("module-path", ".", "module directory relative to the workspace root, used as the container workdir")
+		dispatchFile = fs.String("dispatch-file", typescriptgenerator.DefaultDispatchFile, "dispatcher call() execs, relative to the module directory")
+		tsconfigPath = fs.String("tsconfig", "tsconfig.json", "tsconfig tsx loads, relative to the module directory (node only)")
+	)
+	if err := fs.Parse(args); err != nil {
+		return err
+	}
+	if *typedefPath == "" {
+		return fmt.Errorf("--typedef-json-path is required")
+	}
+	switch *runtime {
+	case "node", "bun", "deno":
+	default:
+		return fmt.Errorf("unknown --runtime %q (want node, bun or deno)", *runtime)
+	}
+
+	cfg := generator.Config{
+		OutputDir: *outputDir,
+		DangEntrypointConfig: &generator.DangEntrypointGeneratorConfig{
+			TypedefJSONPath: *typedefPath,
+			OutputFile:      *outputFile,
+			ModuleName:      *moduleName,
+			Runtime:         *runtime,
+			ModulePath:      *modulePath,
+			DispatchFile:    *dispatchFile,
+			TSConfigPath:    *tsconfigPath,
+		},
+	}
+	gen := &typescriptgenerator.TypeScriptGenerator{Config: cfg}
+
+	ctx := context.Background()
+	state, err := gen.GenerateDangEntrypoint(ctx)
+	if err != nil {
+		return fmt.Errorf("generate dang entrypoint: %w", err)
+	}
+
+	if err := generator.Overlay(ctx, state.Overlay, cfg.OutputDir); err != nil {
+		return fmt.Errorf("write generated dang entrypoint: %w", err)
 	}
 
 	return nil

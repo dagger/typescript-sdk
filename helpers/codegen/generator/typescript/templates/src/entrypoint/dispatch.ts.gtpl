@@ -1,30 +1,5 @@
 {{- define "entrypoint_dispatch" -}}
-{{- $module := . -}}
-async function invoke(
-  parentName: string,
-  fnName: string,
-  parentJson: any,
-  args: Record<string, any>,
-): Promise<any> {
-  switch (parentName) {
-{{- range $name := sortedKeysObjects $module.Objects }}
-{{- $obj := index $module.Objects $name }}
-    case {{ jsString $obj.Name }}: {
-      switch (fnName) {
-{{ template "entrypoint_constructor_case" (dict "Obj" $obj) }}
-{{- range $mName := sortedKeysMethods $obj.Methods }}
-{{- $fn := index $obj.Methods $mName }}
-{{ template "entrypoint_method_case" (dict "Obj" $obj "Fn" $fn) }}
-{{- end }}
-        default:
-          throw new Error(`unknown function ${fnName} on {{ $obj.Name }}`)
-      }
-    }
-{{- end }}
-    default:
-      throw new Error(`unknown object ${parentName}`)
-  }
-}
+{{ template "entrypoint_invoke" . }}
 
 async function dispatch() {
   await connection(async () => {
@@ -55,6 +30,35 @@ async function dispatch() {
       process.exit(1)
     }
   }, { LogOutput: process.stdout })
+}
+{{- end -}}
+
+{{- define "entrypoint_invoke" -}}
+{{- $module := . -}}
+async function invoke(
+  parentName: string,
+  fnName: string,
+  parentJson: any,
+  args: Record<string, any>,
+): Promise<any> {
+  switch (parentName) {
+{{- range $name := sortedKeysObjects $module.Objects }}
+{{- $obj := index $module.Objects $name }}
+    case {{ jsString $obj.Name }}: {
+      switch (fnName) {
+{{ template "entrypoint_constructor_case" (dict "Obj" $obj) }}
+{{- range $mName := sortedKeysMethods $obj.Methods }}
+{{- $fn := index $obj.Methods $mName }}
+{{ template "entrypoint_method_case" (dict "Obj" $obj "Fn" $fn) }}
+{{- end }}
+        default:
+          throw new Error(`unknown function ${fnName} on {{ $obj.Name }}`)
+      }
+    }
+{{- end }}
+    default:
+      throw new Error(`unknown object ${parentName}`)
+  }
 }
 {{- end -}}
 

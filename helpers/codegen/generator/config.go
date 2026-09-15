@@ -16,6 +16,10 @@ type Config struct {
 	// EntrypointConfig is the specific config to generate the static dispatch
 	// entrypoint file.
 	EntrypointConfig *EntrypointGeneratorConfig
+
+	// DangEntrypointConfig is the specific config to generate the Dang module
+	// entrypoint the engine loads under a manifest `[entrypoint]` table.
+	DangEntrypointConfig *DangEntrypointGeneratorConfig
 }
 
 // Specific configuration for module generation.
@@ -72,6 +76,52 @@ type EntrypointGeneratorConfig struct {
 	// SourceDir is the user's source directory name relative to ModuleRoot
 	// (defaults to "src" for TypeScript).
 	SourceDir string
+
+	// DispatchMode renders the manifest-v2 dispatcher instead of the legacy
+	// entrypoint: one JSON request on stdin, one JSON result on stdout, and no
+	// register(). See EntrypointOptions.DispatchMode.
+	DispatchMode bool
+
+	// BoundModules are the modules the dispatcher serves into its own session
+	// before dispatching. Dispatch mode only: a v2 manifest has no
+	// [[dependencies]] table to declare them in, so the serve happens at run
+	// time instead. Empty means the module binds no clients.
+	BoundModules []BoundModule
+}
+
+// Specific configuration for generating the Dang module entrypoint — the program
+// the engine loads under a manifest `[entrypoint]` table.
+type DangEntrypointGeneratorConfig struct {
+	// TypedefJSONPath is the path to the JSON-serialized DaggerModule typedef
+	// produced by the SDK introspector, the same input the dispatcher is
+	// rendered from.
+	TypedefJSONPath string
+
+	// OutputFile is the path (relative to OutputDir) of the generated program.
+	// Defaults to "entrypoint/main.dang".
+	OutputFile string
+
+	// ModuleName is the module's name as the workspace records it, used in the
+	// error a missing generated file raises. The typedef JSON carries the
+	// pascalized *object* name, which is not the same thing.
+	ModuleName string
+
+	// Runtime selects the container recipe call() bakes: "node", "bun" or
+	// "deno". Defaults to node.
+	Runtime string
+
+	// ModulePath is the module directory relative to the workspace root. The
+	// recipe uses it as the container workdir, so it is baked at generation
+	// rather than read from workspace.cwd, which is the caller's.
+	ModulePath string
+
+	// DispatchFile is the dispatcher call() execs, relative to the module
+	// directory. Defaults to "__dagger.dispatch.ts".
+	DispatchFile string
+
+	// TSConfigPath is the tsconfig tsx loads, relative to the module directory.
+	// Node only; defaults to "tsconfig.json".
+	TSConfigPath string
 }
 
 // Specific configuration for client generation.

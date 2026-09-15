@@ -434,7 +434,7 @@ func TestGenerate_Client_ServeBoundModule(t *testing.T) {
 	t.Run("local module resolves against the workspace by a root-relative path", func(t *testing.T) {
 		state, err := generate(generator.Config{
 			ClientConfig: &generator.ClientGeneratorConfig{
-				ModuleName:  "hello",
+				ModuleName:   "hello",
 				BoundModules: []generator.BoundModule{{Name: "hello", Kind: "DIR_SOURCE", Path: ".dagger/modules/hello"}},
 			},
 		}, CoreGenFile, buildSchema(), "v0.21.0")
@@ -456,7 +456,7 @@ func TestGenerate_Client_ServeBoundModule(t *testing.T) {
 	t.Run("git module serves from its canonical ref + pin", func(t *testing.T) {
 		state, err := generate(generator.Config{
 			ClientConfig: &generator.ClientGeneratorConfig{
-				ModuleName:  "hello",
+				ModuleName:   "hello",
 				BoundModules: []generator.BoundModule{{Name: "hello", Kind: "GIT_SOURCE", Ref: "github.com/foo/hello@main", Pin: "abcdef"}},
 			},
 		}, CoreGenFile, buildSchema(), "v0.21.0")
