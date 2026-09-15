@@ -1549,8 +1549,6 @@ type TypescriptSdk {
   }
 
   """
-  Read the client dir's current config files (package.json, tsconfig.json,
-  """
   Generate the client half of a scope: one npm-installable package per target
   under .dagger/clients, with the vendored library beside them.
 
