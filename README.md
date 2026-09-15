@@ -100,7 +100,7 @@ otherwise — matching where the engine reads it from.
 
 `--dual-clients` only affects module scopes, and only the standalone client
 package described below — see [Generate a typed client](#generate-a-typed-client).
-It is temporary, and goes away when a module's two client shapes become one.
+It is temporary, and goes away when the two output directories merge into one.
 
 ## Generate a typed client
 
@@ -124,11 +124,23 @@ What a scope gets depends on what the scope is:
 | A module | `sdk/`, the module's own bindings; plus `clients/` with `--dual-clients` |
 | Your own project | `.dagger/clients/` |
 
-A module binds its targets into the `sdk/` directory it already generates, which
-is what its source reaches through `@dagger.io/dagger` — so a client added inside
-a module is usable from it straight away. The standalone package under `clients/`
-is for code outside the module, and nothing needs it to build the module, so it
-is only written with `--dual-clients`.
+A module binds its targets into the `sdk/` directory it already generates:
+every module — a dependency, a recorded target, the module itself — becomes its
+own client file with its own `dag` and entrypoint functions, reached through
+its own specifier:
+
+```ts
+import { dag, Container } from "@dagger.io/dagger" // core API
+import { api } from "@dagger.io/dagger/api"        // a bound module
+
+api().deploy(dag.container().from("alpine"))
+```
+
+The `@dagger.io/dagger/<module>` aliases are written into `tsconfig.json` (or
+`deno.json`) at generation, so a client added inside a module is usable from it
+straight away. The standalone package under `clients/` renders the same
+per-module clients for code outside the module, and nothing needs it to build
+the module, so it is only written with `--dual-clients`.
 
 One package per scope, not one per target: the core API is the bulk of a
 generated client and every target in a scope shares it. The package holds

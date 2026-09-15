@@ -38,14 +38,16 @@ type TypescriptSdk {
   """
   Whether a module scope also generates the standalone client package.
 
-  A module scope binds its targets twice, into two shapes with two callers: the
-  module's own `sdk/` bindings, which its source reaches through
-  @dagger.io/dagger, and a standalone package under `clients/` for code outside
-  the module. Only the first is needed to build the module, so the second is off
-  unless asked for. A client-only scope ignores this — the standalone package is
-  its only output, and withholding it would leave the scope with nothing.
+  A module scope binds its targets twice, for two callers: the module's own
+  `sdk/` bindings, which its source reaches through @dagger.io/dagger/<module>,
+  and a standalone package under `clients/` for code outside the module. The
+  two are the same rendering now — one client file per module, differing only
+  in how they resolve the runtime — but only the first is needed to build the
+  module, so the second is off unless asked for. A client-only scope ignores
+  this — the standalone package is its only output, and withholding it would
+  leave the scope with nothing.
 
-  Temporary: it goes away when the two shapes become one.
+  Temporary: it goes away when the two directories merge into one.
   """
   dualClients: Boolean! = false
 
@@ -277,7 +279,7 @@ type TypescriptSdk {
       let bound = moduleFiles(
         served,
         source,
-        withSelfBindings(staged, scope, name, firstPass, withSelf, selfTargets),
+        withSelfBindings(staged, scope, name, firstPass, withSelf, selfTargets, rt),
       )
       let complete = if (dualClients) { clientScope(bound, source, true, withSelf) } else { bound }
 
@@ -807,15 +809,15 @@ type TypescriptSdk {
   }
 
   """
-  Generate a module's own bindings: client.gen.ts, one <dep>.gen.ts per manifest
-  dependency, and one <target>.gen.ts per client the scope records.
+  Generate a module's own bindings: client.gen.ts holding core types, one
+  <module>.gen.ts client per manifest dependency and per recorded target, and
+  the loader.gen.ts the entrypoints load ID-carrying values through.
 
-  A scope's clients are generated twice over, into two different shapes, because
-  they serve two different callers. The standalone package under `clients/` is
-  for code outside the module, and carries the bootstrap that serves its targets.
-  These bindings are for the module's own source: they arrive through the bundle
-  as @dagger.io/dagger, alongside the module's dependencies, so `src/index.ts`
-  binds a client target the same way it binds anything else.
+  Each module's file is a self-contained client — its own root Client, its own
+  dag, its own entrypoint functions — reached from the module's source through
+  @dagger.io/dagger/<module>. The standalone package under `clients/` renders
+  the same shape for code outside the module; what still separates the two is
+  where they live and how they resolve the runtime, not what they contain.
 
   Engine-free: the schemas arrive as data, so this is a plain container exec.
   """
@@ -1076,25 +1078,11 @@ type TypescriptSdk {
     runtime: Runtime!,
     targets: [ClientTarget!]!,
   ): Directory! {
-    let sdk = moduleSdkDirectory(generateModuleBindings(schemaJSON, moduleName, targets))
+    let bindings = generateModuleBindings(schemaJSON, moduleName, targets)
+    let sdk = moduleSdkDirectory(bindings)
     let typedef = moduleTypedefJSON(moduleName, source, sdk)
     let dispatcher = generateModuleDispatcher(typedef, targets)
     let dangEntrypoint = generateDangEntrypoint(typedef, moduleName, sourcePath, runtime)
-
-    let configUpdater = configUpdaterBuilder
-      .withDirectory("/existing", existing)
-      .withDirectory("/out", directory)
-
-    let config = if (runtime == Runtime.DENO) {
-      configUpdater
-        .withExec(["config-updater", "deno-config", "/existing/deno.json", "/out/deno.json"])
-        .directory("/out")
-    } else {
-      configUpdater
-        .withExec(["config-updater", "package-json", "/existing/package.json", "/out/package.json"])
-        .withExec(["config-updater", "tsconfig", "/existing/tsconfig.json", "/out/tsconfig.json"])
-        .directory("/out")
-    }
 
     let base = directory
       .withDirectory("sdk", sdk)
@@ -1110,7 +1098,50 @@ type TypescriptSdk {
       base.withFile(legacyEntrypointFile, generateModuleEntrypoint(typedef))
     }
 
-    withLegacy.withDirectory(".", config)
+    # The module's own name rides along speculatively: this pass's bindings
+    # cannot carry the self client yet, but the staged tree built from them must
+    # be loadable, and a module whose source imports its own client needs the
+    # alias resolvable for that load. The second pass replaces the set with one
+    # derived from the bindings that really exist, so a name that never
+    # materializes (kebab-cased differently, or a module that cannot load) is
+    # corrected rather than kept.
+    let aliasModules = bindingAliasModules(bindings).filter { m => m != moduleName } + [moduleName]
+    withLegacy.withDirectory(".", moduleConfigDirectory(existing, runtime, aliasModules))
+  }
+
+  """
+  The names each generated module client is aliased under: one per
+  <module>.gen.ts in the bindings, with the core client and the loader — which
+  are not modules — left out.
+  """
+  let bindingAliasModules(bindings: Directory!): [String!]! {
+    bindings.entries
+      .filter { entry => entry.trimSuffix(".gen.ts") != entry }
+      .map { entry => entry.trimSuffix(".gen.ts") }
+      .filter { name => name != "client" and name != "loader" }
+  }
+
+  """
+  A module's config files, with one @dagger.io/dagger/<module> alias per
+  generated module client so the module's source can import each client through
+  its own specifier. The alias set must agree with the binding files sitting in
+  sdk/, so callers derive it from the bindings of the pass they are writing.
+  """
+  let moduleConfigDirectory(existing: Directory!, runtime: Runtime!, aliasModules: [String!]!): Directory! {
+    let configUpdater = configUpdaterBuilder
+      .withDirectory("/existing", existing)
+      .withDirectory("/out", directory)
+
+    if (runtime == Runtime.DENO) {
+      configUpdater
+        .withExec(["config-updater", "deno-config", "/existing/deno.json", "/out/deno.json"] + aliasModules)
+        .directory("/out")
+    } else {
+      configUpdater
+        .withExec(["config-updater", "package-json", "/existing/package.json", "/out/package.json"])
+        .withExec(["config-updater", "tsconfig", "/existing/tsconfig.json", "/out/tsconfig.json"] + aliasModules)
+        .directory("/out")
+    }
   }
 
   """
@@ -1293,9 +1324,14 @@ type TypescriptSdk {
   time, from the same inputs, so the result does not depend on what was on disk
   when the run started.
 
-  Only the bindings are redone: everything else in the tree comes through from
-  the first pass. The entrypoint is the expensive half and it comes from scanning
-  the user's source, which the self types do not change.
+  Only the bindings — and the config aliases derived from them — are redone:
+  everything else in the tree comes through from the first pass. The entrypoint
+  is the expensive half and it comes from scanning the user's source, which the
+  self types do not change. The config is re-run because the second pass adds
+  the module's own client file, and that file's @dagger.io/dagger/<module>
+  alias has to exist for the module's source to import it; the first pass's
+  config files serve as the existing input, so user keys merged there carry
+  through.
 
   A Directory rather than a Workspace, because the first pass's bindings must
   never be written to the workspace the engine diffs. They differ from these —
@@ -1303,17 +1339,15 @@ type TypescriptSdk {
   client.gen.ts in the changeset on every run that touches the module's source,
   long after the file itself stopped changing.
   """
-  let withSelfBindings(staged: Workspace!, scope: String!, name: String!, generated: Directory!, targets: [ClientTarget!]!, selfTargets: [ClientTarget!]!): Directory! {
+  let withSelfBindings(staged: Workspace!, scope: String!, name: String!, generated: Directory!, targets: [ClientTarget!]!, selfTargets: [ClientTarget!]!, rt: Runtime!): Directory! {
     if (selfTargets.length == 0) {
       # Nothing to fold in, so the first pass's bindings are already the right ones.
       generated
     } else {
-      generated.withDirectory(
-        "sdk",
-        moduleSdkDirectory(
-          generateModuleBindings(staged.moduleSource("/" + scope).introspectionSchemaJSON.contents, name, targets),
-        ),
-      )
+      let bindings = generateModuleBindings(staged.moduleSource("/" + scope).introspectionSchemaJSON.contents, name, targets)
+      generated
+        .withDirectory("sdk", moduleSdkDirectory(bindings))
+        .withDirectory(".", moduleConfigDirectory(generated, rt, bindingAliasModules(bindings)))
     }
   }
 
