@@ -12,14 +12,14 @@ import (
 	"codegen/introspection"
 )
 
-// TestDepTemplate_RendersDepTypes renders the per-dep template against a small
-// hand-crafted schema and asserts:
-//   - dep-owned scalar / class are emitted;
-//   - extendable types (Query/Client, Binding, Env) become
-//     `declare module` + prototype-assignment blocks;
-//   - the dep file imports BaseClient from the SDK runtime (not from
-//     client.gen.ts — which would create an ESM cycle).
-func TestDepTemplate_RendersDepTypes(t *testing.T) {
+// TestClientTemplate_RendersModuleClient renders the per-module client template
+// against a small hand-crafted schema and asserts the unified shape:
+//   - module-owned scalar / class are emitted;
+//   - the fields the module contributes to Query become the file's own Client
+//     class, with a dag instance and a mirroring top-level function;
+//   - nothing declaration-merges into the core file, and no augmentation
+//     function is emitted for the core file to call.
+func TestClientTemplate_RendersModuleClient(t *testing.T) {
 	helloModule := newSourceMapDirective("hello")
 
 	full := &introspection.Schema{
@@ -27,7 +27,7 @@ func TestDepTemplate_RendersDepTypes(t *testing.T) {
 			Name string `json:"name,omitempty"`
 		}{Name: "Query"},
 		Types: introspection.Types{
-			// Extendable type with one dep-contributed field.
+			// Extendable type with one module-contributed field.
 			{
 				Kind: introspection.TypeKindObject,
 				Name: "Query",
@@ -45,36 +45,38 @@ func TestDepTemplate_RendersDepTypes(t *testing.T) {
 					},
 				},
 			},
-			// Dep-owned scalar.
+			// Module-owned scalar.
 			{
 				Kind:        introspection.TypeKindScalar,
 				Name:        "HelloID",
 				Description: "Hello identifier.",
 				Directives:  introspection.Directives{helloModule},
 			},
-			// Dep-owned regular class.
+			// Module-owned regular class, referencing a core class.
 			{
 				Kind:       introspection.TypeKindObject,
 				Name:       "Hello",
 				Directives: introspection.Directives{helloModule},
 				Fields: []*introspection.Field{
 					{
-						Name: "greet",
+						Name: "ctr",
 						TypeRef: &introspection.TypeRef{
 							Kind: introspection.TypeKindNonNull,
 							OfType: &introspection.TypeRef{
-								Kind: introspection.TypeKindScalar,
-								Name: "String",
+								Kind: introspection.TypeKindObject,
+								Name: "Container",
 							},
 						},
 					},
 				},
 			},
-			// Core type. Not emitted in the dep file itself; included so
-			// CoreTypeNames returns it for the type-only import.
+			// Core type the module references.
 			{
 				Kind: introspection.TypeKindObject,
 				Name: "Container",
+				Fields: []*introspection.Field{
+					{Name: "id", TypeRef: &introspection.TypeRef{Kind: introspection.TypeKindScalar, Name: "ContainerID"}},
+				},
 			},
 		},
 	}
@@ -87,49 +89,50 @@ func TestDepTemplate_RendersDepTypes(t *testing.T) {
 		ModuleConfig: &generator.ModuleGeneratorConfig{ModuleName: "host"},
 	})
 
-	out := renderDepTemplate(t, tmpl, depSchema, "hello")
+	out := renderModuleClientTemplate(t, tmpl, depSchema, "hello")
 
-	// dep-owned scalar and class must appear.
+	// Module-owned scalar and class must appear.
 	require.Contains(t, out, "HelloID",
-		"dep-owned scalar must be emitted in the dep file")
+		"module-owned scalar must be emitted in the module file")
 	require.Contains(t, out, "export class Hello extends BaseClient",
-		"dep-owned class must be emitted in the dep file")
+		"module-owned class must be emitted in the module file")
 
-	// extendable types (Query/Client, Binding, Env) must NOT be re-declared
-	// as classes — they're augmented via declare-module + prototype.
-	require.NotContains(t, out, "export class Client extends BaseClient",
-		"extendable type Client must not be re-rendered in the dep file")
+	// The contributed Query fields become the file's own Client, with a dag
+	// and a mirroring top-level function.
+	require.Contains(t, out, "export class Client extends BaseClient",
+		"the module's contributed root fields must become its own Client class")
+	require.Contains(t, out, "hello = (", "the root field must be a Client method")
+	require.Contains(t, out, "export const dag = new Client()",
+		"the module client must carry its own dag")
+	require.Contains(t, out, "export function hello(): Hello {",
+		"each root field must be mirrored as a top-level function")
+	require.Contains(t, out, "return dag.hello()")
 
-	// dep-contributed extendable-type fields become augmentations.
-	require.Contains(t, out, `declare module "./client.gen.js"`,
-		"dep file must declare-module merge into client.gen.ts for IDE completion")
-	require.Contains(t, out, "interface Client {",
-		"dep-contributed Client methods must be declared via interface merging")
-	require.Contains(t, out, "Client.prototype.hello",
-		"dep-contributed methods must be attached via prototype assignment so they work at runtime")
-	require.Contains(t, out, "export function __applyHelloAugmentations",
-		"dep file must export the augmentation function client.gen.ts calls in its footer")
+	// Nothing merges into the core file anymore.
+	require.NotContains(t, out, "declare module",
+		"the module file must not declaration-merge into the core file")
+	require.NotContains(t, out, ".prototype.",
+		"the module file must not patch prototypes")
+	require.NotContains(t, out, "Augmentations",
+		"no augmentation function may be emitted")
 
-	// BaseClient comes from the SDK runtime, not from client.gen.ts.
+	// BaseClient comes from the SDK runtime.
 	require.Regexp(t, `import\s*\{\s*Context,\s*BaseClient`, out,
 		"BaseClient must be imported alongside Context from the runtime")
 
-	// Other core types are imported type-only from client.gen.ts — type-only
-	// imports are erased at runtime, so no ESM cycle.
-	require.Contains(t, out, `import type {`)
-	require.Contains(t, out, `from "./client.gen.js"`)
+	// The referenced core class is value-imported from the core file (bodies
+	// construct it), and the value import is not a type-only one.
+	require.Regexp(t, `import \{[^}]*\bContainer\b[^}]*\} from "\./client\.gen\.js"`, out)
+	require.NotRegexp(t, `import type \{[^}]*\bContainer\b`, out)
 }
 
-// TestDepTemplate_RejectsSiblingDepTypes asserts generation fails, loudly and
-// by name, when one dependency's API surfaces a type owned by another.
-//
-// A per-dep file has two arms — declare the dep's own types, import core ones
-// from client.gen.ts — and no third for a sibling's. The engine does not let a
-// module's API expose a type it neither owns nor gets from core, so this is
-// unreachable today; the point is that the day it stops being unreachable,
-// codegen stops rather than emitting a file referencing a name it never
-// imported.
-func TestDepTemplate_RejectsSiblingDepTypes(t *testing.T) {
+// TestClientTemplate_ImportsSiblingModuleTypes asserts that a module whose API
+// references a type owned by another module imports it from that module's own
+// generated file. This replaces the old fail-closed sibling guard: with every
+// module in its own client file, a sibling type has an owning file to import
+// from — the case a module's own API returning a dependency's type hits on
+// every self-client generation.
+func TestClientTemplate_ImportsSiblingModuleTypes(t *testing.T) {
 	helloModule := newSourceMapDirective("hello")
 	otherModule := newSourceMapDirective("other")
 
@@ -157,8 +160,14 @@ func TestDepTemplate_RejectsSiblingDepTypes(t *testing.T) {
 					},
 				},
 			},
-			newType("Other", introspection.TypeKindObject,
-				introspection.Directives{otherModule}),
+			{
+				Kind:       introspection.TypeKindObject,
+				Name:       "Other",
+				Directives: introspection.Directives{otherModule},
+				Fields: []*introspection.Field{
+					{Name: "value", TypeRef: &introspection.TypeRef{Kind: introspection.TypeKindNonNull, OfType: &introspection.TypeRef{Kind: introspection.TypeKindScalar, Name: "String"}}},
+				},
+			},
 		},
 	}
 	generator.SetSchemaParents(full)
@@ -170,29 +179,18 @@ func TestDepTemplate_RejectsSiblingDepTypes(t *testing.T) {
 		ModuleConfig: &generator.ModuleGeneratorConfig{ModuleName: "host"},
 	})
 
-	data := struct {
-		Schema        *introspection.Schema
-		SchemaVersion string
-		Types         []*introspection.Type
-		DepName       string
-	}{
-		Schema:        depSchema,
-		SchemaVersion: "v0.21.0",
-		Types:         depSchema.Types,
-		DepName:       "hello",
-	}
+	out := renderModuleClientTemplate(t, tmpl, depSchema, "hello")
 
-	var b bytes.Buffer
-	err := tmpl.ExecuteTemplate(&b, "dep", data)
-	require.Error(t, err, "a dependency referencing a sibling's type must fail generation")
-	require.ErrorContains(t, err, `dependency "hello" references types owned by another dependency`)
-	require.ErrorContains(t, err, "Other (owned by other)")
+	require.Regexp(t, `import \{[^}]*\bOther\b[^}]*\} from "\./other\.gen\.js"`, out,
+		"a sibling-owned class must be value-imported from the sibling's file")
+	require.Contains(t, out, "return new Other(ctx)",
+		"the body must construct the imported sibling class")
 }
 
-// TestHeaderTemplate_EmitsDependencyExports renders the header template against
-// a schema containing two deps and asserts one import + `export *` per dep,
-// with kebab-cased filenames, plus the BaseClient re-export.
-func TestHeaderTemplate_EmitsDependencyExports(t *testing.T) {
+// TestHeaderTemplate_KeepsCoreOnly renders the header template against a schema
+// containing two modules and asserts the core file no longer imports,
+// re-exports, or wires up anything for them: the merged namespace is gone.
+func TestHeaderTemplate_KeepsCoreOnly(t *testing.T) {
 	full := &introspection.Schema{
 		QueryType: struct {
 			Name string `json:"name,omitempty"`
@@ -214,14 +212,18 @@ func TestHeaderTemplate_EmitsDependencyExports(t *testing.T) {
 	out := b.String()
 
 	require.Contains(t, out, "export { BaseClient }",
-		"client.gen.ts must re-export BaseClient (the class lives in the SDK runtime to avoid an ESM cycle with dep files)")
-	require.Contains(t, out, `export * from "./hello.gen.js"`)
-	require.Contains(t, out, `export * from "./my-dep.gen.js"`,
-		"camelCase dep names must be kebab-cased in the filename")
+		"client.gen.ts must keep re-exporting BaseClient for existing consumers")
+	require.NotContains(t, out, "export *",
+		"the core file must not re-export module files")
+	require.NotContains(t, out, "hello.gen.js",
+		"the core file must not import module files")
+	require.NotContains(t, out, "my-dep.gen.js")
+	require.NotContains(t, out, "Augmentations")
 }
 
 // TestGenerate_SplitsDependencyFiles exercises the full generate() flow and
-// asserts the core file excludes the dep and a per-dep file is produced.
+// asserts the core file excludes the module and its file is a self-contained
+// client.
 func TestGenerate_SplitsDependencyFiles(t *testing.T) {
 	helloModule := newSourceMapDirective("hello")
 
@@ -282,17 +284,21 @@ func TestGenerate_SplitsDependencyFiles(t *testing.T) {
 	core := readOverlay(t, state, "client.gen.ts")
 	dep := readOverlay(t, state, "hello.gen.ts")
 
-	// Core file does not re-declare the dep's class but does wire up the
-	// augmentation in its footer.
+	// The core file neither declares the module's class nor knows the module
+	// file exists.
 	require.NotContains(t, core, "export class Hello extends BaseClient")
-	// Only Query (-> Client) is present in this schema, so the augmentation call
-	// passes just the extendable classes that exist.
-	require.Contains(t, core, "__applyHelloAugmentations({ Client })")
-	require.Contains(t, core, `export * from "./hello.gen.js"`)
+	require.NotContains(t, core, "hello.gen.js")
+	require.NotContains(t, core, "export *")
 
-	// Dep file carries the dep's own class.
+	// The module file is a self-contained client.
 	require.Contains(t, dep, "export class Hello extends BaseClient")
-	require.Contains(t, dep, "export function __applyHelloAugmentations")
+	require.Contains(t, dep, "export class Client extends BaseClient")
+	require.Contains(t, dep, "export const dag = new Client()")
+	require.Contains(t, dep, "export function hello(): Hello {")
+
+	// Library mode (no ModuleConfig) has no entrypoint, so no loader.
+	_, err = state.Overlay.Open("loader.gen.ts")
+	require.Error(t, err, "library generation must not emit a loader")
 }
 
 // TestGenerate_KeepsOwnTypesInClient checks that only dependencies are split:
@@ -327,19 +333,82 @@ func TestGenerate_SplitsOwnTypesLikeADependency(t *testing.T) {
 	depFile := readOverlay(t, state, "dep.gen.ts")
 
 	// The module's own type splits out like any other, and the core file holds
-	// only core types plus the re-exports.
+	// only core types — no re-exports, no knowledge of the module files.
 	require.NotContains(t, core, "export class App extends BaseClient")
-	require.Contains(t, core, `export * from "./dep.gen.js"`)
-	require.Contains(t, core, `export * from "./app.gen.js"`)
+	require.NotContains(t, core, "export *")
+	require.NotContains(t, core, "app.gen.js")
+	require.NotContains(t, core, "dep.gen.js")
 
 	require.Contains(t, depFile, "export class Dep extends BaseClient")
 	require.Contains(t, readOverlay(t, state, "app.gen.ts"), "export class App extends BaseClient")
 }
 
+// TestGenerate_Module_EmitsLoader checks the loader emitted beside a module's
+// bindings: an explicit type-name -> class map covering core and module-owned
+// classes, each entry pointing at its owning file's namespace import.
+func TestGenerate_Module_EmitsLoader(t *testing.T) {
+	depModule := newSourceMapDirective("myDep")
+
+	schema := &introspection.Schema{
+		QueryType: struct {
+			Name string `json:"name,omitempty"`
+		}{Name: "Query"},
+		Types: introspection.Types{
+			{Kind: introspection.TypeKindObject, Name: "Container", Fields: []*introspection.Field{{Name: "id", TypeRef: &introspection.TypeRef{Kind: introspection.TypeKindScalar, Name: "ContainerID"}}}},
+			{Kind: introspection.TypeKindObject, Name: "MyDep", Directives: introspection.Directives{depModule}, Fields: []*introspection.Field{{Name: "id", TypeRef: &introspection.TypeRef{Kind: introspection.TypeKindScalar, Name: "MyDepID"}}}},
+		},
+	}
+	generator.SetSchemaParents(schema)
+
+	state, err := generate(generator.Config{
+		ModuleConfig: &generator.ModuleGeneratorConfig{ModuleName: "app"},
+	}, ClientGenFile, schema, "v0.21.0")
+	require.NoError(t, err)
+
+	loader := readOverlay(t, state, "loader.gen.ts")
+	require.Contains(t, loader, `import * as __core from "./client.gen.js"`)
+	require.Contains(t, loader, `import * as __modMyDep from "./my-dep.gen.js"`)
+	require.Contains(t, loader, `"Container": __core.Container,`)
+	require.Contains(t, loader, `"MyDep": __modMyDep.MyDep,`)
+	require.Contains(t, loader, "export function __loadObject(")
+}
+
+// TestGenerate_RejectsReservedModuleNames asserts a module whose kebab-cased
+// name would claim a generated core or loader file fails generation instead of
+// silently overwriting it.
+func TestGenerate_RejectsReservedModuleNames(t *testing.T) {
+	buildSchema := func(module string) *introspection.Schema {
+		schema := &introspection.Schema{
+			QueryType: struct {
+				Name string `json:"name,omitempty"`
+			}{Name: "Query"},
+			Types: introspection.Types{
+				newType("Something", introspection.TypeKindObject,
+					introspection.Directives{newSourceMapDirective(module)}),
+			},
+		}
+		generator.SetSchemaParents(schema)
+		return schema
+	}
+
+	for _, name := range []string{"client", "loader"} {
+		_, err := generate(generator.Config{
+			ModuleConfig: &generator.ModuleGeneratorConfig{ModuleName: "app"},
+		}, ClientGenFile, buildSchema(name), "v0.21.0")
+		require.Error(t, err, "module named %q must be rejected", name)
+		require.ErrorContains(t, err, name)
+	}
+
+	_, err := generate(generator.Config{
+		ClientConfig: &generator.ClientGeneratorConfig{ModuleName: "dagger"},
+	}, CoreGenFile, buildSchema("dagger"), "v0.21.0")
+	require.Error(t, err, `module named "dagger" must be rejected in client mode`)
+}
+
 // TestGenerate_Client_SplitsBoundModule checks the standalone-client layout:
 // the core file is dagger.gen.ts and holds only core types, the bound module is
-// split into its own <module>.gen.ts, and per-module files import the core file
-// by its new name (./dagger.gen.js). No client.gen.ts is produced.
+// split into its own <module>.gen.ts self-contained client importing the SDK
+// package. No client.gen.ts and no loader are produced.
 func TestGenerate_Client_SplitsBoundModule(t *testing.T) {
 	helloModule := newSourceMapDirective("hello")
 
@@ -383,21 +452,24 @@ func TestGenerate_Client_SplitsBoundModule(t *testing.T) {
 		"the bound module's type must be split out of the core file")
 	require.Contains(t, core, "export class Container extends BaseClient",
 		"a pure core type stays in dagger.gen.ts")
-	require.Contains(t, core, `export * from "./hello.gen.js"`)
-	require.Contains(t, core, "__applyHelloAugmentations({ Client })")
+	require.NotContains(t, core, "export *")
+	require.NotContains(t, core, "hello.gen.js")
 
-	// The bound module lands in hello.gen.ts and references the core file by its
-	// new name.
+	// The bound module lands in hello.gen.ts as its own client, resolving the
+	// runtime through the SDK package.
 	hello := readOverlay(t, state, "hello.gen.ts")
 	require.Contains(t, hello, "export class Hello extends BaseClient")
-	require.Contains(t, hello, `declare module "./dagger.gen.js"`,
-		"per-module file must declare-module merge into dagger.gen.ts, not client.gen.ts")
-	require.Contains(t, hello, `from "./dagger.gen.js"`)
-	require.Contains(t, hello, "export function __applyHelloAugmentations")
+	require.Contains(t, hello, "export class Client extends BaseClient")
+	require.Contains(t, hello, "export const dag = new Client()")
+	require.Contains(t, hello, "export function hi(): Promise<string> {")
+	require.Contains(t, hello, `import { Context, BaseClient } from "@dagger.io/dagger"`)
+	require.NotContains(t, hello, "declare module")
 
-	// A client must not emit client.gen.ts.
+	// A client emits neither client.gen.ts nor a loader.
 	_, err = state.Overlay.Open("client.gen.ts")
 	require.Error(t, err, "client generation must not emit client.gen.ts")
+	_, err = state.Overlay.Open("loader.gen.ts")
+	require.Error(t, err, "client generation must not emit a loader")
 }
 
 // TestGenerate_Client_ServeBoundModule checks the runtime bootstrap the client
@@ -470,12 +542,12 @@ func TestGenerate_Client_ServeBoundModule(t *testing.T) {
 	})
 }
 
-// TestDepTemplate_CoreValuesAreValueImported guards the systemic gap where a
-// dep method returning/accepting a core type emitted `new Container(ctx)` and
+// TestClientTemplate_CoreValuesAreValueImported guards the systemic gap where a
+// module method returning/accepting a core type emitted `new Container(ctx)` and
 // `NetworkProtocolNameToValue(...)` against a type-only import (TS1361 + runtime
 // ReferenceError). Core classes the bodies construct and the enum converters
 // they call must be *value*-imported; pure signature types stay type-only.
-func TestDepTemplate_CoreValuesAreValueImported(t *testing.T) {
+func TestClientTemplate_CoreValuesAreValueImported(t *testing.T) {
 	helloModule := newSourceMapDirective("hello")
 	obj := func(ref string) *introspection.TypeRef {
 		return &introspection.TypeRef{
@@ -527,7 +599,7 @@ func TestDepTemplate_CoreValuesAreValueImported(t *testing.T) {
 		ModuleConfig: &generator.ModuleGeneratorConfig{ModuleName: "host"},
 	})
 
-	out := renderDepTemplate(t, tmpl, depSchema, "hello")
+	out := renderModuleClientTemplate(t, tmpl, depSchema, "hello")
 
 	// Core classes the bodies construct are value-imported (not `import type`),
 	// and both arg-only (Directory) and constructed (Container) objects appear.
@@ -558,7 +630,7 @@ func readOverlay(t *testing.T, state *generator.GeneratedState, name string) str
 	return b.String()
 }
 
-func renderDepTemplate(t *testing.T, tmpl *template.Template, schema *introspection.Schema, depName string) string {
+func renderModuleClientTemplate(t *testing.T, tmpl *template.Template, schema *introspection.Schema, depName string) string {
 	t.Helper()
 	data := struct {
 		Schema        *introspection.Schema
@@ -572,7 +644,7 @@ func renderDepTemplate(t *testing.T, tmpl *template.Template, schema *introspect
 		DepName:       depName,
 	}
 	var b bytes.Buffer
-	require.NoError(t, tmpl.ExecuteTemplate(&b, "dep", data))
+	require.NoError(t, tmpl.ExecuteTemplate(&b, "module_client", data))
 	return b.String()
 }
 

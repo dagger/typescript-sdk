@@ -1,6 +1,4 @@
 {{- define "entrypoint_helpers" -}}
-{{ template "entrypoint_load_core_object" . }}
-
 function formatError(e: unknown): DaggerError {
   if (e instanceof Error) {
     let error = dag.error(e.message)
@@ -22,20 +20,5 @@ function formatError(e: unknown): DaggerError {
   } catch {
     return dag.error(String(e))
   }
-}
-{{- end -}}
-
-{{- define "entrypoint_load_core_object" -}}
-// Load a core/dependency object from its ID via node(id:) and wrap it in the
-// matching generated client class. Mirrors the SDK runtime loader; replaces the
-// retired load<Type>FromID API (removed in #12041). Some core type names
-// collide with JS builtins and get a trailing "_" (e.g. "Module" -> Module_).
-function __loadCoreObject(id: string, typeName: string): any {
-  const cls =
-    (__dagger as any)[typeName] ?? (__dagger as any)[typeName + "_"]
-  if (!cls) {
-    throw new Error(`generated client class not found for core type: ${typeName}`)
-  }
-  return new cls(new Context().selectNode(id, typeName))
 }
 {{- end -}}

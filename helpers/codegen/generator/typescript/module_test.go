@@ -69,15 +69,21 @@ func TestGenerateModule_Layout(t *testing.T) {
 	require.NotContains(t, core, `from "@dagger.io/dagger"`)
 	require.Contains(t, dep, `from "./core.js"`)
 
-	// Every module splits into its own file, the module being generated for
-	// included: its API is reached through the same client as a dependency's, so
-	// keeping it in the core file would put the one binding a reader goes looking
-	// for in the only place the others are not.
-	require.Contains(t, core, `export * from "./gendep.gen.js"`)
-	require.Contains(t, core, `export * from "./app.gen.js"`)
+	// Every module splits into its own self-contained client file, the module
+	// being generated for included. The core file no longer imports or
+	// re-exports any of them.
+	require.NotContains(t, core, "export *")
+	require.NotContains(t, core, "gendep.gen.js")
+	require.NotContains(t, core, "app.gen.js")
 	require.Contains(t, dep, "export class Gendep extends BaseClient")
+	require.Contains(t, dep, "export const dag = new Client()")
 	require.NotContains(t, core, "export class App extends BaseClient")
 	require.Contains(t, readOverlay(t, state, "app.gen.ts"), "export class App extends BaseClient")
+
+	// The loader beside the bindings maps each type name to its owning file.
+	loader := readOverlay(t, state, "loader.gen.ts")
+	require.Contains(t, loader, `"Gendep": __modGendep.Gendep,`)
+	require.Contains(t, loader, `"App": __modApp.App,`)
 }
 
 // TestGenerateModule_SourceMapPathIsRelativeToSDKDir pins the source-map
