@@ -19,9 +19,6 @@ import (
 const (
 	daggerLibPathAlias       = "@dagger.io/dagger"
 	daggerTelemetryPathAlias = "@dagger.io/dagger/telemetry"
-
-	daggerLibPath          = "./sdk/index.ts"
-	daggerTelemetryLibPath = "./sdk/telemetry.ts"
 )
 
 var denoUnstableFlags = []string{
@@ -73,6 +70,23 @@ func run(args []string) error {
 			return fmt.Errorf("usage: config-updater deno-config INPUT_PATH OUTPUT_PATH CLIENTS_DIR [MODULE...]")
 		}
 		updated, err = updateDenoConfig(input, extra[0], extra[1:])
+	case "scope-tsconfig":
+		// scope-tsconfig INPUT OUTPUT SDK_DIR CLIENTS_DIR [MODULE...] — sync
+		// only the SDK-owned aliases into a scope's own tsconfig, pointing at
+		// the generated tree wherever it lives (e.g. SDK_DIR=".dagger/clients/sdk",
+		// CLIENTS_DIR=".dagger/clients"). Empty SDK_DIR removes them all. The
+		// file is the user's, so nothing else is touched.
+		if len(extra) < 2 {
+			return fmt.Errorf("usage: config-updater scope-tsconfig INPUT_PATH OUTPUT_PATH SDK_DIR CLIENTS_DIR [MODULE...]")
+		}
+		updated, err = updateScopeAliases(input, "compilerOptions.paths", extra[0], extra[1], extra[2:], true)
+	case "scope-deno-config":
+		// scope-deno-config INPUT OUTPUT SDK_DIR CLIENTS_DIR [MODULE...] — the
+		// same alias sync, as import-map entries in the scope's deno config.
+		if len(extra) < 2 {
+			return fmt.Errorf("usage: config-updater scope-deno-config INPUT_PATH OUTPUT_PATH SDK_DIR CLIENTS_DIR [MODULE...]")
+		}
+		updated, err = updateScopeAliases(input, "imports", extra[0], extra[1], extra[2:], false)
 	case "client-package-json":
 		// client-package-json INPUT OUTPUT ENGINE_VERSION MODULE_NAME
 		if len(extra) != 2 {
@@ -340,23 +354,7 @@ func updateClientDenoConfig(denoConfig, engineVersion string) (string, error) {
 }
 
 func updateTSConfig(tsConfig, clientsDir string, modules []string) (string, error) {
-	tsConfig, err := sjson.Set(tsConfig,
-		"compilerOptions.paths."+gjson.Escape(daggerLibPathAlias),
-		[]string{daggerLibPath},
-	)
-	if err != nil {
-		return "", fmt.Errorf("set dagger path alias: %w", err)
-	}
-
-	tsConfig, err = sjson.Set(tsConfig,
-		"compilerOptions.paths."+gjson.Escape(daggerTelemetryPathAlias),
-		[]string{daggerTelemetryLibPath},
-	)
-	if err != nil {
-		return "", fmt.Errorf("set dagger telemetry path alias: %w", err)
-	}
-
-	tsConfig, err = syncModuleAliases(tsConfig, "compilerOptions.paths", clientsDir, modules, true)
+	tsConfig, err := updateScopeAliases(tsConfig, "compilerOptions.paths", "sdk", clientsDir, modules, true)
 	if err != nil {
 		return "", err
 	}
@@ -397,6 +395,52 @@ func isModuleAlias(key string) bool {
 		return false
 	}
 	return true
+}
+
+// syncLibAliases points the @dagger.io/dagger and @dagger.io/dagger/telemetry
+// aliases at the vendored library under sdkDir. An empty sdkDir removes them —
+// the scope no longer vendors a library, so an alias would point at nothing.
+// asArray selects tsconfig's []string value shape over deno's plain string.
+func syncLibAliases(jsonStr, keyPath, sdkDir string, asArray bool) (string, error) {
+	entries := []struct{ alias, target string }{
+		{daggerLibPathAlias, "./" + sdkDir + "/index.ts"},
+		{daggerTelemetryPathAlias, "./" + sdkDir + "/telemetry.ts"},
+	}
+	var err error
+	for _, e := range entries {
+		key := keyPath + "." + gjson.Escape(e.alias)
+		if sdkDir == "" {
+			jsonStr, err = sjson.Delete(jsonStr, key)
+			if err != nil {
+				return "", fmt.Errorf("remove %s alias: %w", e.alias, err)
+			}
+			continue
+		}
+		var value any = e.target
+		if asArray {
+			value = []string{e.target}
+		}
+		jsonStr, err = sjson.Set(jsonStr, key, value)
+		if err != nil {
+			return "", fmt.Errorf("set %s alias: %w", e.alias, err)
+		}
+	}
+	return jsonStr, nil
+}
+
+// updateScopeAliases syncs every SDK-owned alias in a scope's own config file —
+// @dagger.io/dagger, its /telemetry sub-path, and one @dagger.io/<module> per
+// generated client — and touches nothing else. It is what makes a client-only
+// scope's generated clients importable from the user's own code: unlike the
+// module config modes it neither pins typescript nor sets compiler options,
+// because the file it edits is the user's. An empty sdkDir means the scope's
+// generated clients are gone, so every SDK-owned alias is removed.
+func updateScopeAliases(jsonStr, keyPath, sdkDir, clientsDir string, modules []string, asArray bool) (string, error) {
+	jsonStr, err := syncLibAliases(jsonStr, keyPath, sdkDir, asArray)
+	if err != nil {
+		return "", err
+	}
+	return syncModuleAliases(jsonStr, keyPath, clientsDir, modules, asArray)
 }
 
 // syncModuleAliases makes the config's @dagger.io/<module> entries under
@@ -463,23 +507,7 @@ func updateDenoConfig(denoConfig, clientsDir string, modules []string) (string, 
 		return "", fmt.Errorf("set experimentalDecorators: %w", err)
 	}
 
-	denoConfig, err = sjson.Set(denoConfig,
-		"imports."+gjson.Escape(daggerLibPathAlias),
-		daggerLibPath,
-	)
-	if err != nil {
-		return "", fmt.Errorf("set dagger import: %w", err)
-	}
-
-	denoConfig, err = sjson.Set(denoConfig,
-		"imports."+gjson.Escape(daggerTelemetryPathAlias),
-		daggerTelemetryLibPath,
-	)
-	if err != nil {
-		return "", fmt.Errorf("set dagger telemetry import: %w", err)
-	}
-
-	denoConfig, err = syncModuleAliases(denoConfig, "imports", clientsDir, modules, false)
+	denoConfig, err = updateScopeAliases(denoConfig, "imports", "sdk", clientsDir, modules, false)
 	if err != nil {
 		return "", err
 	}

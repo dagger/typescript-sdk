@@ -1,6 +1,6 @@
 
 export class JSONValue extends BaseClient {
-  private readonly _bytes?: JSON = undefined
+  private readonly _bytes?: JSON | undefined = undefined
 
   /**
    * Constructor is used for internal usage only, do not create object from it.

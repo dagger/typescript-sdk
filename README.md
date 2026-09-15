@@ -141,8 +141,19 @@ A standalone client scope (`.dagger/clients/`) renders the **same** thing: the
 client per target — each serving its own module on use, exactly like a module's
 clients — and a `tsconfig.json` aliasing `@dagger.io/dagger` to the local
 `sdk/`. It vendors the library rather than depending on a remote
-`@dagger.io/dagger`, so it resolves offline, and the SDK never edits your own
-project's config. The two shapes converge, so a shared `.dagger/clients/` can
+`@dagger.io/dagger`, so it resolves offline.
+
+Generation also syncs those aliases into your project's own `tsconfig.json`
+(or `deno.json`) — pointing into `.dagger/clients/` — so your code imports the
+clients straight away:
+
+```ts
+import { connection, dag } from "@dagger.io/dagger"
+import { api } from "@dagger.io/api"
+```
+
+Only the `@dagger.io/*` alias keys are written there, and your `package.json`
+is never touched. The two shapes converge, so a shared `.dagger/clients/` can
 back both a module and your own code.
 
 `clients` is the complete desired set, so `dagger module client rm` is just
