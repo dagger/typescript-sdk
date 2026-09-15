@@ -42,10 +42,9 @@ async function engineCall(): Promise<void> {
 
   await connection(
     async () => {
-      // No serve here: each generated client serves its own module before the
-      // first query that reaches it — a `dag.<module>()` call through the
-      // client's served context, or a received value loaded through the
-      // entrypoint loader's served context.
+      // No serve here: a module is only ever reached through a `dag.<module>()`
+      // call, and each generated client serves its own module before its first
+      // query.
       const result = await invoke(receiverType, fnName, parentJson, args)
       process.stdout.write(
         result === undefined || result === null ? "null" : JSON.stringify(result),
