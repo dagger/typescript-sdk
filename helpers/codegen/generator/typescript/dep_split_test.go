@@ -235,6 +235,61 @@ func TestClientTemplate_ImportsRootArgTypes(t *testing.T) {
 		"a core type used only as a root-field argument must still be imported")
 }
 
+// TestClientTemplate_ServesModuleOnUse asserts a module client whose Bound
+// metadata is set serves its own module before the first query: a git module
+// through the core dag's moduleSource, a local one through a currentWorkspace
+// raw query, and its dag carries the serve.
+func TestClientTemplate_ServesModuleOnUse(t *testing.T) {
+	buildSchema := func() *introspection.Schema {
+		helloModule := newSourceMapDirective("hello")
+		schema := &introspection.Schema{
+			QueryType: struct {
+				Name string `json:"name,omitempty"`
+			}{Name: "Query"},
+			Types: introspection.Types{
+				{
+					Kind: introspection.TypeKindObject,
+					Name: "Query",
+					Fields: []*introspection.Field{
+						{Name: "hello", TypeRef: &introspection.TypeRef{Kind: introspection.TypeKindNonNull, OfType: &introspection.TypeRef{Kind: introspection.TypeKindObject, Name: "Hello"}}, Directives: introspection.Directives{helloModule}},
+					},
+				},
+				{Kind: introspection.TypeKindObject, Name: "Hello", Directives: introspection.Directives{helloModule}, Fields: []*introspection.Field{{Name: "id", TypeRef: &introspection.TypeRef{Kind: introspection.TypeKindScalar, Name: "HelloID"}}}},
+				{Kind: introspection.TypeKindScalar, Name: "HelloID", Directives: introspection.Directives{helloModule}},
+			},
+		}
+		generator.SetSchemaParents(schema)
+		return schema
+	}
+	tmpl := func() *template.Template {
+		return templates.New("v0.21.0", buildSchema(), "", generator.Config{ModuleConfig: &generator.ModuleGeneratorConfig{ModuleName: "host"}})
+	}
+
+	t.Run("git module serves through the core dag", func(t *testing.T) {
+		out := renderModuleClientTemplateBound(t, tmpl(), buildSchema().Include("hello"), "hello",
+			&generator.BoundModule{Name: "hello", Kind: "GIT_SOURCE", Ref: "github.com/foo/hello@main", Pin: "abc"})
+		require.Contains(t, out, `import { dag as __dag } from "@dagger.io/dagger"`)
+		require.Contains(t, out, `await __dag.moduleSource("github.com/foo/hello@main", { refPin: "abc" }).asModule().serve()`)
+		require.Contains(t, out, `new Context().withServe({ key: "hello", run: __serveModule })`)
+		require.NotContains(t, out, "currentWorkspace")
+	})
+
+	t.Run("local module serves through a currentWorkspace query", func(t *testing.T) {
+		out := renderModuleClientTemplateBound(t, tmpl(), buildSchema().Include("hello"), "hello",
+			&generator.BoundModule{Name: "hello", Kind: "DIR_SOURCE", Path: ".dagger/modules/hello"})
+		require.Contains(t, out, `moduleSource(path: "/.dagger/modules/hello") { asModule { serve } }`)
+		require.Contains(t, out, "new Context().withServe({")
+		require.NotContains(t, out, ".moduleSource(\"github")
+	})
+
+	t.Run("no bound metadata means no serve hook", func(t *testing.T) {
+		out := renderModuleClientTemplate(t, tmpl(), buildSchema().Include("hello"), "hello")
+		require.NotContains(t, out, "__serveModule")
+		require.NotContains(t, out, "withServe")
+		require.Contains(t, out, "export const dag = new Client()")
+	})
+}
+
 // TestHeaderTemplate_KeepsCoreOnly renders the header template against a schema
 // containing two modules and asserts the core file no longer imports,
 // re-exports, or wires up anything for them: the merged namespace is gone.
@@ -687,17 +742,23 @@ func readOverlay(t *testing.T, state *generator.GeneratedState, name string) str
 }
 
 func renderModuleClientTemplate(t *testing.T, tmpl *template.Template, schema *introspection.Schema, depName string) string {
+	return renderModuleClientTemplateBound(t, tmpl, schema, depName, nil)
+}
+
+func renderModuleClientTemplateBound(t *testing.T, tmpl *template.Template, schema *introspection.Schema, depName string, bound *generator.BoundModule) string {
 	t.Helper()
 	data := struct {
 		Schema        *introspection.Schema
 		SchemaVersion string
 		Types         []*introspection.Type
 		DepName       string
+		Bound         *generator.BoundModule
 	}{
 		Schema:        schema,
 		SchemaVersion: "v0.21.0",
 		Types:         schema.Types,
 		DepName:       depName,
+		Bound:         bound,
 	}
 	var b bytes.Buffer
 	require.NoError(t, tmpl.ExecuteTemplate(&b, "module_client", data))

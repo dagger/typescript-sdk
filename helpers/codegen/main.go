@@ -301,6 +301,7 @@ func runModule(args []string) error {
 		return err
 	}
 
+	var bound []generator.BoundModule
 	if *clientMetaPath != "" {
 		meta, err := loadClientMeta(*clientMetaPath)
 		if err != nil {
@@ -311,11 +312,21 @@ func runModule(args []string) error {
 			return err
 		}
 		generator.SetSchemaParents(schema)
+
+		// Each target and the module itself carries the source its client serves
+		// on use. Manifest dependencies are not here — the engine serves those —
+		// so they get no serve hook.
+		for _, mod := range meta.Modules {
+			if err := validateBoundModuleKind(mod.BoundModule); err != nil {
+				return err
+			}
+			bound = append(bound, mod.BoundModule)
+		}
 	}
 
 	gen := &typescriptgenerator.TypeScriptGenerator{Config: generator.Config{
 		OutputDir:    *outputDir,
-		ModuleConfig: &generator.ModuleGeneratorConfig{ModuleName: *moduleName},
+		ModuleConfig: &generator.ModuleGeneratorConfig{ModuleName: *moduleName, BoundModules: bound},
 	}}
 
 	ctx := context.Background()

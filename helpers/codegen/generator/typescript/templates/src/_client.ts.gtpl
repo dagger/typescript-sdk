@@ -20,6 +20,11 @@ meet through the session they share. */ -}}
  * Do not make direct changes to the file.
  */
 import { Context, BaseClient } from "{{ ClientRuntimeImport }}"
+{{- if .Bound }}
+{{- /* The core dag runs this module's serve — it carries no serve of its own,
+so serving through it cannot recurse. */}}
+import { dag as __dag } from "@dagger.io/dagger"
+{{- end }}
 
 {{- /* Types owned by the core library or by a sibling module are imported from
 their owning file. Object classes are value imports — the bodies construct them
@@ -71,7 +76,30 @@ call) still gets the class so `dag` below always exists. */ -}}
 {{""}}
 export class Client extends BaseClient {}
 {{- end }}
+
+{{ if .Bound }}
+{{- /* Serve this module into the session before this client's first query, so a
+caller reaching it outside the dispatcher (dev, or another module's source) still
+resolves it. Memoized per session by the module's own source. */}}
+async function __serveModule(): Promise<void> {
+{{- if IsGitModule .Bound.Kind }}
+  await __dag.moduleSource({{ JSString .Bound.Ref }}, { refPin: {{ JSString .Bound.Pin }} }).asModule().serve()
+{{- else }}
+  {{- /* A local module resolves against the workspace by its root-relative path;
+  currentWorkspace is reached by raw query because it is kept out of a module's
+  generated bindings. */}}
+  await (__dag as any).getGQLClient().request(
+    `{ currentWorkspace { moduleSource(path: {{ JSString (WorkspacePath .Bound.Path) }}) { asModule { serve } } } }`,
+  )
+{{- end }}
+}
+
+export const dag = new Client(
+  new Context().withServe({ key: {{ JSString .DepName }}, run: __serveModule }),
+)
+{{- else }}
 {{ template "default" . }}
+{{- end }}
 
 {{- /* Top-level functions mirroring the root fields, bound to this module's
 dag. A root field named like a TS keyword stays reachable through dag only — a

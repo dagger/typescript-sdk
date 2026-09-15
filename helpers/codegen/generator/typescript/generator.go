@@ -133,16 +133,31 @@ func generate(config generator.Config, target string, schema *introspection.Sche
 		return nil, err
 	}
 
+	// The source each module client serves on use, keyed kebab-cased to match
+	// the split names. A module with no entry (a manifest dependency the engine
+	// serves) renders no serve hook.
+	bound := map[string]generator.BoundModule{}
+	if config.ModuleConfig != nil {
+		for _, m := range config.ModuleConfig.BoundModules {
+			bound[strcase.ToKebab(m.Name)] = m
+		}
+	}
+
 	// Render one <module>.gen.ts client file per split module.
 	for _, depName := range splitModules {
 		depSchema := schema.Include(depName)
 		depTarget := filepath.Join(moduleDir, strcase.ToKebab(depName)+".gen.ts")
-		if err := renderTemplate(mfs, tmpl, "module_client", depTarget, depFileData{
+		data := depFileData{
 			Schema:        depSchema,
 			SchemaVersion: schemaVersion,
 			Types:         depSchema.Types,
 			DepName:       depName,
-		}); err != nil {
+		}
+		if m, ok := bound[strcase.ToKebab(depName)]; ok {
+			bm := m
+			data.Bound = &bm
+		}
+		if err := renderTemplate(mfs, tmpl, "module_client", depTarget, data); err != nil {
 			return nil, fmt.Errorf("render module %q: %w", depName, err)
 		}
 	}
@@ -189,6 +204,10 @@ type depFileData struct {
 	SchemaVersion string
 	Types         []*introspection.Type
 	DepName       string
+	// Bound is the module's serve source, set only for a module client whose
+	// module the generated client should serve on use. Nil for the core file,
+	// the loader, and modules the engine serves.
+	Bound *generator.BoundModule
 }
 
 // renderTemplate executes the named template against data and writes the
