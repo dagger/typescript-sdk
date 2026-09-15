@@ -398,18 +398,24 @@ type GenerateChecks {
     let changes = Gen.module(ws, path, "gendep")
     let tree = changes.after.directory(path)
 
-    # Its own file, like any other module's, and re-exported so the module's
-    # source reaches it through @dagger.io/dagger.
+    # Its own client file, like any other module's, reached from the module's
+    # source through its own @dagger.io/dagger/gendep specifier.
     Asserts.generated(changes, path + "/sdk/gendep.gen.ts")
+    let selfClient = tree.file("sdk/gendep.gen.ts").contents
     Asserts.stringContains(
-      tree.file("sdk/client.gen.ts").contents,
-      "./gendep.gen.js",
-      "a module's bindings should re-export its own API",
+      selfClient,
+      "export const dag = new Client()",
+      "a module's own API should render as its own client",
     )
     Asserts.stringContains(
-      tree.file("sdk/gendep.gen.ts").contents,
+      selfClient,
       "gendep()",
       "the self accessor should be camelCase like every other member",
+    )
+    Asserts.stringContains(
+      tree.file("tsconfig.json").contents,
+      "\"@dagger.io/dagger/gendep\"",
+      "the second pass should alias the module's own client",
     )
 
     # And in the standalone package, so callers outside the module reach it the
@@ -691,8 +697,8 @@ type GenerateChecks {
   A module with a local dependency should get bindings for it.
 
   Dependency edges still exist in a manifest even though new wiring goes through
-  clients, and the dependency's bindings are what make `dag.<dep>()` resolve
-  inside the module.
+  clients, and the dependency's client file is what the module's source imports
+  through @dagger.io/dagger/<dep>.
   """
   generateDependencyBindingsCheck(ws: Workspace!): Void @check {
     let changes = Gen.module(Gen.withDependency(ws), fixtures.depAppModule, "generate-deps-app")

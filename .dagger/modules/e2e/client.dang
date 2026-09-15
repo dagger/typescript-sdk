@@ -234,18 +234,30 @@ type ClientChecks {
     # Module flavor, not client flavor: these bindings reach the runtime through
     # the bundle sitting beside them, so a copy of the client package's file
     # would import a package that is not there.
+    let targetClient = tree.file("sdk/client-app.gen.ts").contents
     Asserts.stringContains(
-      tree.file("sdk/client-app.gen.ts").contents,
+      targetClient,
       "from \"./core.js\"",
       "a client's module bindings should import the bundled runtime",
     )
 
-    # Re-exported, or the module's source cannot reach it: sdk/index.ts export *s
-    # client.gen.ts, which is what @dagger.io/dagger resolves to.
+    # The target's file is its own client — root Client, dag, entrypoint
+    # functions — and the core file knows nothing about it. The module's source
+    # reaches it through its own specifier, wired as a tsconfig path.
     Asserts.stringContains(
-      tree.file("sdk/client.gen.ts").contents,
-      "./client-app.gen.js",
-      "the module's bindings should re-export its client targets",
+      targetClient,
+      "export const dag = new Client()",
+      "a target's bindings should carry their own client",
+    )
+    Asserts.assert(
+      tree.file("sdk/client.gen.ts").contents.contains("./client-app.gen.js") == false,
+      "the core bindings should not re-export a target's file",
+    )
+    Asserts.generated(changes, scope + "/sdk/loader.gen.ts")
+    Asserts.stringContains(
+      tree.file("tsconfig.json").contents,
+      "\"@dagger.io/dagger/client-app\"",
+      "the module's tsconfig should alias each generated module client",
     )
 
     null
