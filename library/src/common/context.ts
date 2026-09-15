@@ -3,10 +3,26 @@ import { GraphQLClient } from "graphql-request"
 import { computeQuery, QueryTree } from "./graphql/compute_query.js"
 import { globalConnection } from "./graphql/connection.js"
 
+/**
+ * A module a generated client serves into the session before its first query.
+ * `key` memoizes the serve per session (the module's ref or path); `run`
+ * performs it, through a context that carries no serve of its own so it cannot
+ * recurse.
+ */
+export type ServeSpec = {
+  key: string
+  run: () => Promise<void>
+}
+
 export class Context {
   constructor(
     private _queryTree: QueryTree[] = [],
     private _connection = globalConnection,
+    // Carried by a generated module client's root context and propagated to
+    // every context derived from it, so any query originating from that client
+    // serves the client's module first. Undefined for the core client and for
+    // the serve itself.
+    private _serve?: ServeSpec,
   ) {}
 
   getGQLClient(): GraphQLClient {
@@ -14,13 +30,14 @@ export class Context {
   }
 
   copy(): Context {
-    return new Context([], this._connection)
+    return new Context([], this._connection, this._serve)
   }
 
   select(operation: string, args?: Record<string, unknown>): Context {
     return new Context(
       [...this._queryTree, { operation, args }],
       this._connection,
+      this._serve,
     )
   }
 
@@ -35,11 +52,26 @@ export class Context {
         { operation: "node", args: { id }, inlineType: typeName },
       ],
       this._connection,
+      this._serve,
     )
   }
 
+  /**
+   * Return a copy of this context that serves `spec`'s module before the first
+   * query on it (or on any context derived from it) runs. Used by a generated
+   * module client to bind its own module to its `dag`.
+   */
+  withServe(spec: ServeSpec): Context {
+    return new Context(this._queryTree, this._connection, spec)
+  }
+
   execute<T>(): Promise<T> {
-    return computeQuery(this._queryTree, this._connection.getGQLClient())
+    if (!this._serve) {
+      return computeQuery(this._queryTree, this._connection.getGQLClient())
+    }
+    return this._connection
+      .ensureServed(this._serve.key, this._serve.run)
+      .then(() => computeQuery(this._queryTree, this._connection.getGQLClient()))
   }
 }
 

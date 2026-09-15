@@ -19,9 +19,6 @@ import (
 const (
 	daggerLibPathAlias       = "@dagger.io/dagger"
 	daggerTelemetryPathAlias = "@dagger.io/dagger/telemetry"
-
-	daggerLibPath          = "./sdk/index.ts"
-	daggerTelemetryLibPath = "./sdk/telemetry.ts"
 )
 
 var denoUnstableFlags = []string{
@@ -58,25 +55,23 @@ func run(args []string) error {
 	case "package-json":
 		updated, err = updatePackageJSON(input)
 	case "tsconfig":
-		updated, err = updateTSConfig(input)
+		// tsconfig INPUT OUTPUT CLIENTS_DIR [MODULE...] — one @dagger.io/<module>
+		// path alias per generated module client, pointing at
+		// ./<CLIENTS_DIR>/<module>.gen.ts (or ./<module>.gen.ts when CLIENTS_DIR
+		// is empty, for a flat client scope).
+		if len(extra) < 1 {
+			return fmt.Errorf("usage: config-updater tsconfig INPUT_PATH OUTPUT_PATH CLIENTS_DIR [MODULE...]")
+		}
+		updated, err = updateTSConfig(input, extra[0], extra[1:])
 	case "deno-config":
-		updated, err = updateDenoConfig(input)
-	case "client-package-json":
-		// client-package-json INPUT OUTPUT ENGINE_VERSION MODULE_NAME
-		if len(extra) != 2 {
-			return fmt.Errorf("usage: config-updater client-package-json INPUT_PATH OUTPUT_PATH ENGINE_VERSION MODULE_NAME")
+		// deno-config INPUT OUTPUT CLIENTS_DIR [MODULE...] — same per-module
+		// aliases, as import-map entries.
+		if len(extra) < 1 {
+			return fmt.Errorf("usage: config-updater deno-config INPUT_PATH OUTPUT_PATH CLIENTS_DIR [MODULE...]")
 		}
-		updated, err = updateClientPackageJSON(input, extra[0], extra[1])
-	case "client-tsconfig":
-		updated, err = updateClientTSConfig(input)
-	case "client-deno-config":
-		// client-deno-config INPUT OUTPUT ENGINE_VERSION
-		if len(extra) != 1 {
-			return fmt.Errorf("usage: config-updater client-deno-config INPUT_PATH OUTPUT_PATH ENGINE_VERSION")
-		}
-		updated, err = updateClientDenoConfig(input, extra[0])
+		updated, err = updateDenoConfig(input, extra[0], extra[1:])
 	default:
-		return fmt.Errorf("unknown subcommand %q (expected one of: package-json, tsconfig, deno-config, client-package-json)", subcommand)
+		return fmt.Errorf("unknown subcommand %q (expected one of: package-json, tsconfig, deno-config)", subcommand)
 	}
 	if err != nil {
 		return fmt.Errorf("%s: %w", subcommand, err)
@@ -165,183 +160,10 @@ func pinTypeScript(packageJSON string) (string, error) {
 	return packageJSON, nil
 }
 
-// updateClientPackageJSON turns the client output dir's package.json into a
-// self-contained scoped package: it pins @dagger.io/dagger to the module's
-// engine version, pins typescript, and names the package when unnamed. Existing
-// user config is preserved — in particular a @dagger.io/dagger set to a local
-// ref (e.g. "./sdk", "file:../dagger") is left untouched, so a dev/unreleased
-// engine can point at a local bundle. A missing/empty file starts from "{}".
-func updateClientPackageJSON(packageJSON, engineVersion, moduleName string) (string, error) {
-	packageJSON, err := sjson.Set(packageJSON, "type", "module")
-	if err != nil {
-		return "", fmt.Errorf("set type=module: %w", err)
-	}
-
-	// Name the package only when the user hasn't. Scoped, derived from the bound
-	// module: @dagger.io/<sanitized module name>-client.
-	if !gjson.Get(packageJSON, "name").Exists() {
-		packageJSON, err = sjson.Set(packageJSON, "name", scopedClientName(moduleName))
-		if err != nil {
-			return "", fmt.Errorf("set name: %w", err)
-		}
-	}
-
-	// npm and yarn refuse to install a package with no version, so the generated
-	// client needs one to be reachable as a file: dependency at all. It is a
-	// placeholder, not a claim: the package is local and regenerated, and its
-	// real identity is the engine it was generated against, which the
-	// @dagger.io/dagger pin below already records. Only set when unset, so a user
-	// who versions their client keeps their own scheme.
-	if !gjson.Get(packageJSON, "version").Exists() {
-		packageJSON, err = sjson.Set(packageJSON, "version", "0.0.0")
-		if err != nil {
-			return "", fmt.Errorf("set version: %w", err)
-		}
-	}
-
-	// The SDK owns the @dagger.io/dagger version pin, so it tracks the engine on
-	// regeneration — but only step aside for a *local* ref the user has set (a
-	// vendored bundle). Never clobber "./sdk"/"file:"/… with a version.
-	daggerDepPath := "dependencies." + gjson.Escape(daggerLibPathAlias)
-	if !isLocalDaggerRef(gjson.Get(packageJSON, daggerDepPath).String()) {
-		packageJSON, err = sjson.Set(packageJSON, daggerDepPath, npmVersion(engineVersion))
-		if err != nil {
-			return "", fmt.Errorf("set @dagger.io/dagger dependency: %w", err)
-		}
-	}
-
-	packageJSON, err = pinTypeScript(packageJSON)
+func updateTSConfig(tsConfig, clientsDir string, modules []string) (string, error) {
+	tsConfig, err := updateScopeAliases(tsConfig, "compilerOptions.paths", "sdk", clientsDir, modules, true)
 	if err != nil {
 		return "", err
-	}
-
-	return packageJSON, nil
-}
-
-// isLocalDaggerRef reports whether a package.json dependency value points at a
-// local/non-registry source the SDK must not overwrite with a version pin
-// (local paths, file:/link:/workspace: specifiers, git or URL refs).
-func isLocalDaggerRef(value string) bool {
-	for _, prefix := range []string{".", "/", "file:", "link:", "workspace:", "git+", "git:", "http:", "https:"} {
-		if strings.HasPrefix(value, prefix) {
-			return true
-		}
-	}
-	return false
-}
-
-// npmVersion converts a dagger engine version to an npm-compatible one: strip a
-// single leading "v" (v0.18.0 -> 0.18.0). A dev/pre-release suffix is kept as-is
-// (design §7): the package may be unpublishable but stays installable/executable
-// against that engine.
-func npmVersion(engineVersion string) string {
-	return strings.TrimPrefix(engineVersion, "v")
-}
-
-// scopedClientName derives @dagger.io/<sanitized>-client from the bound module
-// name: lower-cased, every run of non-alphanumerics collapsed to a single "-",
-// and leading/trailing "-" trimmed.
-func scopedClientName(moduleName string) string {
-	var b strings.Builder
-	prevDash := false
-	for _, r := range strings.ToLower(moduleName) {
-		if (r >= 'a' && r <= 'z') || (r >= '0' && r <= '9') {
-			b.WriteRune(r)
-			prevDash = false
-		} else if !prevDash {
-			b.WriteByte('-')
-			prevDash = true
-		}
-	}
-	sanitized := strings.Trim(b.String(), "-")
-	if sanitized == "" {
-		// No usable module name — fall back to a bare scoped name.
-		return "@dagger.io/client"
-	}
-	return "@dagger.io/" + sanitized + "-client"
-}
-
-// updateClientTSConfig fills a sane default tsconfig for a generated client,
-// preserving any keys the user already set. Unlike the module variant it adds
-// **no** `@dagger.io/dagger` -> `./sdk` path override: in the always-Remote model
-// the bare specifier resolves from node_modules via the package.json dependency.
-func updateClientTSConfig(tsConfig string) (string, error) {
-	defaults := []struct {
-		path  string
-		value any
-	}{
-		{"compilerOptions.target", "ES2022"},
-		{"compilerOptions.moduleResolution", "Node"},
-		{"compilerOptions.experimentalDecorators", true},
-		{"compilerOptions.strict", true},
-		{"compilerOptions.skipLibCheck", true},
-	}
-	for _, d := range defaults {
-		v, err := setValueIfNotExists(tsConfig, d.path, d.value)
-		if err != nil {
-			return "", fmt.Errorf("set %s: %w", d.path, err)
-		}
-		tsConfig = v
-	}
-	return tsConfig, nil
-}
-
-// updateClientDenoConfig configures deno.json for a generated client: the common
-// Dagger deno setup plus — for the always-Remote model — the SDK-owned
-// `@dagger.io/dagger` imports pinned to the engine version as `npm:` specifiers.
-// (Upstream's remote path assumed the user declared these; a generated client
-// dir has none, so the SDK writes them.)
-func updateClientDenoConfig(denoConfig, engineVersion string) (string, error) {
-	denoConfig, err := setIfNotExists(denoConfig, "imports.typescript", "npm:typescript@"+defaultTypeScriptVersion)
-	if err != nil {
-		return "", fmt.Errorf("set typescript import: %w", err)
-	}
-
-	denoConfig, err = sjson.Set(denoConfig, "nodeModulesDir", "auto")
-	if err != nil {
-		return "", fmt.Errorf("set nodeModulesDir: %w", err)
-	}
-
-	for _, flag := range denoUnstableFlags {
-		denoConfig, err = appendIfNotExists(denoConfig, "unstable", flag)
-		if err != nil {
-			return "", fmt.Errorf("append unstable %s: %w", flag, err)
-		}
-	}
-
-	denoConfig, err = sjson.Set(denoConfig, "compilerOptions.experimentalDecorators", true)
-	if err != nil {
-		return "", fmt.Errorf("set experimentalDecorators: %w", err)
-	}
-
-	npmDagger := "npm:" + daggerLibPathAlias + "@" + npmVersion(engineVersion)
-	denoConfig, err = sjson.Set(denoConfig, "imports."+gjson.Escape(daggerLibPathAlias), npmDagger)
-	if err != nil {
-		return "", fmt.Errorf("set @dagger.io/dagger import: %w", err)
-	}
-	denoConfig, err = sjson.Set(denoConfig, "imports."+gjson.Escape(daggerTelemetryPathAlias), npmDagger+"/telemetry")
-	if err != nil {
-		return "", fmt.Errorf("set @dagger.io/dagger/telemetry import: %w", err)
-	}
-
-	return denoConfig, nil
-}
-
-func updateTSConfig(tsConfig string) (string, error) {
-	tsConfig, err := sjson.Set(tsConfig,
-		"compilerOptions.paths."+gjson.Escape(daggerLibPathAlias),
-		[]string{daggerLibPath},
-	)
-	if err != nil {
-		return "", fmt.Errorf("set dagger path alias: %w", err)
-	}
-
-	tsConfig, err = sjson.Set(tsConfig,
-		"compilerOptions.paths."+gjson.Escape(daggerTelemetryPathAlias),
-		[]string{daggerTelemetryLibPath},
-	)
-	if err != nil {
-		return "", fmt.Errorf("set dagger telemetry path alias: %w", err)
 	}
 
 	tsConfig, err = sjson.Set(tsConfig, "compilerOptions.experimentalDecorators", true)
@@ -352,7 +174,109 @@ func updateTSConfig(tsConfig string) (string, error) {
 	return tsConfig, nil
 }
 
-func updateDenoConfig(denoConfig string) (string, error) {
+// moduleAliasPrefix scopes the per-module specifiers a module's source imports
+// its generated clients through: @dagger.io/<module> resolves to
+// ./clients/<module>.gen.ts. It is the @dagger.io npm scope, one segment per
+// module — the same name a client would carry if published — and deliberately
+// not under @dagger.io/dagger, which is the core library.
+const moduleAliasScope = "@dagger.io/"
+
+func moduleAlias(module string) string {
+	return moduleAliasScope + module
+}
+
+func moduleAliasTarget(clientsDir, module string) string {
+	if clientsDir == "" {
+		return "./" + module + ".gen.ts"
+	}
+	return "./" + clientsDir + "/" + module + ".gen.ts"
+}
+
+// isModuleAlias reports whether a config key is one of the per-module client
+// aliases this writer owns: an @dagger.io scoped name with a single segment,
+// excluding the core library @dagger.io/dagger (and thus its /telemetry
+// sub-path). Those two are static runtime surface, never pruned.
+func isModuleAlias(key string) bool {
+	rest, ok := strings.CutPrefix(key, moduleAliasScope)
+	if !ok || rest == "dagger" || strings.Contains(rest, "/") {
+		return false
+	}
+	return true
+}
+
+// syncLibAliases points the @dagger.io/dagger and @dagger.io/dagger/telemetry
+// aliases at the vendored library under sdkDir. asArray selects tsconfig's
+// []string value shape over deno's plain string.
+func syncLibAliases(jsonStr, keyPath, sdkDir string, asArray bool) (string, error) {
+	entries := []struct{ alias, target string }{
+		{daggerLibPathAlias, "./" + sdkDir + "/index.ts"},
+		{daggerTelemetryPathAlias, "./" + sdkDir + "/telemetry.ts"},
+	}
+	var err error
+	for _, e := range entries {
+		var value any = e.target
+		if asArray {
+			value = []string{e.target}
+		}
+		jsonStr, err = sjson.Set(jsonStr, keyPath+"."+gjson.Escape(e.alias), value)
+		if err != nil {
+			return "", fmt.Errorf("set %s alias: %w", e.alias, err)
+		}
+	}
+	return jsonStr, nil
+}
+
+// updateScopeAliases syncs the SDK-owned aliases in a module scope's config —
+// @dagger.io/dagger, its /telemetry sub-path, and one @dagger.io/<module> per
+// generated client — leaving every other key alone.
+func updateScopeAliases(jsonStr, keyPath, sdkDir, clientsDir string, modules []string, asArray bool) (string, error) {
+	jsonStr, err := syncLibAliases(jsonStr, keyPath, sdkDir, asArray)
+	if err != nil {
+		return "", err
+	}
+	return syncModuleAliases(jsonStr, keyPath, clientsDir, modules, asArray)
+}
+
+// syncModuleAliases makes the config's @dagger.io/<module> entries under
+// keyPath match the given module list exactly: one alias per module, stale
+// entries for modules that left the closure removed. The core @dagger.io/dagger
+// aliases and any non-module key are untouched. asArray selects tsconfig's
+// []string value shape over deno's plain string.
+func syncModuleAliases(jsonStr, keyPath, clientsDir string, modules []string, asArray bool) (string, error) {
+	keep := map[string]bool{}
+	for _, module := range modules {
+		keep[moduleAlias(module)] = true
+	}
+
+	var stale []string
+	gjson.Get(jsonStr, keyPath).ForEach(func(key, _ gjson.Result) bool {
+		if k := key.String(); isModuleAlias(k) && !keep[k] {
+			stale = append(stale, k)
+		}
+		return true
+	})
+
+	var err error
+	for _, k := range stale {
+		jsonStr, err = sjson.Delete(jsonStr, keyPath+"."+gjson.Escape(k))
+		if err != nil {
+			return "", fmt.Errorf("remove stale module alias %s: %w", k, err)
+		}
+	}
+	for _, module := range modules {
+		var value any = moduleAliasTarget(clientsDir, module)
+		if asArray {
+			value = []string{moduleAliasTarget(clientsDir, module)}
+		}
+		jsonStr, err = sjson.Set(jsonStr, keyPath+"."+gjson.Escape(moduleAlias(module)), value)
+		if err != nil {
+			return "", fmt.Errorf("set module alias for %s: %w", module, err)
+		}
+	}
+	return jsonStr, nil
+}
+
+func updateDenoConfig(denoConfig, clientsDir string, modules []string) (string, error) {
 	// Deno resolves dependencies through this map rather than node_modules, so
 	// the compiler the module's own code needs has to be declared here.
 	denoConfig, err := setIfNotExists(denoConfig, "imports.typescript", "npm:typescript@"+defaultTypeScriptVersion)
@@ -377,20 +301,9 @@ func updateDenoConfig(denoConfig string) (string, error) {
 		return "", fmt.Errorf("set experimentalDecorators: %w", err)
 	}
 
-	denoConfig, err = sjson.Set(denoConfig,
-		"imports."+gjson.Escape(daggerLibPathAlias),
-		daggerLibPath,
-	)
+	denoConfig, err = updateScopeAliases(denoConfig, "imports", "sdk", clientsDir, modules, false)
 	if err != nil {
-		return "", fmt.Errorf("set dagger import: %w", err)
-	}
-
-	denoConfig, err = sjson.Set(denoConfig,
-		"imports."+gjson.Escape(daggerTelemetryPathAlias),
-		daggerTelemetryLibPath,
-	)
-	if err != nil {
-		return "", fmt.Errorf("set dagger telemetry import: %w", err)
+		return "", err
 	}
 
 	return denoConfig, nil

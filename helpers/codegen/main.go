@@ -110,32 +110,12 @@ func runEntrypoint(args []string) error {
 		sdkImport   = fs.String("sdk-import", "@dagger.io/dagger", "bare specifier the entrypoint imports runtime helpers from")
 		sourceDir   = fs.String("source-dir", "src", "the module's source directory, relative to its root")
 		dispatch    = fs.Bool("dispatch", false, "render the manifest-v2 dispatcher (stdin/stdout, no register) instead of the legacy entrypoint")
-		clientMeta  = fs.String("client-meta-path", "", "path to the client meta JSON whose modules the dispatcher serves at run time")
 	)
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
 	if *typedefPath == "" {
 		return fmt.Errorf("--typedef-json-path is required")
-	}
-
-	var bound []generator.BoundModule
-	if *clientMeta != "" {
-		meta, err := loadClientMeta(*clientMeta)
-		if err != nil {
-			return err
-		}
-		for _, mod := range meta.Modules {
-			// The engine serves a module into its own session already, so the
-			// self target is a binding, not something to serve.
-			if mod.Self {
-				continue
-			}
-			if err := validateBoundModuleKind(mod.BoundModule); err != nil {
-				return err
-			}
-			bound = append(bound, mod.BoundModule)
-		}
 	}
 
 	// The default output filename follows the mode, so --dispatch alone writes
@@ -154,7 +134,6 @@ func runEntrypoint(args []string) error {
 			SDKImportPath:   *sdkImport,
 			SourceDir:       *sourceDir,
 			DispatchMode:    *dispatch,
-			BoundModules:    bound,
 		},
 	}
 	gen := &typescriptgenerator.TypeScriptGenerator{Config: cfg}
@@ -298,6 +277,7 @@ func runModule(args []string) error {
 		return err
 	}
 
+	var bound []generator.BoundModule
 	if *clientMetaPath != "" {
 		meta, err := loadClientMeta(*clientMetaPath)
 		if err != nil {
@@ -308,11 +288,25 @@ func runModule(args []string) error {
 			return err
 		}
 		generator.SetSchemaParents(schema)
+
+		// Each target and the module itself carries the source its client serves
+		// on use. Manifest dependencies are not here — the engine serves those —
+		// so they get no serve hook.
+		for _, mod := range meta.Modules {
+			if err := validateBoundModuleKind(mod.BoundModule); err != nil {
+				return err
+			}
+			bound = append(bound, mod.BoundModule)
+		}
 	}
 
 	gen := &typescriptgenerator.TypeScriptGenerator{Config: generator.Config{
-		OutputDir:    *outputDir,
-		ModuleConfig: &generator.ModuleGeneratorConfig{ModuleName: *moduleName},
+		OutputDir: *outputDir,
+		ModuleConfig: &generator.ModuleGeneratorConfig{
+			ModuleName:   *moduleName,
+			BoundModules: bound,
+			EmitLoader:   true,
+		},
 	}}
 
 	ctx := context.Background()
@@ -405,7 +399,11 @@ func runClient(args []string) error {
 		return fmt.Errorf("client meta json lists no modules")
 	}
 
-	clientConfig := &generator.ClientGeneratorConfig{EngineVersion: meta.EngineVersion}
+	// A standalone client scope is a module scope with no module of its own:
+	// every target is external, rendered as the same per-module client with the
+	// same vendored-library imports. The clients sit flat (the scope is nothing
+	// but its clients) and there is no entrypoint, so no loader.
+	var bound []generator.BoundModule
 	schemas := make([]*introspection.Schema, 0, len(meta.Modules))
 	schemaVersion := ""
 	for _, module := range meta.Modules {
@@ -418,19 +416,23 @@ func runClient(args []string) error {
 		}
 		schemas = append(schemas, schema)
 		schemaVersion = version
-		clientConfig.BoundModules = append(clientConfig.BoundModules, module.BoundModule)
+		bound = append(bound, module.BoundModule)
 	}
 
 	schema := mergeSchemas(schemas)
 	generator.SetSchemaParents(schema)
 
 	gen := &typescriptgenerator.TypeScriptGenerator{Config: generator.Config{
-		OutputDir:    *outputDir,
-		ClientConfig: clientConfig,
+		OutputDir: *outputDir,
+		ModuleConfig: &generator.ModuleGeneratorConfig{
+			BoundModules: bound,
+			FlatClients:  true,
+			EmitLoader:   false,
+		},
 	}}
 
 	ctx := context.Background()
-	state, err := gen.GenerateClient(ctx, schema, schemaVersion)
+	state, err := gen.GenerateModule(ctx, schema, schemaVersion)
 	if err != nil {
 		return fmt.Errorf("generate client: %w", err)
 	}
@@ -538,7 +540,7 @@ func loadSchema(path string) (*introspection.Schema, string, error) {
 // types from the core ones the walk passes through: core is already in base, so
 // anything the walk finds that base does not have belongs to the module. Those
 // get the sourceMap directive stamped on, which is what lets everything
-// downstream — the split, the re-exports, the augmentations — treat a module's
+// downstream — the split, the imports, the per-module client — treat a module's
 // own API exactly like a dependency's and render it into its own file.
 func selfContribution(schema *introspection.Schema, moduleName string, base *introspection.Schema) *introspection.Schema {
 	contributed := schema.Include(moduleName)

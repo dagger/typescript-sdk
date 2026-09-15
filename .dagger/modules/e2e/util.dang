@@ -144,14 +144,12 @@ type Gen {
     template: String! = "default",
     packageManager: String! = "",
     baseImage: String! = "",
-    dualClients: Boolean! = false,
   ): Changeset! {
     typescriptSdk(
       runtime: runtime,
       template: template,
       packageManager: packageManager,
       baseImage: baseImage,
-      dualClients: dualClients,
       # The fixtures carry the skip marker so `dagger generate` writes nothing
       # into them. These checks are the reason they exist, so they opt out of it
       # and generate the tree the marker protects.

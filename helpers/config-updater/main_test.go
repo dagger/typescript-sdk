@@ -148,9 +148,11 @@ func TestUpdatePackageJSON(t *testing.T) {
 
 func TestUpdateTSConfig(t *testing.T) {
 	type testCase struct {
-		name     string
-		tsConfig string
-		expected string
+		name       string
+		tsConfig   string
+		clientsDir string
+		modules    []string
+		expected   string
 	}
 
 	for _, tc := range []testCase{
@@ -214,6 +216,50 @@ func TestUpdateTSConfig(t *testing.T) {
 }`,
 		},
 		{
+			name:       "tsconfig with modules adds one alias per module client",
+			tsConfig:   `{}`,
+			clientsDir: "clients",
+			modules:    []string{"my-dep", "app"},
+			expected: `{
+  "compilerOptions": {
+    "experimentalDecorators": true,
+    "paths": {
+      "@dagger.io/dagger": ["./sdk/index.ts"],
+      "@dagger.io/dagger/telemetry": ["./sdk/telemetry.ts"],
+      "@dagger.io/my-dep": ["./clients/my-dep.gen.ts"],
+      "@dagger.io/app": ["./clients/app.gen.ts"]
+    }
+  }
+}`,
+		},
+		{
+			name: "tsconfig drops aliases for modules that left, keeps user paths and telemetry",
+			tsConfig: `{
+  "compilerOptions": {
+    "paths": {
+      "@user/lib": ["./src/lib.ts"],
+      "@dagger.io/dagger": ["./sdk/index.ts"],
+      "@dagger.io/dagger/telemetry": ["./sdk/telemetry.ts"],
+      "@dagger.io/gone": ["./clients/gone.gen.ts"],
+      "@dagger.io/kept": ["./clients/kept.gen.ts"]
+    }
+  }
+}`,
+			clientsDir: "clients",
+			modules:    []string{"kept"},
+			expected: `{
+  "compilerOptions": {
+    "experimentalDecorators": true,
+    "paths": {
+      "@user/lib": ["./src/lib.ts"],
+      "@dagger.io/dagger": ["./sdk/index.ts"],
+      "@dagger.io/dagger/telemetry": ["./sdk/telemetry.ts"],
+      "@dagger.io/kept": ["./clients/kept.gen.ts"]
+    }
+  }
+}`,
+		},
+		{
 			name: "tsconfig with comments has comments stripped",
 			tsConfig: `{
   // Compiler settings
@@ -236,7 +282,7 @@ func TestUpdateTSConfig(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			res, err := updateTSConfig(removeJSONComments(tc.tsConfig))
+			res, err := updateTSConfig(removeJSONComments(tc.tsConfig), tc.clientsDir, tc.modules)
 			require.NoError(t, err)
 			require.JSONEq(t, tc.expected, res)
 		})
@@ -247,10 +293,41 @@ func TestUpdateDenoConfig(t *testing.T) {
 	type testCase struct {
 		name       string
 		denoConfig string
+		clientsDir string
+		modules    []string
 		expected   string
 	}
 
-	for _, tc := range []testCase{
+	moduleCase := testCase{
+		name: "deno.json with modules adds and prunes import-map aliases",
+		denoConfig: `{
+  "imports": {
+    "@dagger.io/gone": "./clients/gone.gen.ts"
+  }
+}`,
+		clientsDir: "clients",
+		modules:    []string{"kept"},
+		expected: `{
+  "imports": {
+    "typescript": "npm:typescript@5.9.3",
+    "@dagger.io/dagger": "./sdk/index.ts",
+    "@dagger.io/dagger/telemetry": "./sdk/telemetry.ts",
+    "@dagger.io/kept": "./clients/kept.gen.ts"
+  },
+  "nodeModulesDir": "auto",
+  "compilerOptions": {
+    "experimentalDecorators": true
+  },
+  "unstable": [
+    "bare-node-builtins",
+    "sloppy-imports",
+    "node-globals",
+    "byonm"
+  ]
+}`,
+	}
+
+	for _, tc := range append([]testCase{moduleCase}, []testCase{
 		{
 			name:       "empty deno.json",
 			denoConfig: `{}`,
@@ -417,11 +494,11 @@ func TestUpdateDenoConfig(t *testing.T) {
   ]
 }`,
 		},
-	} {
+	}...) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			res, err := updateDenoConfig(removeJSONComments(tc.denoConfig))
+			res, err := updateDenoConfig(removeJSONComments(tc.denoConfig), tc.clientsDir, tc.modules)
 			require.NoError(t, err)
 			require.JSONEq(t, tc.expected, res)
 		})
@@ -474,111 +551,4 @@ func TestReadInput(t *testing.T) {
 		require.NoError(t, err)
 		require.JSONEq(t, `{"name": "demo"}`, got)
 	})
-}
-
-func TestUpdateClientPackageJSON(t *testing.T) {
-	type testCase struct {
-		name          string
-		packageJSON   string
-		engineVersion string
-		moduleName    string
-		expected      string
-	}
-
-	for _, tc := range []testCase{
-		{
-			name:          "fresh client dir creates scoped package",
-			packageJSON:   `{}`,
-			engineVersion: "v0.18.0",
-			moduleName:    "My Cool Module",
-			expected:      `{"type":"module","version":"0.0.0","name":"@dagger.io/my-cool-module-client","dependencies":{"@dagger.io/dagger":"0.18.0","typescript":"5.9.3"}}`,
-		},
-		{
-			name:          "existing name is preserved, sdk dep is set, typescript kept",
-			packageJSON:   `{"name":"@acme/existing","dependencies":{"typescript":"5.0.0"}}`,
-			engineVersion: "v0.19.0-dev.abc123",
-			moduleName:    "my-cool-module",
-			expected:      `{"name":"@acme/existing","type":"module","version":"0.0.0","dependencies":{"@dagger.io/dagger":"0.19.0-dev.abc123","typescript":"5.0.0"}}`,
-		},
-		{
-			// A generated client is installed as a file: dependency, which npm and
-			// yarn both refuse without a version — but a user who versions their
-			// client keeps their own scheme.
-			name:          "an existing version is preserved",
-			packageJSON:   `{"version":"2.1.0"}`,
-			engineVersion: "0.20.0",
-			moduleName:    "hello",
-			expected:      `{"version":"2.1.0","type":"module","name":"@dagger.io/hello-client","dependencies":{"@dagger.io/dagger":"0.20.0","typescript":"5.9.3"}}`,
-		},
-		{
-			name:          "empty module name falls back to client",
-			packageJSON:   `{}`,
-			engineVersion: "0.20.0",
-			moduleName:    "",
-			expected:      `{"type":"module","version":"0.0.0","name":"@dagger.io/client","dependencies":{"@dagger.io/dagger":"0.20.0","typescript":"5.9.3"}}`,
-		},
-	} {
-		t.Run(tc.name, func(t *testing.T) {
-			res, err := updateClientPackageJSON(removeJSONComments(tc.packageJSON), tc.engineVersion, tc.moduleName)
-			require.NoError(t, err)
-			require.JSONEq(t, tc.expected, res)
-		})
-	}
-}
-
-func TestScopedClientName(t *testing.T) {
-	for _, tc := range []struct{ in, want string }{
-		{"hello", "@dagger.io/hello-client"},
-		{"My Cool Module", "@dagger.io/my-cool-module-client"},
-		{"foo_bar.baz", "@dagger.io/foo-bar-baz-client"},
-		{"--weird--", "@dagger.io/weird-client"},
-		{"", "@dagger.io/client"},
-	} {
-		require.Equal(t, tc.want, scopedClientName(tc.in))
-	}
-}
-
-func TestNpmVersion(t *testing.T) {
-	require.Equal(t, "0.18.0", npmVersion("v0.18.0"))
-	require.Equal(t, "0.18.0", npmVersion("0.18.0"))
-	require.Equal(t, "0.19.0-dev.abc", npmVersion("v0.19.0-dev.abc"))
-}
-
-func TestUpdateClientPackageJSON_PreservesLocalDaggerRef(t *testing.T) {
-	for _, tc := range []struct {
-		name        string
-		packageJSON string
-		expected    string
-	}{
-		{
-			name:        "file: ref preserved, not overwritten with version",
-			packageJSON: `{"dependencies":{"@dagger.io/dagger":"file:../dagger2/sdk/typescript"}}`,
-			expected:    `{"type":"module","version":"0.0.0","name":"@dagger.io/hello-client","dependencies":{"@dagger.io/dagger":"file:../dagger2/sdk/typescript","typescript":"5.9.3"}}`,
-		},
-		{
-			name:        "relative path ref preserved",
-			packageJSON: `{"dependencies":{"@dagger.io/dagger":"./sdk"}}`,
-			expected:    `{"type":"module","version":"0.0.0","name":"@dagger.io/hello-client","dependencies":{"@dagger.io/dagger":"./sdk","typescript":"5.9.3"}}`,
-		},
-		{
-			name:        "a version pin is refreshed to the engine version",
-			packageJSON: `{"dependencies":{"@dagger.io/dagger":"0.9.0"}}`,
-			expected:    `{"type":"module","version":"0.0.0","name":"@dagger.io/hello-client","dependencies":{"@dagger.io/dagger":"1.0.0","typescript":"5.9.3"}}`,
-		},
-	} {
-		t.Run(tc.name, func(t *testing.T) {
-			res, err := updateClientPackageJSON(removeJSONComments(tc.packageJSON), "v1.0.0", "hello")
-			require.NoError(t, err)
-			require.JSONEq(t, tc.expected, res)
-		})
-	}
-}
-
-func TestIsLocalDaggerRef(t *testing.T) {
-	for _, v := range []string{"./sdk", "../sdk", "file:../x", "link:./x", "/abs/path", "workspace:*", "git+https://x", "https://x/y.tgz"} {
-		require.True(t, isLocalDaggerRef(v), "%q should be local", v)
-	}
-	for _, v := range []string{"", "1.0.0", "^1.0.0", "~1.2.3", "1.0.0-beta.5", "latest", "*"} {
-		require.False(t, isLocalDaggerRef(v), "%q should not be local", v)
-	}
 }
