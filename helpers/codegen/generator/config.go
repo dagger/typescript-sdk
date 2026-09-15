@@ -88,19 +88,6 @@ type EntrypointGeneratorConfig struct {
 	// entrypoint: one JSON request on stdin, one JSON result on stdout, and no
 	// register(). See EntrypointOptions.DispatchMode.
 	DispatchMode bool
-
-	// BoundModules are the modules the dispatcher serves into its own session
-	// before dispatching. Dispatch mode only: a v2 manifest has no
-	// [[dependencies]] table to declare them in, so the serve happens at run
-	// time instead. Empty means the module binds no clients.
-	BoundModules []BoundModule
-
-	// SelfServePath, when set, makes the dispatcher also serve the module
-	// itself — its workspace-root-relative source path. A nested dispatch
-	// session carries only the active module's dependencies, not the module
-	// itself, so a self client (`test(...)`) resolves nothing unless the module
-	// is served here. Dispatch mode only; empty leaves self unserved.
-	SelfServePath string
 }
 
 // Specific configuration for generating the Dang module entrypoint — the program

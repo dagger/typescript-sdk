@@ -18,10 +18,16 @@ import { Context } from "@dagger.io/dagger"
 import * as {{ $f.Alias }} from "{{ $f.From }}"
 {{- end }}
 
-const __classes: Record<string, any> = {
+// Each entry pairs a type's client class with a context factory. A module type
+// is wrapped in its owning client's served context, so loading a received value
+// of that type serves the module before the load runs — the same lazy serve a
+// direct `dag.<module>()` call gets. Core types need no serve.
+type LoaderEntry = { cls: any; ctx: () => Context }
+
+const __classes: Record<string, LoaderEntry> = {
 {{- range $f := LoaderFiles }}
 {{- range $e := $f.Entries }}
-  {{ $e.TypeName | printf "%q" }}: {{ $f.Alias }}.{{ $e.ClassName }},
+  {{ $e.TypeName | printf "%q" }}: { cls: {{ $f.Alias }}.{{ $e.ClassName }}, ctx: {{ if eq $f.Alias "__core" }}() => new Context(){{ else }}{{ $f.Alias }}.__servedContext{{ end }} },
 {{- end }}
 {{- end }}
 }
@@ -30,10 +36,10 @@ const __classes: Record<string, any> = {
 // matching generated client class, whichever generated file that class lives
 // in. Replaces the retired load<Type>FromID API (removed in #12041).
 export function __loadObject(id: string, typeName: string): any {
-  const cls = __classes[typeName]
-  if (!cls) {
+  const entry = __classes[typeName]
+  if (!entry) {
     throw new Error(`generated client class not found for type: ${typeName}`)
   }
-  return new cls(new Context().selectNode(id, typeName))
+  return new entry.cls(entry.ctx().selectNode(id, typeName))
 }
 {{- end }}

@@ -48,26 +48,11 @@ func (g *TypeScriptGenerator) GenerateEntrypoint(ctx context.Context) (*generato
 		}
 	}
 
-	// Serving the module itself is a local serve by its own path, appended
-	// after the bound dependencies. The nested dispatch session carries only
-	// the active module's dependencies, so without this a self client resolves
-	// nothing. Rendered like any other local module (its Path drives the
-	// currentWorkspace serve); a stable name keeps the emitted comment readable.
-	bound := cfg.BoundModules
-	if cfg.SelfServePath != "" {
-		bound = append(append([]generator.BoundModule{}, bound...), generator.BoundModule{
-			Name: "self",
-			Kind: generator.ModuleKindLocal,
-			Path: cfg.SelfServePath,
-		})
-	}
-
 	tmpl := templates.NewEntrypoint(&module, templates.EntrypointOptions{
 		SDKImportPath: cfg.SDKImportPath,
 		ModuleRoot:    cfg.ModuleRoot,
 		SourceDir:     cfg.SourceDir,
 		DispatchMode:  cfg.DispatchMode,
-		BoundModules:  bound,
 	})
 
 	topLevel := "entrypoint"

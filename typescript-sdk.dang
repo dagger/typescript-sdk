@@ -851,17 +851,6 @@ type TypescriptSdk {
   }
 
   """
-  Stage only the target metadata, without their schemas.
-
-  The dispatcher needs to know which modules to serve and how to address them,
-  not what they contain — it never generates bindings. Staging the schemas too
-  would copy a megabyte of JSON per target into a container that ignores it.
-  """
-  let stageTargetMeta(builder: Container!, targets: [ClientTarget!]!): Container! {
-    builder.withNewFile("/meta.json", targetsMetaJSON(targets))
-  }
-
-  """
   Project the engine-resolved client targets into the pieces both generators
   read, in one pass rather than a round-trip per field per module.
   """
@@ -1005,27 +994,18 @@ type TypescriptSdk {
   module through an entrypoint yet, so this is a new file nothing reads — and
   the module keeps running through the built-in runtime either way.
   """
-  let generateModuleDispatcher(typedef: String!, sourcePath: String!, targets: [ClientTarget!]!): File! {
-    let base = entrypointCodegen(typedef)
-    let staged = if (targets.length == 0) { base } else { stageTargetMeta(base, targets) }
-    let metaArgs = if (targets.length == 0) {
-      []
-    } else {
-      ["--client-meta-path", "/meta.json"]
-    }
-
-    staged
+  let generateModuleDispatcher(typedef: String!): File! {
+    # The dispatcher serves nothing: each generated client serves its own module
+    # before the first query that reaches it — a `dag.<module>()` call through
+    # the client's served context, or a received value loaded through the loader.
+    entrypointCodegen(typedef)
       .withExec([
         "codegen", "entrypoint", "--dispatch",
         "--typedef-json-path", "/typedef.json",
         "--output", "/out",
         "--module-root", "/work",
         "--source-dir", "src",
-        # Serve the module into the dispatcher's own nested session: it carries
-        # only the module's dependencies, so a self client resolves nothing
-        # unless the module serves itself here too.
-        "--self-serve-path", sourcePath,
-      ] + metaArgs)
+      ])
       .file("/out/__dagger.dispatch.ts")
   }
 
@@ -1090,7 +1070,7 @@ type TypescriptSdk {
     let sdk = moduleSdkDirectory(bindings)
     let clients = moduleClientsDirectory(bindings)
     let typedef = moduleTypedefJSON(moduleName, source, sdk, clients)
-    let dispatcher = generateModuleDispatcher(typedef, sourcePath, targets)
+    let dispatcher = generateModuleDispatcher(typedef)
     let dangEntrypoint = generateDangEntrypoint(typedef, moduleName, sourcePath, runtime)
 
     let base = directory

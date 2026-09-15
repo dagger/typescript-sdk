@@ -47,18 +47,21 @@
 >   `./clients/<module>.gen.ts`), synced (stale entries pruned), and the dang
 >   side derives the alias set from each pass's bindings (§5.4).
 >
-> - **Serve-on-use per client (runtime hook).** A generated module client serves
->   its own module before its first query, so a client reached outside the
->   dispatcher (dev, or one module's source calling another) resolves. The
->   library `Context` carries an optional serve spec propagated to every derived
->   context; the first query awaits it, memoized per session on the `Connection`,
->   run through the core dag so it can't recurse. Each client bakes its serve — a
->   git module through `dag.moduleSource(ref, {refPin})`, a local one through a
->   `currentWorkspace` raw query. This touches `library/bundle/` (rebuilt through
->   the packager). The dispatcher keeps its own serve for now — the two are
->   redundant (serve is memoized) and the dispatcher one can retire once this is
->   proven on an engine. This preserves the fluent sync API; the constructor
->   stays synchronous, the serve happens lazily at execute.
+> - **Serve-on-use per client (runtime hook), the only serve.** A generated
+>   module client serves its own module before the first query that reaches it,
+>   so the dispatcher serves nothing and `serveBoundModules` is gone. The library
+>   `Context` carries an optional serve spec propagated to every derived context;
+>   the first query awaits it, memoized per session on the `Connection`, run
+>   through the core dag so it can't recurse. Each client bakes its serve — a git
+>   module through `dag.moduleSource(ref, {refPin})`, a local one through a
+>   `currentWorkspace` raw query — and exposes it as `__servedContext()`. Two
+>   paths reach a module: a `dag.<module>()` call (the client's `dag` uses the
+>   served context) and a **received** value loaded through the entrypoint loader
+>   (`__loadObject` wraps the ID in the owning client's served context, so a
+>   dependency object passed as an argument or parent field serves its module
+>   before it is used). This touches `library/bundle/` (rebuilt through the
+>   packager) and preserves the fluent sync API — the constructor stays
+>   synchronous, the serve happens lazily at execute.
 >
 > **Not done here** (unchanged from the proposal's out-of-scope list):
 > §5.1 runtime `globalThis` anchor, §5.6 self-client input via `dag.schema` (the
