@@ -563,7 +563,7 @@ func loadSchema(path string) (*introspection.Schema, string, error) {
 // types from the core ones the walk passes through: core is already in base, so
 // anything the walk finds that base does not have belongs to the module. Those
 // get the sourceMap directive stamped on, which is what lets everything
-// downstream — the split, the re-exports, the augmentations — treat a module's
+// downstream — the split, the imports, the per-module client — treat a module's
 // own API exactly like a dependency's and render it into its own file.
 func selfContribution(schema *introspection.Schema, moduleName string, base *introspection.Schema) *introspection.Schema {
 	contributed := schema.Include(moduleName)

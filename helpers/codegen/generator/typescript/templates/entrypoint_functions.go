@@ -12,6 +12,12 @@ import (
 	"codegen/generator"
 )
 
+// LoaderImportPath is where the generated entrypoints import the object
+// loader from, relative to the module root: the loader.gen.ts module codegen
+// emits into the module's sdk/ directory, with the .js suffix the other
+// generated imports use.
+const LoaderImportPath = "sdk/loader.gen.js"
+
 // EntrypointTemplateFuncs returns the template.FuncMap used by
 // src/entrypoint/*.gtpl. All inline TS expression generation lives here so
 // the templates only need to handle the structural layout (loops,
@@ -105,7 +111,6 @@ var entrypointReservedBindings = map[string]bool{
 	"connection":          true,
 	"dag":                 true,
 	"getRegisteredClass":  true,
-	"__dagger":            true,
 	"telemetry":           true,
 	// entrypoint-internal declarations
 	"__loadCoreObject": true,
@@ -493,9 +498,11 @@ func (c *entrypointFuncCtx) plannedImports() []importLine {
 
 	var lines []importLine
 	lines = append(lines, importLine{From: sdk, Names: names})
-	// Namespace import of the generated client so __loadCoreObject can look up
-	// core/dependency object classes by name when loading them from an ID.
-	lines = append(lines, importLine{From: sdk, Namespace: "* as __dagger"})
+	// The generated loader maps a type name to its client class whichever
+	// per-module file declares it — there is no single namespace to look
+	// classes up in once every module has its own client. Imported relative to
+	// the module root, like the sdk/ directory it sits in.
+	lines = append(lines, importLine{From: "./" + LoaderImportPath, Names: []string{"__loadObject as __loadCoreObject"}})
 	lines = append(lines, importLine{From: sdk + "/telemetry", Namespace: "* as telemetry"})
 
 	// Group user imports by file path, deduping side-effect-only files.

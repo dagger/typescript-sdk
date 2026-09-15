@@ -2,8 +2,7 @@
 
 Reused by:
 - method.ts.gtpl         (class-field arrow form: `name = (...) => { body }`)
-- _augmentations.ts.gtpl (prototype-assignment form for dep-contributed
-  fields on extendable types: `scope.Class.prototype.name = function (this: any, ...) { body }`)
+- _client.ts.gtpl (the per-module client's own Client class methods)
 
 Both contexts give `this` access to the instance (`this._ctx`), so the body
 is identical. The dot is an introspection.Field. */ -}}
