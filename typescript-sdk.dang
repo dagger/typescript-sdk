@@ -194,6 +194,11 @@ type TypescriptSdk {
     clients: [ModuleSource!]!,
   ): Workspace! {
     let scope = scopePath(ws)
+    # Resolved before any re-rooting: findUp walks up from the cwd, and the
+    # workspace's dagger.toml may sit below the workspace root (a config
+    # directory inside a larger checkout), where a search from the root would
+    # never look.
+    let cfg = configDir(ws)
 
     if (hasSkipMarker(ws)) {
       # Nothing to write, and nothing to say: an unchanged workspace is an empty
@@ -263,11 +268,16 @@ type TypescriptSdk {
         withClientDependencies(configured, scope, clients)
       }
 
+      # Under an entrypoint the module keeps no library or clients of its own:
+      # they live in the workspace's shared client directory, one copy for
+      # every consumer.
+      let sharedDir = if (entrypoint) { workspaceClientsPath(cfg) } else { "" }
+
       # First pass, staged on a workspace nothing reads back. Its only job is to
       # make the module loadable, which is what the self target needs; its
       # bindings are not the ones that belong on disk, so `served` — not this —
       # is what the result is written onto.
-      let firstPass = moduleGenerated(served, scope, source, name, rt, targets)
+      let firstPass = moduleGenerated(served, scope, source, name, rt, targets, sharedDir)
       let staged = stagedModule(served, source, firstPass)
       # The module's own API is a target like any other from here on: folded into
       # its clients/ directory as its own <module>.gen.ts, so its source can call
@@ -277,15 +287,28 @@ type TypescriptSdk {
       let complete = moduleFiles(
         served,
         source,
-        withSelfBindings(staged, scope, name, firstPass, withSelf, selfTargets, rt),
+        withSelfBindings(staged, scope, name, firstPass, withSelf, selfTargets, rt, sharedDir),
       )
+
+      # The shared directory is rendered last, against the workspace already
+      # carrying this module's fresh files, so its own package comes from this
+      # run's schema. The embedded sdk/ and clients/ a previous layout left go
+      # with the switch.
+      let final = if (entrypoint) {
+        workspaceClientScope(prunedEmbeddedClients(complete, source), cfg, scope, targets, selfTargets)
+      } else {
+        complete
+      }
 
       # Back to the cwd the engine set: it rejects a generateScope that returns
       # a workspace standing somewhere else.
-      complete.withWorkdir(scope)
+      final.withWorkdir(scope)
     } else {
-      # A client-only scope: its one output is the standalone package.
-      clientScope(ws, scope, false, clientTargets(clients))
+      # A client-only scope consumes from the workspace's shared client
+      # directory; its dagger.toml entry records what it consumes. The
+      # per-scope package the previous layout kept beneath the scope is taken
+      # away with the move.
+      withoutScopeClients(workspaceClientScope(ws, cfg, scope, clientTargets(clients), []), cfg, scope)
     }
   }
 
@@ -325,6 +348,26 @@ type TypescriptSdk {
   """
   let scopeFile(scope: String!, name: String!): String! {
     if (scope == ".") { name } else { scope + "/" + name }
+  }
+
+  """
+  Directory holding the workspace's dagger.toml, workspace-root-relative — "."
+  when there is none. Everything the SDK shares across scopes anchors here,
+  where the engine keeps .dagger/modules; found from the cwd because the config
+  may sit below the workspace root, where a search from the root never looks.
+  """
+  let configDir(ws: Workspace!): String! {
+    let found = ws.findUp("dagger.toml")
+    if (found == null) { "." } else { dirOf(found) }
+  }
+
+  """
+  Where the workspace's shared client packages live: one directory per module
+  beside dagger.toml, the library among them as dagger/. One copy for every
+  consumer — a module's own source, another module, or plain user code.
+  """
+  let workspaceClientsPath(cfg: String!): String! {
+    scopeFile(cfg, ".dagger/clients")
   }
 
   """
@@ -789,6 +832,14 @@ type TypescriptSdk {
   }
 
   """
+  Container with the workspace-config helper compiled and on PATH: the
+  dagger.toml reader behind the shared client directory's union.
+  """
+  let workspaceConfigBuilder: Container! {
+    goHelper("workspace-config")
+  }
+
+  """
   The prebuilt TypeScript library this SDK ships: core.js and its declarations,
   the module-facing index.ts/telemetry.ts wrappers, the module introspector, and
   the compiler version the introspector must be run with.
@@ -1016,6 +1067,11 @@ type TypescriptSdk {
     # The dispatcher serves nothing: each generated client serves its own module
     # before the first query that reaches it — a `dag.<module>()` call through
     # the client's served context, or a received value loaded through the loader.
+    #
+    # The loader import follows the layout: beside the dispatcher under an
+    # entrypoint, in clients/ for the embedded layout.
+    let loaderArgs = if (entrypoint) { ["--loader-import", "loader.gen.js"] } else { [] }
+
     entrypointCodegen(typedef)
       .withExec([
         "codegen", "entrypoint", "--dispatch",
@@ -1023,7 +1079,7 @@ type TypescriptSdk {
         "--output", "/out",
         "--module-root", "/work",
         "--source-dir", "src",
-      ])
+      ] + loaderArgs)
       .file("/out/" + dispatchFile)
   }
 
@@ -1035,7 +1091,9 @@ type TypescriptSdk {
   read at call time: the entrypoint is handed the *caller's* workspace, whose cwd
   is wherever the caller happened to be.
   """
-  let generateDangEntrypoint(typedef: String!, moduleName: String!, sourcePath: String!, rt: Runtime!): File! {
+  let generateDangEntrypoint(typedef: String!, moduleName: String!, sourcePath: String!, rt: Runtime!, sharedDir: String! = ""): File! {
+    let sharedArgs = if (sharedDir == "") { [] } else { ["--clients-dir", sharedDir] }
+
     entrypointCodegen(typedef)
       .withExec([
         "codegen", "dang-entrypoint",
@@ -1044,7 +1102,7 @@ type TypescriptSdk {
         "--module-name", moduleName,
         "--runtime", runtimeName(rt),
         "--module-path", sourcePath,
-      ])
+      ] + sharedArgs)
       .file("/out/entrypoint/main.dang")
   }
 
@@ -1085,6 +1143,7 @@ type TypescriptSdk {
     existing: Directory!,
     runtime: Runtime!,
     targets: [ClientTarget!]!,
+    sharedDir: String! = "",
   ): Directory! {
     let bindings = generateModuleBindings(schemaJSON, moduleName, targets)
     let sdk = moduleSdkDirectory(bindings)
@@ -1093,22 +1152,36 @@ type TypescriptSdk {
 
     # One loading path's files, never both. Naming a file is also what renders
     # it: the File the other branch would have produced is never pulled, so the
-    # codegen exec behind it never runs. clients/ is common to both — it is what
-    # the module's own source imports, whichever way the module is loaded.
-    let base = if (entrypoint) {
+    # codegen exec behind it never runs.
+    #
+    # An entrypoint module splits again on where its clients live. Under the
+    # shared layout the library and the per-module clients are in the
+    # workspace's client directory, and what stays here is the dispatch
+    # machinery — the dispatcher and the loader it resolves ID-carrying values
+    # through. The bindings above still render in full either way: the loader is
+    # cut from them, and the typedef scan reads the rest.
+    let base = if (entrypoint == false) {
+      directory
+        .withDirectory("sdk", sdk)
+        .withDirectory("clients", clients)
+        .withFile(legacyEntrypointFile, generateModuleEntrypoint(typedef))
+    } else if (sharedDir == "") {
       directory
         .withDirectory("sdk", sdk)
         .withDirectory("clients", clients)
         .withFile(dispatchFile, generateModuleDispatcher(typedef))
         .withFile(
           dangEntrypointDir + "/main.dang",
-          generateDangEntrypoint(typedef, moduleName, sourcePath, runtime),
+          generateDangEntrypoint(typedef, moduleName, sourcePath, runtime, sharedDir),
         )
     } else {
       directory
-        .withDirectory("sdk", sdk)
-        .withDirectory("clients", clients)
-        .withFile(legacyEntrypointFile, generateModuleEntrypoint(typedef))
+        .withFile("loader.gen.ts", clients.file("loader.gen.ts"))
+        .withFile(dispatchFile, generateModuleDispatcher(typedef))
+        .withFile(
+          dangEntrypointDir + "/main.dang",
+          generateDangEntrypoint(typedef, moduleName, sourcePath, runtime, sharedDir),
+        )
     }
 
     # The module's own name rides along speculatively: this pass's bindings
@@ -1119,7 +1192,23 @@ type TypescriptSdk {
     # materializes (kebab-cased differently, or a module that cannot load) is
     # corrected rather than kept.
     let aliasModules = bindingAliasModules(bindings).filter { m => m != moduleName } + [moduleName]
-    base.withDirectory(".", moduleConfigDirectory(existing, runtime, "clients", aliasModules))
+    base.withDirectory(".", moduleConfigDirectory(existing, runtime, "clients", aliasModules, relativeClientsDir(sourcePath, sharedDir)))
+  }
+
+  """
+  The shared client directory relative to a module's source directory, for its
+  config aliases: enough ../ segments to climb to the workspace root, then the
+  directory's own workspace-root-relative path. Empty in, empty out — the
+  embedded layout has no shared directory to point at.
+  """
+  let relativeClientsDir(sourcePath: String!, sharedDir: String!): String! {
+    if (sharedDir == "") {
+      ""
+    } else if (sourcePath == ".") {
+      sharedDir
+    } else {
+      sourcePath.split("/").map { seg => ".." }.join("/") + "/" + sharedDir
+    }
   }
 
   """
@@ -1139,21 +1228,25 @@ type TypescriptSdk {
   client so its source can import each through its own specifier. `clientsDir`
   is where the client files sit relative to the config — "clients" for a module,
   "" for a flat standalone client — so the alias points at the right path.
+  A non-empty `packagedDir` selects the shared workspace layout instead: it is
+  the config-relative path of the shared client directory, holding one package
+  per module with the library among them, and every alias points into it.
   Callers derive the alias set from the bindings of the pass they are writing.
   """
-  let moduleConfigDirectory(existing: Directory!, runtime: Runtime!, clientsDir: String!, aliasModules: [String!]!): Directory! {
+  let moduleConfigDirectory(existing: Directory!, runtime: Runtime!, clientsDir: String!, aliasModules: [String!]!, packagedDir: String! = ""): Directory! {
+    let layoutArgs = if (packagedDir == "") { [clientsDir] } else { ["--packaged", packagedDir] }
     let configUpdater = configUpdaterBuilder
       .withDirectory("/existing", existing)
       .withDirectory("/out", directory)
 
     if (runtime == Runtime.DENO) {
       configUpdater
-        .withExec(["config-updater", "deno-config", "/existing/deno.json", "/out/deno.json", clientsDir] + aliasModules)
+        .withExec(["config-updater", "deno-config", "/existing/deno.json", "/out/deno.json"] + layoutArgs + aliasModules)
         .directory("/out")
     } else {
       configUpdater
         .withExec(["config-updater", "package-json", "/existing/package.json", "/out/package.json"])
-        .withExec(["config-updater", "tsconfig", "/existing/tsconfig.json", "/out/tsconfig.json", clientsDir] + aliasModules)
+        .withExec(["config-updater", "tsconfig", "/existing/tsconfig.json", "/out/tsconfig.json"] + layoutArgs + aliasModules)
         .directory("/out")
     }
   }
@@ -1187,7 +1280,7 @@ type TypescriptSdk {
   so its own client schema can be read, and its bindings differ from the ones
   that end up on disk.
   """
-  let moduleGenerated(ws: Workspace!, scope: String!, sourcePath: String!, name: String!, rt: Runtime!, targets: [ClientTarget!]!): Directory! {
+  let moduleGenerated(ws: Workspace!, scope: String!, sourcePath: String!, name: String!, rt: Runtime!, targets: [ClientTarget!]!, sharedDir: String! = ""): Directory! {
     let sourcePrefix = if (sourcePath == ".") { "" } else { sourcePath + "/" }
 
     moduleDirectory(
@@ -1198,6 +1291,7 @@ type TypescriptSdk {
       existingModuleConfig(ws, sourcePath),
       rt,
       targets,
+      sharedDir,
     )
   }
 
@@ -1239,11 +1333,41 @@ type TypescriptSdk {
   permissions they were rendered with.
   """
   let moduleFiles(ws: Workspace!, sourcePath: String!, generated: Directory!): Workspace! {
+    # A shared-layout tree carries no clients/ of its own; the embedded copies
+    # on disk are pruned wholesale by prunedEmbeddedClients instead.
+    let pruned = if (generated.exists("clients")) {
+      prunedBindings(ws, sourcePath, generated)
+    } else {
+      ws
+    }
+
     writeChanged(
-      prunedInactiveDispatch(prunedBindings(ws, sourcePath, generated), sourcePath),
+      prunedInactiveDispatch(pruned, sourcePath),
       sourcePath,
       generated,
     )
+  }
+
+  """
+  Take a module's embedded sdk/ and clients/ with the move to the shared
+  layout. Both directories are generated in full under the embedded layout, so
+  nothing in them is the user's; leaving them behind would keep a second,
+  increasingly stale copy of every client beside the real one.
+  """
+  let prunedEmbeddedClients(ws: Workspace!, sourcePath: String!): Workspace! {
+    let sdkPath = moduleSdkPath(sourcePath)
+    let clientsPath = moduleClientsPath(sourcePath)
+
+    let withoutSdk = if (existingDir(ws, sdkPath).entries.length == 0) {
+      ws
+    } else {
+      ws.withoutDirectory("/" + sdkPath)
+    }
+    if (existingDir(withoutSdk, clientsPath).entries.length == 0) {
+      withoutSdk
+    } else {
+      withoutSdk.withoutDirectory("/" + clientsPath)
+    }
   }
 
   """
@@ -1368,19 +1492,30 @@ type TypescriptSdk {
   client file in the changeset on every run that touches the module's source,
   long after the files themselves stopped changing.
   """
-  let withSelfBindings(staged: Workspace!, scope: String!, name: String!, generated: Directory!, targets: [ClientTarget!]!, selfTargets: [ClientTarget!]!, rt: Runtime!): Directory! {
+  let withSelfBindings(staged: Workspace!, scope: String!, name: String!, generated: Directory!, targets: [ClientTarget!]!, selfTargets: [ClientTarget!]!, rt: Runtime!, sharedDir: String! = ""): Directory! {
     if (selfTargets.length == 0) {
       # Nothing to fold in, so the first pass's clients are already the right ones.
       generated
     } else {
       let bindings = generateModuleBindings(staged.moduleSource("/" + scope).introspectionSchemaJSON.contents, name, targets)
-      # Replace clients/ wholesale — the self client is added and the loader now
-      # maps the module's own types — but leave the first pass's clients/ files
-      # that are gone from this set behind; prunedBindings removes those on write.
-      generated
-        .withoutDirectory("clients")
-        .withDirectory("clients", moduleClientsDirectory(bindings))
-        .withDirectory(".", moduleConfigDirectory(generated, rt, "clients", bindingAliasModules(bindings)))
+      if (sharedDir == "") {
+        # Replace clients/ wholesale — the self client is added and the loader now
+        # maps the module's own types — but leave the first pass's clients/ files
+        # that are gone from this set behind; prunedBindings removes those on write.
+        generated
+          .withoutDirectory("clients")
+          .withDirectory("clients", moduleClientsDirectory(bindings))
+          .withDirectory(".", moduleConfigDirectory(generated, rt, "clients", bindingAliasModules(bindings)))
+      } else {
+        # Under the shared layout the client files live in the workspace
+        # directory; what the second pass owns here is the loader — which now
+        # maps the module's own types — and the aliases derived from the same
+        # bindings. The module's source directory is what the config paths
+        # climb from, and it is the scope under an entrypoint.
+        generated
+          .withFile("loader.gen.ts", moduleClientsDirectory(bindings).file("loader.gen.ts"))
+          .withDirectory(".", moduleConfigDirectory(generated, rt, "clients", bindingAliasModules(bindings), relativeClientsDir(scope, sharedDir)))
+      }
     }
   }
 
@@ -1586,25 +1721,236 @@ type TypescriptSdk {
   }
 
   """
-  Generate the client half of a scope: one npm-installable package per target
-  under .dagger/clients, with the vendored library beside them.
+  Generate the workspace's shared client directory: one npm-installable package
+  per module in the union, with the vendored library beside them.
 
-  The whole directory is generated, so nothing in it is the user's; the user's
-  own config is never touched — they wire the packages in themselves with
-  `npm install ./.dagger/clients/<module>`. Removal needs no special case:
-  `clients` is the complete desired set, so a target that is gone is simply not
-  rendered, and the last one leaving takes the directory with it.
+  The union — not one scope's targets — is the directory's complete desired
+  state, so the render is deterministic in the workspace alone: every scope's
+  generation writes the same bytes, the engine's sequential fold makes later
+  passes byte-quiet, and a module no scope records any more is pruned by
+  whichever scope generates next. The whole directory is generated, so nothing
+  in it is the user's; a client-only scope's own config is never touched — its
+  code wires packages in with `npm install <path-to>/.dagger/clients/<module>`.
   """
-  let clientScope(ws: Workspace!, base: String!, isModule: Boolean!, targets: [ClientTarget!]!): Workspace! {
-    let dir = clientDirPath(base, isModule)
+  let workspaceClientScope(ws: Workspace!, cfg: String!, currentScope: String!, currentClients: [ClientTarget!]!, currentSelf: [ClientTarget!]!): Workspace! {
+    let dir = workspaceClientsPath(cfg)
+    let targets = workspaceClientTargets(ws, cfg, currentScope, currentClients, currentSelf)
 
     if (targets.length == 0) {
       if (existingDir(ws, dir).entries.length == 0) { ws } else { ws.withoutDirectory("/" + dir) }
     } else {
       # Anything in the directory we no longer render is dropped — the package
-      # of a target that has left the scope is the point.
+      # of a module that has left every scope is the point.
       let generated = clientDirectory(generateClientBindings(targets))
       writeChanged(prunedClientFiles(ws, dir, generated), dir, generated)
+    }
+  }
+
+  """
+  Every module the shared client directory must hold a package for: each
+  consumer scope's recorded targets plus the self package of every entrypoint
+  module scope, in dagger.toml order so every scope renders the identical
+  directory. The calling scope contributes its engine-resolved targets and its
+  freshly generated self, so its own packages render from this run's schema
+  rather than the one on disk; other modules' packages refresh in their own
+  passes, which the engine orders and threads.
+
+  One directory means one version per module name workspace-wide: two scopes
+  binding the same name to different sources is an error here, not a
+  last-writer-wins race.
+  """
+  let workspaceClientTargets(ws: Workspace!, cfg: String!, currentScope: String!, currentClients: [ClientTarget!]!, currentSelf: [ClientTarget!]!): [ClientTarget!]! {
+    let scopes = recordedScopes(ws, cfg)
+    let current = scopes.filter { s => scopeFile(cfg, s.path) == currentScope }
+
+    # The recorded consumers' targets, resolved through the same lock-pinned
+    # resolution the engine uses for the per-scope argument. The calling
+    # scope's are skipped in favor of the engine-resolved ones below — same
+    # set, already resolved.
+    let recordedRefs = scopes.reduce([]) { acc, s =>
+      if (scopeFile(cfg, s.path) != currentScope and (s.isModule == false or s.entrypoint)) {
+        acc + s.clients.map { ref => workspaceModuleSource(ws, cfg, ref) }
+      } else {
+        acc
+      }
+    }
+    let recorded = clientTargets(recordedRefs)
+
+    # One self package per entrypoint module scope, the calling scope's from
+    # this run's staged schema. A module that cannot load yet contributes
+    # nothing — its package appears once its own pass repairs it.
+    let selves = scopes.reduce([]) { acc, s =>
+      if (s.isModule and s.entrypoint) {
+        if (scopeFile(cfg, s.path) == currentScope) {
+          acc + currentSelf.map { t => packageTarget(t) }
+        } else {
+          acc + modulePackageTarget(ws, scopeFile(cfg, s.path))
+        }
+      } else {
+        acc
+      }
+    }
+
+    # The calling scope last: when it is recorded, its targets are duplicates
+    # of entries above and deduplicate away; when it is not — the direct
+    # per-scope harness — they are the whole union. An unrecorded module scope
+    # brings its self along too.
+    let tail = if (current.length == 0) {
+      currentClients + currentSelf.map { t => packageTarget(t) }
+    } else {
+      currentClients
+    }
+
+    (recorded + selves + tail).reduce([] :: [ClientTarget!]!) { acc, t =>
+      if (acc.filter { seen => seen.name == t.name and sameTarget(seen, t) }.length > 0) {
+        acc
+      } else if (acc.filter { seen => seen.name == t.name }.length > 0) {
+        raise "two scopes bind module \"" + t.name + "\" from different sources; the workspace shares one client per module, so they must agree"
+      } else {
+        acc + [t]
+      }
+    }
+  }
+
+  """
+  Whether two targets name the same module source: local modules by their
+  workspace path, git modules by ref and pin. The ref string itself is not
+  identity for locals — the same module arrives spelled as a scope's recorded
+  path and as another module's self.
+  """
+  let sameTarget(a: ClientTarget!, b: ClientTarget!): Boolean! {
+    if (a.isLocal and b.isLocal) {
+      a.path == b.path
+    } else if (a.isLocal == false and b.isLocal == false) {
+      a.ref == b.ref and a.pin == b.pin
+    } else {
+      false
+    }
+  }
+
+  """
+  A target as a shared-directory package entry. isSelf marks how a module's
+  bindings fold its own types in, which is a module-render concern; in the
+  shared directory a module's own package is a package like any other.
+  """
+  let packageTarget(t: ClientTarget!): ClientTarget! {
+    ClientTarget(
+      name: t.name,
+      schemaJSON: t.schemaJSON,
+      kindJSON: t.kindJSON,
+      isLocal: t.isLocal,
+      path: t.path,
+      ref: t.ref,
+      pin: t.pin,
+      isSelf: false,
+    )
+  }
+
+  """
+  A module's package for the shared directory, resolved from the workspace as
+  it stands — or nothing, when it cannot be loaded. The same rescue shape as
+  selfClientTarget: a module broken on disk keeps its package out of everyone
+  else's render until its own generation repairs it.
+  """
+  let modulePackageTarget(ws: Workspace!, path: String!): [ClientTarget!]! {
+    let source = ws.moduleSource("/" + path).{{ moduleOriginalName, kind, clientSchemaIntrospectionJSON.{{ contents }} }} rescue {
+      err: Error => null
+    }
+
+    if (source == null) {
+      []
+    } else {
+      [ClientTarget(
+        name: source.moduleOriginalName,
+        schemaJSON: source.clientSchemaIntrospectionJSON.contents,
+        kindJSON: JSON.encode(source.kind),
+        isLocal: true,
+        path: path,
+        ref: "",
+        pin: "",
+        isSelf: false,
+      )]
+    }
+  }
+
+  """
+  Resolve one recorded client ref the way the engine resolves the per-scope
+  argument: a path ref against the config directory, root-anchored so the
+  caller's cwd cannot bend it; anything else as a top-level module ref, whose
+  git resolution goes through the session's workspace lock and so stays on the
+  recorded pin.
+  """
+  let workspaceModuleSource(ws: Workspace!, cfg: String!, ref: String!): ModuleSource! {
+    if (isPathRef(ref)) {
+      ws.moduleSource("/" + scopeFile(cfg, ref.trimPrefix("./")))
+    } else {
+      moduleSource(ref)
+    }
+  }
+
+  let isPathRef(ref: String!): Boolean! {
+    ref.trimPrefix("./") != ref or ref.trimPrefix("../") != ref or ref.trimPrefix("/") != ref
+  }
+
+  """
+  The modules the workspace's shared client directory holds a package for, in
+  render order.
+
+  Non-mutating, so the union can be inspected without generating: which scopes
+  were read out of dagger.toml, and what they resolved to, is otherwise only
+  visible as the directory's contents after a run.
+  """
+  workspaceClients(ws: Workspace!): [String!]! {
+    let cfg = configDir(ws)
+    workspaceClientTargets(ws, cfg, scopePath(ws), [], []).map { t => t.name }
+  }
+
+  """
+  The SDK's recorded scopes, read from dagger.toml. The engine hands
+  generateScope one scope at a time, and a generate run from a subdirectory
+  plans only the scopes around the cwd — while the shared directory's desired
+  state is the union over all of them, so pruning it correctly needs the full
+  list. Reading the config is fine; only writing it is engine-owned.
+  """
+  let recordedScopes(ws: Workspace!, cfg: String!): [RecordedScope!]! {
+    let tomlPath = scopeFile(cfg, "dagger.toml")
+    let filtered = ws.directory("/", include: [tomlPath])
+
+    if (filtered.exists(tomlPath) == false) {
+      []
+    } else {
+      let out = workspaceConfigBuilder
+        .withFile("/dagger.toml", filtered.file(tomlPath))
+        .withExec(["workspace-config", "scopes", "/dagger.toml", currentModule.name])
+        .stdout
+      # Rows of strings, not records: JSON.decode silently materializes a
+      # module-declared record's fields as their defaults, while nested string
+      # lists round-trip exactly. Row layout is the helper's contract:
+      # [path, isModule, name, entrypoint, clients...].
+      (JSON.decode(out) :: [[String!]!]!).map { row =>
+        RecordedScope(
+          path: row.takeFirst(1).join(""),
+          isModule: row.dropFirst(1).takeFirst(1).join("") == "true",
+          name: row.dropFirst(2).takeFirst(1).join(""),
+          entrypoint: row.dropFirst(3).takeFirst(1).join("") == "true",
+          clients: row.dropFirst(4),
+        )
+      }
+    }
+  }
+
+  """
+  Take a scope's pre-shared-layout client package with the move: the packages
+  live beside dagger.toml now, and the copy beneath the scope is the
+  duplication this layout removes.
+  """
+  let withoutScopeClients(ws: Workspace!, cfg: String!, scope: String!): Workspace! {
+    let old = scopeFile(scope, ".dagger/clients")
+
+    if (old == workspaceClientsPath(cfg) or existingDir(ws, old).entries.length == 0) {
+      ws
+    } else {
+      ws.withoutDirectory("/" + old)
     }
   }
 
@@ -1623,19 +1969,19 @@ type TypescriptSdk {
       .reduce(ws) { acc, path => acc.withoutFile("/" + dir + "/" + path) }
   }
 
-  """
-  Where a scope's generated client package lives.
+}
 
-  A module scope owns its whole directory, so the package sits beside the
-  generated `sdk/`. A client-only scope is the user's own project, so it goes
-  under `.dagger/` where everything else this SDK writes there lives. Neither
-  may sit under `src/`: the introspector treats every file it finds there as
-  module source.
-  """
-  let clientDirPath(base: String!, isModule: Boolean!): String! {
-    scopeFile(base, if (isModule) { "clients" } else { ".dagger/clients" })
-  }
-
+"""
+One scope this SDK has recorded in dagger.toml, as the workspace-config helper
+reports it: the path config-dir-relative, the entrypoint flag already layered
+(scope over SDK-wide), the client refs verbatim.
+"""
+type RecordedScope {
+  let path: String!
+  let isModule: Boolean!
+  let name: String!
+  let entrypoint: Boolean!
+  let clients: [String!]!
 }
 
 """

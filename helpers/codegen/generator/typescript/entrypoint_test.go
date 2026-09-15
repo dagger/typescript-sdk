@@ -112,6 +112,32 @@ func TestGenerateEntrypointDispatch(t *testing.T) {
 	require.Equal(t, string(want), got)
 }
 
+// TestGenerateEntrypointDispatchLoaderImport pins the override the shared
+// workspace layout uses: the loader moves out of clients/ to the module root,
+// so the dispatcher's import has to move with it — the default stays on the
+// embedded layout's path.
+func TestGenerateEntrypointDispatchLoaderImport(t *testing.T) {
+	render := func(loaderImport string) string {
+		gen := &TypeScriptGenerator{Config: generator.Config{
+			EntrypointConfig: &generator.EntrypointGeneratorConfig{
+				TypedefJSONPath:  "testdata/typedef_smoke.json",
+				ModuleRoot:       "/work",
+				SDKImportPath:    "@dagger.io/dagger",
+				SourceDir:        "src",
+				DispatchMode:     true,
+				LoaderImportPath: loaderImport,
+			},
+		}}
+		state, err := gen.GenerateEntrypoint(context.Background())
+		require.NoError(t, err)
+		return readOverlay(t, state, DefaultDispatchFile)
+	}
+
+	require.Contains(t, render(""), `from "./clients/loader.gen.js"`)
+	require.Contains(t, render("loader.gen.js"), `from "./loader.gen.js"`)
+	require.NotContains(t, render("loader.gen.js"), "clients/loader.gen.js")
+}
+
 // TestGenerateEntrypointDispatchDropsRegister pins what the protocol change
 // actually removes, and the one thing it is easy to get wrong.
 //

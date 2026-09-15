@@ -186,6 +186,23 @@ func TestClientTemplate_ImportsSiblingModuleTypes(t *testing.T) {
 		"a sibling-owned class must be value-imported from the sibling's package")
 	require.Contains(t, out, "return new Other(ctx)",
 		"the body must construct the imported sibling class")
+
+	// Packaged into the shared workspace directory, the same rendering reaches
+	// the library and its siblings by relative path. npm links a file: package
+	// as a symlink and node resolves from the real path, so a bare specifier
+	// would search beside the shared tree — which has no node_modules — instead
+	// of beside the consumer's.
+	packaged := templates.New("v0.21.0", full, "", generator.Config{
+		ModuleConfig: &generator.ModuleGeneratorConfig{FlatClients: true, PackagedClients: true},
+	})
+	out = renderModuleClientTemplate(t, packaged, depSchema, "hello")
+
+	require.Regexp(t, `import \{[^}]*\bOther\b[^}]*\} from "\.\./other/other\.gen\.js"`, out,
+		"a packaged client reaches its sibling by directory")
+	require.Contains(t, out, `import { Context, BaseClient } from "../dagger/index.js"`,
+		"a packaged client reaches the library by directory")
+	require.NotContains(t, out, `"@dagger.io/`,
+		"no bare specifier survives in a packaged client")
 }
 
 // TestClientTemplate_ImportsRootArgTypes locks that a core type referenced only

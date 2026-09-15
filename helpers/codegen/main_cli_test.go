@@ -188,7 +188,12 @@ func TestRunClient(t *testing.T) {
 
 	client, err := os.ReadFile(filepath.Join(out, "app.gen.ts"))
 	require.NoError(t, err)
-	require.Contains(t, string(client), `from "@dagger.io/dagger"`)
+	// The caller splits this flat rendering into one package directory per
+	// module, so the library is a sibling directory, not a bare specifier: npm
+	// symlinks a file: package and node resolves from the real path, where a
+	// bare name would look beside the shared tree and find nothing.
+	require.Contains(t, string(client), `from "../dagger/index.js"`)
+	require.NotContains(t, string(client), `from "@dagger.io/dagger"`)
 	require.Contains(t, string(client), "withServe({ key: \"app\"")
 }
 

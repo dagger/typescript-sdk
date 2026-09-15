@@ -128,6 +128,44 @@ func TestGenerateDangEntrypointNestedModule(t *testing.T) {
 		`withMountedDirectory("node_modules/@dagger.io/dagger", workspace.directory("/.dagger/modules/smoke/sdk"))`)
 }
 
+// TestGenerateDangEntrypointSharedClients covers the shared workspace layout:
+// the module keeps no sdk/ of its own, so the recipe mounts the whole shared
+// client directory at node_modules/@dagger.io — its subdirectories map 1:1
+// onto the @dagger.io package names — and the generated-file guard checks the
+// library there and the loader beside the dispatcher.
+func TestGenerateDangEntrypointSharedClients(t *testing.T) {
+	gen := &TypeScriptGenerator{Config: generator.Config{
+		DangEntrypointConfig: &generator.DangEntrypointGeneratorConfig{
+			TypedefJSONPath: "testdata/typedef_smoke.json",
+			ModuleName:      "smoke-mod",
+			Runtime:         "node",
+			ModulePath:      ".dagger/modules/smoke",
+			ClientsDir:      ".dagger/clients",
+		},
+	}}
+
+	state, err := gen.GenerateDangEntrypoint(context.Background())
+	require.NoError(t, err)
+	got := readOverlay(t, state, DefaultDangEntrypointFile)
+
+	require.Contains(t, got,
+		`withMountedDirectory("node_modules/@dagger.io", workspace.directory("/.dagger/clients"))`)
+	require.NotContains(t, got, `node_modules/@dagger.io/dagger`,
+		"one mount of the shared directory replaces the per-package sdk mount")
+
+	require.Contains(t, got, `let clients = workspace.directory("/.dagger/clients")`)
+	for _, f := range []string{"__dagger.dispatch.ts", "loader.gen.ts", "tsconfig.json"} {
+		require.Contains(t, got, `dir.exists("`+f+`")`)
+	}
+	for _, f := range []string{"dagger/index.ts", "dagger/client.gen.ts", "dagger/core.js"} {
+		require.Contains(t, got, `clients.exists("`+f+`")`)
+	}
+	require.NotContains(t, got, `dir.exists("sdk/`,
+		"the module carries no library of its own under the shared layout")
+	require.Contains(t, got, `\".dagger/clients/dagger/index.ts\" is missing`,
+		"a missing shared file is named by its workspace path, where the fix happens")
+}
+
 // TestGenerateDangEntrypointImplementsContract pins the shape the dang driver
 // requires, all of which it rejects the module for getting wrong: exactly one
 // type implementing ModuleEntrypoint, constructible with no arguments, and

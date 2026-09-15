@@ -27,6 +27,8 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"strconv"
+	"strings"
 
 	"codegen/generator"
 	typescriptgenerator "codegen/generator/typescript"
@@ -103,13 +105,14 @@ func run(args []string) error {
 func runEntrypoint(args []string) error {
 	fs := flag.NewFlagSet("entrypoint", flag.ExitOnError)
 	var (
-		typedefPath = fs.String("typedef-json-path", "", "path to the typedef JSON emitted by the SDK introspector")
-		outputDir   = fs.String("output", ".", "output directory for the generated entrypoint")
-		outputFile  = fs.String("output-file", typescriptgenerator.DefaultEntrypointFile, "filename to write within the output directory")
-		moduleRoot  = fs.String("module-root", "", "absolute path of the module root, used to resolve source-import paths")
-		sdkImport   = fs.String("sdk-import", "@dagger.io/dagger", "bare specifier the entrypoint imports runtime helpers from")
-		sourceDir   = fs.String("source-dir", "src", "the module's source directory, relative to its root")
-		dispatch    = fs.Bool("dispatch", false, "render the manifest-v2 dispatcher (stdin/stdout, no register) instead of the legacy entrypoint")
+		typedefPath  = fs.String("typedef-json-path", "", "path to the typedef JSON emitted by the SDK introspector")
+		outputDir    = fs.String("output", ".", "output directory for the generated entrypoint")
+		outputFile   = fs.String("output-file", typescriptgenerator.DefaultEntrypointFile, "filename to write within the output directory")
+		moduleRoot   = fs.String("module-root", "", "absolute path of the module root, used to resolve source-import paths")
+		sdkImport    = fs.String("sdk-import", "@dagger.io/dagger", "bare specifier the entrypoint imports runtime helpers from")
+		sourceDir    = fs.String("source-dir", "src", "the module's source directory, relative to its root")
+		dispatch     = fs.Bool("dispatch", false, "render the manifest-v2 dispatcher (stdin/stdout, no register) instead of the legacy entrypoint")
+		loaderImport = fs.String("loader-import", "", "path the entrypoint imports the object loader from, relative to the module root (default clients/loader.gen.js)")
 	)
 	if err := fs.Parse(args); err != nil {
 		return err
@@ -128,12 +131,13 @@ func runEntrypoint(args []string) error {
 	cfg := generator.Config{
 		OutputDir: *outputDir,
 		EntrypointConfig: &generator.EntrypointGeneratorConfig{
-			TypedefJSONPath: *typedefPath,
-			OutputFile:      outName,
-			ModuleRoot:      *moduleRoot,
-			SDKImportPath:   *sdkImport,
-			SourceDir:       *sourceDir,
-			DispatchMode:    *dispatch,
+			TypedefJSONPath:  *typedefPath,
+			OutputFile:       outName,
+			ModuleRoot:       *moduleRoot,
+			SDKImportPath:    *sdkImport,
+			SourceDir:        *sourceDir,
+			DispatchMode:     *dispatch,
+			LoaderImportPath: *loaderImport,
 		},
 	}
 	gen := &typescriptgenerator.TypeScriptGenerator{Config: cfg}
@@ -165,6 +169,7 @@ func runDangEntrypoint(args []string) error {
 		modulePath   = fs.String("module-path", ".", "module directory relative to the workspace root, used as the container workdir")
 		dispatchFile = fs.String("dispatch-file", typescriptgenerator.DefaultDispatchFile, "dispatcher call() execs, relative to the module directory")
 		tsconfigPath = fs.String("tsconfig", "tsconfig.json", "tsconfig tsx loads, relative to the module directory (node only)")
+		clientsDir   = fs.String("clients-dir", "", "workspace-root-relative directory of the shared client packages; empty keeps the embedded sdk/ layout")
 	)
 	if err := fs.Parse(args); err != nil {
 		return err
@@ -188,6 +193,7 @@ func runDangEntrypoint(args []string) error {
 			ModulePath:      *modulePath,
 			DispatchFile:    *dispatchFile,
 			TSConfigPath:    *tsconfigPath,
+			ClientsDir:      *clientsDir,
 		},
 	}
 	gen := &typescriptgenerator.TypeScriptGenerator{Config: cfg}
@@ -404,8 +410,7 @@ func runClient(args []string) error {
 	// same vendored-library imports. The clients sit flat (the scope is nothing
 	// but its clients) and there is no entrypoint, so no loader.
 	var bound []generator.BoundModule
-	schemas := make([]*introspection.Schema, 0, len(meta.Modules))
-	schemaVersion := ""
+	loaded := make([]loadedClientSchema, 0, len(meta.Modules))
 	for _, module := range meta.Modules {
 		if err := validateBoundModuleKind(module.BoundModule); err != nil {
 			return err
@@ -414,20 +419,20 @@ func runClient(args []string) error {
 		if err != nil {
 			return fmt.Errorf("module %q: %w", module.Name, err)
 		}
-		schemas = append(schemas, schema)
-		schemaVersion = version
+		loaded = append(loaded, loadedClientSchema{name: module.Name, schema: schema, version: version})
 		bound = append(bound, module.BoundModule)
 	}
 
-	schema := mergeSchemas(schemas)
+	schema, schemaVersion := mergeClientSchemas(loaded)
 	generator.SetSchemaParents(schema)
 
 	gen := &typescriptgenerator.TypeScriptGenerator{Config: generator.Config{
 		OutputDir: *outputDir,
 		ModuleConfig: &generator.ModuleGeneratorConfig{
-			BoundModules: bound,
-			FlatClients:  true,
-			EmitLoader:   false,
+			BoundModules:    bound,
+			FlatClients:     true,
+			EmitLoader:      false,
+			PackagedClients: true,
 		},
 	}}
 
@@ -442,6 +447,94 @@ func runClient(args []string) error {
 	}
 
 	return nil
+}
+
+// loadedClientSchema is one target's client-facing schema with the schema
+// version it reports — core plus that one module, viewed at the engine version
+// the module declares.
+type loadedClientSchema struct {
+	name    string
+	schema  *introspection.Schema
+	version string
+}
+
+// mergeClientSchemas folds a scope's targets into one schema to render from:
+// the newest target's schema supplies core, every other target supplies only
+// the types it contributes.
+//
+// The engine serves each module a *compatibility view* of core keyed on the
+// module's declared engine version, so a module pinned at an older release
+// carries an older core — v0.12.0's `Container.withDirectory(directory:)` where
+// the current engine takes `source:`. Merging whole schemas and letting the
+// first win therefore renders a core that is wrong for everything else in the
+// scope, and the mistake only surfaces at run time as a rejected query. Taking
+// core from the newest and each module's own contribution from its own schema
+// keeps one current core beside per-module bindings that are still generated
+// from the view their module is served under. It is what module mode already
+// does — the module's own schema is the base there, and targets come in through
+// Include.
+func mergeClientSchemas(loaded []loadedClientSchema) (*introspection.Schema, string) {
+	base := 0
+	for i, l := range loaded[1:] {
+		if compareSchemaVersions(l.version, loaded[base].version) > 0 {
+			base = i + 1
+		}
+	}
+
+	schemas := []*introspection.Schema{loaded[base].schema}
+	for i, l := range loaded {
+		if i == base {
+			continue
+		}
+		// Ask the schema which modules it carries rather than trusting the
+		// recorded name: the split is driven by source-map directives, and a
+		// target's directive name is the only one the filter matches.
+		if owned := l.schema.DependencyNames(); len(owned) > 0 {
+			schemas = append(schemas, l.schema.Include(owned...))
+		}
+	}
+
+	return mergeSchemas(schemas), loaded[base].version
+}
+
+// compareSchemaVersions orders two schema versions ("v1.0.0", "v0.12.0"),
+// numerically per dot-separated segment so v0.12 sorts above v0.9. A version
+// that does not parse sorts below one that does, so an unknown version never
+// wins the core.
+func compareSchemaVersions(a, b string) int {
+	as, bs := schemaVersionSegments(a), schemaVersionSegments(b)
+	for i := 0; i < len(as) || i < len(bs); i++ {
+		var an, bn int
+		if i < len(as) {
+			an = as[i]
+		}
+		if i < len(bs) {
+			bn = bs[i]
+		}
+		if an != bn {
+			if an > bn {
+				return 1
+			}
+			return -1
+		}
+	}
+	return 0
+}
+
+func schemaVersionSegments(v string) []int {
+	v = strings.TrimPrefix(v, "v")
+	if idx := strings.IndexAny(v, "-+"); idx >= 0 {
+		v = v[:idx]
+	}
+	var out []int
+	for _, part := range strings.Split(v, ".") {
+		n, err := strconv.Atoi(part)
+		if err != nil {
+			return out
+		}
+		out = append(out, n)
+	}
+	return out
 }
 
 // mergeSchemas folds every target's client-facing schema into one.

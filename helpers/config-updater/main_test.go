@@ -151,6 +151,7 @@ func TestUpdateTSConfig(t *testing.T) {
 		name       string
 		tsConfig   string
 		clientsDir string
+		packaged   bool
 		modules    []string
 		expected   string
 	}
@@ -165,6 +166,49 @@ func TestUpdateTSConfig(t *testing.T) {
     "paths": {
       "@dagger.io/dagger": ["./sdk/index.ts"],
       "@dagger.io/dagger/telemetry": ["./sdk/telemetry.ts"]
+    }
+  }
+}`,
+		},
+		{
+			name:       "packaged layout points every alias into the shared client directory",
+			tsConfig:   `{}`,
+			clientsDir: "../../clients",
+			packaged:   true,
+			modules:    []string{"hello", "test"},
+			expected: `{
+  "compilerOptions": {
+    "experimentalDecorators": true,
+    "paths": {
+      "@dagger.io/dagger": ["../../clients/dagger/index.ts"],
+      "@dagger.io/dagger/telemetry": ["../../clients/dagger/telemetry.ts"],
+      "@dagger.io/hello": ["../../clients/hello/hello.gen.ts"],
+      "@dagger.io/test": ["../../clients/test/test.gen.ts"]
+    }
+  }
+}`,
+		},
+		{
+			name: "packaged layout retargets embedded aliases in place",
+			tsConfig: `{
+  "compilerOptions": {
+    "paths": {
+      "@dagger.io/dagger": ["./sdk/index.ts"],
+      "@dagger.io/dagger/telemetry": ["./sdk/telemetry.ts"],
+      "@dagger.io/gone": ["./clients/gone.gen.ts"]
+    }
+  }
+}`,
+			clientsDir: ".dagger/clients",
+			packaged:   true,
+			modules:    []string{"kept"},
+			expected: `{
+  "compilerOptions": {
+    "experimentalDecorators": true,
+    "paths": {
+      "@dagger.io/dagger": ["./.dagger/clients/dagger/index.ts"],
+      "@dagger.io/dagger/telemetry": ["./.dagger/clients/dagger/telemetry.ts"],
+      "@dagger.io/kept": ["./.dagger/clients/kept/kept.gen.ts"]
     }
   }
 }`,
@@ -282,7 +326,7 @@ func TestUpdateTSConfig(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			res, err := updateTSConfig(removeJSONComments(tc.tsConfig), tc.clientsDir, tc.modules)
+			res, err := updateTSConfig(removeJSONComments(tc.tsConfig), aliasLayout{clientsDir: tc.clientsDir, packaged: tc.packaged}, tc.modules)
 			require.NoError(t, err)
 			require.JSONEq(t, tc.expected, res)
 		})
@@ -294,8 +338,35 @@ func TestUpdateDenoConfig(t *testing.T) {
 		name       string
 		denoConfig string
 		clientsDir string
+		packaged   bool
 		modules    []string
 		expected   string
+	}
+
+	packagedCase := testCase{
+		name:       "packaged layout points import-map aliases into the shared client directory",
+		denoConfig: `{}`,
+		clientsDir: "../../clients",
+		packaged:   true,
+		modules:    []string{"hello"},
+		expected: `{
+  "imports": {
+    "typescript": "npm:typescript@5.9.3",
+    "@dagger.io/dagger": "../../clients/dagger/index.ts",
+    "@dagger.io/dagger/telemetry": "../../clients/dagger/telemetry.ts",
+    "@dagger.io/hello": "../../clients/hello/hello.gen.ts"
+  },
+  "nodeModulesDir": "auto",
+  "compilerOptions": {
+    "experimentalDecorators": true
+  },
+  "unstable": [
+    "bare-node-builtins",
+    "sloppy-imports",
+    "node-globals",
+    "byonm"
+  ]
+}`,
 	}
 
 	moduleCase := testCase{
@@ -327,7 +398,7 @@ func TestUpdateDenoConfig(t *testing.T) {
 }`,
 	}
 
-	for _, tc := range append([]testCase{moduleCase}, []testCase{
+	for _, tc := range append([]testCase{moduleCase, packagedCase}, []testCase{
 		{
 			name:       "empty deno.json",
 			denoConfig: `{}`,
@@ -498,7 +569,7 @@ func TestUpdateDenoConfig(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			res, err := updateDenoConfig(removeJSONComments(tc.denoConfig), tc.clientsDir, tc.modules)
+			res, err := updateDenoConfig(removeJSONComments(tc.denoConfig), aliasLayout{clientsDir: tc.clientsDir, packaged: tc.packaged}, tc.modules)
 			require.NoError(t, err)
 			require.JSONEq(t, tc.expected, res)
 		})

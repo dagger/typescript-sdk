@@ -336,6 +336,8 @@ type GenerateChecks {
     # the module's source through its own @dagger.io/gendep specifier.
     Asserts.generated(changes, path + "/clients/gendep.gen.ts")
     let selfClient = tree.file("clients/gendep.gen.ts").contents
+    # Just that it has its own root dag. Whether the constructor takes a serve
+    # hook is the serve-on-use question, covered where that is the subject.
     Asserts.stringContains(
       selfClient,
       "export const dag = new Client(",

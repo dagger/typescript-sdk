@@ -23,7 +23,7 @@ import { Context, BaseClient } from "{{ ClientRuntimeImport }}"
 {{- if .Bound }}
 {{- /* The core dag runs this module's serve — it carries no serve of its own,
 so serving through it cannot recurse. */}}
-import { dag as __dag } from "@dagger.io/dagger"
+import { dag as __dag } from "{{ LibraryImport }}"
 {{- end }}
 
 {{- /* Types owned by the core library or by a sibling module are imported from

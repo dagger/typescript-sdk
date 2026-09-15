@@ -33,6 +33,15 @@ type DangEntrypointOptions struct {
 	// TSConfigPath is the tsconfig tsx loads, relative to the module directory.
 	// Node only.
 	TSConfigPath string
+
+	// ClientsDir is the workspace-root-relative directory holding the shared
+	// client packages — one directory per module named exactly like its
+	// @dagger.io/* package, the library among them as dagger/. When set, the
+	// recipe mounts it whole at node_modules/@dagger.io instead of mounting
+	// the module's own sdk/, and the generated-file check looks there for the
+	// library and beside the dispatcher for the loader. Empty keeps the
+	// embedded layout.
+	ClientsDir string
 }
 
 // Pins shared with the engine's built-in TypeScript runtime
@@ -493,11 +502,18 @@ func (c *dangFuncCtx) tsConfigPath() string {
 // @dagger.io/dagger through deno.json rather than node_modules, and bun needs no
 // tsconfig because it runs the dispatcher directly.
 func (c *dangFuncCtx) dangRequiredFiles() []string {
-	files := []string{
-		c.dispatchFile(),
-		dangSDKDir + "/index.ts",
-		dangSDKDir + "/client.gen.ts",
-		dangSDKDir + "/core.js",
+	files := []string{c.dispatchFile()}
+	if c.opts.ClientsDir == "" {
+		files = append(files,
+			dangSDKDir+"/index.ts",
+			dangSDKDir+"/client.gen.ts",
+			dangSDKDir+"/core.js",
+		)
+	} else {
+		// The loader is the one binding still inside the module under the
+		// shared layout; the library sits in the shared directory, checked
+		// separately against the workspace root.
+		files = append(files, "loader.gen.ts")
 	}
 	switch c.opts.Runtime {
 	case "deno":
@@ -507,6 +523,19 @@ func (c *dangFuncCtx) dangRequiredFiles() []string {
 		files = append(files, c.tsConfigPath())
 	}
 	return files
+}
+
+// dangRequiredSharedFiles lists what call() needs from the shared client
+// directory, relative to it. Only under the shared layout.
+func (c *dangFuncCtx) dangRequiredSharedFiles() []string {
+	if c.opts.ClientsDir == "" {
+		return nil
+	}
+	return []string{
+		"dagger/index.ts",
+		"dagger/client.gen.ts",
+		"dagger/core.js",
+	}
 }
 
 // dangRequireGeneratedBody renders the body of requireGenerated: one existence
@@ -523,6 +552,9 @@ func (c *dangFuncCtx) dangRequireGeneratedBody() string {
 
 	var b strings.Builder
 	fmt.Fprintf(&b, "let dir = workspace.directory(%s)\n", dangString(dir))
+	if len(c.dangRequiredSharedFiles()) > 0 {
+		fmt.Fprintf(&b, "    let clients = workspace.directory(%s)\n", dangString("/"+c.opts.ClientsDir))
+	}
 	b.WriteString("    ")
 
 	for _, file := range c.dangRequiredFiles() {
@@ -531,6 +563,14 @@ func (c *dangFuncCtx) dangRequireGeneratedBody() string {
 			"module %q cannot run: the generated file %q is missing. "+
 				"Run `dagger generate` and commit what it writes.",
 			c.moduleName(), file)))
+		b.WriteString("    } else ")
+	}
+	for _, file := range c.dangRequiredSharedFiles() {
+		fmt.Fprintf(&b, "if (clients.exists(%s) == false) {\n", dangString(file))
+		fmt.Fprintf(&b, "      raise %s\n", dangString(fmt.Sprintf(
+			"module %q cannot run: the generated file %q is missing. "+
+				"Run `dagger generate` and commit what it writes.",
+			c.moduleName(), c.opts.ClientsDir+"/"+file)))
 		b.WriteString("    } else ")
 	}
 	b.WriteString("{\n      null\n    }")
@@ -567,15 +607,24 @@ func (c *dangFuncCtx) dangRuntimeChain() string {
 	)
 
 	// Deno resolves @dagger.io/dagger through the import map in deno.json, so only
-	// node and bun need the package mounted where module resolution looks for it.
+	// node and bun need the packages mounted where module resolution looks for
+	// them. The shared client directory maps 1:1 onto the @dagger.io scope —
+	// one package directory per module, the library as dagger/ — so one mount
+	// of the whole directory covers the library and every client.
 	if c.opts.Runtime != "deno" {
-		sdkPath := dangSDKDir
-		if p := c.modulePath(); p != "." {
-			sdkPath = path.Join(p, dangSDKDir)
+		if c.opts.ClientsDir != "" {
+			calls = append(calls, fmt.Sprintf(
+				`withMountedDirectory("node_modules/@dagger.io", workspace.directory(%s))`,
+				dangString("/"+c.opts.ClientsDir)))
+		} else {
+			sdkPath := dangSDKDir
+			if p := c.modulePath(); p != "." {
+				sdkPath = path.Join(p, dangSDKDir)
+			}
+			calls = append(calls, fmt.Sprintf(
+				`withMountedDirectory("node_modules/@dagger.io/dagger", workspace.directory(%s))`,
+				dangString("/"+sdkPath)))
 		}
-		calls = append(calls, fmt.Sprintf(
-			`withMountedDirectory("node_modules/@dagger.io/dagger", workspace.directory(%s))`,
-			dangString("/"+sdkPath)))
 	}
 
 	return dangChain("container", calls, "      ")

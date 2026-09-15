@@ -59,22 +59,21 @@ type SdkChecks {
   }
 
   """
-  The Go helpers (codegen, config-updater) must pass their own unit + golden
-  tests. Runs `go test` in a container so `dagger check` covers the codegen
-  logic, not just its end-to-end output.
+  The Go helpers (codegen, config-updater, workspace-config) must pass their own
+  unit + golden tests. Runs `go test` in a container so `dagger check` covers the
+  codegen logic, not just its end-to-end output.
   """
   helperTestsCheck(ws: Workspace!): Void @check {
-    let out = container
+    let base = container
       .from("golang:1.25-alpine")
       .withoutEntrypoint
       .withMountedCache("/go/pkg/mod", cacheVolume("go-mod"))
       .withMountedCache("/root/.cache/go-build", cacheVolume("go-build"))
       .withDirectory("/helpers", ws.directory("helpers"))
-      .withWorkdir("/helpers/codegen")
-      .withExec(["go", "test", "./..."])
-      .withWorkdir("/helpers/config-updater")
-      .withExec(["go", "test", "./..."])
-      .stdout
+
+    let out = ["codegen", "config-updater", "workspace-config"].reduce(base) { acc, helper =>
+      acc.withWorkdir("/helpers/" + helper).withExec(["go", "test", "./..."])
+    }.stdout
 
     null
   }

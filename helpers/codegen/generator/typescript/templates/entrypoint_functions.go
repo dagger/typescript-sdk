@@ -479,8 +479,12 @@ func (c *entrypointFuncCtx) plannedImports() []importLine {
 	// The generated loader maps a type name to its client class whichever
 	// per-module file declares it — there is no single namespace to look
 	// classes up in once every module has its own client. Imported relative to
-	// the module root, like the sdk/ directory it sits in.
-	lines = append(lines, importLine{From: "./" + LoaderImportPath, Names: []string{"__loadObject as __loadCoreObject"}})
+	// the module root, wherever the layout keeps it.
+	loaderImport := c.opts.LoaderImportPath
+	if loaderImport == "" {
+		loaderImport = LoaderImportPath
+	}
+	lines = append(lines, importLine{From: "./" + loaderImport, Names: []string{"__loadObject as __loadCoreObject"}})
 	lines = append(lines, importLine{From: sdk + "/telemetry", Namespace: "* as telemetry"})
 
 	// Group user imports by file path, deduping side-effect-only files.

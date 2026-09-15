@@ -148,6 +148,7 @@ func (funcs typescriptTemplateFuncs) FuncMap() template.FuncMap {
 		"CoreFile":            funcs.coreFile,
 		"ClientImports":       funcs.clientImports,
 		"ClientRuntimeImport": funcs.clientRuntimeImport,
+		"LibraryImport":       funcs.libraryImportSpec,
 		"LoaderFiles":         funcs.loaderFiles,
 		"RootClientType":      funcs.rootClientType,
 		"IsExtendableType":    funcs.isExtendableType,
@@ -882,16 +883,26 @@ func (funcs typescriptTemplateFuncs) clientRuntimeImport() string {
 	if funcs.cfg.ModuleConfig == nil {
 		return "../common/context.js"
 	}
-	return "@dagger.io/dagger"
+	return funcs.libraryImportSpec()
 }
 
 // coreImportSpec is where a client file imports core types and values from: the
 // @dagger.io/dagger package, aliased to the vendored library's sdk/ directory.
 func (funcs typescriptTemplateFuncs) coreImportSpec() string {
 	if funcs.cfg.ModuleConfig != nil {
-		return "@dagger.io/dagger"
+		return funcs.libraryImportSpec()
 	}
 	return "./" + funcs.coreFile() + ".js"
+}
+
+// libraryImportSpec is how a client file names the library: its package under
+// the embedded layout, its sibling directory under the packaged one (see
+// ModuleGeneratorConfig.PackagedClients).
+func (funcs typescriptTemplateFuncs) libraryImportSpec() string {
+	if funcs.cfg.ModuleConfig != nil && funcs.cfg.ModuleConfig.PackagedClients {
+		return "../dagger/index.js"
+	}
+	return "@dagger.io/dagger"
 }
 
 // siblingImportSpec is where a client file imports another module's types from.
@@ -901,6 +912,10 @@ func (funcs typescriptTemplateFuncs) coreImportSpec() string {
 // one package per module. A standalone client keeps its siblings relative, since
 // they share one package directory.
 func (funcs typescriptTemplateFuncs) siblingImportSpec(owner string) string {
+	if funcs.cfg.ModuleConfig != nil && funcs.cfg.ModuleConfig.PackagedClients {
+		name := funcs.depFileName(owner)
+		return "../" + name + "/" + name + ".gen.js"
+	}
 	if funcs.cfg.ModuleConfig != nil {
 		return "@dagger.io/" + funcs.depFileName(owner)
 	}

@@ -1,21 +1,27 @@
 """
 Checks for typed client generation, the client half of `generateScope`.
 
-A standalone client scope renders one npm-installable package per target under
-.dagger/clients, beside the vendored library as its own @dagger.io/dagger
-package. The client files are the same rendering a module's clients get — each
-serves its own module on use — and the user wires them in with
-`npm install ./.dagger/clients/<module>`; nothing of the user's is edited.
+Every scope's clients render into one workspace-wide directory beside
+dagger.toml: one npm-installable package per module, with the vendored library
+among them as its own @dagger.io/dagger package. The client files are the same
+rendering a module's clients get — each serves its own module on use — and the
+user wires them in with `npm install <path-to>/.dagger/clients/<module>`;
+nothing of the user's is edited.
 """
 type ClientChecks {
   let fixtures: Fixtures! = Fixtures
 
   """
-  Where a client-only scope's generated package lives, relative to the scope.
+  The workspace's shared client directory. One place for every scope, so this
+  takes no scope: the path a check asserts on is the same whichever fixture
+  generated it.
+
+  The fixtures share this repo's workspace, so they share its directory too.
+  That is only safe because each check computes a Changeset against the same
+  untouched base and never applies it — two checks generating different targets
+  never see each other's writes.
   """
-  let clientDir(scope: String!): String! {
-    scope + "/.dagger/clients"
-  }
+  let clientDir: String! = ".dagger/clients"
 
   """
   Assert a generated client serves the local module at `path` before its first
@@ -51,17 +57,16 @@ type ClientChecks {
   }
 
   """
-  Assert that a changeset holds a complete client scope for `scope`: the library
+  Assert that a changeset holds a complete shared client directory: the library
   package plus one package per target.
   """
-  let clientPackage(changes: Changeset!, scope: String!): Void {
-    let path = clientDir(scope)
-    Asserts.generated(changes, path + "/dagger/package.json")
-    Asserts.generated(changes, path + "/dagger/client.gen.ts")
-    Asserts.generated(changes, path + "/dagger/core.js")
-    Asserts.generated(changes, path + "/dagger/index.ts")
-    Asserts.generated(changes, path + "/client-app/package.json")
-    Asserts.generated(changes, path + "/client-app/client-app.gen.ts")
+  let clientPackage(changes: Changeset!): Void {
+    Asserts.generated(changes, clientDir + "/dagger/package.json")
+    Asserts.generated(changes, clientDir + "/dagger/client.gen.ts")
+    Asserts.generated(changes, clientDir + "/dagger/core.js")
+    Asserts.generated(changes, clientDir + "/dagger/index.ts")
+    Asserts.generated(changes, clientDir + "/client-app/package.json")
+    Asserts.generated(changes, clientDir + "/client-app/client-app.gen.ts")
     null
   }
 
@@ -73,13 +78,15 @@ type ClientChecks {
   """
   generateClientCheck(ws: Workspace!): Void @check {
     let changes = generateClients(ws, fixtures.clientOutput)
-    clientPackage(changes, fixtures.clientOutput)
+    clientPackage(changes)
 
-    let path = clientDir(fixtures.clientOutput)
-    let tree = changes.after.directory(path)
+    let tree = changes.after.directory(clientDir)
 
     let client = tree.file("client-app/client-app.gen.ts").contents
-    Asserts.stringContains(client, "from \"@dagger.io/dagger\"", "a client should import the library as a package")
+    # By directory, not by package name: npm links a file: package as a symlink
+    # and node resolves from the real path, so a bare specifier would search
+    # beside the shared tree instead of beside the consumer's node_modules.
+    Asserts.stringContains(client, "from \"../dagger/index.js\"", "a client should reach the library beside it")
     servesLocalModule(client, fixtures.clientModule, "a client should serve its own module on use")
 
     let clientPkg = tree.file("client-app/package.json").contents
@@ -101,7 +108,7 @@ type ClientChecks {
   """
   generateClientCompilesCheck(ws: Workspace!): Void @check {
     let changes = generateClients(ws, fixtures.clientOutput)
-    let generated = changes.layer.directory(clientDir(fixtures.clientOutput))
+    let generated = changes.layer.directory(clientDir)
 
     let mainTs = "import { connection, dag } from \"@dagger.io/dagger\"\n" +
       "import { clientApp } from \"@dagger.io/client-app\"\n" +
@@ -132,11 +139,10 @@ type ClientChecks {
   """
   Regeneration owns the generated files and nothing else: a hand-written file in
   the client scope survives, the user's own scope package.json is never touched,
-  and a client for a target that left the scope is pruned.
+  and the per-scope client package a previous layout left behind is taken away.
   """
   generateClientRespectsExistingCheck(ws: Workspace!): Void @check {
     let changes = generateClients(ws, fixtures.clientExisting)
-    let generatedDir = clientDir(fixtures.clientExisting)
 
     # Report what was actually removed: this check has failed on a difference
     # between a local-directory workspace and a git-loaded one, and the paths
@@ -160,9 +166,12 @@ type ClientChecks {
       "hello from the user's own file",
       "hand-written code in the scope must survive regeneration",
     )
+    # The scope's own .dagger/clients is where the packages used to live. It is
+    # generated in full, so nothing in it is the user's, and leaving it would
+    # keep a second copy of every client beside the shared one.
     Asserts.assert(
-      Asserts.contains(changes.removedPaths, generatedDir + "/stale-dep.gen.ts"),
-      "regeneration should prune bindings for a target that left the scope: " + removed,
+      Asserts.contains(changes.removedPaths, fixtures.clientExisting + "/.dagger/clients/"),
+      "the scope's own client directory should go with the move to the shared one: " + removed,
     )
 
     null
@@ -180,7 +189,7 @@ type ClientChecks {
     let synthetic = ws.directory("/").asWorkspace
     let changes = generateClients(synthetic, fixtures.clientExisting)
     let after = synthetic.withChanges(changes)
-    let entries = after.directory("/" + clientDir(fixtures.clientExisting)).entries
+    let entries = after.directory("/" + clientDir).entries
     let kept = "kept [" + entries.join(", ") + "]"
 
     Asserts.assert(
@@ -188,8 +197,8 @@ type ClientChecks {
       "hand-written code in the scope must survive: " + kept,
     )
     Asserts.assert(
-      Asserts.contains(entries, "stale-dep.gen.ts") == false,
-      "bindings for a target that left the scope must be pruned: " + kept,
+      Asserts.contains(after.directory("/" + fixtures.clientExisting + "/.dagger").entries, "clients/") == false,
+      "the scope's own client directory must go with the move: " + kept,
     )
     # Directory entries carry a trailing slash.
     Asserts.assert(Asserts.contains(entries, "dagger/"), "regeneration must write the library package: " + kept)
@@ -198,17 +207,18 @@ type ClientChecks {
   }
 
   """
-  Removing the last target should take the package with it. `clients` is the
-  complete desired set, so an empty one means the scope serves nothing — leaving
-  the bindings behind would export an API against a module no longer served.
+  Removing the last target should take the directory with it. The union over
+  every recorded scope is its complete desired set, so an empty one means the
+  workspace serves nothing — leaving the bindings behind would export an API
+  against a module no longer served.
   """
   removeClientsCheck(ws: Workspace!): Void @check {
     let generated = ws.withChanges(generateClients(ws, fixtures.clientOutput))
     let removed = Gen.scope(generated, fixtures.clientOutput, "", isModule: false)
 
     Asserts.assert(
-      Asserts.contains(removed.removedPaths, clientDir(fixtures.clientOutput) + "/"),
-      "dropping the last target should remove the generated package, got: "
+      Asserts.contains(removed.removedPaths, clientDir + "/"),
+      "dropping the last target should remove the shared client directory, got: "
         + removed.removedPaths.join(", "),
     )
 
@@ -279,11 +289,10 @@ type ClientChecks {
   it resolves offline with no remote dependency — the point of vendoring it.
   """
   clientVendorsLibraryCheck(ws: Workspace!): Void @check {
-    let path = clientDir(fixtures.clientOutput)
     let changes = generateClients(ws, fixtures.clientOutput)
 
     ["dagger/core.js", "dagger/core.d.ts", "dagger/index.ts", "dagger/telemetry.ts", "dagger/client.gen.ts", "dagger/package.json"].each { file =>
-      Asserts.generated(changes, path + "/" + file)
+      Asserts.generated(changes, clientDir + "/" + file)
     }
 
     null
@@ -296,7 +305,6 @@ type ClientChecks {
   reference.
   """
   multipleClientsCheck(ws: Workspace!): Void @check {
-    let path = clientDir(fixtures.clientOutput)
     let changes = Gen.scope(
       ws,
       fixtures.clientOutput,
@@ -309,13 +317,13 @@ type ClientChecks {
     )
 
     # One shared library package, plus one package per target.
-    Asserts.generated(changes, path + "/dagger/client.gen.ts")
-    Asserts.generated(changes, path + "/client-app/client-app.gen.ts")
-    Asserts.generated(changes, path + "/generate-app/generate-app.gen.ts")
+    Asserts.generated(changes, clientDir + "/dagger/client.gen.ts")
+    Asserts.generated(changes, clientDir + "/client-app/client-app.gen.ts")
+    Asserts.generated(changes, clientDir + "/generate-app/generate-app.gen.ts")
 
     # Each client serves its own module, in its own file — not a central
     # bootstrap in the core — and links its sibling as a file: dependency.
-    let tree = changes.after.directory(path)
+    let tree = changes.after.directory(clientDir)
     servesLocalModule(tree.file("client-app/client-app.gen.ts").contents, fixtures.clientModule, "the first target's client should serve its own module")
     servesLocalModule(tree.file("generate-app/generate-app.gen.ts").contents, fixtures.generateModule, "the second target's client should serve its own module")
     Asserts.stringContains(

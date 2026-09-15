@@ -47,6 +47,18 @@ type ModuleGeneratorConfig struct {
 	// clients, so they sit flat; a module keeps them under clients/, apart from
 	// its src/, entrypoint and sdk/.
 	FlatClients bool
+
+	// PackagedClients makes a client file reach the library and its siblings by
+	// relative path rather than by package name, for a rendering the caller
+	// will split into one package directory per module.
+	//
+	// Bare specifiers cannot carry that layout. npm links a `file:` package as
+	// a symlink, and node resolves from the real path — so a client installed
+	// into a consumer's node_modules looks for its siblings beside its own
+	// directory in the shared tree, not beside the symlink, and finds nothing.
+	// Relative imports resolve the same wherever the tree is reached from, and
+	// the package names stay the user-facing surface.
+	PackagedClients bool
 }
 
 // Module-source kinds a generated client can bind to. A local module
@@ -100,6 +112,11 @@ type EntrypointGeneratorConfig struct {
 	// entrypoint: one JSON request on stdin, one JSON result on stdout, and no
 	// register(). See EntrypointOptions.DispatchMode.
 	DispatchMode bool
+
+	// LoaderImportPath is where the generated entrypoint imports the object
+	// loader from, relative to the module root. Empty keeps the embedded
+	// layout's clients/loader.gen.js.
+	LoaderImportPath string
 }
 
 // Specific configuration for generating the Dang module entrypoint — the program
@@ -135,4 +152,11 @@ type DangEntrypointGeneratorConfig struct {
 	// TSConfigPath is the tsconfig tsx loads, relative to the module directory.
 	// Node only; defaults to "tsconfig.json".
 	TSConfigPath string
+
+	// ClientsDir is the workspace-root-relative directory holding the shared
+	// client packages (one per module, the library among them as dagger/).
+	// When set, the recipe mounts it at node_modules/@dagger.io instead of the
+	// module's own sdk/, and the generated-file check looks there for the
+	// library. Empty keeps the embedded sdk/ layout.
+	ClientsDir string
 }

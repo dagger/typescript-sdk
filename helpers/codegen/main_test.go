@@ -78,6 +78,84 @@ func TestMergeSchemas(t *testing.T) {
 		"every module's Query entry point should survive the merge")
 }
 
+// TestMergeClientSchemasPrefersNewestCore covers what a scope with targets from
+// different engine releases renders.
+//
+// The engine serves each module a compatibility view of core keyed on the
+// version it declares, so an old module carries an old core — here
+// Container.withDirectory taking `directory` where the current engine takes
+// `source`. The scope's one core copy must be the current one, or every query
+// the generated client sends is rejected at run time; the old module still has
+// to contribute its own types.
+func TestMergeClientSchemasPrefersNewestCore(t *testing.T) {
+	schema := func(module, argName string) *introspection.Schema {
+		const sourceMapFmt = `sourceMap`
+		dir := introspection.Directives{{
+			Name: sourceMapFmt,
+			Args: []*introspection.DirectiveArg{{Name: "module", Value: ptr(`"` + module + `"`)}},
+		}}
+		return &introspection.Schema{
+			QueryType: struct {
+				Name string `json:"name,omitempty"`
+			}{Name: "Query"},
+			Types: introspection.Types{
+				{
+					Kind: introspection.TypeKindObject,
+					Name: "Query",
+					Fields: []*introspection.Field{
+						{Name: "container"},
+						{Name: module, Directives: dir},
+					},
+				},
+				{
+					Kind: introspection.TypeKindObject,
+					Name: "Container",
+					Fields: []*introspection.Field{{
+						Name: "withDirectory",
+						Args: introspection.InputValues{{Name: argName}},
+					}},
+				},
+				{
+					Kind:       introspection.TypeKindObject,
+					Name:       strings.ToUpper(module[:1]) + module[1:],
+					Directives: dir,
+				},
+			},
+		}
+	}
+
+	// Oldest first, which is the order that used to decide core.
+	merged, version := mergeClientSchemas([]loadedClientSchema{
+		{name: "hello", schema: schema("hello", "directory"), version: "v0.12.0"},
+		{name: "test", schema: schema("test", "source"), version: "v1.0.0"},
+	})
+
+	require.Equal(t, "v1.0.0", version)
+
+	args := []string{}
+	for _, arg := range merged.Types.Get("Container").Fields[0].Args {
+		args = append(args, arg.Name)
+	}
+	require.Equal(t, []string{"source"}, args,
+		"core should come from the newest schema, not the first")
+
+	names := []string{}
+	for _, typ := range merged.Types {
+		names = append(names, typ.Name)
+	}
+	require.Contains(t, names, "Hello", "an older module still contributes its own types")
+	require.Contains(t, names, "Test")
+}
+
+func TestCompareSchemaVersions(t *testing.T) {
+	require.Positive(t, compareSchemaVersions("v1.0.0", "v0.12.0"))
+	require.Positive(t, compareSchemaVersions("v0.12.0", "v0.9.0"), "segments compare numerically, not as text")
+	require.Zero(t, compareSchemaVersions("v1.0.0", "v1.0.0"))
+	require.Negative(t, compareSchemaVersions("", "v0.1.0"), "an unparseable version never wins the core")
+}
+
+func ptr(s string) *string { return &s }
+
 // TestFoldClientsIntoModuleSchema covers the half of a scope's clients that goes
 // into the module's own bindings. A client schema is core plus one module, and
 // its core half hides nothing — so folding it in wholesale would give a module

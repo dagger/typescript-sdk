@@ -11,3 +11,4 @@
 /helpers/config-updater/config-updater
 /helpers/module-config/module-config
 /helpers/render-template/render-template
+/helpers/workspace-config/workspace-config

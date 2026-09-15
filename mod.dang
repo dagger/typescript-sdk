@@ -79,6 +79,11 @@ type Mod {
       # The engine owns these end to end; this SDK generates the scopes recorded
       # in dagger.toml, and a legacy module cannot be one.
       raise "module is configured by dagger.json, which the engine's runtime generates: " + rootPath
+    } else if (isEntrypointManifest(ws)) {
+      # An entrypoint module's library and clients live in the workspace's
+      # shared client directory, whose desired state is the union over every
+      # recorded scope — which only the workspace-wide path computes.
+      raise "module declares a manifest v2 entrypoint; regenerate it with `dagger generate`, which owns the shared client directory: " + rootPath
     } else if (hasClients(ws)) {
       # A scope's client targets come from dagger.toml, which only the engine
       # reads; addressing the module by path says nothing about them. Their
@@ -112,6 +117,25 @@ type Mod {
   let hasClients(ws: Workspace!): Boolean! {
     let dir = if (sourcePath == ".") { "clients" } else { sourcePath + "/clients" }
     ws.directory("/", include: [dir + "/**"]).exists(dir)
+  }
+
+  """
+  Whether this module's manifest is a v2 entrypoint manifest — four values and
+  an [entrypoint] table, no [runtime].
+  """
+  let isEntrypointManifest(ws: Workspace!): Boolean! {
+    let configPath = if (rootPath == ".") { "dagger-module.toml" } else { rootPath + "/dagger-module.toml" }
+    let filtered = ws.directory("/", include: [configPath])
+
+    if (filtered.exists(configPath) == false) {
+      false
+    } else {
+      filtered
+        .file(configPath)
+        .search(pattern: "manifestVersion\\s*=\\s*2", multiline: true, limit: 1)
+        .{{id}}
+        .length > 0
+    }
   }
 
   """

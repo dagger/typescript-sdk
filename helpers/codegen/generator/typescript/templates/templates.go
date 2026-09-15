@@ -93,4 +93,10 @@ type EntrypointOptions struct {
 	// stdout, and has no register() because the typedefs now live in the Dang
 	// entrypoint. invoke() and every state helper are identical.
 	DispatchMode bool
+
+	// LoaderImportPath is where the generated entrypoint imports the object
+	// loader from, relative to the module root. Empty keeps the embedded
+	// layout's clients/loader.gen.js; the shared-clients layout keeps the
+	// loader at the module root instead.
+	LoaderImportPath string
 }
