@@ -14,6 +14,14 @@
 >   The declaration-merge / prototype-patch machinery
 >   (`AugmentFnName`, `ExtendableClassNames`, `DependencyExports`, the core
 >   file's footer) is deleted (§5.2).
+> - **Layout: `sdk/` is the library, `clients/` holds the clients.** A module's
+>   per-module client files and the loader land in a `clients/` directory beside
+>   the library, not inside it, so `sdk/` stays the core-only `@dagger.io/dagger`
+>   package it will one day be pulled as. The client files reach the library
+>   through the `@dagger.io/dagger` specifier (they no longer sit next to the
+>   bundle), and a sibling module relatively. This subsumes the `clients/`
+>   directory the old `dualClients` setting produced, so **`dualClients` is
+>   removed**: a module scope has one client directory now.
 > - **The core file holds core types only** — no `export *` of module files, no
 >   footer. `sdk/index.ts` still `export *`s `client.gen.ts` (core), so
 >   `import { Container } from "@dagger.io/dagger"` keeps working; the breaking
@@ -24,38 +32,43 @@
 >   wrong for a self client returning a dependency's type (§5.3, §9.2).
 > - **The entrypoint object loader is generated, not namespace-looked-up.**
 >   Instead of `__loadCoreObject` searching a namespace import of the whole SDK,
->   codegen emits `sdk/loader.gen.ts` — an explicit `type name -> class` map
+>   codegen emits `clients/loader.gen.ts` — an explicit `type name -> class` map
 >   baked from the schema split — and the entrypoints import `__loadObject` from
->   it. This is the §5.5 fix; the loader lives beside the bindings and only the
->   entrypoints import it, so the direction is entrypoint -> loader -> clients.
+>   it (§5.5). `loader` is a reserved module name.
+> - **The dispatcher serves the module itself.** A nested dispatch session
+>   carries only the active module's dependencies, so a self client
+>   (`test(this.ws)…`) resolved nothing and failed. Codegen now serves the
+>   module into that session too, via `--self-serve-path` (a local
+>   `currentWorkspace().moduleSource(path).asModule().serve()`).
 > - **`config-updater` writes one `@dagger.io/dagger/<module>` alias per module
->   client** into `tsconfig.json` / `deno.json`, synced (stale entries pruned),
->   and the dang side derives the alias set from each pass's bindings (§5.4).
->   `client`, `dagger` and `loader` are reserved module names.
+>   client** into `tsconfig.json` / `deno.json` (pointing at
+>   `./clients/<module>.gen.ts`), synced (stale entries pruned), and the dang
+>   side derives the alias set from each pass's bindings (§5.4).
 >
 > **Not done here** (unchanged from the proposal's out-of-scope list):
 > §5.1 runtime `globalThis` anchor, §5.6 self-client input via `dag.schema` (the
 > existing `selfContribution` fold is kept), §6 folding `serveBoundModule`
-> into the bound module's package, §7 externalization. The `dualClients` setting
-> and the two `sdk/` + `clients/` directories still coexist; they now render the
-> *same* per-module shape, so what remains is merging the two directories, not
-> the two shapes.
+> into the bound module's package, §7 externalization.
 >
-> **Known gap — standalone consumer resolution.** A module scope's own `sdk/`
-> clients resolve through the tsconfig `@dagger.io/dagger/<module>` aliases
-> written at generation, and that path is verified. The standalone `clients/`
-> package is different: it is installed as an npm package and reached by its
-> name, but its `dagger.gen.ts` no longer re-exports the module files (that was
-> the merged namespace), and nothing yet gives the package the subpath
-> `exports` map a consumer needs to `import { hey } from "@pkg/hey"`. The files
-> generate and type-check; wiring `package.json` `exports` (or an `index.ts`)
-> for the standalone case is the remaining piece of §6, and it should land with
-> moving `serveBoundModule` into the bound module's package.
+> **Serve-on-use is still dispatcher-side, not per-client.** A bound module is
+> served by the dispatcher before it invokes, not by the client file when it is
+> first called or imported. Doing the latter is awkward — a client constructor
+> is synchronous while `serve()` is async — and left as future work; the
+> dispatcher serve (deps + self) covers the entrypoint path today.
+>
+> **Known gap — standalone consumer resolution.** A module scope's `clients/`
+> resolve through the tsconfig aliases, verified. The client-only standalone
+> package (`.dagger/clients/`, flat) is different: it is installed as an npm
+> package and reached by its name, but its `dagger.gen.ts` no longer re-exports
+> the module files, and nothing yet gives the package the subpath `exports` map
+> a consumer needs to `import { hey } from "@pkg/hey"`. The files generate and
+> type-check; wiring `package.json` `exports` is the remaining piece of §6.
 >
 > **Verification.** Unit + golden tests green (`helpers/codegen`,
-> `helpers/config-updater`); a generated module tree — core + per-module client +
-> `loader.gen.ts` + dispatcher + user source importing `@dagger.io/dagger/<mod>`
-> — type-checks clean under `tsc --strict`. Not yet exercised against a live
+> `helpers/config-updater`); a generated module tree — `sdk/` library +
+> `clients/<module>.gen.ts` + `clients/loader.gen.ts` + dispatcher (serving a
+> git dep and self) + user source importing `@dagger.io/dagger/<mod>` —
+> type-checks clean under `tsc --strict`. Not yet exercised against a live
 > engine.
 
 ---

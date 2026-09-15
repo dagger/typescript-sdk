@@ -61,13 +61,18 @@ func TestGenerateModule_Layout(t *testing.T) {
 	state, err := gen.GenerateModule(context.Background(), moduleSchema(t), "v0.21.0")
 	require.NoError(t, err)
 
+	// The core file is the library: it stays at the root (sdk/) and imports the
+	// bundle sitting beside it. The module clients live under clients/.
 	core := readOverlay(t, state, "client.gen.ts")
-	dep := readOverlay(t, state, "gendep.gen.ts")
+	dep := readOverlay(t, state, "clients/gendep.gen.ts")
 
-	// Bundled library, imported from the sdk/ directory the files ship in.
 	require.Contains(t, core, `from "./core.js"`)
 	require.NotContains(t, core, `from "@dagger.io/dagger"`)
-	require.Contains(t, dep, `from "./core.js"`)
+
+	// A module client sits under clients/, apart from the library, so it reaches
+	// core through the @dagger.io/dagger package specifier, not a relative path.
+	require.Contains(t, dep, `from "@dagger.io/dagger"`)
+	require.NotContains(t, dep, `from "./core.js"`)
 
 	// Every module splits into its own self-contained client file, the module
 	// being generated for included. The core file no longer imports or
@@ -78,10 +83,13 @@ func TestGenerateModule_Layout(t *testing.T) {
 	require.Contains(t, dep, "export class Gendep extends BaseClient")
 	require.Contains(t, dep, "export const dag = new Client()")
 	require.NotContains(t, core, "export class App extends BaseClient")
-	require.Contains(t, readOverlay(t, state, "app.gen.ts"), "export class App extends BaseClient")
+	require.Contains(t, readOverlay(t, state, "clients/app.gen.ts"), "export class App extends BaseClient")
 
-	// The loader beside the bindings maps each type name to its owning file.
-	loader := readOverlay(t, state, "loader.gen.ts")
+	// The loader lives beside the module clients and imports each from its
+	// relative sibling. (This schema carries no core object types, so the
+	// package import is exercised in TestGenerate_Module_EmitsLoader.)
+	loader := readOverlay(t, state, "clients/loader.gen.ts")
+	require.Contains(t, loader, `import * as __modGendep from "./gendep.gen.js"`)
 	require.Contains(t, loader, `"Gendep": __modGendep.Gendep,`)
 	require.Contains(t, loader, `"App": __modApp.App,`)
 }
@@ -98,7 +106,7 @@ func TestGenerateModule_SourceMapPathIsRelativeToSDKDir(t *testing.T) {
 	state, err := gen.GenerateModule(context.Background(), moduleSchema(t), "v0.21.0")
 	require.NoError(t, err)
 
-	require.Contains(t, readOverlay(t, state, "app.gen.ts"), "// app (../src/index.ts:12:0)")
+	require.Contains(t, readOverlay(t, state, "clients/app.gen.ts"), "// app (../src/index.ts:12:0)")
 }
 
 // TestGenerateLibrary_ImportsRuntimeFromSource covers the third import arm: the

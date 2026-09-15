@@ -116,13 +116,14 @@ func TestClientTemplate_RendersModuleClient(t *testing.T) {
 	require.NotContains(t, out, "Augmentations",
 		"no augmentation function may be emitted")
 
-	// BaseClient comes from the SDK runtime.
-	require.Regexp(t, `import\s*\{\s*Context,\s*BaseClient`, out,
-		"BaseClient must be imported alongside Context from the runtime")
+	// A module client sits under clients/, apart from the library, so it reaches
+	// the runtime and core through the @dagger.io/dagger package specifier.
+	require.Regexp(t, `import\s*\{\s*Context,\s*BaseClient\s*\}\s*from "@dagger\.io/dagger"`, out,
+		"BaseClient must be imported alongside Context from the package")
 
-	// The referenced core class is value-imported from the core file (bodies
+	// The referenced core class is value-imported from the package (bodies
 	// construct it), and the value import is not a type-only one.
-	require.Regexp(t, `import \{[^}]*\bContainer\b[^}]*\} from "\./client\.gen\.js"`, out)
+	require.Regexp(t, `import \{[^}]*\bContainer\b[^}]*\} from "@dagger\.io/dagger"`, out)
 	require.NotRegexp(t, `import type \{[^}]*\bContainer\b`, out)
 }
 
@@ -330,7 +331,7 @@ func TestGenerate_SplitsOwnTypesLikeADependency(t *testing.T) {
 	require.NoError(t, err)
 
 	core := readOverlay(t, state, "client.gen.ts")
-	depFile := readOverlay(t, state, "dep.gen.ts")
+	depFile := readOverlay(t, state, "clients/dep.gen.ts")
 
 	// The module's own type splits out like any other, and the core file holds
 	// only core types — no re-exports, no knowledge of the module files.
@@ -340,7 +341,7 @@ func TestGenerate_SplitsOwnTypesLikeADependency(t *testing.T) {
 	require.NotContains(t, core, "dep.gen.js")
 
 	require.Contains(t, depFile, "export class Dep extends BaseClient")
-	require.Contains(t, readOverlay(t, state, "app.gen.ts"), "export class App extends BaseClient")
+	require.Contains(t, readOverlay(t, state, "clients/app.gen.ts"), "export class App extends BaseClient")
 }
 
 // TestGenerate_Module_EmitsLoader checks the loader emitted beside a module's
@@ -365,8 +366,8 @@ func TestGenerate_Module_EmitsLoader(t *testing.T) {
 	}, ClientGenFile, schema, "v0.21.0")
 	require.NoError(t, err)
 
-	loader := readOverlay(t, state, "loader.gen.ts")
-	require.Contains(t, loader, `import * as __core from "./client.gen.js"`)
+	loader := readOverlay(t, state, "clients/loader.gen.ts")
+	require.Contains(t, loader, `import * as __core from "@dagger.io/dagger"`)
 	require.Contains(t, loader, `import * as __modMyDep from "./my-dep.gen.js"`)
 	require.Contains(t, loader, `"Container": __core.Container,`)
 	require.Contains(t, loader, `"MyDep": __modMyDep.MyDep,`)
@@ -391,15 +392,23 @@ func TestGenerate_RejectsReservedModuleNames(t *testing.T) {
 		return schema
 	}
 
-	for _, name := range []string{"client", "loader"} {
-		_, err := generate(generator.Config{
-			ModuleConfig: &generator.ModuleGeneratorConfig{ModuleName: "app"},
-		}, ClientGenFile, buildSchema(name), "v0.21.0")
-		require.Error(t, err, "module named %q must be rejected", name)
-		require.ErrorContains(t, err, name)
-	}
-
+	// In module codegen the clients live under clients/, apart from the core
+	// client.gen.ts, so "loader" (a sibling of the module files) is the only
+	// reserved name; "client" no longer collides.
 	_, err := generate(generator.Config{
+		ModuleConfig: &generator.ModuleGeneratorConfig{ModuleName: "app"},
+	}, ClientGenFile, buildSchema("loader"), "v0.21.0")
+	require.Error(t, err, `module named "loader" must be rejected in module mode`)
+	require.ErrorContains(t, err, "loader")
+
+	_, err = generate(generator.Config{
+		ModuleConfig: &generator.ModuleGeneratorConfig{ModuleName: "app"},
+	}, ClientGenFile, buildSchema("client"), "v0.21.0")
+	require.NoError(t, err, `"client" is a directory apart from the module clients now`)
+
+	// A standalone client keeps everything in one directory, so its core file's
+	// name ("dagger") is reserved there.
+	_, err = generate(generator.Config{
 		ClientConfig: &generator.ClientGeneratorConfig{ModuleName: "dagger"},
 	}, CoreGenFile, buildSchema("dagger"), "v0.21.0")
 	require.Error(t, err, `module named "dagger" must be rejected in client mode`)
@@ -603,12 +612,12 @@ func TestClientTemplate_CoreValuesAreValueImported(t *testing.T) {
 
 	// Core classes the bodies construct are value-imported (not `import type`),
 	// and both arg-only (Directory) and constructed (Container) objects appear.
-	require.Regexp(t, `import \{[^}]*\bContainer\b[^}]*\} from "\./client\.gen\.js"`, out,
+	require.Regexp(t, `import \{[^}]*\bContainer\b[^}]*\} from "@dagger\.io/dagger"`, out,
 		"constructed core class must be value-imported")
-	require.Regexp(t, `import \{[^}]*\bDirectory\b[^}]*\} from "\./client\.gen\.js"`, out,
+	require.Regexp(t, `import \{[^}]*\bDirectory\b[^}]*\} from "@dagger\.io/dagger"`, out,
 		"core class used as a signature type must still be importable")
 	// The enum converter called in the body is value-imported and the body uses it.
-	require.Regexp(t, `import \{[^}]*\bNetworkProtocolNameToValue\b[^}]*\} from "\./client\.gen\.js"`, out,
+	require.Regexp(t, `import \{[^}]*\bNetworkProtocolNameToValue\b[^}]*\} from "@dagger\.io/dagger"`, out,
 		"enum converter must be value-imported")
 	require.Contains(t, out, "NetworkProtocolNameToValue(", "body must call the imported converter")
 	require.Contains(t, out, "return new Container(ctx)", "body must construct the core class")

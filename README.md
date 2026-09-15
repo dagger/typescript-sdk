@@ -76,7 +76,6 @@ client add`, and are persisted per scope in `dagger.toml`:
 | `template` | `--template` | `default` (a small working module; `empty` is a bare `@object` class) |
 | `packageManager` | `--package-manager` | unset |
 | `baseImage` | `--base-image` | unset |
-| `dualClients` | `--dual-clients` | `false` |
 
 ```sh
 dagger module init typescript --name my-module --runtime bun
@@ -98,10 +97,6 @@ runtime; Bun and Deno bundle their own.
 `--base-image` writes to `deno.json` for Deno modules and to `package.json`
 otherwise — matching where the engine reads it from.
 
-`--dual-clients` only affects module scopes, and only the standalone client
-package described below — see [Generate a typed client](#generate-a-typed-client).
-It is temporary, and goes away when the two output directories merge into one.
-
 ## Generate a typed client
 
 Record a client for a module in the current scope:
@@ -121,26 +116,25 @@ What a scope gets depends on what the scope is:
 
 | Scope | Client output |
 | --- | --- |
-| A module | `sdk/`, the module's own bindings; plus `clients/` with `--dual-clients` |
+| A module | `sdk/` (the library) plus `clients/` (its per-module clients) |
 | Your own project | `.dagger/clients/` |
 
-A module binds its targets into the `sdk/` directory it already generates:
+A module keeps its targets in a `clients/` directory beside the library:
 every module — a dependency, a recorded target, the module itself — becomes its
-own client file with its own `dag` and entrypoint functions, reached through
-its own specifier:
+own `clients/<module>.gen.ts` client with its own `dag` and entrypoint
+functions, reached through its own specifier. `sdk/` stays the core-only
+`@dagger.io/dagger` library:
 
 ```ts
-import { dag, Container } from "@dagger.io/dagger" // core API
-import { api } from "@dagger.io/dagger/api"        // a bound module
+import { dag, Container } from "@dagger.io/dagger" // core API (sdk/)
+import { api } from "@dagger.io/dagger/api"        // a bound module (clients/api.gen.ts)
 
 api().deploy(dag.container().from("alpine"))
 ```
 
 The `@dagger.io/dagger/<module>` aliases are written into `tsconfig.json` (or
 `deno.json`) at generation, so a client added inside a module is usable from it
-straight away. The standalone package under `clients/` renders the same
-per-module clients for code outside the module, and nothing needs it to build
-the module, so it is only written with `--dual-clients`.
+straight away.
 
 One package per scope, not one per target: the core API is the bulk of a
 generated client and every target in a scope shares it. The package holds

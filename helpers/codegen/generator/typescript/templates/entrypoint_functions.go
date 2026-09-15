@@ -14,9 +14,9 @@ import (
 
 // LoaderImportPath is where the generated entrypoints import the object
 // loader from, relative to the module root: the loader.gen.ts module codegen
-// emits into the module's sdk/ directory, with the .js suffix the other
+// emits into the module's clients/ directory, with the .js suffix the other
 // generated imports use.
-const LoaderImportPath = "sdk/loader.gen.js"
+const LoaderImportPath = "clients/loader.gen.js"
 
 // EntrypointTemplateFuncs returns the template.FuncMap used by
 // src/entrypoint/*.gtpl. All inline TS expression generation lives here so

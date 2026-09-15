@@ -36,22 +36,6 @@ type TypescriptSdk {
   lock: Boolean! = false
 
   """
-  Whether a module scope also generates the standalone client package.
-
-  A module scope binds its targets twice, for two callers: the module's own
-  `sdk/` bindings, which its source reaches through @dagger.io/dagger/<module>,
-  and a standalone package under `clients/` for code outside the module. The
-  two are the same rendering now — one client file per module, differing only
-  in how they resolve the runtime — but only the first is needed to build the
-  module, so the second is off unless asked for. A client-only scope ignores
-  this — the standalone package is its only output, and withholding it would
-  leave the scope with nothing.
-
-  Temporary: it goes away when the two directories merge into one.
-  """
-  dualClients: Boolean! = false
-
-  """
   Declare a module entrypoint instead of a legacy runtime.
 
   Experimental, and engine-gated: only an engine carrying dagger/dagger#14038
@@ -260,9 +244,9 @@ type TypescriptSdk {
       # root instead of inside the module.
       let source = if (entrypoint) { scope } else { moduleSourcePath(configured, scope) }
       let rt = effectiveRuntime(configured, source)
-      # The same targets feed the module's runtime dependencies and its own
-      # bindings, and — with dualClients — the standalone package a caller
-      # installs.
+      # The same targets feed the module's runtime dependencies and its clients/
+      # directory — the per-module client files its own source imports and any
+      # caller outside it installs.
       let targets = clientTargets(clients)
       # Before the schema is read: a target that is not a dependency yet is not
       # in the schema the bindings are generated from.
@@ -286,23 +270,21 @@ type TypescriptSdk {
       let firstPass = moduleGenerated(served, scope, source, name, rt, targets)
       let staged = stagedModule(served, source, firstPass)
       # The module's own API is a target like any other from here on: folded into
-      # its bindings so its source can call itself, and — where the standalone
-      # package is generated — rendered into it so callers outside it can too.
+      # its clients/ directory as its own <module>.gen.ts, so its source can call
+      # itself and a caller outside it reaches it the same way.
       let selfTargets = selfClientTarget(staged, scope, name)
       let withSelf = targets + selfTargets
-      let bound = moduleFiles(
+      let complete = moduleFiles(
         served,
         source,
         withSelfBindings(staged, scope, name, firstPass, withSelf, selfTargets, rt),
       )
-      let complete = if (dualClients) { clientScope(bound, source, true, withSelf) } else { bound }
 
       # Back to the cwd the engine set: it rejects a generateScope that returns
       # a workspace standing somewhere else.
       complete.withWorkdir(scope)
     } else {
-      # The standalone package is the only output here, so dualClients does not
-      # apply: withholding it would leave the scope with nothing generated.
+      # A client-only scope: its one output is the standalone package.
       clientScope(ws, scope, false, clientTargets(clients))
     }
   }
@@ -942,8 +924,10 @@ type TypescriptSdk {
   }
 
   """
-  Assemble a module's sdk/ directory: the shipped bundle plus the module's
-  generated bindings.
+  Assemble a module's sdk/ directory: the shipped bundle plus the core
+  bindings. Nothing module-specific: sdk/ *is* the @dagger.io/dagger library,
+  and the per-module clients live in clients/, apart from it, so it can one day
+  be pulled as an npm package instead of generated.
 
   This directory is what the engine runtime mounts as
   node_modules/@dagger.io/dagger, so its layout is the runtime's contract, not
@@ -957,9 +941,23 @@ type TypescriptSdk {
     # include list is explicit so the bundle's other contents — the
     # introspector and the compiler pin, which belong to generation rather than
     # to the module — still stay out.
+    #
+    # Only client.gen.ts comes from the generated bindings: the module clients
+    # and the loader are the caller's to place under clients/, not part of the
+    # library.
     directory
       .withDirectory(".", tsBundle, include: ["core.js", "core.d.ts", "index.ts", "telemetry.ts"])
-      .withDirectory(".", bindings)
+      .withFile("client.gen.ts", bindings.file("client.gen.ts"))
+  }
+
+  """
+  The per-module clients a module scope generates, apart from the library: one
+  <module>.gen.ts client per dependency and per recorded target, plus the loader
+  the entrypoints resolve ID-carrying values through. Codegen already nests them
+  under clients/, so this is just that subdirectory.
+  """
+  let moduleClientsDirectory(bindings: Directory!): Directory! {
+    bindings.directory("clients")
   }
 
   """
@@ -1005,11 +1003,17 @@ type TypescriptSdk {
   Split out from the renderers because all three read it and the scan is the
   expensive half: one node, one cache entry, however many files come out of it.
   """
-  let moduleTypedefJSON(moduleName: String!, source: Directory!, sdk: Directory!): String! {
+  let moduleTypedefJSON(moduleName: String!, source: Directory!, sdk: Directory!, clients: Directory!): String! {
+    # The introspector resolves a dependency type a user function references
+    # (e.g. returning a Hello) by name across the generated files it is handed.
+    # It derives that set from the *.gen.ts siblings of client.gen.ts, so the
+    # module clients — which live in clients/, not sdk/ — are staged beside it
+    # for the scan. This tree is a throwaway; only typedef.json is read back.
     introspector
       .withWorkdir("/work")
       .withDirectory("/work/src", source)
       .withDirectory("/work/sdk", sdk)
+      .withDirectory("/work/sdk", clients)
       .withEnvVariable("EMIT_TYPEDEF_JSON_FILE", "/work/typedef.json")
       .withExec(["bun", "/introspector/introspector.js", moduleName, "src", "sdk/client.gen.ts"])
       .file("/work/typedef.json")
@@ -1040,7 +1044,7 @@ type TypescriptSdk {
   __dagger.entrypoint.ts the builtin runtime execs — the two are the same half
   of two different loading paths, and a module is on one of them.
   """
-  let generateModuleDispatcher(typedef: String!, targets: [ClientTarget!]!): File! {
+  let generateModuleDispatcher(typedef: String!, sourcePath: String!, targets: [ClientTarget!]!): File! {
     let base = entrypointCodegen(typedef)
     let staged = if (targets.length == 0) { base } else { stageTargetMeta(base, targets) }
     let metaArgs = if (targets.length == 0) {
@@ -1056,6 +1060,10 @@ type TypescriptSdk {
         "--output", "/out",
         "--module-root", "/work",
         "--source-dir", "src",
+        # Serve the module into the dispatcher's own nested session: it carries
+        # only the module's dependencies, so a self client resolves nothing
+        # unless the module serves itself here too.
+        "--self-serve-path", sourcePath,
       ] + metaArgs)
       .file("/out/" + dispatchFile)
   }
@@ -1105,9 +1113,9 @@ type TypescriptSdk {
   }
 
   """
-  Build the complete set of generated files for a module: its sdk/ directory,
-  the file a call is dispatched into it through, and the config the runtime
-  reads.
+  Build the complete set of generated files for a module: its sdk/ library, its
+  clients/, the file a call is dispatched into it through, and the config the
+  runtime reads.
 
   `existing` supplies the module's current config files so user settings
   survive; `runtime` selects which config files are written. The result is
@@ -1116,8 +1124,9 @@ type TypescriptSdk {
   Which dispatch file that is comes from the `entrypoint` setting, because a
   module is loaded one way or the other and never both: an `[entrypoint]` module
   gets entrypoint/main.dang and the __dagger.dispatch.ts it shells out to, a
-  `[runtime]` module gets the __dagger.entrypoint.ts that runtime execs. sdk/ is
-  common to both — it is the @dagger.io/dagger either one imports.
+  `[runtime]` module gets the __dagger.entrypoint.ts that runtime execs. sdk/
+  and clients/ are common to both — the library and the per-module bindings the
+  module's own source imports, whichever way it is loaded.
   """
   let moduleDirectory(
     schemaJSON: String!,
@@ -1131,15 +1140,18 @@ type TypescriptSdk {
   ): Directory! {
     let bindings = generateModuleBindings(schemaJSON, moduleName, targets)
     let sdk = moduleSdkDirectory(bindings)
-    let typedef = moduleTypedefJSON(moduleName, source, sdk)
+    let clients = moduleClientsDirectory(bindings)
+    let typedef = moduleTypedefJSON(moduleName, source, sdk, clients)
 
     # One loading path's files, never both. Naming a file is also what renders
     # it: the File the other branch would have produced is never pulled, so the
-    # codegen exec behind it never runs.
+    # codegen exec behind it never runs. clients/ is common to both — it is what
+    # the module's own source imports, whichever way the module is loaded.
     let base = if (entrypoint) {
       directory
         .withDirectory("sdk", sdk)
-        .withFile(dispatchFile, generateModuleDispatcher(typedef, targets))
+        .withDirectory("clients", clients)
+        .withFile(dispatchFile, generateModuleDispatcher(typedef, sourcePath, targets))
         .withFile(
           dangEntrypointDir + "/main.dang",
           generateDangEntrypoint(typedef, moduleName, sourcePath, runtime, packageManager),
@@ -1147,6 +1159,7 @@ type TypescriptSdk {
     } else {
       directory
         .withDirectory("sdk", sdk)
+        .withDirectory("clients", clients)
         .withFile(legacyEntrypointFile, generateModuleEntrypoint(typedef))
     }
 
@@ -1163,14 +1176,14 @@ type TypescriptSdk {
 
   """
   The names each generated module client is aliased under: one per
-  <module>.gen.ts in the bindings, with the core client and the loader — which
-  are not modules — left out.
+  <module>.gen.ts under clients/, with the loader — which is not a module — left
+  out.
   """
   let bindingAliasModules(bindings: Directory!): [String!]! {
-    bindings.entries
+    moduleClientsDirectory(bindings).entries
       .filter { entry => entry.trimSuffix(".gen.ts") != entry }
       .map { entry => entry.trimSuffix(".gen.ts") }
-      .filter { name => name != "client" and name != "loader" }
+      .filter { name => name != "loader" }
   }
 
   """
@@ -1260,7 +1273,7 @@ type TypescriptSdk {
   """
   let stagedModule(ws: Workspace!, sourcePath: String!, generated: Directory!): Workspace! {
     let existing = existingDir(ws, sourcePath)
-      .withoutFiles(moduleBindings(ws, sourcePath).map { entry => "sdk/" + entry })
+      .withoutFiles(moduleBindings(ws, sourcePath).map { entry => "clients/" + entry })
 
     ws.withNewDirectory("/" + sourcePath, existing.withDirectory(".", generated))
   }
@@ -1368,7 +1381,8 @@ type TypescriptSdk {
   }
 
   """
-  Drop the `*.gen.ts` files in a module's sdk/ that this run does not generate.
+  Drop the `*.gen.ts` files in a module's clients/ that this run does not
+  generate.
 
   Regeneration owns that set: a dependency that has left the module's closure
   must lose its file, or it goes on exporting an API against a module no longer
@@ -1377,12 +1391,12 @@ type TypescriptSdk {
   got them for free by replacing everything.
   """
   let prunedBindings(ws: Workspace!, sourcePath: String!, generated: Directory!): Workspace! {
-    let sdkPath = moduleSdkPath(sourcePath)
-    let kept = generated.directory("sdk").entries
+    let clientsPath = moduleClientsPath(sourcePath)
+    let kept = generated.directory("clients").entries
 
     moduleBindings(ws, sourcePath)
       .filter { entry => kept.filter { name => name == entry }.length == 0 }
-      .reduce(ws) { acc, entry => acc.withoutFile("/" + sdkPath + "/" + entry) }
+      .reduce(ws) { acc, entry => acc.withoutFile("/" + clientsPath + "/" + entry) }
   }
 
   """
@@ -1395,29 +1409,33 @@ type TypescriptSdk {
   time, from the same inputs, so the result does not depend on what was on disk
   when the run started.
 
-  Only the bindings — and the config aliases derived from them — are redone:
-  everything else in the tree comes through from the first pass. The entrypoint
-  is the expensive half and it comes from scanning the user's source, which the
-  self types do not change. The config is re-run because the second pass adds
-  the module's own client file, and that file's @dagger.io/dagger/<module>
-  alias has to exist for the module's source to import it; the first pass's
-  config files serve as the existing input, so user keys merged there carry
-  through.
+  Only the clients — and the config aliases derived from them — are redone:
+  the library (sdk/) is core-only and identical between passes, and everything
+  else in the tree comes through from the first pass. The entrypoint is the
+  expensive half and it comes from scanning the user's source, which the self
+  types do not change. The config is re-run because the second pass adds the
+  module's own client file, and that file's @dagger.io/dagger/<module> alias has
+  to exist for the module's source to import it; the first pass's config files
+  serve as the existing input, so user keys merged there carry through.
 
-  A Directory rather than a Workspace, because the first pass's bindings must
+  A Directory rather than a Workspace, because the first pass's clients must
   never be written to the workspace the engine diffs. They differ from these —
-  that is the entire reason for a second pass — so writing them would put
-  client.gen.ts in the changeset on every run that touches the module's source,
-  long after the file itself stopped changing.
+  that is the entire reason for a second pass — so writing them would put every
+  client file in the changeset on every run that touches the module's source,
+  long after the files themselves stopped changing.
   """
   let withSelfBindings(staged: Workspace!, scope: String!, name: String!, generated: Directory!, targets: [ClientTarget!]!, selfTargets: [ClientTarget!]!, rt: Runtime!): Directory! {
     if (selfTargets.length == 0) {
-      # Nothing to fold in, so the first pass's bindings are already the right ones.
+      # Nothing to fold in, so the first pass's clients are already the right ones.
       generated
     } else {
       let bindings = generateModuleBindings(staged.moduleSource("/" + scope).introspectionSchemaJSON.contents, name, targets)
+      # Replace clients/ wholesale — the self client is added and the loader now
+      # maps the module's own types — but leave the first pass's clients/ files
+      # that are gone from this set behind; prunedBindings removes those on write.
       generated
-        .withDirectory("sdk", moduleSdkDirectory(bindings))
+        .withoutDirectory("clients")
+        .withDirectory("clients", moduleClientsDirectory(bindings))
         .withDirectory(".", moduleConfigDirectory(generated, rt, bindingAliasModules(bindings)))
     }
   }
@@ -1475,18 +1493,26 @@ type TypescriptSdk {
   }
 
   """
-  Workspace-relative path of a module's generated sdk/ directory.
+  Workspace-relative path of a module's generated sdk/ directory (the library).
   """
   let moduleSdkPath(sourcePath: String!): String! {
     if (sourcePath == ".") { "sdk" } else { sourcePath + "/sdk" }
   }
 
   """
-  The `*.gen.ts` bindings sitting in a module's sdk/ directory, by name.
+  Workspace-relative path of a module's generated clients/ directory, where the
+  per-module client files and the loader live.
+  """
+  let moduleClientsPath(sourcePath: String!): String! {
+    if (sourcePath == ".") { "clients" } else { sourcePath + "/clients" }
+  }
+
+  """
+  The `*.gen.ts` client files sitting in a module's clients/ directory, by name.
 
   Regeneration owns that set and nothing else: a dependency that has left the
-  module's closure must lose its file, while the rest of sdk/ — the bundle and
-  the wrappers — is rewritten in place every time.
+  module's closure must lose its file, while sdk/ — the library — is rewritten
+  in place every time and never carries a stale module.
 
   Taken out of the baseline the generated tree is layered onto, which is the
   only place it has to happen: layering keeps the module's own source and config
@@ -1496,7 +1522,7 @@ type TypescriptSdk {
   default tsc rejects.
   """
   let moduleBindings(ws: Workspace!, sourcePath: String!): [String!]! {
-    existingDir(ws, moduleSdkPath(sourcePath)).entries
+    existingDir(ws, moduleClientsPath(sourcePath)).entries
       .filter { entry => entry.trimSuffix(".gen.ts") != entry }
   }
 
