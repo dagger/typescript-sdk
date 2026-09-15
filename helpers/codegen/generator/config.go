@@ -27,6 +27,13 @@ type ModuleGeneratorConfig struct {
 	// Name of the module to generate code for. Its own types stay in the core
 	// file; only its dependencies are split into per-module files.
 	ModuleName string
+
+	// BoundModules gives, per module name, the source a generated client serves
+	// on use: its git ref+pin or its workspace-relative path. A module client
+	// with an entry serves that module before its first query, so a client used
+	// outside the dispatcher still resolves. Modules with no entry (e.g. a
+	// manifest dependency the engine already serves) get no serve hook.
+	BoundModules []BoundModule
 }
 
 // Module-source kinds a generated client can bind to. A local module
