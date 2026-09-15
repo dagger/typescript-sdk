@@ -208,9 +208,15 @@ func TestClientTemplate_ImportsRootArgTypes(t *testing.T) {
 						Name:       "hello",
 						TypeRef:    &introspection.TypeRef{Kind: introspection.TypeKindNonNull, OfType: &introspection.TypeRef{Kind: introspection.TypeKindObject, Name: "Hello"}},
 						Directives: introspection.Directives{helloModule},
-						// A core object used only as a required argument.
+						// A core object used only as a required argument, encoded
+						// the way the engine emits it: a raw ID scalar carrying an
+						// @expectedType directive naming the object.
 						Args: introspection.InputValues{
-							{Name: "ws", TypeRef: &introspection.TypeRef{Kind: introspection.TypeKindNonNull, OfType: &introspection.TypeRef{Kind: introspection.TypeKindObject, Name: "Workspace"}}},
+							{
+								Name:       "ws",
+								TypeRef:    &introspection.TypeRef{Kind: introspection.TypeKindNonNull, OfType: &introspection.TypeRef{Kind: introspection.TypeKindScalar, Name: "ID"}},
+								Directives: introspection.Directives{expectedTypeDirective("Workspace")},
+							},
 						},
 					},
 				},
@@ -770,6 +776,14 @@ func newType(name string, kind introspection.TypeKind, directives introspection.
 		Kind:       kind,
 		Name:       name,
 		Directives: directives,
+	}
+}
+
+func expectedTypeDirective(typeName string) *introspection.Directive {
+	v := `"` + typeName + `"`
+	return &introspection.Directive{
+		Name: "expectedType",
+		Args: []*introspection.DirectiveArg{{Name: "name", Value: &v}},
 	}
 }
 
