@@ -47,16 +47,23 @@
 >   `./clients/<module>.gen.ts`), synced (stale entries pruned), and the dang
 >   side derives the alias set from each pass's bindings (§5.4).
 >
+> - **Serve-on-use per client (runtime hook).** A generated module client serves
+>   its own module before its first query, so a client reached outside the
+>   dispatcher (dev, or one module's source calling another) resolves. The
+>   library `Context` carries an optional serve spec propagated to every derived
+>   context; the first query awaits it, memoized per session on the `Connection`,
+>   run through the core dag so it can't recurse. Each client bakes its serve — a
+>   git module through `dag.moduleSource(ref, {refPin})`, a local one through a
+>   `currentWorkspace` raw query. This touches `library/bundle/` (rebuilt through
+>   the packager). The dispatcher keeps its own serve for now — the two are
+>   redundant (serve is memoized) and the dispatcher one can retire once this is
+>   proven on an engine. This preserves the fluent sync API; the constructor
+>   stays synchronous, the serve happens lazily at execute.
+>
 > **Not done here** (unchanged from the proposal's out-of-scope list):
 > §5.1 runtime `globalThis` anchor, §5.6 self-client input via `dag.schema` (the
-> existing `selfContribution` fold is kept), §6 folding `serveBoundModule`
-> into the bound module's package, §7 externalization.
->
-> **Serve-on-use is still dispatcher-side, not per-client.** A bound module is
-> served by the dispatcher before it invokes, not by the client file when it is
-> first called or imported. Doing the latter is awkward — a client constructor
-> is synchronous while `serve()` is async — and left as future work; the
-> dispatcher serve (deps + self) covers the entrypoint path today.
+> existing `selfContribution` fold is kept), §7 externalization (one npm package
+> per module).
 >
 > **Known gap — standalone consumer resolution.** A module scope's `clients/`
 > resolve through the tsconfig aliases, verified. The client-only standalone
@@ -64,7 +71,8 @@
 > package and reached by its name, but its `dagger.gen.ts` no longer re-exports
 > the module files, and nothing yet gives the package the subpath `exports` map
 > a consumer needs to `import { hey } from "@pkg/hey"`. The files generate and
-> type-check; wiring `package.json` `exports` is the remaining piece of §6.
+> type-check; wiring `package.json` `exports` is the remaining piece of §7 (kept
+> a shared `clients/` dir resolved by aliases, per the layout decision).
 >
 > **Verification.** Unit + golden tests green (`helpers/codegen`,
 > `helpers/config-updater`); a generated module tree — `sdk/` library +
