@@ -363,12 +363,13 @@ func updateTSConfig(tsConfig string, modules []string) (string, error) {
 
 // moduleAliasPrefix scopes the per-module specifiers a module's source imports
 // its generated clients through: @dagger.io/dagger/<module> resolves to
-// ./sdk/<module>.gen.ts. The telemetry alias shares the prefix but is static
-// runtime surface, not a module client, so the sweep below leaves it alone.
+// ./clients/<module>.gen.ts. The telemetry alias shares the prefix but is
+// static runtime surface, not a module client, so the sweep below leaves it
+// alone.
 const moduleAliasPrefix = daggerLibPathAlias + "/"
 
 func moduleAliasTarget(module string) string {
-	return "./sdk/" + module + ".gen.ts"
+	return "./clients/" + module + ".gen.ts"
 }
 
 // syncModuleAliases makes the config's @dagger.io/dagger/<module> entries under

@@ -111,6 +111,7 @@ func runEntrypoint(args []string) error {
 		sourceDir   = fs.String("source-dir", "src", "the module's source directory, relative to its root")
 		dispatch    = fs.Bool("dispatch", false, "render the manifest-v2 dispatcher (stdin/stdout, no register) instead of the legacy entrypoint")
 		clientMeta  = fs.String("client-meta-path", "", "path to the client meta JSON whose modules the dispatcher serves at run time")
+		selfServe   = fs.String("self-serve-path", "", "workspace-root-relative module path the dispatcher also serves, so a self client resolves")
 	)
 	if err := fs.Parse(args); err != nil {
 		return err
@@ -126,8 +127,9 @@ func runEntrypoint(args []string) error {
 			return err
 		}
 		for _, mod := range meta.Modules {
-			// The engine serves a module into its own session already, so the
-			// self target is a binding, not something to serve.
+			// The module itself is served from --self-serve-path (a local serve
+			// by path), not from its meta entry, whose schema and pin describe
+			// its bindings.
 			if mod.Self {
 				continue
 			}
@@ -155,6 +157,7 @@ func runEntrypoint(args []string) error {
 			SourceDir:       *sourceDir,
 			DispatchMode:    *dispatch,
 			BoundModules:    bound,
+			SelfServePath:   *selfServe,
 		},
 	}
 	gen := &typescriptgenerator.TypeScriptGenerator{Config: cfg}

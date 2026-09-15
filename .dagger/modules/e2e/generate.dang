@@ -133,22 +133,22 @@ type GenerateChecks {
 
   Layering the generated tree over the existing one is what keeps a module's own
   source and config out of the diff, but it also leaves behind any file we no
-  longer generate: drop a dependency and its `<dep>.gen.ts` stays, exporting an
-  API against a module that is no longer served. A default `tsc` compiles the
-  whole sdk/ directory and rejects it.
+  longer generate: drop a dependency and its `<dep>.gen.ts` stays under clients/,
+  exporting an API against a module that is no longer served. A default `tsc`
+  rejects it.
 
-  Staged rather than fixtured because sdk/ is gitignored in every module, so
+  Staged rather than fixtured because clients/ is gitignored in every module, so
   there is no committed stale file to start from — the check plants one and
   asserts regeneration takes it away.
   """
   generatePrunesStaleBindingsCheck(ws: Workspace!): Void @check {
     let path = fixtures.depAppModule
-    let stale = path + "/sdk/departed.gen.ts"
+    let stale = path + "/clients/departed.gen.ts"
 
     let dirty = Gen.withDependency(ws).withNewFile("/" + stale, "export const gone = true\n")
     let changes = Gen.module(dirty, path, "generate-deps-app")
 
-    Asserts.generated(changes, path + "/sdk/gendep.gen.ts")
+    Asserts.generated(changes, path + "/clients/gendep.gen.ts")
     Asserts.assert(
       Asserts.contains(changes.removedPaths, stale),
       "regeneration should remove bindings for a dependency that is gone, got removed [" +
@@ -242,7 +242,7 @@ type GenerateChecks {
     let changes = typescriptSdk.mod(staged, path: fixtures.depAppModule).generate(staged)
 
     Asserts.generated(changes, fixtures.depAppModule + "/sdk/index.ts")
-    Asserts.generated(changes, fixtures.depAppModule + "/sdk/gendep.gen.ts")
+    Asserts.generated(changes, fixtures.depAppModule + "/clients/gendep.gen.ts")
 
     # Addressing one module generates that module and nothing else: the
     # dependency's own files are already there, and regenerating them here would
@@ -300,10 +300,10 @@ type GenerateChecks {
     let changes = Gen.module(ws, path, "gendep")
     let tree = changes.after.directory(path)
 
-    # Its own client file, like any other module's, reached from the module's
-    # source through its own @dagger.io/dagger/gendep specifier.
-    Asserts.generated(changes, path + "/sdk/gendep.gen.ts")
-    let selfClient = tree.file("sdk/gendep.gen.ts").contents
+    # Its own client file under clients/, like any other module's, reached from
+    # the module's source through its own @dagger.io/dagger/gendep specifier.
+    Asserts.generated(changes, path + "/clients/gendep.gen.ts")
+    let selfClient = tree.file("clients/gendep.gen.ts").contents
     Asserts.stringContains(
       selfClient,
       "export const dag = new Client()",
@@ -320,15 +320,12 @@ type GenerateChecks {
       "the second pass should alias the module's own client",
     )
 
-    # And in the standalone package, so callers outside the module reach it the
-    # same way they reach a target that was added on purpose — which only a
-    # dualClients scope writes at all.
-    let dual = Gen.scope(ws, path, "gendep", dualClients: true)
-    Asserts.generated(dual, path + "/clients/gendep.gen.ts")
+    # The dispatcher serves the module into its own nested session, so a self
+    # call resolves: that session carries only the module's dependencies.
     Asserts.stringContains(
-      dual.after.directory(path).file("clients/dagger.gen.ts").contents,
-      path,
-      "the package's bootstrap should serve the module itself",
+      tree.file("__dagger.dispatch.ts").contents,
+      "asModule { serve }",
+      "the dispatcher should serve the module itself for self calls",
     )
 
     null
@@ -554,34 +551,31 @@ type GenerateChecks {
   `design/regeneration-churn.md` records how to reproduce it by hand, and that
   it must be done in both directions, since the first attempt at a fix was clean
   on removal and three times worse on addition.
-
-  dualClients, because the standalone package is half of what churned.
   """
   generateSourceEditIsScopedCheck(ws: Workspace!): Void @check {
     let path = fixtures.depLibModule
     let source = path + "/src/index.ts"
-    let settled = ws.withChanges(Gen.scope(ws, path, "gendep", dualClients: true))
+    let settled = ws.withChanges(Gen.scope(ws, path, "gendep"))
 
     # A new @func, so the module's own schema really does change and its self
-    # bindings and entrypoint really are re-rendered. Anything less and this
+    # client and entrypoint really are re-rendered. Anything less and this
     # passes on a run that generated nothing.
     let edited = settled.withNewFile(
       "/" + source,
       settled.file("/" + source).contents.trimSuffix("}\n") +
         "\n  @func()\n  extra(): string {\n    return \"extra\"\n  }\n}\n",
     )
-    let changes = Gen.scope(edited, path, "gendep", dualClients: true)
+    let changes = Gen.scope(edited, path, "gendep")
 
-    Asserts.generated(changes, path + "/sdk/gendep.gen.ts")
     Asserts.generated(changes, path + "/clients/gendep.gen.ts")
     Asserts.generated(changes, path + "/__dagger.entrypoint.ts")
 
+    # The library is core-only and unchanged by a source edit; so are the config
+    # files (no client added or removed) and the loader (no new type).
     [
       "/sdk/client.gen.ts",
       "/sdk/core.js",
-      "/clients/dagger.gen.ts",
-      "/clients/package.json",
-      "/clients/tsconfig.json",
+      "/clients/loader.gen.ts",
       "/package.json",
       "/tsconfig.json",
     ].each { name =>
@@ -605,7 +599,7 @@ type GenerateChecks {
   generateDependencyBindingsCheck(ws: Workspace!): Void @check {
     let changes = Gen.module(Gen.withDependency(ws), fixtures.depAppModule, "generate-deps-app")
 
-    Asserts.generated(changes, fixtures.depAppModule + "/sdk/gendep.gen.ts")
+    Asserts.generated(changes, fixtures.depAppModule + "/clients/gendep.gen.ts")
     Asserts.notAdded(
       changes,
       fixtures.depLibModule + "/sdk/index.ts",

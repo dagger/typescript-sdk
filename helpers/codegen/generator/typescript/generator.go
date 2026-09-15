@@ -18,17 +18,22 @@ import (
 )
 
 const (
-	// ClientGenFile is the core file name for module codegen (the module's own
-	// embedded SDK bindings).
+	// ClientGenFile is the core file name for module codegen: it holds core
+	// Dagger types only and belongs to the @dagger.io/dagger library (the sdk/
+	// directory), not to any one module. The library's index.ts re-exports it.
 	ClientGenFile = "client.gen.ts"
 	// CoreGenFile is the core file name for a standalone client: it holds only
 	// core Dagger types, with every module (including the bound one) split into
 	// its own <module>.gen.ts. Named to match the Go SDK's dagger.gen.go.
 	CoreGenFile = "dagger.gen.ts"
-	// LoaderGenFile is the entrypoint object loader emitted beside a module's
-	// bindings. "loader" is a reserved module name: a module kebab-cased to it
-	// would claim the same file.
+	// LoaderGenFile is the entrypoint object loader. "loader" is a reserved
+	// module name: a module kebab-cased to it would claim the same file.
 	LoaderGenFile = "loader.gen.ts"
+	// ModuleClientsDir is where module codegen puts the per-module client files
+	// and the loader — beside the library, not inside it. The library (sdk/)
+	// stays core-only so it can become an npm package; the clients that depend
+	// on it live here and reach it through the @dagger.io/dagger specifier.
+	ModuleClientsDir = "clients"
 )
 
 type TypeScriptGenerator struct {
@@ -80,19 +85,31 @@ func generate(config generator.Config, target string, schema *introspection.Sche
 	// functions. Nothing merges back into the core Client.
 	//
 	// Every module in the schema is split, including the one being generated
-	// for: its own API lands in <module>.gen.ts beside its dependencies', and
-	// the core file holds only core types. Nothing distinguishes a module's own
-	// API from a dependency's here — it is reached through the same session,
-	// and keeping it in the core file would make the one client a reader goes
-	// looking for the only one not where the others are.
+	// for: its own API lands in <module>.gen.ts. In module codegen the core
+	// file is the library and the module files live beside it under clients/;
+	// in a standalone client they sit together in one package directory.
 	splitModules := schema.DependencyNames()
 
-	coreReserved := strings.TrimSuffix(filepath.Base(target), ".gen.ts")
-	loaderReserved := strings.TrimSuffix(LoaderGenFile, ".gen.ts")
+	// In module codegen the module files live under clients/, a directory apart
+	// from the library's core file, so the two can never collide by name — only
+	// the loader, a sibling of the module files, is reserved. A standalone
+	// client keeps them together, so its core file's name is reserved too.
+	module := config.ModuleConfig != nil
+	reserved := map[string]bool{strings.TrimSuffix(LoaderGenFile, ".gen.ts"): true}
+	if !module {
+		reserved[strings.TrimSuffix(filepath.Base(target), ".gen.ts")] = true
+	}
 	for _, depName := range splitModules {
-		if name := strcase.ToKebab(depName); name == coreReserved || name == loaderReserved {
+		if name := strcase.ToKebab(depName); reserved[name] {
 			return nil, fmt.Errorf("module name %q collides with the generated %s.gen.ts file", depName, name)
 		}
+	}
+
+	// Module files (and the loader) land under clients/ in module codegen; a
+	// standalone client keeps everything in the output root.
+	moduleDir := filepath.Dir(target)
+	if module {
+		moduleDir = filepath.Join(moduleDir, ModuleClientsDir)
 	}
 
 	coreSchema := schema
@@ -119,7 +136,7 @@ func generate(config generator.Config, target string, schema *introspection.Sche
 	// Render one <module>.gen.ts client file per split module.
 	for _, depName := range splitModules {
 		depSchema := schema.Include(depName)
-		depTarget := filepath.Join(filepath.Dir(target), strcase.ToKebab(depName)+".gen.ts")
+		depTarget := filepath.Join(moduleDir, strcase.ToKebab(depName)+".gen.ts")
 		if err := renderTemplate(mfs, tmpl, "module_client", depTarget, depFileData{
 			Schema:        depSchema,
 			SchemaVersion: schemaVersion,
@@ -134,8 +151,8 @@ func generate(config generator.Config, target string, schema *introspection.Sche
 	// entrypoints receive core- and module-typed values as IDs, and with every
 	// module in its own file only codegen knows which file declares which
 	// class. A standalone client has no entrypoint, so no loader.
-	if config.ModuleConfig != nil {
-		loaderTarget := filepath.Join(filepath.Dir(target), LoaderGenFile)
+	if module {
+		loaderTarget := filepath.Join(moduleDir, LoaderGenFile)
 		if err := renderTemplate(mfs, tmpl, "loader", loaderTarget, depFileData{
 			Schema:        schema,
 			SchemaVersion: schemaVersion,

@@ -145,13 +145,14 @@ func (funcs typescriptTemplateFuncs) FuncMap() template.FuncMap {
 		// Module splitting: render each module's types into its own
 		// <module>.gen.ts client file, and the entrypoint loader that maps a
 		// type name to the generated class whichever file it lives in.
-		"DependencyFiles":  funcs.dependencyFiles,
-		"DepFileName":      funcs.depFileName,
-		"CoreFile":         funcs.coreFile,
-		"ClientImports":    funcs.clientImports,
-		"LoaderFiles":      funcs.loaderFiles,
-		"RootClientType":   funcs.rootClientType,
-		"IsExtendableType": funcs.isExtendableType,
+		"DependencyFiles":     funcs.dependencyFiles,
+		"DepFileName":         funcs.depFileName,
+		"CoreFile":            funcs.coreFile,
+		"ClientImports":       funcs.clientImports,
+		"ClientRuntimeImport": funcs.clientRuntimeImport,
+		"LoaderFiles":         funcs.loaderFiles,
+		"RootClientType":      funcs.rootClientType,
+		"IsExtendableType":    funcs.isExtendableType,
 	}
 }
 
@@ -867,21 +868,53 @@ func typeOwner(t *introspection.Type) string {
 // error (TS1361) and, erased under ESM, a runtime ReferenceError. Types cover
 // everything that only appears in signatures and are erased at compile time.
 type ClientImport struct {
-	// File is the basename (no extension) of the generated file the names are
-	// imported from, e.g. "client.gen" or "my-dep.gen".
-	File   string
+	// From is the specifier the names are imported from, e.g.
+	// "@dagger.io/dagger" for the core library or "./my-dep.gen.js" for a
+	// sibling module client.
+	From   string
 	Values []string
 	Types  []string
 }
 
+// clientRuntimeImport is the specifier a per-module client file imports Context
+// and BaseClient from. In module and standalone-client codegen the client files
+// reach the runtime as a package (module clients sit under clients/, a
+// directory apart from the vendored library; standalone clients depend on the
+// npm package); only the library's own bindings import the runtime by relative
+// source path.
+func (funcs typescriptTemplateFuncs) clientRuntimeImport() string {
+	if funcs.cfg.ModuleConfig == nil && funcs.cfg.ClientConfig == nil {
+		return "../common/context.js"
+	}
+	return "@dagger.io/dagger"
+}
+
+// coreImportSpec is where a client file imports core types and values from. A
+// module client sits under clients/, apart from the library, so it reaches core
+// through the package specifier; a standalone client keeps the core file beside
+// it and imports it relatively.
+func (funcs typescriptTemplateFuncs) coreImportSpec() string {
+	if funcs.cfg.ModuleConfig != nil {
+		return "@dagger.io/dagger"
+	}
+	return "./" + funcs.coreFile() + ".js"
+}
+
+// siblingImportSpec is where a client file imports another module's types from.
+// The module files are co-located — under clients/ for a module, in the package
+// root for a standalone client — so a sibling is always a relative import.
+func (funcs typescriptTemplateFuncs) siblingImportSpec(owner string) string {
+	return "./" + funcs.depFileName(owner) + ".gen.js"
+}
+
 // clientImports plans a per-module client file's imports of the types it does
-// not own: each referenced type resolves to its owning generated file — the
-// core file for core types, a sibling <module>.gen file otherwise. selfName is
-// the module the file is rendered for; its own types are declared locally and
-// never imported. The import direction is strictly module file -> core, so no
-// ESM cycle; a sibling value import is only ever dereferenced inside a method
-// body, after both files have evaluated, so a mutual reference between two
-// modules is safe too.
+// not own: each referenced type resolves to the specifier of the file that
+// declares it — the core library for core types, a sibling <module>.gen file
+// otherwise. selfName is the module the file is rendered for; its own types are
+// declared locally and never imported. The import direction is strictly module
+// file -> core, so no ESM cycle; a sibling value import is only ever
+// dereferenced inside a method body, after both files have evaluated, so a
+// mutual reference between two modules is safe too.
 func (funcs typescriptTemplateFuncs) clientImports(fileTypes []*introspection.Type, selfName string) []ClientImport {
 	if funcs.fullSchema == nil {
 		return nil
@@ -890,30 +923,32 @@ func (funcs typescriptTemplateFuncs) clientImports(fileTypes []*introspection.Ty
 	referenced := funcs.collectReferencedNames(fileTypes)
 	funcs.addLegacyIDRefs(fileTypes, referenced)
 
+	coreSpec := funcs.coreImportSpec()
 	type group struct {
 		values map[string]struct{}
 		types  map[string]struct{}
 	}
 	groups := map[string]*group{}
-	groupFor := func(file string) *group {
-		g, ok := groups[file]
+	groupFor := func(spec string) *group {
+		g, ok := groups[spec]
 		if !ok {
 			g = &group{values: map[string]struct{}{}, types: map[string]struct{}{}}
-			groups[file] = g
+			groups[spec] = g
 		}
 		return g
 	}
-	// ownerFile resolves a type to the generated file that declares it, or ""
-	// when the type is the rendered module's own and needs no import.
-	ownerFile := func(t *introspection.Type) string {
+	// ownerSpec resolves a type to the import specifier of the file that
+	// declares it, or "" when the type is the rendered module's own and needs
+	// no import.
+	ownerSpec := func(t *introspection.Type) string {
 		owner := typeOwner(t)
 		switch {
 		case owner == "":
-			return funcs.coreFile()
+			return coreSpec
 		case isSameModule(owner, selfName):
 			return ""
 		default:
-			return funcs.depFileName(owner) + ".gen"
+			return funcs.siblingImportSpec(owner)
 		}
 	}
 
@@ -922,15 +957,15 @@ func (funcs typescriptTemplateFuncs) clientImports(fileTypes []*introspection.Ty
 		// (`float`) declared in the core file rather than a native type, so it
 		// is imported from there.
 		if introspection.Scalar(name) == introspection.ScalarFloat {
-			groupFor(funcs.coreFile()).types["float"] = struct{}{}
+			groupFor(coreSpec).types["float"] = struct{}{}
 			continue
 		}
 		t := funcs.fullSchema.Types.Get(name)
 		if t == nil || !funcs.isExportableType(t) {
 			continue
 		}
-		file := ownerFile(t)
-		if file == "" {
+		spec := ownerSpec(t)
+		if spec == "" {
 			continue
 		}
 		if t.Kind == introspection.TypeKindObject {
@@ -938,11 +973,11 @@ func (funcs typescriptTemplateFuncs) clientImports(fileTypes []*introspection.Ty
 			// a signature type. A fieldless object never renders a class, so
 			// there is nothing to import for it.
 			if len(t.Fields) > 0 {
-				groupFor(file).values[funcs.exportedTypeName(t)] = struct{}{}
+				groupFor(spec).values[funcs.exportedTypeName(t)] = struct{}{}
 			}
 			continue
 		}
-		groupFor(file).types[funcs.exportedTypeName(t)] = struct{}{}
+		groupFor(spec).types[funcs.exportedTypeName(t)] = struct{}{}
 	}
 
 	// Enum converters, imported only in the direction actually used
@@ -958,11 +993,11 @@ func (funcs typescriptTemplateFuncs) clientImports(fileTypes []*introspection.Ty
 			if t == nil || t.Kind != introspection.TypeKindEnum || !funcs.isExportableType(t) {
 				continue
 			}
-			file := ownerFile(t)
-			if file == "" {
+			spec := ownerSpec(t)
+			if spec == "" {
 				continue
 			}
-			groupFor(file).values[funcs.pascalCase(t.Name)+suffix] = struct{}{}
+			groupFor(spec).values[funcs.pascalCase(t.Name)+suffix] = struct{}{}
 		}
 	}
 	for _, t := range fileTypes {
@@ -974,22 +1009,22 @@ func (funcs typescriptTemplateFuncs) clientImports(fileTypes []*introspection.Ty
 		}
 	}
 
-	files := make([]string, 0, len(groups))
-	for file := range groups {
-		files = append(files, file)
+	specs := make([]string, 0, len(groups))
+	for spec := range groups {
+		specs = append(specs, spec)
 	}
-	sort.Slice(files, func(i, j int) bool {
-		if (files[i] == funcs.coreFile()) != (files[j] == funcs.coreFile()) {
-			return files[i] == funcs.coreFile()
+	sort.Slice(specs, func(i, j int) bool {
+		if (specs[i] == coreSpec) != (specs[j] == coreSpec) {
+			return specs[i] == coreSpec
 		}
-		return files[i] < files[j]
+		return specs[i] < specs[j]
 	})
 
-	out := make([]ClientImport, 0, len(files))
-	for _, file := range files {
-		g := groups[file]
+	out := make([]ClientImport, 0, len(specs))
+	for _, spec := range specs {
+		g := groups[spec]
 		out = append(out, ClientImport{
-			File:   file,
+			From:   spec,
 			Values: sortedNames(g.values),
 			Types:  sortedNames(g.types),
 		})
@@ -1014,8 +1049,10 @@ func sortedNames(set map[string]struct{}) []string {
 type LoaderFile struct {
 	// Alias is the namespace binding the loader imports the file under.
 	Alias string
-	// File is the basename (no extension) of the generated file.
-	File    string
+	// From is the specifier the loader imports the file from: the package for
+	// the core library, a relative sibling for each module client (the loader
+	// sits under clients/ beside them).
+	From    string
 	Entries []LoaderEntry
 }
 
@@ -1031,49 +1068,52 @@ type LoaderEntry struct {
 // entrypoint loader can instantiate from an ID: every exportable object type
 // with fields, keyed by its schema type name. The map is explicit rather than
 // searched so two modules exporting the same class name cannot resolve by
-// import order.
+// import order. The loader is generated only for module codegen, so core comes
+// from the @dagger.io/dagger package and module clients from relative siblings.
 func (funcs typescriptTemplateFuncs) loaderFiles() []LoaderFile {
 	if funcs.fullSchema == nil {
 		return nil
 	}
 
-	byFile := map[string][]LoaderEntry{}
+	const coreSpec = "@dagger.io/dagger"
+	byFrom := map[string][]LoaderEntry{}
 	for _, t := range funcs.fullSchema.Types {
 		if t.Kind != introspection.TypeKindObject || len(t.Fields) == 0 || !funcs.isExportableType(t) {
 			continue
 		}
-		file := funcs.coreFile()
+		from := coreSpec
 		if owner := typeOwner(t); owner != "" {
-			file = funcs.depFileName(owner) + ".gen"
+			from = funcs.siblingImportSpec(owner)
 		}
-		byFile[file] = append(byFile[file], LoaderEntry{
+		byFrom[from] = append(byFrom[from], LoaderEntry{
 			TypeName:  t.Name,
 			ClassName: funcs.exportedTypeName(t),
 		})
 	}
 
-	files := make([]string, 0, len(byFile))
-	for file := range byFile {
-		files = append(files, file)
+	froms := make([]string, 0, len(byFrom))
+	for from := range byFrom {
+		froms = append(froms, from)
 	}
-	sort.Slice(files, func(i, j int) bool {
-		if (files[i] == funcs.coreFile()) != (files[j] == funcs.coreFile()) {
-			return files[i] == funcs.coreFile()
+	sort.Slice(froms, func(i, j int) bool {
+		if (froms[i] == coreSpec) != (froms[j] == coreSpec) {
+			return froms[i] == coreSpec
 		}
-		return files[i] < files[j]
+		return froms[i] < froms[j]
 	})
 
-	out := make([]LoaderFile, 0, len(files))
-	for _, file := range files {
-		entries := byFile[file]
+	out := make([]LoaderFile, 0, len(froms))
+	for _, from := range froms {
+		entries := byFrom[from]
 		sort.Slice(entries, func(a, b int) bool { return entries[a].TypeName < entries[b].TypeName })
-		// "__core" is reserved for the core file, so a module named "core"
+		// "__core" is reserved for the library, so a module named "core"
 		// ("__modCore") cannot collide with it.
 		alias := "__core"
-		if file != funcs.coreFile() {
-			alias = "__mod" + strcase.ToCamel(strings.TrimSuffix(file, ".gen"))
+		if from != coreSpec {
+			base := strings.TrimSuffix(strings.TrimPrefix(from, "./"), ".gen.js")
+			alias = "__mod" + strcase.ToCamel(base)
 		}
-		out = append(out, LoaderFile{Alias: alias, File: file, Entries: entries})
+		out = append(out, LoaderFile{Alias: alias, From: from, Entries: entries})
 	}
 	return out
 }
