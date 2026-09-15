@@ -18,6 +18,26 @@ type ClientChecks {
   }
 
   """
+  Assert a generated client serves the local module at `path` before its first
+  query.
+
+  Asserted as the whole selection rather than the word "serve": a local module
+  is served through a raw `currentWorkspace` query (the typed bindings keep
+  `currentWorkspace` out), so this pins both the serve and which module it
+  names. A git target renders `.moduleSource(ref, { refPin }).asModule().serve()`
+  instead — a different form, which is why matching on one alone reads as a
+  passing check for the other.
+  """
+  let servesLocalModule(contents: String!, path: String!, message: String!): Void {
+    Asserts.stringContains(
+      contents,
+      "moduleSource(path: \"/" + path + "\") { asModule { serve } }",
+      message,
+    )
+    null
+  }
+
+  """
   Generate the client half of a scope bound to the client-app fixture.
   """
   let generateClients(ws: Workspace!, scope: String!): Changeset! {
@@ -60,7 +80,7 @@ type ClientChecks {
 
     let client = tree.file("client-app/client-app.gen.ts").contents
     Asserts.stringContains(client, "from \"@dagger.io/dagger\"", "a client should import the library as a package")
-    Asserts.stringContains(client, "asModule().serve()", "a client should serve its own module on use")
+    servesLocalModule(client, fixtures.clientModule, "a client should serve its own module on use")
 
     let clientPkg = tree.file("client-app/package.json").contents
     Asserts.stringContains(clientPkg, "\"name\": \"@dagger.io/client-app\"", "a client package is named for its module")
@@ -171,7 +191,8 @@ type ClientChecks {
       Asserts.contains(entries, "stale-dep.gen.ts") == false,
       "bindings for a target that left the scope must be pruned: " + kept,
     )
-    Asserts.assert(Asserts.contains(entries, "dagger"), "regeneration must write the library package: " + kept)
+    # Directory entries carry a trailing slash.
+    Asserts.assert(Asserts.contains(entries, "dagger/"), "regeneration must write the library package: " + kept)
 
     null
   }
@@ -295,8 +316,8 @@ type ClientChecks {
     # Each client serves its own module, in its own file — not a central
     # bootstrap in the core — and links its sibling as a file: dependency.
     let tree = changes.after.directory(path)
-    Asserts.stringContains(tree.file("client-app/client-app.gen.ts").contents, "asModule().serve()", "the first target's client should serve its own module")
-    Asserts.stringContains(tree.file("generate-app/generate-app.gen.ts").contents, "asModule().serve()", "the second target's client should serve its own module")
+    servesLocalModule(tree.file("client-app/client-app.gen.ts").contents, fixtures.clientModule, "the first target's client should serve its own module")
+    servesLocalModule(tree.file("generate-app/generate-app.gen.ts").contents, fixtures.generateModule, "the second target's client should serve its own module")
     Asserts.stringContains(
       tree.file("client-app/package.json").contents,
       "\"@dagger.io/generate-app\": \"file:../generate-app\"",

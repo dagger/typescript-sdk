@@ -306,7 +306,7 @@ type GenerateChecks {
     let selfClient = tree.file("clients/gendep.gen.ts").contents
     Asserts.stringContains(
       selfClient,
-      "export const dag = new Client()",
+      "export const dag = new Client(",
       "a module's own API should render as its own client",
     )
     Asserts.stringContains(
@@ -320,12 +320,20 @@ type GenerateChecks {
       "the second pass should alias the module's own client",
     )
 
-    # The dispatcher serves the module into its own nested session, so a self
-    # call resolves: that session carries only the module's dependencies.
+    # The self client serves the module before its first query, which is what
+    # makes a self call resolve: the dispatch session carries only the module's
+    # dependencies, not the module itself, and the dispatcher serves nothing.
     Asserts.stringContains(
-      tree.file("__dagger.dispatch.ts").contents,
-      "asModule { serve }",
-      "the dispatcher should serve the module itself for self calls",
+      selfClient,
+      "moduleSource(path: \"/" + path + "\") { asModule { serve } }",
+      "the module's own client should serve it for self calls",
+    )
+    # Matched on asModule, the serve mechanism both forms go through: the
+    # dispatcher still *mentions* serving in a comment explaining that it does
+    # not, so the bare word says nothing.
+    Asserts.assert(
+      tree.file("__dagger.dispatch.ts").contents.contains("asModule") == false,
+      "the dispatcher should not serve anything; each client serves its own module",
     )
 
     null
