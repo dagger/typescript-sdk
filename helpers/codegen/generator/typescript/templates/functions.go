@@ -815,6 +815,13 @@ func (funcs typescriptTemplateFuncs) isExportableType(t *introspection.Type) boo
 
 // collectReferencedNames returns every type name appearing in the dependency
 // surface (field return types, argument types, and input fields).
+//
+// An object-typed argument or input field is encoded in the schema as an `ID`
+// scalar carrying an `@expectedType(name: "X")` directive, and the renderer
+// resolves it to `X` (formatInputType). So the referenced type is the expected
+// type, not the raw `ID` the TypeRef names — miss it and an object passed only
+// as an argument (e.g. a constructor's `ws: Workspace`) renders in the
+// signature but is never imported.
 func (funcs typescriptTemplateFuncs) collectReferencedNames(depTypes []*introspection.Type) map[string]struct{} {
 	referenced := map[string]struct{}{}
 	visit := func(ref *introspection.TypeRef) {
@@ -824,15 +831,21 @@ func (funcs typescriptTemplateFuncs) collectReferencedNames(depTypes []*introspe
 			}
 		}
 	}
+	visitInput := func(directives introspection.Directives, ref *introspection.TypeRef) {
+		if et := directives.ExpectedType(); et != "" {
+			referenced[et] = struct{}{}
+		}
+		visit(ref)
+	}
 	for _, t := range depTypes {
 		for _, f := range t.Fields {
 			visit(f.TypeRef)
 			for _, a := range f.Args {
-				visit(a.TypeRef)
+				visitInput(a.Directives, a.TypeRef)
 			}
 		}
 		for _, in := range t.InputFields {
-			visit(in.TypeRef)
+			visitInput(in.Directives, in.TypeRef)
 		}
 	}
 	return referenced
