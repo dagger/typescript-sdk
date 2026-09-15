@@ -115,7 +115,7 @@ func TestGenerateLibrary_ImportsRuntimeFromSource(t *testing.T) {
 func TestGenerateClient_ImportsPackage(t *testing.T) {
 	gen := &TypeScriptGenerator{Config: generator.Config{
 		ClientConfig: &generator.ClientGeneratorConfig{
-			ModuleName:  "app",
+			ModuleName:   "app",
 			BoundModules: []generator.BoundModule{{Name: "app", Kind: generator.ModuleKindDir, Path: ".dagger/modules/app"}},
 		},
 	}}

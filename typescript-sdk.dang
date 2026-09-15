@@ -1027,12 +1027,13 @@ type TypescriptSdk {
   read at call time: the entrypoint is handed the *caller's* workspace, whose cwd
   is wherever the caller happened to be.
   """
-  let generateDangEntrypoint(typedef: String!, sourcePath: String!, rt: Runtime!): File! {
+  let generateDangEntrypoint(typedef: String!, moduleName: String!, sourcePath: String!, rt: Runtime!): File! {
     entrypointCodegen(typedef)
       .withExec([
         "codegen", "dang-entrypoint",
         "--typedef-json-path", "/typedef.json",
         "--output", "/out",
+        "--module-name", moduleName,
         "--runtime", runtimeName(rt),
         "--module-path", sourcePath,
       ])
@@ -1078,7 +1079,7 @@ type TypescriptSdk {
     let sdk = moduleSdkDirectory(generateModuleBindings(schemaJSON, moduleName, targets))
     let typedef = moduleTypedefJSON(moduleName, source, sdk)
     let dispatcher = generateModuleDispatcher(typedef, targets)
-    let dangEntrypoint = generateDangEntrypoint(typedef, sourcePath, runtime)
+    let dangEntrypoint = generateDangEntrypoint(typedef, moduleName, sourcePath, runtime)
 
     let configUpdater = configUpdaterBuilder
       .withDirectory("/existing", existing)

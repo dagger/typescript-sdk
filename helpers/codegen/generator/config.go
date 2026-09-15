@@ -101,6 +101,11 @@ type DangEntrypointGeneratorConfig struct {
 	// Defaults to "entrypoint/main.dang".
 	OutputFile string
 
+	// ModuleName is the module's name as the workspace records it, used in the
+	// error a missing generated file raises. The typedef JSON carries the
+	// pascalized *object* name, which is not the same thing.
+	ModuleName string
+
 	// Runtime selects the container recipe call() bakes: "node", "bun" or
 	// "deno". Defaults to node.
 	Runtime string

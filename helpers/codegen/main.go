@@ -181,6 +181,7 @@ func runDangEntrypoint(args []string) error {
 		typedefPath  = fs.String("typedef-json-path", "", "path to the typedef JSON emitted by the SDK introspector")
 		outputDir    = fs.String("output", ".", "output directory for the generated entrypoint")
 		outputFile   = fs.String("output-file", typescriptgenerator.DefaultDangEntrypointFile, "path to write within the output directory")
+		moduleName   = fs.String("module-name", "", "the module's name, used in the error a missing generated file raises")
 		runtime      = fs.String("runtime", "node", "JS runtime the call() recipe targets: node, bun or deno")
 		modulePath   = fs.String("module-path", ".", "module directory relative to the workspace root, used as the container workdir")
 		dispatchFile = fs.String("dispatch-file", typescriptgenerator.DefaultDispatchFile, "dispatcher call() execs, relative to the module directory")
@@ -203,6 +204,7 @@ func runDangEntrypoint(args []string) error {
 		DangEntrypointConfig: &generator.DangEntrypointGeneratorConfig{
 			TypedefJSONPath: *typedefPath,
 			OutputFile:      *outputFile,
+			ModuleName:      *moduleName,
 			Runtime:         *runtime,
 			ModulePath:      *modulePath,
 			DispatchFile:    *dispatchFile,

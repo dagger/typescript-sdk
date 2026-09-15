@@ -170,3 +170,56 @@ func TestGenerateDangEntrypoint_RequiresTypedef(t *testing.T) {
 	_, err := gen.GenerateDangEntrypoint(context.Background())
 	require.ErrorContains(t, err, "TypedefJSONPath is required")
 }
+
+// TestGenerateDangEntrypointGuardsGeneratedFiles pins the guard call() runs
+// before it builds anything.
+//
+// The engine's builtin TypeScript runtime has the same check, but under an
+// entrypoint nothing runs that runtime — this program builds the container
+// itself. Without the guard a gitignored sdk/ surfaces as a module-resolution
+// error from inside a container, several layers from the cause.
+func TestGenerateDangEntrypointGuardsGeneratedFiles(t *testing.T) {
+	for _, tc := range []struct {
+		runtime string
+		wants   []string
+		absent  string
+	}{
+		{runtime: "node", wants: []string{"tsconfig.json"}, absent: "deno.json"},
+		{runtime: "bun", wants: nil, absent: "tsconfig.json"},
+		{runtime: "deno", wants: []string{"deno.json"}, absent: "tsconfig.json"},
+	} {
+		t.Run(tc.runtime, func(t *testing.T) {
+			gen := &TypeScriptGenerator{Config: generator.Config{
+				DangEntrypointConfig: &generator.DangEntrypointGeneratorConfig{
+					TypedefJSONPath: "testdata/typedef_smoke.json",
+					ModuleName:      "smoke-mod",
+					Runtime:         tc.runtime,
+					ModulePath:      ".dagger/modules/smoke",
+				},
+			}}
+
+			state, err := gen.GenerateDangEntrypoint(context.Background())
+			require.NoError(t, err)
+			got := readOverlay(t, state, DefaultDangEntrypointFile)
+
+			// Called from call(), never from types(): a module whose generated
+			// tree is missing still lists its functions, then fails on the first
+			// real call with something that names the file and the fix.
+			require.Contains(t, got, "let checked = requireGenerated(workspace)")
+			require.Contains(t, got, `workspace.directory("/.dagger/modules/smoke")`)
+
+			// Every file the recipe mounts or execs.
+			for _, f := range append([]string{
+				"__dagger.dispatch.ts", "sdk/index.ts", "sdk/client.gen.ts", "sdk/core.js",
+			}, tc.wants...) {
+				require.Contains(t, got, `dir.exists("`+f+`")`)
+			}
+			require.NotContains(t, got, `dir.exists("`+tc.absent+`")`)
+
+			// The workspace's name for the module, not the typedef's pascalized
+			// object name.
+			require.Contains(t, got, `module \"smoke-mod\" cannot run`)
+			require.Contains(t, got, "Run `dagger generate`")
+		})
+	}
+}

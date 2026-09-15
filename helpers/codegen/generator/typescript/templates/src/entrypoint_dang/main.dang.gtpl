@@ -49,6 +49,7 @@ type Entrypoint implements ModuleEntrypoint {
     fnName: String!,
     fnArgs: JSON!,
   ): JSON! {
+    let checked = requireGenerated(workspace)
     let request = JSON.encode({{"{{"}}
       receiverType: receiverType,
       receiverValue: receiverValue,
@@ -75,6 +76,23 @@ type Entrypoint implements ModuleEntrypoint {
   """
   let runtime(workspace: Workspace!): Container! {
     {{ dangRuntimeChain }}
+  }
+
+  """
+  Fail with something actionable when a generated file is missing.
+
+  The engine's builtin TypeScript runtime checks this before it builds its
+  container, but under an entrypoint nothing runs that runtime — this program
+  builds the container itself, so the check has to live here too. Without it a
+  gitignored sdk/ surfaces as a module resolution error from inside a container,
+  several layers away from the cause.
+
+  Only call() needs it. types() is literals, so a module whose generated tree is
+  missing still lists its functions and then fails at the first real call —
+  which is the point: the failure names the file and the fix.
+  """
+  let requireGenerated(workspace: Workspace!): Void {
+    {{ dangRequireGeneratedBody }}
   }
 }
 {{- end -}}

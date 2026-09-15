@@ -49,6 +49,7 @@ func (g *TypeScriptGenerator) GenerateDangEntrypoint(ctx context.Context) (*gene
 	}
 
 	tmpl := templates.NewDangEntrypoint(&module, templates.DangEntrypointOptions{
+		ModuleName:   cfg.ModuleName,
 		Runtime:      cfg.Runtime,
 		ModulePath:   cfg.ModulePath,
 		DispatchFile: cfg.DispatchFile,

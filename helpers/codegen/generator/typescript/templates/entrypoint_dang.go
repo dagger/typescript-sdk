@@ -15,6 +15,10 @@ import (
 // not rules: it never re-derives the JS runtime, the image or the mount layout.
 // Changing any of them means re-running `dagger generate`.
 type DangEntrypointOptions struct {
+	// ModuleName is the module's name as the workspace records it, used in the
+	// error a missing generated file raises.
+	ModuleName string
+
 	// Runtime selects the container recipe: "node", "bun" or "deno".
 	Runtime string
 
@@ -70,9 +74,10 @@ const (
 func DangEntrypointTemplateFuncs(module *TypedefModule, opts DangEntrypointOptions) template.FuncMap {
 	c := &dangFuncCtx{module: module, opts: opts}
 	return template.FuncMap{
-		"dangTypeEntries":  c.dangTypeEntries,
-		"dangRuntimeChain": c.dangRuntimeChain,
-		"dangDispatchExec": c.dangDispatchExec,
+		"dangTypeEntries":          c.dangTypeEntries,
+		"dangRuntimeChain":         c.dangRuntimeChain,
+		"dangDispatchExec":         c.dangDispatchExec,
+		"dangRequireGeneratedBody": c.dangRequireGeneratedBody,
 	}
 }
 
@@ -462,6 +467,75 @@ func (c *dangFuncCtx) dispatchFile() string {
 		return DefaultDispatchFile
 	}
 	return c.opts.DispatchFile
+}
+
+// moduleName falls back to the typedef's name only so a hand-run codegen still
+// produces something readable; the SDK always passes the real one.
+func (c *dangFuncCtx) moduleName() string {
+	if c.opts.ModuleName != "" {
+		return c.opts.ModuleName
+	}
+	return c.module.Name
+}
+
+func (c *dangFuncCtx) tsConfigPath() string {
+	if c.opts.TSConfigPath == "" {
+		return "tsconfig.json"
+	}
+	return c.opts.TSConfigPath
+}
+
+// dangRequiredFiles lists the generated files call() cannot run without, in the
+// order a reader would miss them: the dispatcher first, then the package it
+// imports, then the config the loader reads.
+//
+// Only what this module's own recipe actually mounts or execs. Deno resolves
+// @dagger.io/dagger through deno.json rather than node_modules, and bun needs no
+// tsconfig because it runs the dispatcher directly.
+func (c *dangFuncCtx) dangRequiredFiles() []string {
+	files := []string{
+		c.dispatchFile(),
+		dangSDKDir + "/index.ts",
+		dangSDKDir + "/client.gen.ts",
+		dangSDKDir + "/core.js",
+	}
+	switch c.opts.Runtime {
+	case "deno":
+		files = append(files, "deno.json")
+	case "bun":
+	default:
+		files = append(files, c.tsConfigPath())
+	}
+	return files
+}
+
+// dangRequireGeneratedBody renders the body of requireGenerated: one existence
+// check per required file, chained so the first missing one names itself.
+//
+// Rendered here rather than in the template because the file list is known at
+// generation and an if/else-if chain is easier to read as flat output than as
+// nested template actions.
+func (c *dangFuncCtx) dangRequireGeneratedBody() string {
+	dir := "/"
+	if p := c.modulePath(); p != "." {
+		dir = "/" + p
+	}
+
+	var b strings.Builder
+	fmt.Fprintf(&b, "let dir = workspace.directory(%s)\n", dangString(dir))
+	b.WriteString("    ")
+
+	for _, file := range c.dangRequiredFiles() {
+		fmt.Fprintf(&b, "if (dir.exists(%s) == false) {\n", dangString(file))
+		fmt.Fprintf(&b, "      raise %s\n", dangString(fmt.Sprintf(
+			"module %q cannot run: the generated file %q is missing. "+
+				"Run `dagger generate` and commit what it writes.",
+			c.moduleName(), file)))
+		b.WriteString("    } else ")
+	}
+	b.WriteString("{\n      null\n    }")
+
+	return b.String()
 }
 
 // dangRuntimeChain renders the body of the private runtime() helper: everything
