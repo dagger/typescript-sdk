@@ -1481,8 +1481,7 @@ type TypescriptSdk {
   remote @dagger.io/dagger dependency, and clients identical to a module's.
   `existing` supplies the scope's current config so user edits survive.
   """
-  let clientDirectory(targets: [ClientTarget!]!, existing: Directory!, runtime: Runtime!): Directory! {
-    let bindings = generateClientBindings(targets)
+  let clientDirectory(bindings: Directory!, existing: Directory!, runtime: Runtime!): Directory! {
     let sdk = moduleSdkDirectory(bindings)
     # The clients are flat at the scope root; only client.gen.ts moves into the
     # vendored library under sdk/.
@@ -1525,18 +1524,67 @@ type TypescriptSdk {
   """
   let clientScope(ws: Workspace!, base: String!, isModule: Boolean!, targets: [ClientTarget!]!): Workspace! {
     let dir = clientDirPath(base, isModule)
+    # The scope's own project flavor decides both config file kinds: a deno.json
+    # at the scope root means a Deno project, everything else is Node-shaped.
+    let isDeno = hasScopeFile(ws, base, "deno.json")
 
     if (targets.length == 0) {
-      if (existingDir(ws, dir).entries.length == 0) { ws } else { ws.withoutDirectory("/" + dir) }
+      let cleaned = if (existingDir(ws, dir).entries.length == 0) { ws } else { ws.withoutDirectory("/" + dir) }
+      # The generated tree is gone, so the aliases pointing into it go too.
+      scopeAliasConfig(cleaned, base, isDeno, [])
     } else {
       # The whole directory is this SDK's, so anything in it we no longer render
       # is dropped — the bindings of a target that has left the scope are the
       # point. The scope's own config survives because it is read back out of
       # `ws` and layered under the fresh bindings.
       let existing = existingClientConfig(ws, dir)
-      let rt = if (existing.exists("deno.json")) { Runtime.DENO } else { Runtime.NODE }
-      let generated = clientDirectory(targets, existing, rt)
-      writeChanged(prunedClientFiles(ws, dir, generated), dir, generated)
+      let rt = if (isDeno) { Runtime.DENO } else { Runtime.NODE }
+      let bindings = generateClientBindings(targets)
+      let generated = clientDirectory(bindings, existing, rt)
+      let written = writeChanged(prunedClientFiles(ws, dir, generated), dir, generated)
+      # The scope's own code imports the clients through the same specifiers a
+      # module's source does, so the scope config gets the aliases — pointing
+      # into .dagger/clients, where this scope's generated tree lives.
+      scopeAliasConfig(written, base, isDeno, flatAliasModules(bindings))
+    }
+  }
+
+  """
+  Sync the SDK-owned aliases into a client-only scope's own config file, so the
+  scope's code imports the generated clients the same way a module's source
+  does: @dagger.io/dagger resolves to the vendored library and
+  @dagger.io/<module> to each client under .dagger/clients.
+
+  Only those aliases are written — the file is the user's, so nothing else in
+  it is touched, and package.json is never. An empty module list removes every
+  SDK-owned alias (the generated tree is gone), and a scope that never had the
+  config file is not given one just to hold zero aliases.
+  """
+  let scopeAliasConfig(ws: Workspace!, base: String!, isDeno: Boolean!, aliasModules: [String!]!): Workspace! {
+    let configName = if (isDeno) { "deno.json" } else { "tsconfig.json" }
+    let mode = if (isDeno) { "scope-deno-config" } else { "scope-tsconfig" }
+
+    if (aliasModules.length == 0 and hasScopeFile(ws, base, configName) == false) {
+      ws
+    } else {
+      # Empty dirs tell config-updater to remove the aliases rather than point
+      # them somewhere.
+      let sdkDir = if (aliasModules.length == 0) { "" } else { ".dagger/clients/sdk" }
+      let clientsDir = if (aliasModules.length == 0) { "" } else { ".dagger/clients" }
+
+      # Staged by its workspace path so a scope at the root works too; a config
+      # that does not exist yet reaches config-updater as absent and starts
+      # from "{}".
+      let configPath = scopeFile(base, configName)
+      let updated = configUpdaterBuilder
+        .withDirectory("/existing", ws.directory("/", include: [configPath]))
+        .withDirectory("/out", directory)
+        .withExec(
+          ["config-updater", mode, "/existing/" + configPath, "/out/" + configName, sdkDir, clientsDir] + aliasModules,
+        )
+        .directory("/out")
+
+      writeChanged(ws, base, updated)
     }
   }
 

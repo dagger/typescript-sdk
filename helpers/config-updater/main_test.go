@@ -659,3 +659,74 @@ func TestIsLocalDaggerRef(t *testing.T) {
 		require.False(t, isLocalDaggerRef(v), "%q should not be local", v)
 	}
 }
+
+// TestUpdateScopeAliases covers the sync written into a scope's own config so
+// its code can import the generated clients: only the SDK-owned aliases are
+// touched — no compiler options, no typescript pin — and an empty sdk dir
+// removes them all.
+func TestUpdateScopeAliases(t *testing.T) {
+	t.Parallel()
+
+	t.Run("adds aliases into a user tsconfig without touching anything else", func(t *testing.T) {
+		t.Parallel()
+		in := `{
+  "compilerOptions": {
+    "module": "nodenext",
+    "strict": true,
+    "paths": {
+      "@user/lib": ["./src/lib.ts"]
+    }
+  }
+}`
+		res, err := updateScopeAliases(removeJSONComments(in), "compilerOptions.paths", ".dagger/clients/sdk", ".dagger/clients", []string{"test"}, true)
+		require.NoError(t, err)
+		require.JSONEq(t, `{
+  "compilerOptions": {
+    "module": "nodenext",
+    "strict": true,
+    "paths": {
+      "@user/lib": ["./src/lib.ts"],
+      "@dagger.io/dagger": ["./.dagger/clients/sdk/index.ts"],
+      "@dagger.io/dagger/telemetry": ["./.dagger/clients/sdk/telemetry.ts"],
+      "@dagger.io/test": ["./.dagger/clients/test.gen.ts"]
+    }
+  }
+}`, res)
+	})
+
+	t.Run("empty sdk dir removes every SDK-owned alias, keeps user keys", func(t *testing.T) {
+		t.Parallel()
+		in := `{
+  "compilerOptions": {
+    "paths": {
+      "@user/lib": ["./src/lib.ts"],
+      "@dagger.io/dagger": ["./.dagger/clients/sdk/index.ts"],
+      "@dagger.io/dagger/telemetry": ["./.dagger/clients/sdk/telemetry.ts"],
+      "@dagger.io/test": ["./.dagger/clients/test.gen.ts"]
+    }
+  }
+}`
+		res, err := updateScopeAliases(removeJSONComments(in), "compilerOptions.paths", "", "", nil, true)
+		require.NoError(t, err)
+		require.JSONEq(t, `{
+  "compilerOptions": {
+    "paths": {
+      "@user/lib": ["./src/lib.ts"]
+    }
+  }
+}`, res)
+	})
+
+	t.Run("deno import-map shape", func(t *testing.T) {
+		t.Parallel()
+		res, err := updateScopeAliases(`{}`, "imports", ".dagger/clients/sdk", ".dagger/clients", []string{"test"}, false)
+		require.NoError(t, err)
+		require.JSONEq(t, `{
+  "imports": {
+    "@dagger.io/dagger": "./.dagger/clients/sdk/index.ts",
+    "@dagger.io/dagger/telemetry": "./.dagger/clients/sdk/telemetry.ts",
+    "@dagger.io/test": "./.dagger/clients/test.gen.ts"
+  }
+}`, res)
+	})
+}

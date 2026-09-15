@@ -20,7 +20,7 @@ export class {{ .Name | QueryToClient | FormatName }} extends BaseClient { {{- w
             {{- /* Write private temporary field */ -}}
             {{ range $field := .Fields }}
                 {{- if $field.TypeRef.IsScalar }}
-  private readonly _{{ $field.Name }}?: {{ $field | FormatFieldOutputType }} = undefined
+  private readonly _{{ $field.Name }}?: {{ $field | FormatFieldOutputType }} | undefined = undefined
                 {{- end }}
         	{{- end }}
 

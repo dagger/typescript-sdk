@@ -1,6 +1,6 @@
 
 export class Test extends BaseClient {
-  private readonly _legacyField?: string = undefined
+  private readonly _legacyField?: string | undefined = undefined
 
   /**
    * Constructor is used for internal usage only, do not create object from it.

@@ -74,6 +74,21 @@ type ClientChecks {
       "the client package should not depend on a remote @dagger.io/dagger",
     )
 
+    # The scope's own config gains the same aliases, pointing into
+    # .dagger/clients — that is what makes the clients importable from the
+    # user's own code, the way a module's source imports its own.
+    let scopeConfig = changes.after.directory(fixtures.clientOutput).file("tsconfig.json").contents
+    Asserts.stringContains(
+      scopeConfig,
+      "\"@dagger.io/dagger\": [\"./.dagger/clients/sdk/index.ts\"]",
+      "the scope's tsconfig should alias the library into .dagger/clients",
+    )
+    Asserts.stringContains(
+      scopeConfig,
+      "\"@dagger.io/client-app\": [\"./.dagger/clients/client-app.gen.ts\"]",
+      "the scope's tsconfig should alias each generated client",
+    )
+
     null
   }
 
@@ -181,6 +196,12 @@ type ClientChecks {
       Asserts.contains(removed.removedPaths, clientDir(fixtures.clientOutput) + "/"),
       "dropping the last target should remove the generated package, got: "
         + removed.removedPaths.join(", "),
+    )
+
+    # The scope config's aliases go with the tree they pointed into.
+    Asserts.assert(
+      generated.withChanges(removed).directory("/" + fixtures.clientOutput).file("tsconfig.json").contents.contains("@dagger.io/") == false,
+      "removing the clients should remove their aliases from the scope config",
     )
 
     null
