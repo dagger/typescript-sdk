@@ -81,7 +81,7 @@ func TestGenerateModule_Layout(t *testing.T) {
 	require.NotContains(t, core, "gendep.gen.js")
 	require.NotContains(t, core, "app.gen.js")
 	require.Contains(t, dep, "export class Gendep extends BaseClient")
-	require.Contains(t, dep, "export const dag = new Client(__servedContext())")
+	require.Contains(t, dep, "export const dag = new Client()")
 	require.NotContains(t, core, "export class App extends BaseClient")
 	require.Contains(t, readOverlay(t, state, "clients/app.gen.ts"), "export class App extends BaseClient")
 
@@ -90,8 +90,8 @@ func TestGenerateModule_Layout(t *testing.T) {
 	// core import is exercised in TestGenerate_Module_EmitsLoader.)
 	loader := readOverlay(t, state, "clients/loader.gen.ts")
 	require.Contains(t, loader, `import * as __modGendep from "@dagger.io/gendep"`)
-	require.Contains(t, loader, `"Gendep": { cls: __modGendep.Gendep,`)
-	require.Contains(t, loader, `"App": { cls: __modApp.App,`)
+	require.Contains(t, loader, `"Gendep": __modGendep.Gendep,`)
+	require.Contains(t, loader, `"App": __modApp.App,`)
 }
 
 // TestGenerateModule_SourceMapPathIsRelativeToSDKDir pins the source-map

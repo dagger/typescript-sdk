@@ -102,7 +102,7 @@ func TestClientTemplate_RendersModuleClient(t *testing.T) {
 	require.Contains(t, out, "export class Client extends BaseClient",
 		"the module's contributed root fields must become its own Client class")
 	require.Contains(t, out, "hello = (", "the root field must be a Client method")
-	require.Contains(t, out, "export const dag = new Client(__servedContext())",
+	require.Contains(t, out, "export const dag = new Client()",
 		"the module client must carry its own dag")
 	require.Contains(t, out, "export function hello(): Hello {",
 		"each root field must be mirrored as a top-level function")
@@ -292,7 +292,7 @@ func TestClientTemplate_ServesModuleOnUse(t *testing.T) {
 		out := renderModuleClientTemplate(t, tmpl(), buildSchema().Include("hello"), "hello")
 		require.NotContains(t, out, "__serveModule")
 		require.NotContains(t, out, "withServe")
-		require.Contains(t, out, "export const dag = new Client(__servedContext())")
+		require.Contains(t, out, "export const dag = new Client()")
 	})
 }
 
@@ -402,7 +402,7 @@ func TestGenerate_SplitsDependencyFiles(t *testing.T) {
 	// The module file is a self-contained client.
 	require.Contains(t, dep, "export class Hello extends BaseClient")
 	require.Contains(t, dep, "export class Client extends BaseClient")
-	require.Contains(t, dep, "export const dag = new Client(__servedContext())")
+	require.Contains(t, dep, "export const dag = new Client()")
 	require.Contains(t, dep, "export function hello(): Hello {")
 
 	// Library mode (no ModuleConfig) has no entrypoint, so no loader.
@@ -477,8 +477,8 @@ func TestGenerate_Module_EmitsLoader(t *testing.T) {
 	loader := readOverlay(t, state, "clients/loader.gen.ts")
 	require.Contains(t, loader, `import * as __core from "@dagger.io/dagger"`)
 	require.Contains(t, loader, `import * as __modMyDep from "@dagger.io/my-dep"`)
-	require.Contains(t, loader, `"Container": { cls: __core.Container,`)
-	require.Contains(t, loader, `"MyDep": { cls: __modMyDep.MyDep, ctx: __modMyDep.__servedContext }`)
+	require.Contains(t, loader, `"Container": __core.Container,`)
+	require.Contains(t, loader, `"MyDep": __modMyDep.MyDep,`)
 	require.Contains(t, loader, "export function __loadObject(")
 }
 
@@ -577,7 +577,7 @@ func TestGenerate_Client_SplitsBoundModule(t *testing.T) {
 	hello := readOverlay(t, state, "hello.gen.ts")
 	require.Contains(t, hello, "export class Hello extends BaseClient")
 	require.Contains(t, hello, "export class Client extends BaseClient")
-	require.Contains(t, hello, "export const dag = new Client(__servedContext())")
+	require.Contains(t, hello, "export const dag = new Client()")
 	require.Contains(t, hello, "export function hi(): Promise<string> {")
 	require.Contains(t, hello, `import { Context, BaseClient } from "@dagger.io/dagger"`)
 	require.NotContains(t, hello, "declare module")
