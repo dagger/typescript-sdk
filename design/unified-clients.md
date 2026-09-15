@@ -41,6 +41,17 @@
 > *same* per-module shape, so what remains is merging the two directories, not
 > the two shapes.
 >
+> **Known gap — standalone consumer resolution.** A module scope's own `sdk/`
+> clients resolve through the tsconfig `@dagger.io/dagger/<module>` aliases
+> written at generation, and that path is verified. The standalone `clients/`
+> package is different: it is installed as an npm package and reached by its
+> name, but its `dagger.gen.ts` no longer re-exports the module files (that was
+> the merged namespace), and nothing yet gives the package the subpath
+> `exports` map a consumer needs to `import { hey } from "@pkg/hey"`. The files
+> generate and type-check; wiring `package.json` `exports` (or an `index.ts`)
+> for the standalone case is the remaining piece of §6, and it should land with
+> moving `serveBoundModule` into the bound module's package.
+>
 > **Verification.** Unit + golden tests green (`helpers/codegen`,
 > `helpers/config-updater`); a generated module tree — core + per-module client +
 > `loader.gen.ts` + dispatcher + user source importing `@dagger.io/dagger/<mod>`
