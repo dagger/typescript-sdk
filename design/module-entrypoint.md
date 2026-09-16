@@ -99,7 +99,7 @@ half, and a new template renders `call()`.
 
 ```
 hello/
-├── dagger-module.toml          # manifestVersion 2 + [entrypoint]      (generated)
+├── dagger-module.toml          # name + [entrypoint], no [runtime]     (generated)
 ├── entrypoint/
 │   └── main.dang               # types() + call()                       (generated)
 ├── __dagger.dispatch.ts        # stdin → invoke → stdout                (generated)
@@ -264,9 +264,12 @@ module author can run a function without the engine loading the module.
 
 ## 7. Generation and the manifest
 
-### 7.1 The two engine PRs disagree about the manifest
+### 7.1 The two engine PRs disagreed about the manifest — additive won
 
-Settle this first: it decides whether §10.1 and §10.2 are problems at all.
+> **Settled: additive.** The SDK writes its entrypoint manifest through the
+> sdk-helpers builder, like every other manifest it writes, and the builder's
+> schema is the contract. No `manifestVersion`. §10.1 and §10.2 fall away with
+> it; the cost is §7.1.1.
 
 | | #14038 (`manifest-v2`) | #13992 + `sdk-helpers` (`cli-1.0.md:632`) |
 | --- | --- | --- |
@@ -283,10 +286,40 @@ has `withDangEntrypoint(source)` / `withModuleEntrypoint(source)` alongside
 its `[entrypoint]` table is **silently ignored** — `validateCurrentModuleConfigTOML`
 does not reject unknown keys and `CurrentModuleConfig` has no `entrypoint` tag.
 
-The additive model is much better for us: a single generated module keeps
-working on engines that predate entrypoints, dependencies and `engineVersion`
-survive, and `source` stays available for migrated layouts. This design assumes
-it wins; if the versioned model wins instead, §10.1 and §10.2 become blocking.
+**Why additive.** Two reasons, one of which only became clear once the SDK had
+to write the file.
+
+The first is the one this table already makes: nothing is lost. `[entrypoint]`
+is one more table, so a manifest can carry it beside everything a module already
+declares, and the two hard problems the versioned model creates — nowhere to put
+dependencies (§10.1), nowhere to pin an engine (§10.2) — simply do not arise.
+
+The second is that the alternative meant hand-writing the file. `ModuleManifest`
+is the only thing in this repo that emits a `dagger-module.toml`, and it emits no
+`manifestVersion` — so targeting the versioned model meant one generator path
+bypassing the builder with a string literal, diverging from the schema the
+builder validates against, and owning TOML escaping by hand. That is a bad trade
+for a version marker, and it is the direction of travel besides: the engine-side
+work to read a builder-written entrypoint is under way, while `manifestVersion`
+exists only on #14038's branch.
+
+#### 7.1.1 What it costs, and what we do not do about it
+
+Until that engine work lands, a generated entrypoint module does not load
+anywhere. #14038 gates the entrypoint path on `meta.ManifestVersion != 0`
+(`core/modules/config.go:83`) and its legacy path ignores `[entrypoint]`
+entirely (`config_format.go:196` rejects only `sdk`, `blueprint`, `toolchains`),
+so a manifest without the marker reads as a runtime-less v1 module there. Every
+engine before it does the same.
+
+This is accepted, not worked around. Do not re-add `manifestVersion`, prepend it
+to the builder's output, or fall back to a `[runtime]` to keep a dev engine
+happy — any of those puts the generator back in the business of writing a
+manifest shape the builder does not model. A check that needs a loading engine
+is skipped with a comment naming #14038 instead.
+
+The `entrypoint` setting is off by default (`typescript-sdk.dang`), so nothing a
+user generates is affected either way.
 
 ### 7.2 Plumbing (post-#13992)
 
@@ -416,9 +449,9 @@ type. Worth re-checking what else the runtime-only bundle can drop.
 
 ## 10. Risks and open questions
 
-**10.0 — Which manifest model ships.** §7.1. Everything below marked
-*versioned-only* disappears under the additive model, so this is the first
-question to ask, not the last.
+**10.0 — Which manifest model ships.** *(Settled: additive — §7.1.)* Everything
+below marked *versioned-only* is moot; it is kept for the record, and because a
+reader coming from #14038's branch will expect an answer to it.
 
 **10.1 — Where do dependencies come from?** *(versioned-only.)* A
 `manifestVersion = 2` manifest rejects `[[dependencies]]`, and the workspace
