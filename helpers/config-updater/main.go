@@ -250,6 +250,41 @@ func updateTSConfig(tsConfig string, layout aliasLayout, modules []string) (stri
 		return "", fmt.Errorf("set experimentalDecorators: %w", err)
 	}
 
+	return seedTSConfigBaseline(tsConfig)
+}
+
+// tsConfigBaseline is what a generated scope needs a compiler to agree to
+// before any of its own settings matter. Same values the engine's own module
+// template ships, so a module generated here and one generated there compile
+// the same way.
+//
+// Without it a scope whose tsconfig this writer created has nothing but
+// experimentalDecorators, which leaves tsc on its defaults: ES5, where every
+// async method in the bindings is an error, and classic resolution, which reads
+// no package `exports`. The templates ship no tsconfig of their own, so this is
+// the only place the baseline can come from.
+var tsConfigBaseline = []struct {
+	key   string
+	value any
+}{
+	{"target", "ES2022"},
+	{"moduleResolution", "Node"},
+	{"strict", true},
+	{"skipLibCheck", true},
+}
+
+// seedTSConfigBaseline fills in each baseline option the scope has not chosen
+// for itself. Never overwrites: picking a target is the user's, and a scope
+// already compiling on its own settings must not have them changed underneath
+// it by a regeneration.
+func seedTSConfigBaseline(tsConfig string) (string, error) {
+	var err error
+	for _, opt := range tsConfigBaseline {
+		tsConfig, err = setValueIfNotExists(tsConfig, "compilerOptions."+opt.key, opt.value)
+		if err != nil {
+			return "", fmt.Errorf("set %s: %w", opt.key, err)
+		}
+	}
 	return tsConfig, nil
 }
 

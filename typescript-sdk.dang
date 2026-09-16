@@ -302,7 +302,8 @@ type TypescriptSdk {
       # run's schema. The embedded sdk/ and clients/ a previous layout left go
       # with the switch.
       let final = if (entrypoint) {
-        workspaceClientScope(prunedEmbeddedClients(complete, source), cfg, scope, targets, selfTargets)
+        let shared = workspaceClientScope(prunedEmbeddedClients(complete, source), cfg, scope, targets, selfTargets)
+        withScopeClientLinks(shared, cfg, scope)
       } else {
         complete
       }
@@ -1709,15 +1710,16 @@ type TypescriptSdk {
   that any manager can install from any project — these links only close the gap
   between the two managers that link and the two that copy.
   """
-  let clientLinkDirectory(names: [String!]!): Directory! {
+  let clientLinkDirectory(names: [String!]!, prefix: String!): Directory! {
     names.reduce(directory) { acc, name =>
-      acc.withSymlink(target: "../../" + name, linkName: name)
+      acc.withSymlink(target: prefix + name, linkName: name)
     }
   }
 
   """
-  Write the shared directory's node_modules, and only when its set of packages
-  has changed.
+  Write a node_modules/@dagger.io beneath `dir`, and only when its set of
+  packages has changed. `prefix` is how a link there reaches the package it
+  points at, which is two levels up plus wherever the shared directory sits.
 
   Symlinks cannot go through writeChanged: a Workspace has no withSymlink, so
   they can only arrive as a directory, and writing one every run would report
@@ -1726,14 +1728,42 @@ type TypescriptSdk {
   links — and rewriting from scratch is what drops the link of a module that has
   left the workspace.
   """
-  let withClientLinks(ws: Workspace!, dir: String!, names: [String!]!): Workspace! {
-    let linksPath = dir + "/" + clientLinksDir
+  let withClientLinks(ws: Workspace!, dir: String!, names: [String!]!, prefix: String!): Workspace! {
+    let linksPath = scopeFile(dir, clientLinksDir)
     let present = existingDir(ws, linksPath).entries.map { entry => entry.trimSuffix("/") }
 
     if (present.length == names.length and names.all { name => present.contains(name) }) {
       ws
     } else {
-      ws.withDirectory("/" + linksPath, clientLinkDirectory(names))
+      ws.withDirectory("/" + linksPath, clientLinkDirectory(names, prefix))
+    }
+  }
+
+  """
+  Link the shared directory's packages under a module scope too, so the module's
+  own source resolves them with nothing installed.
+
+  The links in the shared directory serve the packages reaching each other; they
+  do nothing for a module sitting elsewhere in the workspace, whose own walk-up
+  passes through its scope and then the workspace root, never through
+  .dagger/clients. Without these a module could not typecheck until someone ran
+  a package manager inside it — which the embedded layout never asked for,
+  because the path aliases resolved from the tsconfig alone.
+
+  The whole set is linked rather than the module's declared subset, which is
+  what a hoisted node_modules does in any monorepo: package.json stays the
+  declaration, and this is only resolution.
+  """
+  let withScopeClientLinks(ws: Workspace!, cfg: String!, scope: String!): Workspace! {
+    let dir = workspaceClientsPath(cfg)
+    let names = existingDir(ws, dir).entries
+      .map { entry => entry.trimSuffix("/") }
+      .filter { entry => entry != "node_modules" }
+
+    if (names.isEmpty) {
+      ws
+    } else {
+      withClientLinks(ws, scope, names, "../../" + relativeClientsDir(scope, dir) + "/")
     }
   }
 
@@ -1747,6 +1777,8 @@ type TypescriptSdk {
       "  \"name\": \"@dagger.io/dagger\",\n" +
       "  \"version\": \"0.0.0\",\n" +
       "  \"type\": \"module\",\n" +
+      "  \"main\": \"./index.ts\",\n" +
+      "  \"types\": \"./index.ts\",\n" +
       "  \"exports\": {\n" +
       "    \".\": \"./index.ts\",\n" +
       "    \"./telemetry\": \"./telemetry.ts\"\n" +
@@ -1760,6 +1792,15 @@ type TypescriptSdk {
   on the library package and on every sibling package in the scope, so
   installing one client links everything it can reference. The version is a
   placeholder npm requires for a file: dependency to resolve at all.
+
+  The entry point is spelled three times because a resolver reads one of them.
+  `exports` is the modern one and the only one node itself honours here, but it
+  is invisible to TypeScript's classic `node` moduleResolution — which is what a
+  tsconfig gets by default, and what every fixture in this repo sets. Under that
+  setting a package with only `exports` resolves to nothing, and the editor says
+  so: "there are types at ..., but this result could not be resolved under your
+  current moduleResolution setting". main and types are what a published package
+  carries for the same reason.
   """
   let clientPackageJSON(name: String!, modules: [String!]!): String! {
     let deps = ["  \"@dagger.io/dagger\": \"file:../dagger\""] +
@@ -1771,6 +1812,8 @@ type TypescriptSdk {
       "  \"name\": \"@dagger.io/" + name + "\",\n" +
       "  \"version\": \"0.0.0\",\n" +
       "  \"type\": \"module\",\n" +
+      "  \"main\": \"./" + name + ".gen.ts\",\n" +
+      "  \"types\": \"./" + name + ".gen.ts\",\n" +
       "  \"exports\": {\n" +
       "    \".\": \"./" + name + ".gen.ts\"\n" +
       "  },\n" +
@@ -1804,7 +1847,7 @@ type TypescriptSdk {
       let bindings = generateClientBindings(targets)
       let generated = clientDirectory(bindings)
       let written = writeChanged(prunedClientFiles(ws, dir, generated), dir, generated)
-      withClientLinks(written, dir, ["dagger"] + flatAliasModules(bindings))
+      withClientLinks(written, dir, ["dagger"] + flatAliasModules(bindings), "../../")
     }
   }
 

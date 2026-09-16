@@ -296,6 +296,52 @@ type ClientChecks {
   }
 
   """
+  An entrypoint module's source must resolve @dagger.io/* with nothing
+  installed.
+
+  Its clients live in the workspace's shared directory, reached as ordinary
+  dependencies rather than path aliases — and a dependency nobody installs
+  resolves to nothing. The module's own walk-up passes through its scope and
+  then the workspace root, never through .dagger/clients, so the links in that
+  directory do not reach it and it needs its own.
+
+  Three things have to line up, and the editor reports a different failure for
+  each: the link, so the package is found at all; the package's `types`, because
+  classic moduleResolution reads no `exports` and would report "there are types
+  at ..., but this result could not be resolved"; and the tsconfig baseline, or
+  tsc sits on ES5 and rejects every async method in the bindings.
+  """
+  moduleScopeResolvesWithoutInstallCheck(ws: Workspace!): Void @check {
+    let scope = fixtures.depLibModule
+    let changes = Gen.scope(
+      ws,
+      scope,
+      "gendep",
+      clients: [ws.moduleSource("/" + fixtures.clientModule)],
+      entrypoint: true,
+    )
+    let after = changes.after
+
+    let links = after.directory(scope + "/node_modules/@dagger.io").entries.map { entry => entry.trimSuffix("/") }
+    let linked = "linked [" + links.join(", ") + "]"
+    Asserts.assert(Asserts.contains(links, "dagger"), "the module should link the library beside its own source: " + linked)
+    Asserts.assert(Asserts.contains(links, "client-app"), "the module should link each client it can import: " + linked)
+
+    Asserts.stringContains(
+      after.directory(clientDir).file("client-app/package.json").contents,
+      "\"types\"",
+      "a client package needs types for classic moduleResolution, which reads no exports",
+    )
+
+    let tsconfig = after.directory(scope).file("tsconfig.json").contents
+    Asserts.stringContains(tsconfig, "\"target\"", "a generated tsconfig without a target leaves tsc on ES5")
+    Asserts.stringContains(tsconfig, "\"moduleResolution\"", "a generated tsconfig should say how to resolve")
+    Asserts.stringNotContains(tsconfig, "\"paths\"", "the shared layout resolves by install, not by alias")
+
+    null
+  }
+
+  """
   A client scope vendors the whole @dagger.io/dagger library as a package, so
   it resolves offline with no remote dependency — the point of vendoring it.
   """

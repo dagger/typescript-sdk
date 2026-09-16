@@ -428,9 +428,75 @@ func TestUpdateTSConfig(t *testing.T) {
 
 			res, err := updateTSConfig(removeJSONComments(tc.tsConfig), aliasLayout{clientsDir: tc.clientsDir, packaged: tc.packaged}, tc.modules)
 			require.NoError(t, err)
-			require.JSONEq(t, tc.expected, res)
+			require.JSONEq(t, withTSConfigBaseline(t, tc.expected), res)
 		})
 	}
+}
+
+// withTSConfigBaseline adds the compiler options every generated tsconfig gets
+// to a case's expectation, so the cases above stay about the aliases they are
+// each testing. The baseline itself is TestUpdateTSConfigBaseline's, spelled out
+// there rather than shared with the writer.
+func withTSConfigBaseline(t *testing.T, expected string) string {
+	t.Helper()
+
+	for key, value := range map[string]any{
+		"target":           "ES2022",
+		"moduleResolution": "Node",
+		"strict":           true,
+		"skipLibCheck":     true,
+	} {
+		updated, err := setValueIfNotExists(expected, "compilerOptions."+key, value)
+		require.NoError(t, err)
+		expected = updated
+	}
+	return expected
+}
+
+// TestUpdateTSConfigBaseline covers the options a generated scope needs before
+// any of its own matter. The init templates ship no tsconfig, so a scope whose
+// tsconfig this writer created would otherwise sit on tsc's defaults: ES5, where
+// every async method in the bindings is an error.
+func TestUpdateTSConfigBaseline(t *testing.T) {
+	t.Parallel()
+
+	t.Run("a scope with no tsconfig gets a usable one", func(t *testing.T) {
+		t.Parallel()
+
+		res, err := updateTSConfig(`{}`, aliasLayout{clientsDir: ".dagger/clients", packaged: true}, nil)
+		require.NoError(t, err)
+		require.JSONEq(t, `{
+  "compilerOptions": {
+    "target": "ES2022",
+    "moduleResolution": "Node",
+    "strict": true,
+    "skipLibCheck": true,
+    "experimentalDecorators": true
+  }
+}`, res)
+	})
+
+	t.Run("a scope's own choices are never overwritten", func(t *testing.T) {
+		t.Parallel()
+
+		res, err := updateTSConfig(`{
+  "compilerOptions": {
+    "target": "ESNext",
+    "moduleResolution": "NodeNext",
+    "strict": false
+  }
+}`, aliasLayout{clientsDir: ".dagger/clients", packaged: true}, nil)
+		require.NoError(t, err)
+		require.JSONEq(t, `{
+  "compilerOptions": {
+    "target": "ESNext",
+    "moduleResolution": "NodeNext",
+    "strict": false,
+    "skipLibCheck": true,
+    "experimentalDecorators": true
+  }
+}`, res)
+	})
 }
 
 func TestUpdateDenoConfig(t *testing.T) {
