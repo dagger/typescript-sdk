@@ -28,6 +28,57 @@ type ManifestChecks {
     null
   }
 
+  """
+  An entrypoint scope's manifest is the sdk-helpers builder's, like every other
+  manifest this SDK writes.
+
+  Which fixes its shape: an `[entrypoint]` table, and no `manifestVersion` —
+  the builder's schema has no such field, and re-adding one to satisfy
+  dagger/dagger#14038's version gate would mean hand-writing the file again.
+  Nothing loads such a manifest until that gate comes out, so this asserts what
+  is written rather than running it.
+
+  The second half flips a module that already declares a `[runtime]`. The legacy
+  fields go with it: `engineVersion`, `source` and `[[dependencies]]` all hang
+  off a runtime this module no longer has, and leaving `[runtime]` behind would
+  only point an older engine at a __dagger.entrypoint.ts generation just took
+  away.
+  """
+  entrypointManifestCheck(ws: Workspace!): Void @check {
+    let freshPath = Fixtures.out + "/manifest-entrypoint"
+    let flipPath = Fixtures.out + "/manifest-entrypoint-flip"
+    let entrypointSdk = typescriptSdk(entrypoint: true, template: "empty", skipGenerateFilename: "")
+
+    let fresh = entrypointSdk
+      .generateScope(ws.withWorkdir(freshPath), isModule: true, name: "manifest-entrypoint", clients: [])
+      .file("dagger-module.toml").contents
+
+    Asserts.stringContains(fresh, "name = \"manifest-entrypoint\"", "module name was lost")
+    Asserts.stringContains(fresh, "[entrypoint]", "entrypoint table is missing")
+    Asserts.stringContains(fresh, "kind = \"dang\"", "entrypoint kind is missing")
+    Asserts.stringContains(fresh, "source = \"./entrypoint\"", "entrypoint source is missing")
+    Asserts.stringNotContains(fresh, "manifestVersion", "the builder emits no manifest version; see dagger/dagger#14038")
+
+    let runtimeScope = typescriptSdk(template: "empty", skipGenerateFilename: "")
+      .generateScope(ws.withWorkdir(flipPath), isModule: true, name: "manifest-entrypoint-flip", clients: [])
+    Asserts.stringContains(
+      runtimeScope.file("dagger-module.toml").contents,
+      "[runtime]",
+      "the scope must start on a runtime for the flip to mean anything",
+    )
+
+    let flipped = entrypointSdk
+      .generateScope(runtimeScope, isModule: true, name: "manifest-entrypoint-flip", clients: [])
+      .file("dagger-module.toml").contents
+
+    Asserts.stringContains(flipped, "[entrypoint]", "flipping did not write the entrypoint table")
+    Asserts.stringNotContains(flipped, "[runtime]", "an entrypoint module should not declare a runtime")
+    Asserts.stringNotContains(flipped, "engineVersion", "engineVersion belongs to the runtime that is gone")
+    Asserts.stringNotContains(flipped, "manifestVersion", "flipping invented a manifest version")
+
+    null
+  }
+
   """A local dependency path starts at the manifest, even with separate source files."""
   splitSourceClientCheck(ws: Workspace!): Void @check {
     let dependency = Fixtures.splitDenoRoot + "/dep"

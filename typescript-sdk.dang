@@ -60,10 +60,10 @@ type TypescriptSdk {
   __dagger.entrypoint.ts its runtime execs. No module is generated with both
   halves.
 
-  Turning it on is not free. A manifest v2 holds exactly four values, and the
-  engine rejects every other key outright, so the table drops what it has nowhere
-  to put: `[[dependencies]]`, `engineVersion`, `source`, `[codegen]` and
-  `[[clients]]`. Leave it off unless you are testing the entrypoint path.
+  Turning it on is not free. The manifest comes out with an `[entrypoint]` table
+  and no `[runtime]`, and `engineVersion`, `source` and `[[dependencies]]` are
+  fields of the runtime the module no longer declares — so a module that had
+  them loses them. Leave it off unless you are testing the entrypoint path.
 
   A scope's clients still work. With no `[[dependencies]]` to declare them in,
   the dispatcher serves them into its own session at run time instead — see
@@ -234,12 +234,11 @@ type TypescriptSdk {
       } else {
         seedModule(rooted, scope, name, effectiveRuntime(rooted, scope))
       }
-      # The entrypoint manifest is written unconditionally rather than only when
-      # the scope has none: its four values carry nothing worth preserving, and
-      # writing it every time is what lets an existing module be flipped onto an
-      # entrypoint by turning the setting on.
+      # The entrypoint manifest is written on every run rather than only when the
+      # scope has none: rewriting one that exists is what lets an existing module
+      # be flipped onto an entrypoint by turning the setting on.
       let configured = if (entrypoint) {
-        withEntrypointManifest(seeded, scope, name)
+        withEntrypointManifest(seeded, scope, name, hasToml)
       } else if (hasToml) {
         seeded
       } else {
@@ -251,8 +250,9 @@ type TypescriptSdk {
       # runtime is: a split-layout Deno module keeps its deno.json beside its
       # code, and detecting at the manifest's directory would regenerate it as
       # Node and leave it unable to resolve @dagger.io/dagger at all.
-      # A v2 manifest has no `source` field to aim anywhere else, so a module's
-      # files are simply its scope. Asking the engine gives the wrong answer
+      # An entrypoint manifest has no `source` field to aim anywhere else — it
+      # goes with the `[runtime]` it hangs off — so a module's files are simply
+      # its scope. Asking the engine gives the wrong answer
       # rather than no answer: sourceSubpath comes back unset, moduleSourcePath
       # reads that as ".", and generation then looks for src/ at the workspace
       # root instead of inside the module.
@@ -265,11 +265,12 @@ type TypescriptSdk {
       # Before the schema is read: a target that is not a dependency yet is not
       # in the schema the bindings are generated from.
       #
-      # Skipped entirely under an entrypoint, because a v2 manifest has no
-      # [[dependencies]] table and the engine rejects the key rather than
-      # ignoring it — upserting one would not add a dependency, it would make the
-      # manifest unparseable. The consequence is real and has no workaround here:
-      # a module with an entrypoint cannot serve a client yet.
+      # Skipped entirely under an entrypoint, where there is no [runtime] for a
+      # dependency to belong to: the builder rejects one on its own
+      # ("legacy runtime is required when legacy fields are set"), so upserting
+      # would not add a dependency, it would fail the generation. The
+      # consequence is real and has no workaround here: a module with an
+      # entrypoint cannot serve a client yet.
       let served = if (entrypoint) {
         configured
       } else {
@@ -509,28 +510,32 @@ type TypescriptSdk {
   """
   Write the manifest that selects the generated module entrypoint.
 
-  Four values, and the engine rejects any other key outright — not just the
-  tables a legacy manifest carries, but `engineVersion` too, which it fills in
-  from whatever engine is running. So there is nothing here to preserve from
-  what was on disk, and nothing the sdk-helpers builder can contribute: that
-  builder never emits `manifestVersion`, and without it the engine takes the
-  legacy path and reads `[entrypoint]` as an unknown key it silently ignores.
-  Writing the four lines directly is the whole job.
+  Through the sdk-helpers builder, like every other manifest this SDK writes.
+  The builder emits no `manifestVersion`, because the schema it implements has
+  no such field: an `[entrypoint]` table is simply one more table a manifest may
+  carry, and an engine that does not understand it reads the rest.
 
-  This overwrites rather than merges, which is what makes flipping an existing
-  module onto an entrypoint work at all. It is a one-way trip: everything the v2
-  schema cannot hold is gone from the file afterwards.
+  The legacy fields go rather than sitting beside it, which that schema would
+  allow. An entrypoint module's tree has no __dagger.entrypoint.ts, so a
+  `[runtime]` left in the file would only point an older engine at a file that
+  is not there — better to be unloadable than half-loadable.
+
+  Rewriting rather than merging is what makes flipping an existing module onto
+  an entrypoint work at all. It is a one-way trip: `engineVersion`, `source` and
+  `[[dependencies]]` cannot outlive the `[runtime]` they hang off.
   """
-  let withEntrypointManifest(ws: Workspace!, scope: String!, name: String!): Workspace! {
-    ws.withNewFile(
-      "/" + scopeFile(scope, "dagger-module.toml"),
-      "manifestVersion = 2\n" +
-        "name = " + JSON.encode(name) + "\n" +
-        "\n" +
-        "[entrypoint]\n" +
-        "  kind = \"dang\"\n" +
-        "  source = " + JSON.encode("./" + dangEntrypointDir) + "\n",
-    )
+  let withEntrypointManifest(ws: Workspace!, scope: String!, name: String!, hasToml: Boolean!): Workspace! {
+    let existing = if (hasToml) {
+      sdkHelpers.moduleManifest(loadToml: ws.file("/" + scopeFile(scope, "dagger-module.toml")))
+    } else {
+      sdkHelpers.moduleManifest
+    }
+
+    existing.withName(name: name)
+      .withoutLegacyFields
+      .withDangEntrypoint(source: "./" + dangEntrypointDir)
+      .generate(ws.withWorkdir(scope), lock: lock, legacyJson: false)
+      .withWorkdir(".")
   }
 
   """
