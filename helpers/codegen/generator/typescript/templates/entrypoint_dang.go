@@ -26,6 +26,16 @@ type DangEntrypointOptions struct {
 	// as the container workdir. "." when the module is the workspace root.
 	ModulePath string
 
+	// PackageManager installs the module's dependencies: "npm", "yarn" or
+	// "pnpm" under node, "bun" or "deno" under their own runtimes. Empty falls
+	// back to the runtime's own manager, which is the only one its base image
+	// is guaranteed to ship.
+	PackageManager string
+
+	// PackageManagerVersion pins that manager, as the SDK detected it. Empty
+	// uses whatever the base image ships.
+	PackageManagerVersion string
+
 	// DispatchFile is the generated dispatcher call() execs, relative to the
 	// module directory.
 	DispatchFile string
@@ -48,9 +58,21 @@ const (
 	// and the layer keys on (image digest, tsx version) alone.
 	dangTsxVersion = "4.22.4"
 
+	// npm bundled in dangNodeImageRef. The SDK resolves a lockfile-detected npm
+	// to this same version, so the usual case needs no global install at all —
+	// only an explicit pin that disagrees with the image does.
+	dangNodeNpmVersion = "11.8.0"
+
 	// The directory the SDK bundle is generated into, mounted as the
 	// @dagger.io/dagger package for node and bun.
 	dangSDKDir = "sdk"
+
+	// Where dependencies are installed, and where the workspace is mounted. The
+	// install has to land outside the workspace mount or the mount would hide
+	// it, and outside "/" because npm refuses to install at the filesystem root
+	// ("Tracker \"idealTree\" already exists").
+	dangInstallDir   = "/deps"
+	dangWorkspaceDir = "/workspace"
 )
 
 // DefaultDispatchFile is the filename of the generated dispatcher the Dang
@@ -75,6 +97,8 @@ func DangEntrypointTemplateFuncs(module *TypedefModule, opts DangEntrypointOptio
 	c := &dangFuncCtx{module: module, opts: opts}
 	return template.FuncMap{
 		"dangTypeEntries":          c.dangTypeEntries,
+		"dangBaseChain":            c.dangBaseChain,
+		"dangDependenciesChain":    c.dangDependenciesChain,
 		"dangRuntimeChain":         c.dangRuntimeChain,
 		"dangDispatchExec":         c.dangDispatchExec,
 		"dangRequireGeneratedBody": c.dangRequireGeneratedBody,
@@ -457,9 +481,35 @@ func (c *dangFuncCtx) modulePath() string {
 // module has to run from its own directory whoever called it.
 func (c *dangFuncCtx) workdir() string {
 	if p := c.modulePath(); p != "." {
-		return "/workspace/" + p
+		return dangWorkspaceDir + "/" + p
 	}
-	return "/workspace"
+	return dangWorkspaceDir
+}
+
+// moduleDir is the module directory as a workspace-absolute path, which is how
+// workspace.directory() addresses it.
+func (c *dangFuncCtx) moduleDir() string {
+	if p := c.modulePath(); p != "." {
+		return "/" + p
+	}
+	return "/"
+}
+
+// packageManager is the manager the install step runs. The SDK detects it the
+// way the engine's builtin runtime does and passes it in; the fallback is the
+// runtime's own, the only one its base image is guaranteed to ship.
+func (c *dangFuncCtx) packageManager() string {
+	if c.opts.PackageManager != "" {
+		return c.opts.PackageManager
+	}
+	switch c.opts.Runtime {
+	case "bun":
+		return "bun"
+	case "deno":
+		return "deno"
+	default:
+		return "npm"
+	}
 }
 
 func (c *dangFuncCtx) dispatchFile() string {
@@ -503,8 +553,9 @@ func (c *dangFuncCtx) dangRequiredFiles() []string {
 	case "deno":
 		files = append(files, "deno.json")
 	case "bun":
+		files = append(files, "package.json")
 	default:
-		files = append(files, c.tsConfigPath())
+		files = append(files, "package.json", c.tsConfigPath())
 	}
 	return files
 }
@@ -538,10 +589,10 @@ func (c *dangFuncCtx) dangRequireGeneratedBody() string {
 	return b.String()
 }
 
-// dangRuntimeChain renders the body of the private runtime() helper: everything
-// up to but not including the per-call exec, so the whole build is shared across
-// calls and across modules that share a prefix.
-func (c *dangFuncCtx) dangRuntimeChain() string {
+// dangBaseChain renders the body of base(): the image, whatever the JS runtime
+// needs before anything module-specific, and the package manager's download
+// cache.
+func (c *dangFuncCtx) dangBaseChain() string {
 	var calls []string
 
 	switch c.opts.Runtime {
@@ -554,31 +605,158 @@ func (c *dangFuncCtx) dangRuntimeChain() string {
 			fmt.Sprintf("from(%s)", dangString(dangNodeImageRef)),
 			`withExec(["apk", "add", "--no-cache", "ca-certificates"])`,
 			`withEnvVariable("NODE_OPTIONS", "--use-openssl-ca")`,
-			fmt.Sprintf(`withExec(["npm", "install", "-g", %s])`, dangString("tsx@"+dangTsxVersion)),
 		)
 	}
 
-	// node_modules is excluded rather than mounted: it is a host build artifact
-	// that can dwarf the source, and for node and bun the one package the module
-	// actually needs is mounted explicitly just below.
-	calls = append(calls,
-		`withMountedDirectory("/workspace", workspace.directory("/", exclude: ["**/node_modules"]))`,
-		fmt.Sprintf("withWorkdir(%s)", dangString(c.workdir())),
-	)
-
-	// Deno resolves @dagger.io/dagger through the import map in deno.json, so only
-	// node and bun need the package mounted where module resolution looks for it.
-	if c.opts.Runtime != "deno" {
-		sdkPath := dangSDKDir
-		if p := c.modulePath(); p != "." {
-			sdkPath = path.Join(p, dangSDKDir)
-		}
-		calls = append(calls, fmt.Sprintf(
-			`withMountedDirectory("node_modules/@dagger.io/dagger", workspace.directory(%s))`,
-			dangString("/"+sdkPath)))
-	}
+	cachePath, cacheName := c.dangPackageCache()
+	calls = append(calls, fmt.Sprintf("withMountedCache(%s, cacheVolume(%s))",
+		dangString(cachePath), dangString(cacheName)))
 
 	return dangChain("container", calls, "      ")
+}
+
+// dangPackageCache is where the package manager keeps its downloads, and the
+// cache volume backing it. Shared across every module on the engine that uses
+// the same manager, the way the engine's builtin runtime shares its own.
+func (c *dangFuncCtx) dangPackageCache() (path, volume string) {
+	switch c.packageManager() {
+	case "deno":
+		// DENO_DIR in denoland/deno. Upstream mounts /root/.deno/cache
+		// (runtime_deno.go:29), which is not where that image caches anything.
+		return "/deno-dir", "dagger-typescript-deno"
+	case "bun":
+		return "/root/.bun/install/cache", "dagger-typescript-bun"
+	case "yarn":
+		return "/root/.cache/yarn", "dagger-typescript-yarn"
+	case "pnpm":
+		return "/root/.local/share/pnpm/store", "dagger-typescript-pnpm"
+	default:
+		return "/root/.npm", "dagger-typescript-npm"
+	}
+}
+
+// dangManifestFiles lists the files the install reads, and nothing else: they
+// are the whole cache key of the install layer, so a module's source can change
+// without reinstalling anything. Optional ones are named too — the include
+// filter simply drops whichever are absent.
+func (c *dangFuncCtx) dangManifestFiles() []string {
+	switch c.packageManager() {
+	case "deno":
+		return []string{"deno.json", "deno.lock"}
+	case "bun":
+		return []string{"package.json", "bun.lock", "bun.lockb", "bunfig.toml", ".npmrc"}
+	case "yarn":
+		return []string{"package.json", "yarn.lock", ".yarnrc.yml", ".npmrc"}
+	case "pnpm":
+		return []string{"package.json", "pnpm-lock.yaml", "pnpm-workspace.yaml", ".npmrc"}
+	default:
+		return []string{"package.json", "package-lock.json", ".npmrc"}
+	}
+}
+
+// dangInstallExecs renders the execs that install the module's dependencies,
+// mirroring the engine's builtin runtime (runtime_node.go, runtime_bun.go,
+// runtime_deno.go) — including its --prod / --omit=dev flags, so a module gets
+// the same tree under an entrypoint as it does under a [runtime].
+func (c *dangFuncCtx) dangInstallExecs() []string {
+	switch c.packageManager() {
+	case "deno":
+		return []string{`withExec(["deno", "install", "--node-modules-dir=auto"])`}
+	case "bun":
+		return []string{`withExec(["bun", "install", "--no-verify", "--omit=dev", "--omit=peer", "--omit=optional"])`}
+	case "yarn":
+		// No setup exec: the node image ships yarn 1, and corepack picks up a
+		// package.json "packageManager" naming any other version on its own.
+		return []string{`withExec(["yarn", "install", "--prod"])`}
+	case "pnpm":
+		return []string{
+			fmt.Sprintf(`withExec(["npm", "install", "-g", %s])`, dangString(c.dangManagerSpec("pnpm"))),
+			`withExec(["pnpm", "install", "--shamefully-hoist=true", "--prod"])`,
+		}
+	default:
+		var calls []string
+		// The image already ships the version the SDK resolves a lockfile to, so
+		// only a pin that disagrees with it costs a global install.
+		if v := c.opts.PackageManagerVersion; v != "" && v != dangNodeNpmVersion {
+			calls = append(calls, fmt.Sprintf(`withExec(["npm", "install", "-g", %s])`,
+				dangString("npm@"+v)))
+		}
+		return append(calls, `withExec(["npm", "install", "--omit=dev"])`)
+	}
+}
+
+// dangManagerSpec is the npm spec that installs the package manager, pinned when
+// the SDK resolved a version.
+func (c *dangFuncCtx) dangManagerSpec(name string) string {
+	if v := c.opts.PackageManagerVersion; v != "" {
+		return name + "@" + v
+	}
+	return name
+}
+
+// dangDependenciesChain renders the body of the private dependencies() helper:
+// the module's dependencies installed, as the node_modules a call mounts.
+//
+// It cannot run inside runtime(). The install has to happen before the workspace
+// is mounted — every exec after that mount is keyed on the whole workspace, so a
+// one-line source edit would reinstall — and anything written before it under
+// the mount point is hidden by it.
+func (c *dangFuncCtx) dangDependenciesChain() string {
+	manifest := c.dangManifestFiles()
+	includes := make([]string, len(manifest))
+	for i, f := range manifest {
+		includes[i] = dangString(f)
+	}
+
+	calls := []string{
+		fmt.Sprintf("withWorkdir(%s)", dangString(dangInstallDir)),
+		fmt.Sprintf("withDirectory(%s, workspace.directory(%s, include: [%s]))",
+			dangString(dangInstallDir), dangString(c.moduleDir()), strings.Join(includes, ", ")),
+		// Seeded because a module that declares no dependency at all leaves npm
+		// creating nothing, and the read below would then name a missing path.
+		fmt.Sprintf("withDirectory(%s, directory)", dangString(dangInstallDir+"/node_modules")),
+	}
+	calls = append(calls, c.dangInstallExecs()...)
+	calls = append(calls, fmt.Sprintf("directory(%s)", dangString(dangInstallDir+"/node_modules")))
+
+	// Deno resolves @dagger.io/dagger through the import map in deno.json, so only
+	// node and bun need the package where module resolution looks for it. Folded
+	// in here rather than mounted separately so node_modules stays one mount.
+	if c.opts.Runtime != "deno" {
+		calls = append(calls, fmt.Sprintf(
+			`withDirectory("@dagger.io/dagger", workspace.directory(%s))`,
+			dangString(path.Join(c.moduleDir(), dangSDKDir))))
+	}
+
+	return dangChain("base", calls, "      ")
+}
+
+// dangRuntimeChain renders the body of the private runtime() helper: everything
+// up to but not including the per-call exec, so the whole build is shared across
+// calls and across modules that share a prefix.
+func (c *dangFuncCtx) dangRuntimeChain() string {
+	var calls []string
+
+	// tsx is a node-only loader, and installing it before anything
+	// module-specific keys the layer on (image digest, tsx version) alone.
+	switch c.opts.Runtime {
+	case "bun", "deno":
+	default:
+		calls = append(calls,
+			fmt.Sprintf(`withExec(["npm", "install", "-g", %s])`, dangString("tsx@"+dangTsxVersion)))
+	}
+
+	// node_modules is excluded rather than mounted: it is a host build artifact
+	// that can dwarf the source, and the one the call actually runs against is
+	// mounted from dependencies() just below.
+	calls = append(calls,
+		fmt.Sprintf(`withMountedDirectory(%s, workspace.directory("/", exclude: ["**/node_modules"]))`,
+			dangString(dangWorkspaceDir)),
+		fmt.Sprintf("withWorkdir(%s)", dangString(c.workdir())),
+		`withMountedDirectory("node_modules", dependencies(workspace))`,
+	)
+
+	return dangChain("base", calls, "      ")
 }
 
 // dangDispatchExec renders the argv that runs the generated dispatcher.

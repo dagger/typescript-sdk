@@ -88,11 +88,14 @@ func TestGenerateDangEntrypointRuntimes(t *testing.T) {
 			require.Contains(t, got, tc.image)
 			require.Contains(t, got, tc.exec)
 
-			const sdkMount = `withMountedDirectory("node_modules/@dagger.io/dagger"`
+			// Folded into the node_modules dependencies() returns rather than
+			// mounted on its own, so the module has one node_modules mount and
+			// nothing nests inside it.
+			const sdkFold = `withDirectory("@dagger.io/dagger"`
 			if tc.wantsSDK {
-				require.Contains(t, got, sdkMount)
+				require.Contains(t, got, sdkFold)
 			} else {
-				require.NotContains(t, got, sdkMount)
+				require.NotContains(t, got, sdkFold)
 			}
 
 			// tsx is a node-only loader, installed because a generated entrypoint
@@ -125,7 +128,112 @@ func TestGenerateDangEntrypointNestedModule(t *testing.T) {
 
 	require.Contains(t, got, `withWorkdir("/workspace/.dagger/modules/smoke")`)
 	require.Contains(t, got,
-		`withMountedDirectory("node_modules/@dagger.io/dagger", workspace.directory("/.dagger/modules/smoke/sdk"))`)
+		`withDirectory("@dagger.io/dagger", workspace.directory("/.dagger/modules/smoke/sdk"))`)
+	// The install reads the module's own manifest, not the workspace root's.
+	require.Contains(t, got, `workspace.directory("/.dagger/modules/smoke", include: [`)
+}
+
+// TestGenerateDangEntrypointInstallsDependencies pins the install step. Under a
+// [runtime] the engine installs the module's dependencies before it runs
+// anything; under an entrypoint nothing does that for us, so the recipe has to,
+// with the manager the module actually uses.
+func TestGenerateDangEntrypointInstallsDependencies(t *testing.T) {
+	for _, tc := range []struct {
+		name     string
+		runtime  string
+		manager  string
+		version  string
+		exec     string
+		cache    string
+		manifest string
+		setup    string
+	}{
+		{
+			name: "npm", runtime: "node", manager: "npm", version: "11.8.0",
+			exec:     `withExec(["npm", "install", "--omit=dev"])`,
+			cache:    `withMountedCache("/root/.npm", cacheVolume("dagger-typescript-npm"))`,
+			manifest: `"package.json", "package-lock.json", ".npmrc"`,
+		},
+		{
+			name: "yarn", runtime: "node", manager: "yarn", version: "1.22.22",
+			exec:     `withExec(["yarn", "install", "--prod"])`,
+			cache:    `withMountedCache("/root/.cache/yarn", cacheVolume("dagger-typescript-yarn"))`,
+			manifest: `"package.json", "yarn.lock", ".yarnrc.yml", ".npmrc"`,
+		},
+		{
+			name: "pnpm", runtime: "node", manager: "pnpm", version: "8.15.4",
+			exec:     `withExec(["pnpm", "install", "--shamefully-hoist=true", "--prod"])`,
+			cache:    `withMountedCache("/root/.local/share/pnpm/store", cacheVolume("dagger-typescript-pnpm"))`,
+			manifest: `"package.json", "pnpm-lock.yaml", "pnpm-workspace.yaml", ".npmrc"`,
+			setup:    `withExec(["npm", "install", "-g", "pnpm@8.15.4"])`,
+		},
+		{
+			name: "bun", runtime: "bun", manager: "bun",
+			exec:     `withExec(["bun", "install", "--no-verify", "--omit=dev", "--omit=peer", "--omit=optional"])`,
+			cache:    `withMountedCache("/root/.bun/install/cache", cacheVolume("dagger-typescript-bun"))`,
+			manifest: `"package.json", "bun.lock", "bun.lockb", "bunfig.toml", ".npmrc"`,
+		},
+		{
+			name: "deno", runtime: "deno", manager: "deno",
+			exec:     `withExec(["deno", "install", "--node-modules-dir=auto"])`,
+			cache:    `withMountedCache("/deno-dir", cacheVolume("dagger-typescript-deno"))`,
+			manifest: `"deno.json", "deno.lock"`,
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			gen := &TypeScriptGenerator{Config: generator.Config{
+				DangEntrypointConfig: &generator.DangEntrypointGeneratorConfig{
+					TypedefJSONPath:       "testdata/typedef_smoke.json",
+					Runtime:               tc.runtime,
+					ModulePath:            ".",
+					PackageManager:        tc.manager,
+					PackageManagerVersion: tc.version,
+				},
+			}}
+
+			state, err := gen.GenerateDangEntrypoint(context.Background())
+			require.NoError(t, err)
+			got := readOverlay(t, state, DefaultDangEntrypointFile)
+
+			require.Contains(t, got, tc.exec)
+			require.Contains(t, got, tc.cache)
+			require.Contains(t, got, "include: ["+tc.manifest+"]")
+			if tc.setup != "" {
+				require.Contains(t, got, tc.setup)
+			}
+
+			// The install has to sit outside the workspace mount, which would
+			// otherwise hide whatever it wrote, and the result reaches the call
+			// as the module's node_modules.
+			require.Contains(t, got, `withWorkdir("/deps")`)
+			require.Contains(t, got, `directory("/deps/node_modules")`)
+			require.Contains(t, got, `withMountedDirectory("node_modules", dependencies(workspace))`)
+		})
+	}
+}
+
+// TestGenerateDangEntrypointNpmPinMatchingImage covers the usual npm case: the
+// SDK resolves a lockfile to the version the base image already ships, so the
+// recipe should not spend a layer reinstalling it. Only a pin that disagrees
+// with the image earns one.
+func TestGenerateDangEntrypointNpmPinMatchingImage(t *testing.T) {
+	render := func(t *testing.T, version string) string {
+		t.Helper()
+		gen := &TypeScriptGenerator{Config: generator.Config{
+			DangEntrypointConfig: &generator.DangEntrypointGeneratorConfig{
+				TypedefJSONPath:       "testdata/typedef_smoke.json",
+				Runtime:               "node",
+				PackageManager:        "npm",
+				PackageManagerVersion: version,
+			},
+		}}
+		state, err := gen.GenerateDangEntrypoint(context.Background())
+		require.NoError(t, err)
+		return readOverlay(t, state, DefaultDangEntrypointFile)
+	}
+
+	require.NotContains(t, render(t, "11.8.0"), `"npm", "install", "-g", "npm@`)
+	require.Contains(t, render(t, "10.9.0"), `withExec(["npm", "install", "-g", "npm@10.9.0"])`)
 }
 
 // TestGenerateDangEntrypointImplementsContract pins the shape the dang driver
@@ -150,12 +258,15 @@ func TestGenerateDangEntrypointImplementsContract(t *testing.T) {
 	require.NotContains(t, got, "interface ModuleEntrypoint")
 
 	// No `let` field: a field, even a defaulted one, becomes a constructor
-	// argument, and the driver requires a zero-argument constructor.
+	// argument, and the driver requires a zero-argument constructor. A `let`
+	// that takes arguments or has a body is a member, not a field.
 	for _, line := range strings.Split(got, "\n") {
 		trimmed := strings.TrimSpace(line)
-		if strings.HasPrefix(trimmed, "let ") {
-			require.Contains(t, trimmed, "(", "field %q would become a constructor argument", trimmed)
+		if !strings.HasPrefix(trimmed, "let ") {
+			continue
 		}
+		require.True(t, strings.Contains(trimmed, "(") || strings.HasSuffix(trimmed, "{"),
+			"field %q would become a constructor argument", trimmed)
 	}
 
 	require.Contains(t, got, "pub types(workspace: Workspace!): [TypeDef!]! {")
@@ -184,8 +295,8 @@ func TestGenerateDangEntrypointGuardsGeneratedFiles(t *testing.T) {
 		wants   []string
 		absent  string
 	}{
-		{runtime: "node", wants: []string{"tsconfig.json"}, absent: "deno.json"},
-		{runtime: "bun", wants: nil, absent: "tsconfig.json"},
+		{runtime: "node", wants: []string{"package.json", "tsconfig.json"}, absent: "deno.json"},
+		{runtime: "bun", wants: []string{"package.json"}, absent: "tsconfig.json"},
 		{runtime: "deno", wants: []string{"deno.json"}, absent: "tsconfig.json"},
 	} {
 		t.Run(tc.runtime, func(t *testing.T) {

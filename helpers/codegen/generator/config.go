@@ -115,6 +115,15 @@ type DangEntrypointGeneratorConfig struct {
 	// rather than read from workspace.cwd, which is the caller's.
 	ModulePath string
 
+	// PackageManager installs the module's dependencies: "npm", "yarn" or
+	// "pnpm" under node, "bun" or "deno" under their own runtimes. Detected by
+	// the SDK; defaults to the runtime's own.
+	PackageManager string
+
+	// PackageManagerVersion pins that manager. Empty uses whatever the base
+	// image ships.
+	PackageManagerVersion string
+
 	// DispatchFile is the dispatcher call() execs, relative to the module
 	// directory. Defaults to "__dagger.dispatch.ts".
 	DispatchFile string

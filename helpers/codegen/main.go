@@ -27,6 +27,7 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"strings"
 
 	"codegen/generator"
 	typescriptgenerator "codegen/generator/typescript"
@@ -184,6 +185,7 @@ func runDangEntrypoint(args []string) error {
 		moduleName   = fs.String("module-name", "", "the module's name, used in the error a missing generated file raises")
 		runtime      = fs.String("runtime", "node", "JS runtime the call() recipe targets: node, bun or deno")
 		modulePath   = fs.String("module-path", ".", "module directory relative to the workspace root, used as the container workdir")
+		packageMgr   = fs.String("package-manager", "", "package manager the call() recipe installs with, as name[@version] (npm, yarn, pnpm, bun, deno)")
 		dispatchFile = fs.String("dispatch-file", typescriptgenerator.DefaultDispatchFile, "dispatcher call() execs, relative to the module directory")
 		tsconfigPath = fs.String("tsconfig", "tsconfig.json", "tsconfig tsx loads, relative to the module directory (node only)")
 	)
@@ -199,16 +201,23 @@ func runDangEntrypoint(args []string) error {
 		return fmt.Errorf("unknown --runtime %q (want node, bun or deno)", *runtime)
 	}
 
+	pkgMgr, pkgMgrVersion, err := parsePackageManager(*packageMgr)
+	if err != nil {
+		return err
+	}
+
 	cfg := generator.Config{
 		OutputDir: *outputDir,
 		DangEntrypointConfig: &generator.DangEntrypointGeneratorConfig{
-			TypedefJSONPath: *typedefPath,
-			OutputFile:      *outputFile,
-			ModuleName:      *moduleName,
-			Runtime:         *runtime,
-			ModulePath:      *modulePath,
-			DispatchFile:    *dispatchFile,
-			TSConfigPath:    *tsconfigPath,
+			TypedefJSONPath:       *typedefPath,
+			OutputFile:            *outputFile,
+			ModuleName:            *moduleName,
+			Runtime:               *runtime,
+			ModulePath:            *modulePath,
+			PackageManager:        pkgMgr,
+			PackageManagerVersion: pkgMgrVersion,
+			DispatchFile:          *dispatchFile,
+			TSConfigPath:          *tsconfigPath,
 		},
 	}
 	gen := &typescriptgenerator.TypeScriptGenerator{Config: cfg}
@@ -224,6 +233,22 @@ func runDangEntrypoint(args []string) error {
 	}
 
 	return nil
+}
+
+// parsePackageManager splits the `name[@version]` spelling the Node ecosystem
+// uses for `packageManager`, and the SDK passes through unchanged. An empty spec
+// leaves the choice to the generator, which falls back to the runtime's own.
+func parsePackageManager(spec string) (name, version string, _ error) {
+	if spec == "" {
+		return "", "", nil
+	}
+	name, version, _ = strings.Cut(spec, "@")
+	switch name {
+	case "npm", "yarn", "pnpm", "bun", "deno":
+		return name, version, nil
+	default:
+		return "", "", fmt.Errorf("unknown --package-manager %q (want npm, yarn, pnpm, bun or deno)", name)
+	}
 }
 
 // renderFunc is a generator method that turns a schema into files. The three
