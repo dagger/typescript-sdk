@@ -53,10 +53,12 @@ type TypescriptSdk {
   Declare a module entrypoint instead of a legacy runtime.
 
   Experimental, and engine-gated: only an engine carrying dagger/dagger#14038
-  loads a module this way. Everything the entrypoint needs is generated
-  regardless of this setting — entrypoint/main.dang and __dagger.dispatch.ts are
-  written either way — so this switch is only about which manifest is written,
-  and with it which loader the engine picks.
+  loads a module this way. The setting selects the whole loading path, not just
+  the manifest: an entrypoint module gets an `[entrypoint]` manifest,
+  entrypoint/main.dang and the __dagger.dispatch.ts that program shells out to,
+  while a `[runtime]` module gets none of those and keeps the
+  __dagger.entrypoint.ts its runtime execs. No module is generated with both
+  halves.
 
   Turning it on is not free. A manifest v2 holds exactly four values, and the
   engine rejects every other key outright, so the table drops what it has nowhere
@@ -135,6 +137,17 @@ type TypescriptSdk {
   is an invitation to edit the wrong file.
   """
   let legacyEntrypointFile: String! = "__dagger.entrypoint.ts"
+
+  """
+  The dispatcher a generated entrypoint shells out to: one JSON request on
+  stdin, one JSON result on stdout.
+
+  The mirror of legacyEntrypointFile, and only written for a module that
+  declares an `[entrypoint]`: nothing else loads it, and a copy left behind in a
+  `[runtime]` module sits beside __dagger.entrypoint.ts under a name close
+  enough to invite editing the wrong one.
+  """
+  let dispatchFile: String! = "__dagger.dispatch.ts"
 
   """
   Starter used by init when none is named.
@@ -995,9 +1008,9 @@ type TypescriptSdk {
   The manifest-v2 dispatcher: one JSON request on stdin, one JSON result on
   stdout, and no register().
 
-  Written beside __dagger.entrypoint.ts rather than over it. No engine loads a
-  module through an entrypoint yet, so this is a new file nothing reads — and
-  the module keeps running through the built-in runtime either way.
+  Written only for a module that declares an `[entrypoint]`, in place of the
+  __dagger.entrypoint.ts the builtin runtime execs — the two are the same half
+  of two different loading paths, and a module is on one of them.
   """
   let generateModuleDispatcher(typedef: String!, targets: [ClientTarget!]!): File! {
     let base = entrypointCodegen(typedef)
@@ -1016,7 +1029,7 @@ type TypescriptSdk {
         "--module-root", "/work",
         "--source-dir", "src",
       ] + metaArgs)
-      .file("/out/__dagger.dispatch.ts")
+      .file("/out/" + dispatchFile)
   }
 
   """
@@ -1055,17 +1068,18 @@ type TypescriptSdk {
 
   """
   Build the complete set of generated files for a module: its sdk/ directory,
-  the dispatch entrypoint, and the config the runtime reads.
+  the file a call is dispatched into it through, and the config the runtime
+  reads.
 
   `existing` supplies the module's current config files so user settings
   survive; `runtime` selects which config files are written. The result is
   rooted at the module's source directory.
 
-  Two of the files are for a contract no engine implements yet —
-  __dagger.dispatch.ts and entrypoint/main.dang, the halves of a manifest-v2
-  module entrypoint. They are written alongside the ones the built-in runtime
-  reads, never in place of them, so generating them cannot break a module that
-  still loads the old way.
+  Which dispatch file that is comes from the `entrypoint` setting, because a
+  module is loaded one way or the other and never both: an `[entrypoint]` module
+  gets entrypoint/main.dang and the __dagger.dispatch.ts it shells out to, a
+  `[runtime]` module gets the __dagger.entrypoint.ts that runtime execs. sdk/ is
+  common to both — it is the @dagger.io/dagger either one imports.
   """
   let moduleDirectory(
     schemaJSON: String!,
@@ -1078,8 +1092,6 @@ type TypescriptSdk {
   ): Directory! {
     let sdk = moduleSdkDirectory(generateModuleBindings(schemaJSON, moduleName, targets))
     let typedef = moduleTypedefJSON(moduleName, source, sdk)
-    let dispatcher = generateModuleDispatcher(typedef, targets)
-    let dangEntrypoint = generateDangEntrypoint(typedef, moduleName, sourcePath, runtime)
 
     let configUpdater = configUpdaterBuilder
       .withDirectory("/existing", existing)
@@ -1096,21 +1108,24 @@ type TypescriptSdk {
         .directory("/out")
     }
 
-    let base = directory
-      .withDirectory("sdk", sdk)
-      .withFile("__dagger.dispatch.ts", dispatcher)
-      .withFile(dangEntrypointDir + "/main.dang", dangEntrypoint)
-
-    # The legacy dispatcher is only written for a module that still declares a
-    # [runtime]. Skipping it also skips rendering it: the File is never pulled,
-    # so the codegen exec behind it never runs.
-    let withLegacy = if (entrypoint) {
-      base
+    # One loading path's files, never both. Naming a file is also what renders
+    # it: the File the other branch would have produced is never pulled, so the
+    # codegen exec behind it never runs.
+    let base = if (entrypoint) {
+      directory
+        .withDirectory("sdk", sdk)
+        .withFile(dispatchFile, generateModuleDispatcher(typedef, targets))
+        .withFile(
+          dangEntrypointDir + "/main.dang",
+          generateDangEntrypoint(typedef, moduleName, sourcePath, runtime),
+        )
     } else {
-      base.withFile(legacyEntrypointFile, generateModuleEntrypoint(typedef))
+      directory
+        .withDirectory("sdk", sdk)
+        .withFile(legacyEntrypointFile, generateModuleEntrypoint(typedef))
     }
 
-    withLegacy.withDirectory(".", config)
+    base.withDirectory(".", config)
   }
 
   """
@@ -1195,33 +1210,47 @@ type TypescriptSdk {
   """
   let moduleFiles(ws: Workspace!, sourcePath: String!, generated: Directory!): Workspace! {
     writeChanged(
-      prunedLegacyEntrypoint(prunedBindings(ws, sourcePath, generated), sourcePath),
+      prunedInactiveDispatch(prunedBindings(ws, sourcePath, generated), sourcePath),
       sourcePath,
       generated,
     )
   }
 
   """
-  Take the legacy dispatcher with the setting when a module moves to an
-  entrypoint.
+  Take the dispatch machinery of the loading path this module is not on.
 
-  Writing stops on its own — moduleDirectory no longer renders the file — but
-  writing is all that stops. A module generated before the switch keeps the copy
-  already on disk, beside a real dispatcher with almost the same name, and
-  nothing loads it. Deleting is explicit here for the same reason stale bindings
-  are: what is no longer generated is not removed by not generating it.
+  Writing stops on its own — moduleDirectory renders one path's files, not both
+  — but writing is all that stops. A module generated under the other setting
+  keeps what is already on disk: a legacy __dagger.entrypoint.ts beside a real
+  dispatcher with almost the same name, or a dispatcher and an entrypoint/
+  carrying a whole call recipe that nothing loads. Deleting is explicit here for
+  the same reason stale bindings are: what is no longer generated is not removed
+  by not generating it.
+
+  entrypoint/ goes wholesale: the directory exists to hold the generated Dang
+  program, and nothing in it is the user's.
   """
-  let prunedLegacyEntrypoint(ws: Workspace!, sourcePath: String!): Workspace! {
-    let path = if (sourcePath == ".") {
-      "/" + legacyEntrypointFile
-    } else {
-      "/" + sourcePath + "/" + legacyEntrypointFile
-    }
+  let prunedInactiveDispatch(ws: Workspace!, sourcePath: String!): Workspace! {
+    let existing = existingDir(ws, sourcePath)
+    let prefix = if (sourcePath == ".") { "/" } else { "/" + sourcePath + "/" }
 
-    if (entrypoint and existingDir(ws, sourcePath).exists(legacyEntrypointFile)) {
-      ws.withoutFile(path)
+    if (entrypoint) {
+      if (existing.exists(legacyEntrypointFile)) {
+        ws.withoutFile(prefix + legacyEntrypointFile)
+      } else {
+        ws
+      }
     } else {
-      ws
+      let withoutDispatcher = if (existing.exists(dispatchFile)) {
+        ws.withoutFile(prefix + dispatchFile)
+      } else {
+        ws
+      }
+      if (existing.exists(dangEntrypointDir)) {
+        withoutDispatcher.withoutDirectory(prefix + dangEntrypointDir)
+      } else {
+        withoutDispatcher
+      }
     }
   }
 

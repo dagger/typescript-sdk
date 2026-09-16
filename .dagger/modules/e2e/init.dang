@@ -41,6 +41,19 @@ type InitChecks {
     # loads are there from the first run rather than a `dagger generate` later.
     Asserts.added(defaultChanges, defaultPath + "/sdk/client.gen.ts")
     Asserts.added(defaultChanges, defaultPath + "/__dagger.entrypoint.ts")
+    # The manifest-v2 loading path is the `entrypoint` setting's, whole: a scope
+    # seeded without it declares a [runtime] and gets nothing the other path
+    # reads, so there is never a second dispatcher to wonder about.
+    Asserts.notAdded(
+      defaultChanges,
+      defaultPath + "/__dagger.dispatch.ts",
+      "a [runtime] module should not get the entrypoint's dispatcher",
+    )
+    Asserts.notAdded(
+      defaultChanges,
+      defaultPath + "/entrypoint/main.dang",
+      "a [runtime] module should not get a Dang entrypoint",
+    )
 
     # Bun reuses the Node config files and adds the lockfile the runtime sniffs
     # for to pick bun over node.
