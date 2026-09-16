@@ -230,12 +230,36 @@ generator has three `runtime()` templates and emits one:
 | --- | --- | --- | --- |
 | image | `node:24.13.1-alpine@sha256:4f696f…` | `oven/bun:1.3.0-alpine@sha256:37e6b1…` | `denoland/deno:alpine-2.5.0@sha256:8f58f3…` |
 | prefix | `apk add ca-certificates`, `NODE_OPTIONS=--use-openssl-ca`, `npm i -g tsx@<pin>` (§8.1) | none | none |
-| install (only when needed) | yarn `yarn install --prod` · npm `npm install --omit=dev` · pnpm `npm i -g pnpm@<v>` + `pnpm install --shamefully-hoist=true --prod` | `bun install --no-verify --omit=dev --omit=peer --omit=optional` | `deno install --node-modules-dir=auto` |
-| cache | `/root/.cache/yarn` · `/root/.npm` · `/root/.pnpm-store` | `/root/.bun/install/cache` | `/root/.deno/cache` (upstream misnames this volume `mod-bun-cache-…`, `runtime_deno.go:25`) |
+| install | yarn `yarn install --prod` · npm `npm install --omit=dev` · pnpm `npm i -g pnpm@<v>` + `pnpm install --shamefully-hoist=true --prod` | `bun install --no-verify --omit=dev --omit=peer --omit=optional` | `deno install --node-modules-dir=auto` |
+| cache | `/root/.cache/yarn` · `/root/.npm` · `/root/.local/share/pnpm/store` | `/root/.bun/install/cache` | `/deno-dir` (upstream mounts `/root/.deno/cache`, which that image caches nothing in, under a volume it misnames `mod-bun-cache-…`, `runtime_deno.go:25,29`) |
 | dispatcher exec | `tsx --no-deprecation --tsconfig <tsconfig> __dagger.dispatch.ts engine-call` | `bun run __dagger.dispatch.ts engine-call` | `deno run -q -A __dagger.dispatch.ts engine-call` |
 
 Mounts, identical across the three: the module tree (excluding `node_modules`),
-plus `sdk/` at `node_modules/@dagger.io/dagger`. Mounted, not copied.
+plus the installed `node_modules`. Mounted, not copied.
+
+The install is its own chain (`dependencies()`), not a step in `runtime()`. Two
+constraints force that, and together they fix the layout:
+
+- Every exec after the workspace is mounted is keyed on the whole workspace, so
+  an install inside `runtime()` would re-run on any source edit. `dependencies()`
+  reads the manifest and lockfile and nothing else, so it is keyed on the files
+  that actually decide it.
+- Whatever an install writes *under* the mount point is then hidden by the
+  mount. Installing above it does not work either — the one directory node's
+  resolution would walk up to is `/`, and npm refuses to install there
+  (`Tracker "idealTree" already exists`).
+
+So `dependencies()` installs in `/deps`, returns `/deps/node_modules`, and
+`runtime()` mounts that at the module's `node_modules`. `sdk/` is folded into
+that directory rather than mounted separately, which keeps it one mount with
+nothing nested inside it. Both chains share a `base()` holding the image, the
+runtime prefix and the package manager's cache volume.
+
+**Always, not "only when needed".** §8.2's plan was to bake "no install" for a
+module that declares nothing — but the `typescript` pin is still written into
+every generated `package.json`, so no module declares nothing, and the branch
+would be dead code. Dropping that pin is what makes the optimization worth
+having; until then every module pays one cached install (measured 1.6s cold).
 
 ### 6.3 The dispatch protocol
 
@@ -434,9 +458,11 @@ type. Worth re-checking what else the runtime-only bundle can drop.
    manifest v2 and let `nodeRunsCheck` / `bunRunsCheck` / `denoRunsCheck` /
    `invokesFunctionCheck` (`.dagger/modules/runtimes/main.dang`) become the
    regression suite. Keep one fixture on the legacy path while it exists.
-4. **Package managers and dependencies.** Today's fixtures only cover yarn with
-   no dependencies. Add npm, pnpm, and one module with a real dependency, so the
-   install path is covered at all.
+4. **Package managers and dependencies.** Which manager the recipe bakes is
+   covered by `entrypointInstallsDependenciesCheck` (yarn, npm, bun) against the
+   generated Dang. What is still missing is a fixture that *runs*: no fixture
+   module declares a dependency, so nothing asserts the installed tree is
+   actually there at call time.
 5. **Dispatch protocol.** Unit-level: feed the dispatcher a request on stdin and
    assert the JSON result, the constructor case (`fnName: ""`), a null-valued
    argument, an omitted argument, and a failure exiting nonzero.

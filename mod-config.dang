@@ -34,6 +34,35 @@ type ModConfig {
   }
 
   """
+  The package manager this module's dependencies are installed with, as
+  `name@version` — or a bare `bun` / `deno`, which ship their own and take no
+  pin.
+
+  The same rules the engine's builtin runtime applies (config.go
+  detectPackageManager): the runtime's own for Bun and Deno, otherwise
+  package.json's `packageManager` field, then whichever lockfile is committed,
+  then yarn.
+
+  `rt` is passed in rather than read from `runtime` because the SDK's own
+  setting can move a scope onto a runtime its files do not yet imply.
+  """
+  packageManagerFor(rt: Runtime!): String! {
+    if (rt == Runtime.BUN) {
+      "bun"
+    } else if (rt == Runtime.DENO) {
+      "deno"
+    } else if (packageManager != "") {
+      packageManager
+    } else if (runtimeProbe.exists(npmLockPath)) {
+      "npm@" + defaultNpmVersion
+    } else if (runtimeProbe.exists(pnpmLockPath)) {
+      "pnpm@" + defaultPnpmVersion
+    } else {
+      "yarn@" + defaultYarnVersion
+    }
+  }
+
+  """
   The base container image override, read from dagger.baseImage. For Deno
   modules (deno.json present) the value comes from deno.json; otherwise from
   package.json. Empty when no override is set.
@@ -110,6 +139,17 @@ type ModConfig {
   let denoJsonPath: String! { sourceFile("deno.json") }
   let bunLockPath: String! { sourceFile("bun.lock") }
   let bunLockbPath: String! { sourceFile("bun.lockb") }
+  let npmLockPath: String! { sourceFile("package-lock.json") }
+  let pnpmLockPath: String! { sourceFile("pnpm-lock.yaml") }
+
+  """
+  Package manager versions a lockfile alone resolves to, matching the engine's
+  builtin runtime (config.go). npm's is the one node's own base image ships, so
+  a module detected as npm costs no extra install.
+  """
+  let defaultNpmVersion: String! = "11.8.0"
+  let defaultPnpmVersion: String! = "8.15.4"
+  let defaultYarnVersion: String! = "1.22.22"
 
   let sourceFile(name: String!): String! {
     if (sourcePath == ".") { name } else { sourcePath + "/" + name }
@@ -151,19 +191,27 @@ type ModConfig {
   }
 
   """
-  The four files runtime detection asks about, fetched in one pass.
+  The files runtime and package-manager detection ask about, fetched in one
+  pass.
 
-  Probing them through hasFile is four separate `ws.directory(include: [one
-  file])` calls, and each distinct include list is a distinct node in the
-  engine's graph — so four filtered directory reads to answer one question.
-  Sharing a single include list makes it one, and every `exists` after that is
-  a lookup in a directory the engine has already materialized.
+  Probing them through hasFile is one `ws.directory(include: [one file])` call
+  each, and each distinct include list is a distinct node in the engine's graph
+  — so one filtered directory read per question. Sharing a single include list
+  makes it one, and every `exists` after that is a lookup in a directory the
+  engine has already materialized.
 
-  Detection runs once per module per generate, so this is four round-trips
-  saved per module rather than four overall.
+  Detection runs once per module per generate, so this saves round-trips per
+  module rather than once overall.
   """
   let runtimeProbe: Directory! {
-    ws.directory("/", include: [denoJsonPath, packageJsonPath, bunLockPath, bunLockbPath])
+    ws.directory("/", include: [
+      denoJsonPath,
+      packageJsonPath,
+      bunLockPath,
+      bunLockbPath,
+      npmLockPath,
+      pnpmLockPath,
+    ])
   }
 
   let toolPath: String! = "/work/config.json"

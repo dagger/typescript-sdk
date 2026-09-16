@@ -599,6 +599,27 @@ type TypescriptSdk {
   }
 
   """
+  The package manager a scope's dependencies are installed with, as
+  `name@version`.
+
+  Only an entrypoint module needs this. Under a `[runtime]` the engine detects
+  it and runs the install itself; under an entrypoint the generated recipe is
+  ours, so the answer is baked into it at generation like every other value the
+  container is built from.
+
+  The `packageManager` setting wins where it is set, because a caller passing it
+  to an existing module never reaches the package.json seeding that would
+  otherwise record it.
+  """
+  let effectivePackageManager(ws: Workspace!, scope: String!, rt: Runtime!): String! {
+    if (packageManager != "" and rt == Runtime.NODE) {
+      packageManager
+    } else {
+      ModConfig(sourcePath: scope, ws: ws).packageManagerFor(rt)
+    }
+  }
+
+  """
   Lay down the files a brand-new module needs: the rendered starter and the
   config files its runtime is detected from. The manifest that makes it a
   module is withModuleManifest's, written right after this.
@@ -1043,9 +1064,18 @@ type TypescriptSdk {
 
   `sourcePath` is baked into that recipe as the container workdir. It cannot be
   read at call time: the entrypoint is handed the *caller's* workspace, whose cwd
-  is wherever the caller happened to be.
+  is wherever the caller happened to be. `pkgManager` is baked the same way, and
+  for the same reason the engine's builtin runtime detects one: the module's
+  dependencies have to be installed before a call can run, and nothing else
+  installs them under an entrypoint.
   """
-  let generateDangEntrypoint(typedef: String!, moduleName: String!, sourcePath: String!, rt: Runtime!): File! {
+  let generateDangEntrypoint(
+    typedef: String!,
+    moduleName: String!,
+    sourcePath: String!,
+    rt: Runtime!,
+    pkgManager: String!,
+  ): File! {
     entrypointCodegen(typedef)
       .withExec([
         "codegen", "dang-entrypoint",
@@ -1054,6 +1084,7 @@ type TypescriptSdk {
         "--module-name", moduleName,
         "--runtime", runtimeName(rt),
         "--module-path", sourcePath,
+        "--package-manager", pkgManager,
       ])
       .file("/out/entrypoint/main.dang")
   }
@@ -1093,6 +1124,7 @@ type TypescriptSdk {
     source: Directory!,
     existing: Directory!,
     runtime: Runtime!,
+    packageManager: String!,
     targets: [ClientTarget!]!,
   ): Directory! {
     let sdk = moduleSdkDirectory(generateModuleBindings(schemaJSON, moduleName, targets))
@@ -1122,7 +1154,7 @@ type TypescriptSdk {
         .withFile(dispatchFile, generateModuleDispatcher(typedef, targets))
         .withFile(
           dangEntrypointDir + "/main.dang",
-          generateDangEntrypoint(typedef, moduleName, sourcePath, runtime),
+          generateDangEntrypoint(typedef, moduleName, sourcePath, runtime, packageManager),
         )
     } else {
       directory
@@ -1164,6 +1196,10 @@ type TypescriptSdk {
   """
   let moduleGenerated(ws: Workspace!, scope: String!, sourcePath: String!, name: String!, rt: Runtime!, targets: [ClientTarget!]!): Directory! {
     let sourcePrefix = if (sourcePath == ".") { "" } else { sourcePath + "/" }
+    # Only the entrypoint recipe installs anything, and detection reads
+    # package.json through a container — so a `[runtime]` module does not pay
+    # for an answer nothing would bake.
+    let pkgManager = if (entrypoint) { effectivePackageManager(ws, sourcePath, rt) } else { "" }
 
     moduleDirectory(
       ws.moduleSource("/" + scope).introspectionSchemaJSON.contents,
@@ -1172,6 +1208,7 @@ type TypescriptSdk {
       ws.directory("/" + sourcePrefix + "src"),
       existingModuleConfig(ws, sourcePath),
       rt,
+      pkgManager,
       targets,
     )
   }

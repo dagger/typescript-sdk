@@ -191,6 +191,72 @@ type GenerateChecks {
   }
 
   """
+  An entrypoint module's call recipe should install the module's own
+  dependencies, with the package manager the module actually uses.
+
+  Under a `[runtime]` the engine installs them before it runs anything. Under an
+  entrypoint nothing does — the recipe is ours — so a module that imports any
+  package at all fails on its first call with a module-resolution error from
+  inside a container, several layers from the cause.
+
+  Which manager is not a detail: a lockfile is the only thing that says so, and
+  detection happens once here rather than at call time, the same rule that
+  governs the image and the mount layout.
+  """
+  entrypointInstallsDependenciesCheck(ws: Workspace!): Void @check {
+    let yarnScope = Fixtures.out + "/entrypoint-install-yarn"
+    let npmScope = Fixtures.out + "/entrypoint-install-npm"
+    let bunScope = Fixtures.out + "/entrypoint-install-bun"
+
+    # A fresh Node module commits no lockfile, which is the case yarn is the
+    # fallback for.
+    let yarn = entrypointRecipe(ws, yarnScope, "entrypoint-install-yarn")
+    Asserts.stringContains(
+      yarn, "[\"yarn\", \"install\", \"--prod\"]",
+      "a Node module with no lockfile should install with yarn",
+    )
+    Asserts.stringContains(
+      yarn, "withMountedDirectory(\"node_modules\", dependencies(workspace))",
+      "the installed dependencies should reach the call",
+    )
+
+    # A committed package-lock.json moves it to npm, the same signal the engine
+    # reads.
+    let npm = entrypointRecipe(
+      ws.withNewFile("/" + npmScope + "/package-lock.json", "{}\n"),
+      npmScope,
+      "entrypoint-install-npm",
+    )
+    Asserts.stringContains(
+      npm, "[\"npm\", \"install\", \"--omit=dev\"]",
+      "a committed package-lock.json should install with npm",
+    )
+
+    # Bun ships its own, and a bun lockfile is what selects the Bun runtime.
+    let bun = entrypointRecipe(
+      ws.withNewFile("/" + bunScope + "/bun.lock", ""),
+      bunScope,
+      "entrypoint-install-bun",
+    )
+    Asserts.stringContains(
+      bun, "[\"bun\", \"install\"",
+      "a Bun module should install with bun",
+    )
+
+    null
+  }
+
+  """
+  The Dang program a generated entrypoint scope comes out with.
+  """
+  let entrypointRecipe(ws: Workspace!, scope: String!, name: String!): String! {
+    typescriptSdk(entrypoint: true, template: "empty", skipGenerateFilename: "")
+      .generateScope(ws.withWorkdir(scope), isModule: true, name: name, clients: [])
+      .file("entrypoint/main.dang")
+      .contents
+  }
+
+  """
   A generated module should carry the bundle this SDK ships, not one built
   somewhere else.
 
