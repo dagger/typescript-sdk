@@ -37,11 +37,11 @@
 >   codegen emits `clients/loader.gen.ts` — an explicit `type name -> class` map
 >   baked from the schema split — and the entrypoints import `__loadObject` from
 >   it (§5.5). `loader` is a reserved module name.
-> - **The dispatcher serves the module itself.** A nested dispatch session
->   carries only the active module's dependencies, so a self client
->   (`test(this.ws)…`) resolved nothing and failed. Codegen now serves the
->   module into that session too, via `--self-serve-path` (a local
->   `currentWorkspace().moduleSource(path).asModule().serve()`).
+> - **A self client resolves against a session that does not carry its module.**
+>   The session a call is dispatched into carries only the active module's
+>   dependencies, so a self client (`test(this.ws)…`) resolved nothing and
+>   failed. First fixed by serving the module from the dispatcher; superseded by
+>   the per-client serve below, which covers the self client like any other.
 > - **`config-updater` writes one `@dagger.io/<module>` alias per module
 >   client** into `tsconfig.json` / `deno.json` (pointing at
 >   `./clients/<module>.gen.ts`), synced (stale entries pruned), and the dang
@@ -87,9 +87,9 @@
 >
 > **Verification.** Unit + golden tests green (`helpers/codegen`,
 > `helpers/config-updater`); a generated module tree — `sdk/` library +
-> `clients/<module>.gen.ts` + `clients/loader.gen.ts` + dispatcher (serving a
-> git dep and self) + user source importing `@dagger.io/<mod>` —
-> type-checks clean under `tsc --strict`. Not yet exercised against a live
+> `clients/<module>.gen.ts` + `clients/loader.gen.ts` + the dispatch file its
+> loading path uses + user source importing `@dagger.io/<mod>` — type-checks
+> clean under `tsc --strict`, and the e2e suite runs it against the pinned
 > engine.
 
 ---
