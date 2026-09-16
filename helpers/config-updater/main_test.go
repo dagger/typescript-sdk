@@ -139,7 +139,92 @@ func TestUpdatePackageJSON(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			res, err := updatePackageJSON(removeJSONComments(tc.packageJSON))
+			res, err := updatePackageJSON(removeJSONComments(tc.packageJSON), aliasLayout{}, nil)
+			require.NoError(t, err)
+			require.JSONEq(t, tc.expected, res)
+		})
+	}
+}
+
+// TestUpdatePackageJSONPackaged covers the layout where the scope's clients are
+// installed rather than aliased: every package in the shared directory becomes
+// an ordinary file: dependency, and one for a module that has left is pruned
+// the same way its alias used to be.
+func TestUpdatePackageJSONPackaged(t *testing.T) {
+	t.Parallel()
+
+	for _, tc := range []struct {
+		name        string
+		packageJSON string
+		clientsDir  string
+		modules     []string
+		expected    string
+	}{
+		{
+			name:        "every package in the shared directory is a file: dependency",
+			packageJSON: `{"type": "module"}`,
+			clientsDir:  "../.dagger/clients",
+			modules:     []string{"hello", "test"},
+			expected: `{
+  "type": "module",
+  "dependencies": {
+    "typescript": "5.9.3",
+    "@dagger.io/dagger": "file:../.dagger/clients/dagger",
+    "@dagger.io/hello": "file:../.dagger/clients/hello",
+    "@dagger.io/test": "file:../.dagger/clients/test"
+  }
+}`,
+		},
+		{
+			name: "a module that has left the scope loses its dependency",
+			packageJSON: `{
+  "type": "module",
+  "dependencies": {
+    "typescript": "5.9.3",
+    "@dagger.io/dagger": "file:../.dagger/clients/dagger",
+    "@dagger.io/gone": "file:../.dagger/clients/gone",
+    "@dagger.io/kept": "file:../.dagger/clients/kept",
+    "left-pad": "^1.0.0"
+  }
+}`,
+			clientsDir: "../.dagger/clients",
+			modules:    []string{"kept"},
+			expected: `{
+  "type": "module",
+  "dependencies": {
+    "typescript": "5.9.3",
+    "@dagger.io/dagger": "file:../.dagger/clients/dagger",
+    "@dagger.io/kept": "file:../.dagger/clients/kept",
+    "left-pad": "^1.0.0"
+  }
+}`,
+		},
+		{
+			// The embedded layout put the library in devDependencies; leaving it
+			// there beside the new dependency would let npm pick between two
+			// spellings of the same package.
+			name: "an embedded dev dependency on the library is replaced",
+			packageJSON: `{
+  "type": "module",
+  "dependencies": {"typescript": "5.9.3"},
+  "devDependencies": {"@dagger.io/dagger": "./sdk"}
+}`,
+			clientsDir: ".dagger/clients",
+			modules:    nil,
+			expected: `{
+  "type": "module",
+  "dependencies": {
+    "typescript": "5.9.3",
+    "@dagger.io/dagger": "file:.dagger/clients/dagger"
+  },
+  "devDependencies": {}
+}`,
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			res, err := updatePackageJSON(tc.packageJSON, aliasLayout{clientsDir: tc.clientsDir, packaged: true}, tc.modules)
 			require.NoError(t, err)
 			require.JSONEq(t, tc.expected, res)
 		})
@@ -171,25 +256,23 @@ func TestUpdateTSConfig(t *testing.T) {
 }`,
 		},
 		{
-			name:       "packaged layout points every alias into the shared client directory",
+			name:       "packaged layout writes no aliases at all",
 			tsConfig:   `{}`,
 			clientsDir: "../../clients",
 			packaged:   true,
 			modules:    []string{"hello", "test"},
 			expected: `{
   "compilerOptions": {
-    "experimentalDecorators": true,
-    "paths": {
-      "@dagger.io/dagger": ["../../clients/dagger/index.ts"],
-      "@dagger.io/dagger/telemetry": ["../../clients/dagger/telemetry.ts"],
-      "@dagger.io/hello": ["../../clients/hello/hello.gen.ts"],
-      "@dagger.io/test": ["../../clients/test/test.gen.ts"]
-    }
+    "experimentalDecorators": true
   }
 }`,
 		},
 		{
-			name: "packaged layout retargets embedded aliases in place",
+			// Coming off the embedded layout, the aliases have to go rather than
+			// be retargeted: they point into a scope-local sdk/ and clients/ that
+			// the move takes away, and a path alias wins over the install that
+			// replaces it.
+			name: "packaged layout takes embedded aliases back out",
 			tsConfig: `{
   "compilerOptions": {
     "paths": {
@@ -204,11 +287,28 @@ func TestUpdateTSConfig(t *testing.T) {
 			modules:    []string{"kept"},
 			expected: `{
   "compilerOptions": {
+    "experimentalDecorators": true
+  }
+}`,
+		},
+		{
+			name: "packaged layout leaves a user's own path alias alone",
+			tsConfig: `{
+  "compilerOptions": {
+    "paths": {
+      "@dagger.io/dagger": ["./sdk/index.ts"],
+      "~/lib": ["./src/lib.ts"]
+    }
+  }
+}`,
+			clientsDir: ".dagger/clients",
+			packaged:   true,
+			modules:    []string{"kept"},
+			expected: `{
+  "compilerOptions": {
     "experimentalDecorators": true,
     "paths": {
-      "@dagger.io/dagger": ["./.dagger/clients/dagger/index.ts"],
-      "@dagger.io/dagger/telemetry": ["./.dagger/clients/dagger/telemetry.ts"],
-      "@dagger.io/kept": ["./.dagger/clients/kept/kept.gen.ts"]
+      "~/lib": ["./src/lib.ts"]
     }
   }
 }`,

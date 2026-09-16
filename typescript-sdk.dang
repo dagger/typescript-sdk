@@ -136,6 +136,13 @@ type TypescriptSdk {
   let dispatchFile: String! = "__dagger.dispatch.ts"
 
   """
+  Where the shared client directory keeps the links between its own packages,
+  relative to that directory. The scope is the npm name they carry: every
+  package in there is an @dagger.io one.
+  """
+  let clientLinksDir: String! = "node_modules/@dagger.io"
+
+  """
   Starter used by init when none is named.
   """
   let defaultTemplate: String! = "default"
@@ -1224,14 +1231,19 @@ type TypescriptSdk {
   }
 
   """
-  A scope's config files, with one @dagger.io/<module> alias per generated
-  client so its source can import each through its own specifier. `clientsDir`
-  is where the client files sit relative to the config — "clients" for a module,
-  "" for a flat standalone client — so the alias points at the right path.
-  A non-empty `packagedDir` selects the shared workspace layout instead: it is
-  the config-relative path of the shared client directory, holding one package
-  per module with the library among them, and every alias points into it.
-  Callers derive the alias set from the bindings of the pass they are writing.
+  A scope's config files, wired to reach one @dagger.io/<module> per generated
+  client so its source can import each through its own specifier.
+
+  How they are wired is the layout's. Embedded: the clients are loose files the
+  scope owns, so path aliases point at them — `clientsDir` says where they sit
+  relative to the config, "clients" for a module and "" for a flat standalone
+  client. Packaged (a non-empty `packagedDir`, the config-relative path of the
+  shared client directory): the clients are real packages, so they become
+  ordinary file: dependencies and the aliases are taken back out — an alias
+  outliving the layout would point at a directory the scope no longer has, and
+  would win over the install that replaced it.
+
+  Callers derive the module set from the bindings of the pass they are writing.
   """
   let moduleConfigDirectory(existing: Directory!, runtime: Runtime!, clientsDir: String!, aliasModules: [String!]!, packagedDir: String! = ""): Directory! {
     let layoutArgs = if (packagedDir == "") { [clientsDir] } else { ["--packaged", packagedDir] }
@@ -1245,7 +1257,7 @@ type TypescriptSdk {
         .directory("/out")
     } else {
       configUpdater
-        .withExec(["config-updater", "package-json", "/existing/package.json", "/out/package.json"])
+        .withExec(["config-updater", "package-json", "/existing/package.json", "/out/package.json"] + layoutArgs + aliasModules)
         .withExec(["config-updater", "tsconfig", "/existing/tsconfig.json", "/out/tsconfig.json"] + layoutArgs + aliasModules)
         .directory("/out")
     }
@@ -1652,15 +1664,17 @@ type TypescriptSdk {
   .dagger/clients/
     dagger/          the vendored @dagger.io/dagger library
     <module>/        one package per target, named @dagger.io/<module>
+    node_modules/@dagger.io/<name> -> ../../<name>
   ```
 
-  The packages resolve through npm — `npm install ./.dagger/clients/<module>`
-  gives the scope's code `import { x } from "@dagger.io/<module>"` with no
-  config aliases anywhere — and each client package declares its dependencies
-  as file: links, so installing a client pulls the library (and any sibling it
-  references) along. The client files themselves are the same rendering a
-  module's clients/ directory gets; only the packaging differs, and it is what
-  will one day let a published registry package replace the file: link.
+  The packages resolve through the package manager — `npm install
+  ./.dagger/clients/<module>` gives the scope's code `import { x } from
+  "@dagger.io/<module>"` with no config aliases anywhere — and each client
+  package declares its dependencies as file: links, so installing a client
+  pulls the library (and any sibling it references) along. The client files
+  themselves are the same rendering a module's clients/ directory gets; only the
+  packaging differs, and it is what will one day let a published registry
+  package replace the file: link.
   """
   let clientDirectory(bindings: Directory!): Directory! {
     let modules = flatAliasModules(bindings)
@@ -1674,6 +1688,52 @@ type TypescriptSdk {
           .withFile(name + ".gen.ts", bindings.file(name + ".gen.ts"))
           .withNewFile("package.json", clientPackageJSON(name, modules)),
       )
+    }
+  }
+
+  """
+  The node_modules that makes the shared directory resolve on its own: one
+  symlink per package, pointing at the sibling directory beside it.
+
+  Without it the directory only works under a package manager that copies. npm
+  and bun link a file: dependency as a symlink, and node resolves a module's own
+  imports from the symlink's real path — so a client installed into a consumer's
+  node_modules looks for @dagger.io/dagger beside itself in the shared tree,
+  walks up through directories that have no node_modules, and never reaches the
+  consumer's. pnpm and yarn copy into a tree that carries the dependency, which
+  is why those two work either way.
+
+  Generated rather than installed because the directory has no project of its
+  own to install: no root package.json, no workspaces, no lockfile, nothing a
+  package manager has an opinion about. Each package stays a plain small package
+  that any manager can install from any project — these links only close the gap
+  between the two managers that link and the two that copy.
+  """
+  let clientLinkDirectory(names: [String!]!): Directory! {
+    names.reduce(directory) { acc, name =>
+      acc.withSymlink(target: "../../" + name, linkName: name)
+    }
+  }
+
+  """
+  Write the shared directory's node_modules, and only when its set of packages
+  has changed.
+
+  Symlinks cannot go through writeChanged: a Workspace has no withSymlink, so
+  they can only arrive as a directory, and writing one every run would report
+  the whole subtree as written on a run that changed nothing. The links are a
+  pure function of the package names, so comparing the names is comparing the
+  links — and rewriting from scratch is what drops the link of a module that has
+  left the workspace.
+  """
+  let withClientLinks(ws: Workspace!, dir: String!, names: [String!]!): Workspace! {
+    let linksPath = dir + "/" + clientLinksDir
+    let present = existingDir(ws, linksPath).entries.map { entry => entry.trimSuffix("/") }
+
+    if (present.length == names.length and names.all { name => present.contains(name) }) {
+      ws
+    } else {
+      ws.withDirectory("/" + linksPath, clientLinkDirectory(names))
     }
   }
 
@@ -1741,8 +1801,10 @@ type TypescriptSdk {
     } else {
       # Anything in the directory we no longer render is dropped — the package
       # of a module that has left every scope is the point.
-      let generated = clientDirectory(generateClientBindings(targets))
-      writeChanged(prunedClientFiles(ws, dir, generated), dir, generated)
+      let bindings = generateClientBindings(targets)
+      let generated = clientDirectory(bindings)
+      let written = writeChanged(prunedClientFiles(ws, dir, generated), dir, generated)
+      withClientLinks(written, dir, ["dagger"] + flatAliasModules(bindings))
     }
   }
 
@@ -1960,11 +2022,16 @@ type TypescriptSdk {
   The package is generated in full, so its desired state is exactly what came
   out of the renderer and anything else is left over from a target that has
   gone. Writing file by file can only add, so the removals are made explicitly.
+
+  node_modules/ is left alone: it holds symlinks rather than rendered files, so
+  it is not in `generated` at all and everything here would read as left over.
+  withClientLinks owns that subtree, removals included.
   """
   let prunedClientFiles(ws: Workspace!, dir: String!, generated: Directory!): Workspace! {
     let kept = generated.glob("**")
 
     filePaths(existingDir(ws, dir))
+      .filter { path => path.hasPrefix(clientLinksDir + "/") == false }
       .filter { path => kept.filter { name => name == path }.length == 0 }
       .reduce(ws) { acc, path => acc.withoutFile("/" + dir + "/" + path) }
   }

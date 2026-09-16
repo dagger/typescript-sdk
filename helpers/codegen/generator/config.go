@@ -47,18 +47,6 @@ type ModuleGeneratorConfig struct {
 	// clients, so they sit flat; a module keeps them under clients/, apart from
 	// its src/, entrypoint and sdk/.
 	FlatClients bool
-
-	// PackagedClients makes a client file reach the library and its siblings by
-	// relative path rather than by package name, for a rendering the caller
-	// will split into one package directory per module.
-	//
-	// Bare specifiers cannot carry that layout. npm links a `file:` package as
-	// a symlink, and node resolves from the real path — so a client installed
-	// into a consumer's node_modules looks for its siblings beside its own
-	// directory in the shared tree, not beside the symlink, and finds nothing.
-	// Relative imports resolve the same wherever the tree is reached from, and
-	// the package names stay the user-facing surface.
-	PackagedClients bool
 }
 
 // Module-source kinds a generated client can bind to. A local module

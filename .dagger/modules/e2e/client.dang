@@ -83,10 +83,12 @@ type ClientChecks {
     let tree = changes.after.directory(clientDir)
 
     let client = tree.file("client-app/client-app.gen.ts").contents
-    # By directory, not by package name: npm links a file: package as a symlink
-    # and node resolves from the real path, so a bare specifier would search
-    # beside the shared tree instead of beside the consumer's node_modules.
-    Asserts.stringContains(client, "from \"../dagger/index.js\"", "a client should reach the library beside it")
+    # By package name, never a path out of the package: a generated client is a
+    # real npm package, and what resolves the name is the install — the file:
+    # dependency below, and the node_modules the directory carries for the
+    # managers that link rather than copy.
+    Asserts.stringContains(client, "from \"@dagger.io/dagger\"", "a client should import the library as a package")
+    Asserts.stringNotContains(client, "from \"../", "a client should not reach out of its own package")
     servesLocalModule(client, fixtures.clientModule, "a client should serve its own module on use")
 
     let clientPkg = tree.file("client-app/package.json").contents
@@ -96,6 +98,15 @@ type ClientChecks {
     let libPkg = tree.file("dagger/package.json").contents
     Asserts.stringContains(libPkg, "\"name\": \"@dagger.io/dagger\"", "the library package carries the SDK's name")
     Asserts.stringContains(libPkg, "\"./telemetry\": \"./telemetry.ts\"", "the library package exposes telemetry as a sub-path")
+
+    # And the links that let those packages find each other with nothing
+    # installed. Without them the directory only works under a package manager
+    # that copies: npm and bun link a file: dependency, and node resolves a
+    # package's own imports from the symlink's real path, which lands back here.
+    let links = tree.directory("node_modules/@dagger.io").entries.map { entry => entry.trimSuffix("/") }
+    let linked = "linked [" + links.join(", ") + "]"
+    Asserts.assert(Asserts.contains(links, "dagger"), "the library should be linked into the directory's node_modules: " + linked)
+    Asserts.assert(Asserts.contains(links, "client-app"), "each client should be linked into the directory's node_modules: " + linked)
 
     null
   }

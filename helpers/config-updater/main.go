@@ -54,7 +54,24 @@ func run(args []string) error {
 	var updated string
 	switch subcommand {
 	case "package-json":
-		updated, err = updatePackageJSON(input)
+		// package-json INPUT OUTPUT [[--packaged] CLIENTS_DIR [MODULE...]] —
+		// under --packaged the scope reaches its clients as installed
+		// dependencies, one file: link per package, which is what the tsconfig
+		// path aliases stop being needed for.
+		//
+		// The layout is optional here and required by the other two: seeding a
+		// brand-new module writes a package.json before there is any client to
+		// point at, and the embedded default is what it wants.
+		var layout aliasLayout
+		var rest []string
+		if len(extra) > 0 {
+			var argErr error
+			layout, rest, argErr = parseLayout(extra, "package-json")
+			if argErr != nil {
+				return argErr
+			}
+		}
+		updated, err = updatePackageJSON(input, layout, rest)
 	case "tsconfig":
 		// tsconfig INPUT OUTPUT [--packaged] CLIENTS_DIR [MODULE...] — one
 		// @dagger.io/<module> path alias per generated module client. Without
@@ -126,7 +143,7 @@ func readInput(path string) (string, error) {
 	return stripped, nil
 }
 
-func updatePackageJSON(packageJSON string) (string, error) {
+func updatePackageJSON(packageJSON string, layout aliasLayout, modules []string) (string, error) {
 	packageJSON, err := sjson.Set(packageJSON, "type", "module")
 	if err != nil {
 		return "", fmt.Errorf("set type=module: %w", err)
@@ -139,6 +156,14 @@ func updatePackageJSON(packageJSON string) (string, error) {
 	packageJSON, err = pinTypeScript(packageJSON)
 	if err != nil {
 		return "", err
+	}
+
+	if layout.packaged {
+		// The shared directory holds real packages, so the scope depends on them
+		// the ordinary way and the install is what resolves the names. Nothing
+		// here is a path alias, which is why updateTSConfig takes its aliases
+		// back out under the same layout.
+		return syncClientDependencies(packageJSON, layout, modules)
 	}
 
 	// Remove legacy in-tree @dagger.io/dagger deps so we transition cleanly to
@@ -154,6 +179,31 @@ func updatePackageJSON(packageJSON string) (string, error) {
 	}
 
 	return packageJSON, nil
+}
+
+// syncClientDependencies makes the scope's dependencies name every package in
+// the shared client directory it can reach: the library, plus one per module.
+// Stale entries for modules that have left the scope are dropped, the same way
+// the aliases were.
+//
+// devDependencies is left alone beyond the library: a scope that pinned a
+// client there chose that, and declaring it in both sections would leave npm to
+// pick.
+func syncClientDependencies(packageJSON string, layout aliasLayout, modules []string) (string, error) {
+	packageJSON, err := sjson.Delete(packageJSON, "devDependencies."+gjson.Escape(daggerLibPathAlias))
+	if err != nil {
+		return "", fmt.Errorf("delete devDependency %s: %w", daggerLibPathAlias, err)
+	}
+
+	packageJSON, err = sjson.Set(packageJSON,
+		"dependencies."+gjson.Escape(daggerLibPathAlias), layout.depTarget(libraryPackageDir))
+	if err != nil {
+		return "", fmt.Errorf("set %s dependency: %w", daggerLibPathAlias, err)
+	}
+
+	return syncModuleEntries(packageJSON, "dependencies", modules, func(module string) any {
+		return layout.depTarget(module)
+	})
 }
 
 // defaultTypeScriptVersion mirrors dagger/dagger tsdistconsts.DefaultTypeScriptVersion.
@@ -180,7 +230,17 @@ func pinTypeScript(packageJSON string) (string, error) {
 }
 
 func updateTSConfig(tsConfig string, layout aliasLayout, modules []string) (string, error) {
-	tsConfig, err := updateScopeAliases(tsConfig, "compilerOptions.paths", layout, modules, true)
+	// Under the packaged layout the clients are installed packages, so tsc
+	// resolves them through node_modules like any other dependency. Taking the
+	// aliases back out is not just tidiness: an alias that outlives the layout
+	// points at a directory the scope no longer has, and it wins over the
+	// install.
+	update := updateScopeAliases
+	if layout.packaged {
+		update = clearScopeAliases
+	}
+
+	tsConfig, err := update(tsConfig, "compilerOptions.paths", layout, modules, true)
 	if err != nil {
 		return "", err
 	}
@@ -204,11 +264,22 @@ type aliasLayout struct {
 	packaged   bool
 }
 
+// libraryPackageDir is the shared client directory's subdirectory for the
+// vendored library — the one package in there not named after a module.
+const libraryPackageDir = "dagger"
+
 func (l aliasLayout) libTarget(file string) string {
 	if l.packaged {
-		return relTarget(path.Join(l.clientsDir, "dagger", file))
+		return relTarget(path.Join(l.clientsDir, libraryPackageDir, file))
 	}
 	return "./sdk/" + file
+}
+
+// depTarget is how a scope's package.json names a package in the shared client
+// directory: a file: link to it, which every package manager resolves and which
+// a published version would one day replace with a range.
+func (l aliasLayout) depTarget(name string) string {
+	return "file:" + path.Join(l.clientsDir, name)
 }
 
 func (l aliasLayout) moduleTarget(module string) string {
@@ -292,14 +363,46 @@ func updateScopeAliases(jsonStr, keyPath string, layout aliasLayout, modules []s
 // aliases and any non-module key are untouched. asArray selects tsconfig's
 // []string value shape over deno's plain string.
 func syncModuleAliases(jsonStr, keyPath string, layout aliasLayout, modules []string, asArray bool) (string, error) {
+	return syncModuleEntries(jsonStr, keyPath, modules, func(module string) any {
+		if asArray {
+			return []string{layout.moduleTarget(module)}
+		}
+		return layout.moduleTarget(module)
+	})
+}
+
+// syncModuleEntries makes the @dagger.io/<module> keys under keyPath match the
+// given module list exactly, taking each value from valueOf. Shared by the path
+// aliases and the package.json dependencies, which differ only in where they
+// are written and what they hold — the set of module names, and pruning the
+// ones that have left, is the same problem both times.
+func syncModuleEntries(jsonStr, keyPath string, modules []string, valueOf func(string) any) (string, error) {
 	keep := map[string]bool{}
 	for _, module := range modules {
 		keep[moduleAlias(module)] = true
 	}
 
+	jsonStr, err := deleteModuleEntries(jsonStr, keyPath, func(key string) bool { return !keep[key] })
+	if err != nil {
+		return "", err
+	}
+
+	for _, module := range modules {
+		jsonStr, err = sjson.Set(jsonStr, keyPath+"."+gjson.Escape(moduleAlias(module)), valueOf(module))
+		if err != nil {
+			return "", fmt.Errorf("set module entry for %s: %w", module, err)
+		}
+	}
+	return jsonStr, nil
+}
+
+// deleteModuleEntries removes every @dagger.io/<module> key under keyPath that
+// drop reports. Collected before deleting: sjson rewrites the document on each
+// call, so mutating while walking it would skip keys.
+func deleteModuleEntries(jsonStr, keyPath string, drop func(string) bool) (string, error) {
 	var stale []string
 	gjson.Get(jsonStr, keyPath).ForEach(func(key, _ gjson.Result) bool {
-		if k := key.String(); isModuleAlias(k) && !keep[k] {
+		if k := key.String(); isModuleAlias(k) && drop(k) {
 			stale = append(stale, k)
 		}
 		return true
@@ -309,17 +412,33 @@ func syncModuleAliases(jsonStr, keyPath string, layout aliasLayout, modules []st
 	for _, k := range stale {
 		jsonStr, err = sjson.Delete(jsonStr, keyPath+"."+gjson.Escape(k))
 		if err != nil {
-			return "", fmt.Errorf("remove stale module alias %s: %w", k, err)
+			return "", fmt.Errorf("remove module entry %s: %w", k, err)
 		}
 	}
-	for _, module := range modules {
-		var value any = layout.moduleTarget(module)
-		if asArray {
-			value = []string{layout.moduleTarget(module)}
-		}
-		jsonStr, err = sjson.Set(jsonStr, keyPath+"."+gjson.Escape(moduleAlias(module)), value)
+	return jsonStr, nil
+}
+
+// clearScopeAliases is updateScopeAliases' counterpart for a scope whose
+// clients are installed rather than aliased: it takes out every alias this
+// writer owns and leaves the key behind only if the user put something else
+// there. Same signature so the caller can pick between them.
+func clearScopeAliases(jsonStr, keyPath string, layout aliasLayout, modules []string, asArray bool) (string, error) {
+	jsonStr, err := deleteModuleEntries(jsonStr, keyPath, func(string) bool { return true })
+	if err != nil {
+		return "", err
+	}
+
+	for _, alias := range []string{daggerLibPathAlias, daggerTelemetryPathAlias} {
+		jsonStr, err = sjson.Delete(jsonStr, keyPath+"."+gjson.Escape(alias))
 		if err != nil {
-			return "", fmt.Errorf("set module alias for %s: %w", module, err)
+			return "", fmt.Errorf("remove %s alias: %w", alias, err)
+		}
+	}
+
+	if value := gjson.Get(jsonStr, keyPath); value.Exists() && len(value.Map()) == 0 {
+		jsonStr, err = sjson.Delete(jsonStr, keyPath)
+		if err != nil {
+			return "", fmt.Errorf("remove empty %s: %w", keyPath, err)
 		}
 	}
 	return jsonStr, nil

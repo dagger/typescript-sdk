@@ -187,22 +187,21 @@ func TestClientTemplate_ImportsSiblingModuleTypes(t *testing.T) {
 	require.Contains(t, out, "return new Other(ctx)",
 		"the body must construct the imported sibling class")
 
-	// Packaged into the shared workspace directory, the same rendering reaches
-	// the library and its siblings by relative path. npm links a file: package
-	// as a symlink and node resolves from the real path, so a bare specifier
-	// would search beside the shared tree — which has no node_modules — instead
-	// of beside the consumer's.
-	packaged := templates.New("v0.21.0", full, "", generator.Config{
-		ModuleConfig: &generator.ModuleGeneratorConfig{FlatClients: true, PackagedClients: true},
+	// Flattening the clients into one package directory per module does not
+	// change how they name each other: a generated client is a real npm
+	// package, so every cross-package reference stays a bare specifier and the
+	// install is what resolves it.
+	flat := templates.New("v0.21.0", full, "", generator.Config{
+		ModuleConfig: &generator.ModuleGeneratorConfig{FlatClients: true},
 	})
-	out = renderModuleClientTemplate(t, packaged, depSchema, "hello")
+	out = renderModuleClientTemplate(t, flat, depSchema, "hello")
 
-	require.Regexp(t, `import \{[^}]*\bOther\b[^}]*\} from "\.\./other/other\.gen\.js"`, out,
-		"a packaged client reaches its sibling by directory")
-	require.Contains(t, out, `import { Context, BaseClient } from "../dagger/index.js"`,
-		"a packaged client reaches the library by directory")
-	require.NotContains(t, out, `"@dagger.io/`,
-		"no bare specifier survives in a packaged client")
+	require.Regexp(t, `import \{[^}]*\bOther\b[^}]*\} from "@dagger\.io/other"`, out,
+		"a packaged client still names its sibling by package")
+	require.Contains(t, out, `import { Context, BaseClient } from "@dagger.io/dagger"`,
+		"a packaged client still names the library by package")
+	require.NotContains(t, out, `from "../`,
+		"no relative path out of the package survives")
 }
 
 // TestClientTemplate_ImportsRootArgTypes locks that a core type referenced only

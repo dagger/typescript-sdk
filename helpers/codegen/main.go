@@ -429,10 +429,9 @@ func runClient(args []string) error {
 	gen := &typescriptgenerator.TypeScriptGenerator{Config: generator.Config{
 		OutputDir: *outputDir,
 		ModuleConfig: &generator.ModuleGeneratorConfig{
-			BoundModules:    bound,
-			FlatClients:     true,
-			EmitLoader:      false,
-			PackagedClients: true,
+			BoundModules: bound,
+			FlatClients:  true,
+			EmitLoader:   false,
 		},
 	}}
 
