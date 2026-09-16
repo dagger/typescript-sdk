@@ -353,19 +353,45 @@ type GenerateChecks {
     )
 
     # The self client serves the module before its first query, which is what
-    # makes a self call resolve: the dispatch session carries only the module's
-    # dependencies, not the module itself, and the dispatcher serves nothing.
+    # makes a self call resolve: the session a call is dispatched into carries
+    # only the module's dependencies, not the module itself, and nothing on the
+    # dispatch side serves it — see generateDispatcherServesNothingCheck.
     Asserts.stringContains(
       selfClient,
       "moduleSource(path: \"/" + path + "\") { asModule { serve } }",
       "the module's own client should serve it for self calls",
     )
-    # Matched on asModule, the serve mechanism both forms go through: the
-    # dispatcher still *mentions* serving in a comment explaining that it does
-    # not, so the bare word says nothing.
+
+    null
+  }
+
+  """
+  The file a call is dispatched into a module through should serve nothing.
+
+  Serving belongs to the clients now: each clients/<module>.gen.ts serves its
+  own module before the first query that reaches it, so neither loading path's
+  dispatch file has a module list of its own to stage. Asserted on the
+  entrypoint's dispatcher because that is the one this branch took the serving
+  out of; the legacy entrypoint never had any.
+
+  Matched on asModule, the mechanism both serve forms go through: the dispatcher
+  still *mentions* serving, in a comment explaining that it does not, so the
+  bare word says nothing.
+  """
+  generateDispatcherServesNothingCheck(ws: Workspace!): Void @check {
+    let path = fixtures.depLibModule
+    let changes = Gen.scope(ws, path, "gendep", entrypoint: true)
+
+    Asserts.generated(changes, path + "/__dagger.dispatch.ts")
     Asserts.assert(
-      tree.file("__dagger.dispatch.ts").contents.contains("asModule") == false,
-      "the dispatcher should not serve anything; each client serves its own module",
+      changes.after.directory(path).file("__dagger.dispatch.ts").contents.contains("asModule") == false,
+      "the entrypoint's dispatcher should not serve anything; each client serves its own module",
+    )
+
+    let runtimeChanges = Gen.module(ws, path, "gendep")
+    Asserts.assert(
+      runtimeChanges.after.directory(path).file("__dagger.entrypoint.ts").contents.contains("asModule") == false,
+      "the legacy entrypoint should not serve anything; each client serves its own module",
     )
 
     null
