@@ -159,6 +159,38 @@ type GenerateChecks {
   }
 
   """
+  Regenerating a `[runtime]` module should take away the entrypoint files an
+  earlier generation left behind.
+
+  The `entrypoint` setting picks a loading path whole, and coming off it stops
+  the writing but not the files: __dagger.dispatch.ts and entrypoint/main.dang
+  stay on disk beside the dispatcher the runtime really execs, describing a call
+  recipe nothing reads. Staged rather than fixtured for the same reason as the
+  stale bindings above — nothing generated today has either file to start from.
+  """
+  generatePrunesEntrypointCheck(ws: Workspace!): Void @check {
+    let path = fixtures.depAppModule
+    let dispatcher = path + "/__dagger.dispatch.ts"
+
+    let dirty = Gen.withDependency(ws)
+      .withNewFile("/" + dispatcher, "export const gone = true\n")
+      .withNewFile("/" + path + "/entrypoint/main.dang", "type Entrypoint {}\n")
+    let changes = Gen.module(dirty, path, "generate-deps-app")
+    let removed = ", got removed [" + changes.removedPaths.join(", ") + "]"
+
+    Asserts.assert(
+      Asserts.contains(changes.removedPaths, dispatcher),
+      "regeneration should remove the entrypoint's dispatcher from a [runtime] module" + removed,
+    )
+    Asserts.assert(
+      Asserts.contains(changes.removedPaths, path + "/entrypoint/"),
+      "regeneration should remove the Dang entrypoint from a [runtime] module" + removed,
+    )
+
+    null
+  }
+
+  """
   A generated module should carry the bundle this SDK ships, not one built
   somewhere else.
 

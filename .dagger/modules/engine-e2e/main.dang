@@ -103,6 +103,10 @@ type EngineE2e {
       .withExec(["test", "-f", modulePath + "/src/index.ts"])
       .withExec(["test", "-f", modulePath + "/sdk/client.gen.ts"])
       .withExec(["test", "-f", modulePath + "/__dagger.entrypoint.ts"])
+      # Init without `--entrypoint` declares a [runtime], and a [runtime] module
+      # gets nothing of the manifest-v2 loading path.
+      .withExec(["test", "!", "-e", modulePath + "/__dagger.dispatch.ts"])
+      .withExec(["test", "!", "-e", modulePath + "/entrypoint"])
 
     # The whole scope entry, because the engine reserializes dagger.toml from
     # its own writer whenever a scope path needs quoting — which every path with
