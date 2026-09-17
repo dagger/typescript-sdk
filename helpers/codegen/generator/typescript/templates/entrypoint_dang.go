@@ -761,10 +761,15 @@ func (c *dangFuncCtx) dangDependenciesChain() string {
 // one-line edit reinstalls nothing.
 func (c *dangFuncCtx) dangSharedCoreDependenciesChain() string {
 	manifest := c.dangManifestFiles()
-	includes := make([]string, len(manifest))
-	for i, f := range manifest {
-		includes[i] = dangString(f)
+	includes := make([]string, 0, len(manifest)+2)
+	for _, f := range manifest {
+		includes = append(includes, dangString(f))
 	}
+	// The module's own client packages (modules/<mod>/<name>/) are file:
+	// dependencies too, so they have to be in the install context beside the
+	// manifest for `file:./<name>` to resolve. Named by shape rather than listed,
+	// since the recipe does not carry the client set.
+	includes = append(includes, dangString("*/package.json"), dangString("*/*.gen.ts"))
 
 	// Absolute paths inside the install dir that mirror the workspace tree.
 	modInstall := dangInstallDir

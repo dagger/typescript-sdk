@@ -287,7 +287,8 @@ type TypescriptSdk {
       let complete = moduleFiles(
         served,
         source,
-        withSelfBindings(staged, scope, name, firstPass, withSelf, selfTargets, rt, coreRel),
+        withSelfBindings(staged, scope, source, name, firstPass, withSelf, selfTargets, rt, coreRel, cfg),
+        coreRel,
       )
 
       # The one vendored @dagger.io/dagger the workspace shares, written at the
@@ -1150,10 +1151,15 @@ type TypescriptSdk {
   __dagger.entrypoint.ts the builtin runtime execs — the two are the same half
   of two different loading paths, and a module is on one of them.
   """
-  let generateModuleDispatcher(typedef: String!): File! {
+  let generateModuleDispatcher(typedef: String!, coreRel: String!): File! {
     # The dispatcher serves nothing: each generated client serves its own module
     # before the first query that reaches it — a `dag.<module>()` call through
     # the client's served context, or a received value loaded through the loader.
+    #
+    # With a shared core the loader sits at the module root beside the dispatcher
+    # (the clients are packages, not a clients/ directory); the embedded layout
+    # keeps it under clients/.
+    let loaderArgs = if (coreRel == "") { [] } else { ["--loader-import", "loader.gen.js"] }
     entrypointCodegen(typedef)
       .withExec([
         "codegen", "entrypoint", "--dispatch",
@@ -1161,7 +1167,7 @@ type TypescriptSdk {
         "--output", "/out",
         "--module-root", "/work",
         "--source-dir", "src",
-      ])
+      ] + loaderArgs)
       .file("/out/" + dispatchFile)
   }
 
@@ -1243,6 +1249,7 @@ type TypescriptSdk {
     """
     coreRel: String!,
     coreDirAbs: String!,
+    cfg: String!,
   ): Directory! {
     let bindings = generateModuleBindings(schemaJSON, moduleName, targets)
     # Still assembled — the introspector scan reads the library beside the
@@ -1251,17 +1258,24 @@ type TypescriptSdk {
     let sdk = moduleSdkDirectory(bindings)
     let clients = moduleClientsDirectory(bindings)
     let typedef = moduleTypedefJSON(moduleName, source, sdk, clients)
-    let embedSdk = coreRel == ""
+    let sharedCore = coreRel != ""
+    let clientNames = bindingAliasModules(bindings)
 
-    # One loading path's files, never both. Naming a file is also what renders
-    # it: the File the other branch would have produced is never pulled, so the
-    # codegen exec behind it never runs. clients/ is common to both — it is what
-    # the module's own source imports, whichever way the module is loaded.
+    # Two layouts. With a shared core each client is a package directly under the
+    # module — modules/<mod>/<name>/ — and the loader sits at the module root, so
+    # there is no clients/ directory and the module depends on @dagger.io/dagger
+    # and each @dagger.io/<name> through its package.json. The embedded layout
+    # keeps the loose clients/ files a [runtime] module resolves by tsconfig alias.
+    let withClientsAndLoader = if (sharedCore) {
+      moduleClientPackages(clients, clientNames, sourcePath, cfg)
+        .withFile("loader.gen.ts", clients.file("loader.gen.ts"))
+    } else {
+      directory.withDirectory("clients", clients).withDirectory("sdk", sdk)
+    }
+
     let base = if (entrypoint) {
-      let withClients = directory.withDirectory("clients", clients)
-      let withSdk = if (embedSdk) { withClients.withDirectory("sdk", sdk) } else { withClients }
-      withSdk
-        .withFile(dispatchFile, generateModuleDispatcher(typedef))
+      withClientsAndLoader
+        .withFile(dispatchFile, generateModuleDispatcher(typedef, coreRel))
         .withFile(
           dangEntrypointDir + "/main.dang",
           generateDangEntrypoint(typedef, moduleName, sourcePath, runtime, packageManager, coreDirAbs),
@@ -1273,15 +1287,40 @@ type TypescriptSdk {
         .withFile(legacyEntrypointFile, generateModuleEntrypoint(typedef))
     }
 
-    # The module's own name rides along speculatively: this pass's bindings
-    # cannot carry the self client yet, but the staged tree built from them must
-    # be loadable, and a module whose source imports its own client needs the
-    # alias resolvable for that load. The second pass replaces the set with one
-    # derived from the bindings that really exist, so a name that never
-    # materializes (kebab-cased differently, or a module that cannot load) is
-    # corrected rather than kept.
-    let aliasModules = bindingAliasModules(bindings).filter { m => m != moduleName } + [moduleName]
-    base.withDirectory(".", moduleConfigDirectory(existing, runtime, "clients", aliasModules, coreRel))
+    # The config the module's source resolves its clients through. Shared-core:
+    # package.json file: deps (one per client), the tsconfig alias for editors.
+    # Embedded: tsconfig path aliases, one @dagger.io/<module> per client. The
+    # module's own name rides along speculatively so a module whose source imports
+    # its own client can load; the second pass corrects the set to what exists.
+    let aliasModules = clientNames.filter { m => m != moduleName } + [moduleName]
+    base.withDirectory(".", moduleConfigDirectory(existing, runtime, clientsSubdir(sharedCore), aliasModules, coreRel, clientNames))
+  }
+
+  """
+  Where a shared-core module's client packages resolve from, relative to the
+  module: "." — each is a package dir beside the source. The embedded layout
+  keeps them under clients/ as loose files.
+  """
+  let clientsSubdir(sharedCore: Boolean!): String! {
+    if (sharedCore) { "" } else { "clients" }
+  }
+
+  """
+  Wrap each of a module's generated client files into an installable package
+  under the module — modules/<mod>/<name>/ — named @dagger.io/<name>, depending
+  on the shared core (and any sibling it references) by file: path. The same
+  packaging a client-only scope gets, placed beside the module's source so its
+  own package.json can install it.
+  """
+  let moduleClientPackages(clients: Directory!, clientNames: [String!]!, sourcePath: String!, cfg: String!): Directory! {
+    clientNames.reduce(directory) { acc, name =>
+      acc.withDirectory(
+        name,
+        directory
+          .withFile(name + ".gen.ts", clients.file(name + ".gen.ts"))
+          .withNewFile("package.json", clientPackageJSON(name, clientNames, coreRelFromModule(scopeFile(sourcePath, name), cfg))),
+      )
+    }
   }
 
   """
@@ -1303,10 +1342,13 @@ type TypescriptSdk {
   "" for a flat standalone client — so the alias points at the right path.
   Callers derive the alias set from the bindings of the pass they are writing.
   """
-  let moduleConfigDirectory(existing: Directory!, runtime: Runtime!, clientsDir: String!, aliasModules: [String!]!, coreRel: String!): Directory! {
+  let moduleConfigDirectory(existing: Directory!, runtime: Runtime!, clientsDir: String!, aliasModules: [String!]!, coreRel: String!, clientNames: [String!]!): Directory! {
     let configUpdater = configUpdaterBuilder
       .withDirectory("/existing", existing)
       .withDirectory("/out", directory)
+    # The module's package.json names the shared core and each client package as
+    # file: dependencies — @dagger.io/<name> at ./<name>, beside the source.
+    let clientPairs = clientNames.map { name => name + "=./" + name }
 
     if (runtime == Runtime.DENO) {
       configUpdater
@@ -1322,10 +1364,14 @@ type TypescriptSdk {
       let withPackageJSON = if (coreRel == "") {
         configUpdater.withExec(["config-updater", "package-json", "/existing/package.json", "/out/package.json"])
       } else {
-        configUpdater.withExec(["config-updater", "shared-deps", "/existing/package.json", "/out/package.json", coreRel])
+        configUpdater.withExec(["config-updater", "shared-deps", "/existing/package.json", "/out/package.json", coreRel] + clientPairs)
       }
+      # With a shared core the clients are packages, resolved by name through
+      # node_modules after an install, so the tsconfig carries no per-client path
+      # alias — only the core one, for editor resolution before an install.
+      let tsconfigAliases = if (coreRel == "") { aliasModules } else { [] }
       withPackageJSON
-        .withExec(["config-updater", "tsconfig", "/existing/tsconfig.json", "/out/tsconfig.json", coreRel, clientsDir] + aliasModules)
+        .withExec(["config-updater", "tsconfig", "/existing/tsconfig.json", "/out/tsconfig.json", coreRel, clientsDir] + tsconfigAliases)
         .directory("/out")
     }
   }
@@ -1382,6 +1428,7 @@ type TypescriptSdk {
       targets,
       coreRel,
       coreDirAbs,
+      cfg,
     )
   }
 
@@ -1422,12 +1469,35 @@ type TypescriptSdk {
   Written with withFile rather than withNewFile so the generated files keep the
   permissions they were rendered with.
   """
-  let moduleFiles(ws: Workspace!, sourcePath: String!, generated: Directory!): Workspace! {
-    writeChanged(
-      prunedInactiveDispatch(prunedBindings(ws, sourcePath, generated), sourcePath),
-      sourcePath,
-      generated,
-    )
+  let moduleFiles(ws: Workspace!, sourcePath: String!, generated: Directory!, coreRel: String!): Workspace! {
+    if (coreRel == "") {
+      writeChanged(
+        prunedInactiveDispatch(prunedBindings(ws, sourcePath, generated), sourcePath),
+        sourcePath,
+        generated,
+      )
+    } else {
+      # Shared core: no clients/ directory — each client is a package at the module
+      # root. Migrate away from an old clients/ dir, and drop the package of a
+      # client this run no longer renders.
+      let pkgNames = generated.glob("*/*.gen.ts").map { p => p.split("/").takeFirst(1).join("") }
+      let base = prunedOldClientsDir(prunedInactiveDispatch(ws, sourcePath), sourcePath)
+      writeChanged(prunedClientPackages(base, sourcePath, pkgNames), sourcePath, generated)
+    }
+  }
+
+  """
+  Remove a module's old clients/ directory when it switches to the shared-core
+  layout: its loose <name>.gen.ts files are packages at the module root now, and
+  its loader moved to the module root too.
+  """
+  let prunedOldClientsDir(ws: Workspace!, sourcePath: String!): Workspace! {
+    let clientsPath = moduleClientsPath(sourcePath)
+    if (existingDir(ws, clientsPath).entries.length == 0) {
+      ws
+    } else {
+      ws.withoutDirectory("/" + clientsPath)
+    }
   }
 
   """
@@ -1552,19 +1622,30 @@ type TypescriptSdk {
   client file in the changeset on every run that touches the module's source,
   long after the files themselves stopped changing.
   """
-  let withSelfBindings(staged: Workspace!, scope: String!, name: String!, generated: Directory!, targets: [ClientTarget!]!, selfTargets: [ClientTarget!]!, rt: Runtime!, coreRel: String!): Directory! {
+  let withSelfBindings(staged: Workspace!, scope: String!, sourcePath: String!, name: String!, generated: Directory!, targets: [ClientTarget!]!, selfTargets: [ClientTarget!]!, rt: Runtime!, coreRel: String!, cfg: String!): Directory! {
     if (selfTargets.length == 0) {
       # Nothing to fold in, so the first pass's clients are already the right ones.
       generated
     } else {
       let bindings = generateModuleBindings(staged.moduleSource("/" + scope).introspectionSchemaJSON.contents, name, targets)
-      # Replace clients/ wholesale — the self client is added and the loader now
-      # maps the module's own types — but leave the first pass's clients/ files
-      # that are gone from this set behind; prunedBindings removes those on write.
-      generated
-        .withoutDirectory("clients")
-        .withDirectory("clients", moduleClientsDirectory(bindings))
-        .withDirectory(".", moduleConfigDirectory(generated, rt, "clients", bindingAliasModules(bindings), coreRel))
+      let clients = moduleClientsDirectory(bindings)
+      let clientNames = bindingAliasModules(bindings)
+      let aliasModules = clientNames.filter { m => m != name } + [name]
+
+      # Add the self client and re-render the loader — the second pass's set is a
+      # superset of the first's, so overlaying it adds the self package and
+      # rewrites the loader; prunedBindings removes anything gone on write.
+      if (coreRel == "") {
+        generated
+          .withoutDirectory("clients")
+          .withDirectory("clients", clients)
+          .withDirectory(".", moduleConfigDirectory(generated, rt, "clients", aliasModules, coreRel, clientNames))
+      } else {
+        generated
+          .withDirectory(".", moduleClientPackages(clients, clientNames, sourcePath, cfg))
+          .withFile("loader.gen.ts", clients.file("loader.gen.ts"))
+          .withDirectory(".", moduleConfigDirectory(generated, rt, clientsSubdir(true), aliasModules, coreRel, clientNames))
+      }
     }
   }
 

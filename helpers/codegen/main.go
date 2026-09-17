@@ -109,8 +109,9 @@ func runEntrypoint(args []string) error {
 		outputFile  = fs.String("output-file", typescriptgenerator.DefaultEntrypointFile, "filename to write within the output directory")
 		moduleRoot  = fs.String("module-root", "", "absolute path of the module root, used to resolve source-import paths")
 		sdkImport   = fs.String("sdk-import", "@dagger.io/dagger", "bare specifier the entrypoint imports runtime helpers from")
-		sourceDir   = fs.String("source-dir", "src", "the module's source directory, relative to its root")
-		dispatch    = fs.Bool("dispatch", false, "render the manifest-v2 dispatcher (stdin/stdout, no register) instead of the legacy entrypoint")
+		sourceDir    = fs.String("source-dir", "src", "the module's source directory, relative to its root")
+		dispatch     = fs.Bool("dispatch", false, "render the manifest-v2 dispatcher (stdin/stdout, no register) instead of the legacy entrypoint")
+		loaderImport = fs.String("loader-import", "", "where the dispatcher imports the object loader from, relative to the module root (default clients/loader.gen.js)")
 	)
 	if err := fs.Parse(args); err != nil {
 		return err
@@ -132,9 +133,10 @@ func runEntrypoint(args []string) error {
 			TypedefJSONPath: *typedefPath,
 			OutputFile:      outName,
 			ModuleRoot:      *moduleRoot,
-			SDKImportPath:   *sdkImport,
-			SourceDir:       *sourceDir,
-			DispatchMode:    *dispatch,
+			SDKImportPath:    *sdkImport,
+			SourceDir:        *sourceDir,
+			DispatchMode:     *dispatch,
+			LoaderImportPath: *loaderImport,
 		},
 	}
 	gen := &typescriptgenerator.TypeScriptGenerator{Config: cfg}
