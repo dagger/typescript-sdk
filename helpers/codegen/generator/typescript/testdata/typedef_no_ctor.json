@@ -1,0 +1,35 @@
+{
+  "name": "Test",
+  "objects": {
+    "Helper": {
+      "name": "Helper",
+      "kind": "class",
+      "isExported": true,
+      "isDefaultExport": false,
+      "description": "",
+      "location": {
+        "filepath": "src/index.ts",
+        "line": 7,
+        "column": 14
+      },
+      "methods": {},
+      "properties": {}
+    },
+    "Test": {
+      "name": "Test",
+      "kind": "class",
+      "isExported": true,
+      "isDefaultExport": false,
+      "description": "",
+      "location": {
+        "filepath": "src/index.ts",
+        "line": 4,
+        "column": 14
+      },
+      "methods": {},
+      "properties": {}
+    }
+  },
+  "enums": {},
+  "interfaces": {}
+}

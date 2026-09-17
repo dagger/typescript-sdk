@@ -41,6 +41,36 @@ func TestGenerateDangEntrypoint(t *testing.T) {
 	require.Equal(t, string(want), got)
 }
 
+// TestGenerateDangEntrypointDefaultConstructor covers a main class that
+// declares no constructor, like the empty template's. The engine identifies an
+// entrypoint module's main object by its constructor typedef alone — there is
+// no name fallback and no engine-side default as for runtime modules — so
+// without one here the module loads cleanly and still shows nowhere.
+func TestGenerateDangEntrypointDefaultConstructor(t *testing.T) {
+	gen := &TypeScriptGenerator{Config: generator.Config{
+		DangEntrypointConfig: &generator.DangEntrypointGeneratorConfig{
+			TypedefJSONPath: "testdata/typedef_no_ctor.json",
+			Runtime:         "node",
+			ModulePath:      ".",
+		},
+	}}
+
+	state, err := gen.GenerateDangEntrypoint(context.Background())
+	require.NoError(t, err)
+	got := readOverlay(t, state, DefaultDangEntrypointFile)
+
+	require.Contains(t, got, strings.Join([]string{
+		`      typeDef`,
+		`        .withObject("Test", sourceMap: sourceMap("src/index.ts", 4, 14))`,
+		`        .withConstructor(`,
+		`          function("", typeDef.withObject("Test")),`,
+		`        )`,
+	}, "\n"))
+	// Only the main object may carry one: the engine rejects a types() list
+	// holding two constructors.
+	require.Equal(t, 1, strings.Count(got, ".withConstructor("))
+}
+
 // TestGenerateDangEntrypointRuntimes pins the one part of the program that is not
 // derived from the typedef: the container recipe call() bakes. Each runtime needs
 // a different image, a different way to reach the dispatcher, and — for deno,
