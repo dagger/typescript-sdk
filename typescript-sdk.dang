@@ -276,8 +276,11 @@ type TypescriptSdk {
       # is what the result is written onto.
       let firstPass = moduleGenerated(served, scope, source, name, rt, externalTargets)
       let staged = stagedModule(served, source, firstPass)
-      # The module's own API, folded in only when its own client was asked for.
-      let selfTargets = if (selfRequested) { selfClientTarget(staged, scope, name) } else { [] }
+      # The module's own client-facing schema, at the session's engine version. It
+      # renders the shared core (always) and, when its own client was asked for,
+      # the self client too.
+      let selfTarget = selfClientTarget(staged, scope, name)
+      let selfTargets = if (selfRequested) { selfTarget } else { [] }
       let cfg = configDir(ws)
       let coreRel = if (entrypoint) { coreRelFromModule(source, cfg) } else { "" }
       let withSelf = externalTargets + selfTargets
@@ -293,12 +296,7 @@ type TypescriptSdk {
       # sees only its own directory and keeps its embedded sdk/. The module's
       # own embedded sdk/, left by an earlier layout, is pruned in the switch.
       let withCore = if (entrypoint) {
-        withSharedCore(
-          prunedEmbeddedSdk(complete, source),
-          cfg,
-          served.moduleSource("/" + scope).introspectionSchemaJSON.contents,
-          name,
-        )
+        withSharedCore(prunedEmbeddedSdk(complete, source), cfg, selfTarget)
       } else {
         complete
       }
@@ -307,8 +305,14 @@ type TypescriptSdk {
       # a workspace standing somewhere else.
       withCore.withWorkdir(scope)
     } else {
-      # A client-only scope: its one output is the standalone package.
-      clientScope(ws, scope, false, clientTargets(clients))
+      # A client-only scope: one installable package per client, directly in the
+      # scope, wired through its package.json and resolving the shared core.
+      let cfg = configDir(ws)
+      if (clientTargets(clients).length == 0) {
+        withScopeClientDeps(prunedClientPackages(ws, scope, []), scope, cfg, [])
+      } else {
+        clientScope(ws, scope, cfg, clientTargets(clients))
+      }
     }
   }
 
@@ -394,8 +398,12 @@ type TypescriptSdk {
   for every scope at one engine version, so whichever scope generates writes the
   same bytes and the file-level skip keeps later passes quiet.
   """
-  let sharedCoreDirectory(schemaJSON: String!, moduleName: String!): Directory! {
-    moduleSdkDirectory(generateModuleBindings(schemaJSON, moduleName, []))
+  let sharedCoreDirectory(coreTargets: [ClientTarget!]!): Directory! {
+    # Client-facing core (the superset a consumer sees — Host, Engine,
+    # currentWorkspace and the rest), so a generated client package resolves every
+    # core type it can reference. Rendered from the module's own client schema,
+    # which is at the session's engine version — not an old git dependency's.
+    moduleSdkDirectory(generateClientBindings(coreTargets))
       .withNewFile("package.json", corePackageJSON)
   }
 
@@ -426,8 +434,14 @@ type TypescriptSdk {
   are a function of the engine version alone, so a scope that regenerates rewrites
   only what changed — nothing, once it is on disk.
   """
-  let withSharedCore(ws: Workspace!, cfg: String!, schemaJSON: String!, moduleName: String!): Workspace! {
-    writeChanged(ws, coreLibPath(cfg), sharedCoreDirectory(schemaJSON, moduleName))
+  let withSharedCore(ws: Workspace!, cfg: String!, coreTargets: [ClientTarget!]!): Workspace! {
+    if (coreTargets.length == 0) {
+      # Nothing to render core from — a module that could not load yet. Its own
+      # next pass writes the core once it can; until then leave what is there.
+      ws
+    } else {
+      writeChanged(ws, coreLibPath(cfg), sharedCoreDirectory(coreTargets))
+    }
   }
 
   """
@@ -1711,17 +1725,18 @@ type TypescriptSdk {
   module's clients/ directory gets; only the packaging differs, and it is what
   will one day let a published registry package replace the file: link.
   """
-  let clientDirectory(bindings: Directory!): Directory! {
+  let clientDirectory(bindings: Directory!, scope: String!, cfg: String!): Directory! {
     let modules = flatAliasModules(bindings)
 
-    modules.reduce(
-      directory.withDirectory("dagger", moduleSdkDirectory(bindings).withNewFile("package.json", libraryPackageJSON)),
-    ) { acc, name =>
+    # No `dagger/` package: every client depends on the one vendored core at
+    # .dagger/core/typescript, the same copy a module resolves, rather than a
+    # regenerated library beside them.
+    modules.reduce(directory) { acc, name =>
       acc.withDirectory(
         name,
         directory
           .withFile(name + ".gen.ts", bindings.file(name + ".gen.ts"))
-          .withNewFile("package.json", clientPackageJSON(name, modules)),
+          .withNewFile("package.json", clientPackageJSON(name, modules, coreRelFromModule(scopeFile(scope, name), cfg))),
       )
     }
   }
@@ -1750,8 +1765,8 @@ type TypescriptSdk {
   installing one client links everything it can reference. The version is a
   placeholder npm requires for a file: dependency to resolve at all.
   """
-  let clientPackageJSON(name: String!, modules: [String!]!): String! {
-    let deps = ["  \"@dagger.io/dagger\": \"file:../dagger\""] +
+  let clientPackageJSON(name: String!, modules: [String!]!, coreRel: String!): String! {
+    let deps = ["  \"@dagger.io/dagger\": \"file:" + coreRel + "\""] +
       modules
         .filter { sibling => sibling != name }
         .map { sibling => "  \"@dagger.io/" + sibling + "\": \"file:../" + sibling + "\"" }
@@ -1779,17 +1794,52 @@ type TypescriptSdk {
   `clients` is the complete desired set, so a target that is gone is simply not
   rendered, and the last one leaving takes the directory with it.
   """
-  let clientScope(ws: Workspace!, base: String!, isModule: Boolean!, targets: [ClientTarget!]!): Workspace! {
-    let dir = clientDirPath(base, isModule)
+  let clientScope(ws: Workspace!, base: String!, cfg: String!, targets: [ClientTarget!]!): Workspace! {
+    let bindings = generateClientBindings(targets)
+    let modules = flatAliasModules(bindings)
+    # One package dir per module, directly in the scope. No `dagger/` package:
+    # every client depends on the one shared core at .dagger/core/typescript,
+    # which a module scope writes at the session version — a client-only scope's
+    # targets are remote and cannot render core correctly, so it only references
+    # it.
+    let generated = clientDirectory(bindings, base, cfg)
+    let pruned = prunedClientPackages(ws, base, modules)
+    let written = writeChanged(pruned, base, generated)
+    # package.json is the link: the scope's manifest names the shared core and
+    # each client as file: dependencies, so `npm install` in the scope wires them.
+    withScopeClientDeps(written, base, cfg, modules)
+  }
 
-    if (targets.length == 0) {
-      if (existingDir(ws, dir).entries.length == 0) { ws } else { ws.withoutDirectory("/" + dir) }
-    } else {
-      # Anything in the directory we no longer render is dropped — the package
-      # of a target that has left the scope is the point.
-      let generated = clientDirectory(generateClientBindings(targets))
-      writeChanged(prunedClientFiles(ws, dir, generated), dir, generated)
-    }
+  """
+  Wire a client-only scope's package.json to the shared core and each generated
+  client, all as file: dependencies. Preserves the rest of the user's manifest.
+  """
+  let withScopeClientDeps(ws: Workspace!, scope: String!, cfg: String!, modules: [String!]!): Workspace! {
+    let pkgPath = scopeFile(scope, "package.json")
+    let existing = ws.directory("/", include: [pkgPath])
+    let pairs = modules.map { name => name + "=./" + name }
+
+    let updated = configUpdaterBuilder
+      .withDirectory("/existing", if (existing.exists(scope)) { existing.directory(scope) } else { directory })
+      .withDirectory("/out", directory)
+      .withExec(["config-updater", "shared-deps", "/existing/package.json", "/out/package.json", coreRelFromModule(scope, cfg)] + pairs)
+      .file("/out/package.json")
+
+    writeChanged(ws, scope, directory.withFile("package.json", updated))
+  }
+
+  """
+  Remove the generated client package dirs a client-only scope no longer renders,
+  leaving the user's own files in the scope untouched. A stale package is a
+  top-level dir whose name is not in the current set and which carries the
+  <name>.gen.ts a generated client is known by.
+  """
+  let prunedClientPackages(ws: Workspace!, scope: String!, modules: [String!]!): Workspace! {
+    existingDir(ws, scope).entries
+      .map { entry => entry.trimSuffix("/") }
+      .filter { name => modules.filter { m => m == name }.length == 0 }
+      .filter { name => existingDir(ws, scopeFile(scope, name)).exists(name + ".gen.ts") }
+      .reduce(ws) { acc, name => acc.withoutDirectory("/" + scopeFile(scope, name)) }
   }
 
   """
@@ -1808,16 +1858,13 @@ type TypescriptSdk {
   }
 
   """
-  Where a scope's generated client package lives.
-
-  A module scope owns its whole directory, so the package sits beside the
-  generated `sdk/`. A client-only scope is the user's own project, so it goes
-  under `.dagger/` where everything else this SDK writes there lives. Neither
-  may sit under `src/`: the introspector treats every file it finds there as
-  module source.
+  Where a client-only scope's generated packages live: the scope directory
+  itself. The scope is dedicated to clients — the user pointed it here — so the
+  packages land directly in it, one dir per module, rather than nested under a
+  `.dagger/clients` the scope name already stands for.
   """
   let clientDirPath(base: String!, isModule: Boolean!): String! {
-    scopeFile(base, if (isModule) { "clients" } else { ".dagger/clients" })
+    base
   }
 
 }
