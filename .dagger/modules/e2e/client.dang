@@ -222,12 +222,12 @@ type ClientChecks {
   }
 
   """
-  A module scope's clients live in clients/, apart from the library, and the
-  module's own source reaches each through its @dagger.io/<module>
-  specifier.
+  An embedded module's clients ship inside sdk/, and the module's own source
+  reaches each through its @dagger.io/<module> specifier.
 
-  A client added inside a module lands in clients/<target>.gen.ts, beside the
-  module's own client and the loader; the library (sdk/) stays core-only. The
+  sdk/ is the one directory the builtin runtime mounts into node_modules, so a
+  client added inside a [runtime] module lands in sdk/<target>.gen.ts, beside
+  client.gen.ts and the loader — nowhere else would resolve at call time. The
   module's source reaches the target through the tsconfig alias, so a client
   added inside a module is usable from it straight away.
   """
@@ -240,20 +240,19 @@ type ClientChecks {
       clients: [ws.moduleSource("/" + fixtures.clientModule)],
     )
 
-    # The target's client lands under clients/, not in the library.
-    Asserts.generated(changes, scope + "/clients/client-app.gen.ts")
+    # The target's client lands inside sdk/, with no clients/ directory left.
+    Asserts.generated(changes, scope + "/sdk/client-app.gen.ts")
     Asserts.notGenerated(
       changes,
-      scope + "/sdk/client-app.gen.ts",
-      "a module client belongs in clients/, not in the library",
+      scope + "/clients/client-app.gen.ts",
+      "an embedded module's client belongs inside sdk/, where the runtime mounts it",
     )
 
     let tree = changes.after.directory(scope)
 
     # Its file is its own client — root Client, dag, entrypoint functions —
-    # reaching the library through the package specifier, since it no longer
-    # sits beside the bundle.
-    let targetClient = tree.file("clients/client-app.gen.ts").contents
+    # reaching the library through the package specifier.
+    let targetClient = tree.file("sdk/client-app.gen.ts").contents
     Asserts.stringContains(
       targetClient,
       "from \"@dagger.io/dagger\"",
@@ -265,16 +264,17 @@ type ClientChecks {
       "a target's client should carry its own dag",
     )
 
-    # The library stays core-only: no target file, no re-export of one.
+    # The core bindings stay core-only even with the client beside them: no
+    # re-export folds the target back in.
     Asserts.assert(
       tree.file("sdk/client.gen.ts").contents.contains("client-app.gen.js") == false,
       "the library's core bindings should not reference a module client",
     )
-    Asserts.generated(changes, scope + "/clients/loader.gen.ts")
+    Asserts.generated(changes, scope + "/sdk/loader.gen.ts")
     Asserts.stringContains(
       tree.file("tsconfig.json").contents,
-      "\"@dagger.io/client-app\"",
-      "the module's tsconfig should alias each generated module client",
+      "\"./sdk/client-app.gen.ts\"",
+      "the module's tsconfig should alias each generated module client into sdk/",
     )
 
     null

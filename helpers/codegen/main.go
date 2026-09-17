@@ -104,13 +104,14 @@ func run(args []string) error {
 func runEntrypoint(args []string) error {
 	fs := flag.NewFlagSet("entrypoint", flag.ExitOnError)
 	var (
-		typedefPath = fs.String("typedef-json-path", "", "path to the typedef JSON emitted by the SDK introspector")
-		outputDir   = fs.String("output", ".", "output directory for the generated entrypoint")
-		outputFile  = fs.String("output-file", typescriptgenerator.DefaultEntrypointFile, "filename to write within the output directory")
-		moduleRoot  = fs.String("module-root", "", "absolute path of the module root, used to resolve source-import paths")
-		sdkImport   = fs.String("sdk-import", "@dagger.io/dagger", "bare specifier the entrypoint imports runtime helpers from")
-		sourceDir   = fs.String("source-dir", "src", "the module's source directory, relative to its root")
-		dispatch    = fs.Bool("dispatch", false, "render the manifest-v2 dispatcher (stdin/stdout, no register) instead of the legacy entrypoint")
+		typedefPath  = fs.String("typedef-json-path", "", "path to the typedef JSON emitted by the SDK introspector")
+		outputDir    = fs.String("output", ".", "output directory for the generated entrypoint")
+		outputFile   = fs.String("output-file", typescriptgenerator.DefaultEntrypointFile, "filename to write within the output directory")
+		moduleRoot   = fs.String("module-root", "", "absolute path of the module root, used to resolve source-import paths")
+		sdkImport    = fs.String("sdk-import", "@dagger.io/dagger", "bare specifier the entrypoint imports runtime helpers from")
+		sourceDir    = fs.String("source-dir", "src", "the module's source directory, relative to its root")
+		dispatch     = fs.Bool("dispatch", false, "render the manifest-v2 dispatcher (stdin/stdout, no register) instead of the legacy entrypoint")
+		loaderImport = fs.String("loader-import", "", "where the entrypoint imports the object loader from, relative to the module root (default clients/loader.gen.js)")
 	)
 	if err := fs.Parse(args); err != nil {
 		return err
@@ -129,12 +130,13 @@ func runEntrypoint(args []string) error {
 	cfg := generator.Config{
 		OutputDir: *outputDir,
 		EntrypointConfig: &generator.EntrypointGeneratorConfig{
-			TypedefJSONPath: *typedefPath,
-			OutputFile:      outName,
-			ModuleRoot:      *moduleRoot,
-			SDKImportPath:   *sdkImport,
-			SourceDir:       *sourceDir,
-			DispatchMode:    *dispatch,
+			TypedefJSONPath:  *typedefPath,
+			OutputFile:       outName,
+			ModuleRoot:       *moduleRoot,
+			SDKImportPath:    *sdkImport,
+			SourceDir:        *sourceDir,
+			DispatchMode:     *dispatch,
+			LoaderImportPath: *loaderImport,
 		},
 	}
 	gen := &typescriptgenerator.TypeScriptGenerator{Config: cfg}
@@ -290,6 +292,7 @@ func runModule(args []string) error {
 		clientMetaPath    = fs.String("client-meta-path", "", "path to the client meta JSON whose modules are folded into these bindings")
 		outputDir         = fs.String("output", ".", "output directory for the generated bindings")
 		packaged          = fs.Bool("packaged-clients", false, "nest each client in its own clients/<module>/<module>.gen.ts package directory; the loader imports them relatively")
+		flat              = fs.Bool("flat-clients", false, "write the client files and the loader beside client.gen.ts in the output root, for the embedded [runtime] layout that ships them inside sdk/")
 	)
 	if err := fs.Parse(args); err != nil {
 		return err
@@ -333,6 +336,7 @@ func runModule(args []string) error {
 			BoundModules:    bound,
 			EmitLoader:      true,
 			PackagedClients: *packaged,
+			FlatClients:     *flat,
 		},
 	}}
 

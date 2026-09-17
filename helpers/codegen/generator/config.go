@@ -108,6 +108,12 @@ type EntrypointGeneratorConfig struct {
 	// entrypoint: one JSON request on stdin, one JSON result on stdout, and no
 	// register(). See EntrypointOptions.DispatchMode.
 	DispatchMode bool
+
+	// LoaderImportPath is where the entrypoint imports the object loader from,
+	// relative to the module root. Empty defaults to clients/loader.gen.js; the
+	// embedded [runtime] layout passes sdk/loader.gen.js, since its loader ships
+	// inside the library directory.
+	LoaderImportPath string
 }
 
 // Specific configuration for generating the Dang module entrypoint — the program

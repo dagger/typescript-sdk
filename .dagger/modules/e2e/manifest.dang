@@ -93,7 +93,7 @@ type ManifestChecks {
     Asserts.stringContains(manifest, "name = \"manifest-dep\"", "original module name was lost")
     Asserts.stringNotContains(manifest, "pin =", "local dependency has a pin")
     Asserts.assert(generated.cwd == input.cwd, "generation changed cwd")
-    Asserts.assert(generated.directory("/").exists(Fixtures.splitDenoCode + "/clients/manifest-dep.gen.ts"), "module client was not generated beside the source")
+    Asserts.assert(generated.directory("/").exists(Fixtures.splitDenoCode + "/sdk/manifest-dep.gen.ts"), "module client was not generated beside the source")
     Asserts.assert(generated.directory("/").exists(Fixtures.splitDenoCode + "/deno.json"), "Deno config was lost")
     null
   }
