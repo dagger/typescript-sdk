@@ -2,19 +2,19 @@
 Checks for typed client generation, the client half of `generateScope`.
 
 A standalone client scope renders one npm-installable package per target under
-.dagger/clients, beside the vendored library as its own @dagger.io/dagger
-package. The client files are the same rendering a module's clients get — each
-serves its own module on use — and the user wires them in with
-`npm install ./.dagger/clients/<module>`; nothing of the user's is edited.
+clients/, beside the scope's own @dagger.io/dagger package. The scope's
+package.json names each as a file: dependency — the SDK owns its @dagger.io/*
+entries and nothing else in it — so `npm install` in the scope wires everything;
+the rest of the scope is the user's.
 """
 type ClientChecks {
   let fixtures: Fixtures! = Fixtures
 
   """
-  Where a client-only scope's generated package lives, relative to the scope.
+  Where a client-only scope's generated packages live, relative to the scope.
   """
   let clientDir(scope: String!): String! {
-    scope + "/.dagger/clients"
+    scope + "/clients"
   }
 
   """
@@ -130,9 +130,11 @@ type ClientChecks {
   }
 
   """
-  Regeneration owns the generated files and nothing else: a hand-written file in
-  the client scope survives, the user's own scope package.json is never touched,
-  and a client for a target that left the scope is pruned.
+  Regeneration owns the generated files and the scope's @dagger.io/* deps, and
+  nothing else: a hand-written file in the scope survives, the user's own
+  package.json keys survive the dep wiring, a client for a target that left the
+  scope is pruned, and the .dagger/clients directory an earlier layout kept is
+  taken with the move.
   """
   generateClientRespectsExistingCheck(ws: Workspace!): Void @check {
     let changes = generateClients(ws, fixtures.clientExisting)
@@ -146,23 +148,27 @@ type ClientChecks {
       Asserts.contains(changes.removedPaths, fixtures.clientExisting + "/main.ts") == false,
       "regeneration removed a hand-written file from the scope: " + removed,
     )
-    # The scope's own package.json belongs to the user. The generated package is
-    # self-contained and installed by hand, so nothing here may touch it.
-    Asserts.assert(
-      Asserts.contains(changes.modifiedPaths, fixtures.clientExisting + "/package.json") == false,
-      "regeneration modified the user's own package.json",
-    )
     # Read the resulting workspace, not the changeset's after-tree: that tree
     # holds only what generation touched, so a file surviving untouched is
     # exactly the case it cannot show.
+    let after = ws.withChanges(changes).directory("/" + fixtures.clientExisting)
     Asserts.stringContains(
-      ws.withChanges(changes).directory("/" + fixtures.clientExisting).file("main.ts").contents,
+      after.file("main.ts").contents,
       "hello from the user's own file",
       "hand-written code in the scope must survive regeneration",
     )
+    # package.json is the link: the SDK wires its own @dagger.io/* deps into the
+    # scope's manifest and leaves every user key alone.
+    let pkg = after.file("package.json").contents
+    Asserts.stringContains(pkg, "\"name\": \"my-app\"", "the user's own package.json keys must survive the dep wiring")
+    Asserts.stringContains(pkg, "\"@dagger.io/client-app\": \"file:./clients/client-app\"", "the scope's package.json should name the generated client as a file: dependency")
     Asserts.assert(
       Asserts.contains(changes.removedPaths, generatedDir + "/stale-dep.gen.ts"),
       "regeneration should prune bindings for a target that left the scope: " + removed,
+    )
+    Asserts.assert(
+      Asserts.contains(changes.removedPaths, fixtures.clientExisting + "/.dagger/clients/"),
+      "regeneration should take the .dagger/clients directory an earlier layout kept: " + removed,
     )
 
     null

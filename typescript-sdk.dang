@@ -276,11 +276,14 @@ type TypescriptSdk {
       # is what the result is written onto.
       let firstPass = moduleGenerated(served, scope, source, name, rt, externalTargets)
       let staged = stagedModule(served, source, firstPass)
-      # The self client exists only when asked for. Since the ask is explicit
-      # and the SDK owns the module's config, the dep is wired too — the user
-      # runs `npm install` and calls themselves. A module that cannot load yet
-      # contributes nothing; its next generation repairs it.
-      let selfTargets = if (selfRecorded) { selfClientTarget(staged, scope, name) } else { [] }
+      # Under an entrypoint the self client exists only when asked for. Since
+      # the ask is explicit and the SDK owns the module's config, the dep is
+      # wired too — the user runs `npm install` and calls themselves. The
+      # embedded `[runtime]` layout keeps its always-generated self client, a
+      # loose clients/ file reached by tsconfig alias — that path predates the
+      # opt-in and stays as it was. A module that cannot load yet contributes
+      # nothing; its next generation repairs it.
+      let selfTargets = if (entrypoint == false or selfRecorded) { selfClientTarget(staged, scope, name) } else { [] }
       let withSelf = externalTargets + selfTargets
       let complete = moduleFiles(
         served,
@@ -1811,17 +1814,31 @@ type TypescriptSdk {
 
     if (targets.length == 0) {
       let cleared = if (existingDir(ws, dir).entries.length == 0) { ws } else { ws.withoutDirectory("/" + dir) }
-      withScopeClientDeps(prunedClientPackages(cleared, base, []), base, [])
+      withScopeClientDeps(withoutLegacyScopeClients(prunedClientPackages(cleared, base, []), base), base, [])
     } else {
       let generated = clientDirectory(generateClientBindings(targets))
       let modules = packagedClientNames(generated)
-      # Packages an earlier layout left directly in the scope move under
-      # clients/ with the regeneration; the marker scan takes the old copies.
-      let migrated = prunedClientPackages(ws, base, [])
+      # What earlier layouts left behind moves under clients/ with the
+      # regeneration: packages directly in the scope (the marker scan) and the
+      # .dagger/clients directory of the layout before that.
+      let migrated = withoutLegacyScopeClients(prunedClientPackages(ws, base, []), base)
       let written = writeChanged(prunedDirFiles(migrated, dir, generated), dir, generated)
       # package.json is the link: the scope's manifest names its core and each
       # client as file: dependencies, so `npm install` in the scope wires them.
       withScopeClientDeps(written, base, modules)
+    }
+  }
+
+  """
+  Take the .dagger/clients directory an earlier layout kept beneath a client
+  scope: it was fully generated, and the packages live under clients/ now.
+  """
+  let withoutLegacyScopeClients(ws: Workspace!, scope: String!): Workspace! {
+    let old = scopeFile(scope, ".dagger/clients")
+    if (existingDir(ws, old).entries.length == 0) {
+      ws
+    } else {
+      ws.withoutDirectory("/" + old)
     }
   }
 
