@@ -1111,9 +1111,18 @@ func (funcs typescriptTemplateFuncs) loaderFiles() []LoaderFile {
 		}
 		// "__core" is reserved for the library, so a module named "core"
 		// ("__modCore") cannot collide with it.
+		//
+		// Packaged clients are imported by relative path, not by package name:
+		// the loader must resolve every client at dispatch time, and a client
+		// package the module has not installed (the default self client) has no
+		// node_modules entry to resolve a bare specifier through.
+		from := funcs.siblingImportSpec(owner)
+		if funcs.cfg.ModuleConfig != nil && funcs.cfg.ModuleConfig.PackagedClients {
+			from = "./" + funcs.depFileName(owner) + "/" + funcs.depFileName(owner) + ".gen.js"
+		}
 		out = append(out, LoaderFile{
 			Alias:   "__mod" + strcase.ToCamel(funcs.depFileName(owner)),
-			From:    funcs.siblingImportSpec(owner),
+			From:    from,
 			Entries: entries,
 		})
 	}

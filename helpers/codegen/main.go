@@ -289,6 +289,7 @@ func runModule(args []string) error {
 		moduleName        = fs.String("module-name", "", "name of the module to generate bindings for")
 		clientMetaPath    = fs.String("client-meta-path", "", "path to the client meta JSON whose modules are folded into these bindings")
 		outputDir         = fs.String("output", ".", "output directory for the generated bindings")
+		packaged          = fs.Bool("packaged-clients", false, "nest each client in its own clients/<module>/<module>.gen.ts package directory; the loader imports them relatively")
 	)
 	if err := fs.Parse(args); err != nil {
 		return err
@@ -328,9 +329,10 @@ func runModule(args []string) error {
 	gen := &typescriptgenerator.TypeScriptGenerator{Config: generator.Config{
 		OutputDir: *outputDir,
 		ModuleConfig: &generator.ModuleGeneratorConfig{
-			ModuleName:   *moduleName,
-			BoundModules: bound,
-			EmitLoader:   true,
+			ModuleName:      *moduleName,
+			BoundModules:    bound,
+			EmitLoader:      true,
+			PackagedClients: *packaged,
 		},
 	}}
 
@@ -408,6 +410,7 @@ func runClient(args []string) error {
 	var (
 		clientMetaPath = fs.String("client-meta-path", "", "path to the client meta JSON (engineVersion, bound modules)")
 		outputDir      = fs.String("output", ".", "output directory for the generated client")
+		packaged       = fs.Bool("packaged-clients", false, "nest each client in its own <module>/<module>.gen.ts package directory")
 	)
 	if err := fs.Parse(args); err != nil {
 		return err
@@ -450,9 +453,10 @@ func runClient(args []string) error {
 	gen := &typescriptgenerator.TypeScriptGenerator{Config: generator.Config{
 		OutputDir: *outputDir,
 		ModuleConfig: &generator.ModuleGeneratorConfig{
-			BoundModules: bound,
-			FlatClients:  true,
-			EmitLoader:   false,
+			BoundModules:    bound,
+			FlatClients:     true,
+			EmitLoader:      false,
+			PackagedClients: *packaged,
 		},
 	}}
 

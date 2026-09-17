@@ -150,6 +150,7 @@ func TestUpdateTSConfig(t *testing.T) {
 	type testCase struct {
 		name       string
 		tsConfig   string
+		coreDir    string
 		clientsDir string
 		modules    []string
 		expected   string
@@ -213,6 +214,41 @@ func TestUpdateTSConfig(t *testing.T) {
     }
   },
   "include": ["src/**/*"]
+}`,
+		},
+		{
+			name:     "a core dir points the dagger aliases at the shared core",
+			tsConfig: `{}`,
+			coreDir:  "../../.dagger/core/typescript",
+			expected: `{
+  "compilerOptions": {
+    "experimentalDecorators": true,
+    "paths": {
+      "@dagger.io/dagger": ["../../.dagger/core/typescript/index.ts"],
+      "@dagger.io/dagger/telemetry": ["../../.dagger/core/typescript/telemetry.ts"]
+    }
+  }
+}`,
+		},
+		{
+			name:     "the no-lib-alias sentinel writes no dagger path alias and removes an old one",
+			tsConfig: `{"compilerOptions":{"paths":{"@dagger.io/dagger":["../../.dagger/core/typescript/index.ts"],"@dagger.io/dagger/telemetry":["../../.dagger/core/typescript/telemetry.ts"]}}}`,
+			coreDir:  "-",
+			expected: `{
+  "compilerOptions": {
+    "experimentalDecorators": true
+  }
+}`,
+		},
+		{
+			name:     "the no-lib-alias sentinel keeps the user's own paths",
+			tsConfig: `{"compilerOptions":{"paths":{"@user/lib":["./src/lib.ts"],"@dagger.io/dagger":["../../.dagger/core/typescript/index.ts"]}}}`,
+			coreDir:  "-",
+			expected: `{
+  "compilerOptions": {
+    "experimentalDecorators": true,
+    "paths": {"@user/lib": ["./src/lib.ts"]}
+  }
 }`,
 		},
 		{
@@ -282,7 +318,7 @@ func TestUpdateTSConfig(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			res, err := updateTSConfig(removeJSONComments(tc.tsConfig), tc.clientsDir, tc.modules)
+			res, err := updateTSConfig(removeJSONComments(tc.tsConfig), tc.coreDir, tc.clientsDir, tc.modules)
 			require.NoError(t, err)
 			require.JSONEq(t, tc.expected, res)
 		})
@@ -293,6 +329,7 @@ func TestUpdateDenoConfig(t *testing.T) {
 	type testCase struct {
 		name       string
 		denoConfig string
+		coreDir    string
 		clientsDir string
 		modules    []string
 		expected   string
@@ -498,7 +535,7 @@ func TestUpdateDenoConfig(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			res, err := updateDenoConfig(removeJSONComments(tc.denoConfig), tc.clientsDir, tc.modules)
+			res, err := updateDenoConfig(removeJSONComments(tc.denoConfig), tc.coreDir, tc.clientsDir, tc.modules)
 			require.NoError(t, err)
 			require.JSONEq(t, tc.expected, res)
 		})
@@ -551,4 +588,88 @@ func TestReadInput(t *testing.T) {
 		require.NoError(t, err)
 		require.JSONEq(t, `{"name": "demo"}`, got)
 	})
+}
+
+func TestUpdateSharedDeps(t *testing.T) {
+	type testCase struct {
+		name        string
+		packageJSON string
+		coreRel     string
+		clients     []string
+		expected    string
+	}
+
+	for _, tc := range []testCase{
+		{
+			name:        "module with no clients depends only on the vendored core",
+			packageJSON: `{}`,
+			coreRel:     "../../.dagger/core/typescript",
+			clients:     nil,
+			expected:    `{"type":"module","dependencies":{"@dagger.io/dagger":"file:../../.dagger/core/typescript","typescript":"5.9.3"}}`,
+		},
+		{
+			name:        "one declared client is a file: dep beside core",
+			packageJSON: `{}`,
+			coreRel:     "../../.dagger/core/typescript",
+			clients:     []string{"b=./.dagger/clients/b"},
+			expected:    `{"type":"module","dependencies":{"@dagger.io/dagger":"file:../../.dagger/core/typescript","@dagger.io/b":"file:./.dagger/clients/b","typescript":"5.9.3"}}`,
+		},
+		{
+			name:        "a dropped client's dep is pruned, the user's own deps and keys survive",
+			packageJSON: `{"name":"my-app","dependencies":{"lodash":"^4","@dagger.io/dagger":"file:old","@dagger.io/gone":"file:./.dagger/clients/gone","@dagger.io/b":"file:./.dagger/clients/b"}}`,
+			coreRel:     ".dagger/core/typescript",
+			clients:     []string{"b=./.dagger/clients/b"},
+			expected:    `{"name":"my-app","dependencies":{"lodash":"^4","@dagger.io/dagger":"file:.dagger/core/typescript","@dagger.io/b":"file:./.dagger/clients/b","typescript":"5.9.3"},"type":"module"}`,
+		},
+		{
+			name:        "the user's typescript pin is left alone",
+			packageJSON: `{"devDependencies":{"typescript":"5.0.0"}}`,
+			coreRel:     ".dagger/core/typescript",
+			clients:     nil,
+			expected:    `{"devDependencies":{"typescript":"5.0.0"},"type":"module","dependencies":{"@dagger.io/dagger":"file:.dagger/core/typescript"}}`,
+		},
+		{
+			// A client the user installed from another scope for a self-call
+			// (a file:../ path) is theirs; regeneration must not clobber it, even
+			// though it is not one of this scope's recorded clients.
+			name:        "a user-installed client from another scope is preserved",
+			packageJSON: `{"dependencies":{"@dagger.io/test":"file:../../client/test"}}`,
+			coreRel:     "../../.dagger/core/typescript",
+			clients:     nil,
+			expected:    `{"dependencies":{"@dagger.io/test":"file:../../client/test","@dagger.io/dagger":"file:../../.dagger/core/typescript","typescript":"5.9.3"},"type":"module"}`,
+		},
+		{
+			// The self client is generated but not installed by default: a
+			// keep-only pair adds nothing when the user has not opted in.
+			name:        "a keep-only client is not added",
+			packageJSON: `{}`,
+			coreRel:     "./clients/dagger",
+			clients:     []string{"?test=./clients/test"},
+			expected:    `{"type":"module","dependencies":{"@dagger.io/dagger":"file:./clients/dagger","typescript":"5.9.3"}}`,
+		},
+		{
+			// ...but once the user installed it, the dep survives regeneration
+			// and is refreshed to the generated location.
+			name:        "a keep-only client the user installed is kept",
+			packageJSON: `{"dependencies":{"@dagger.io/test":"file:./clients/test"}}`,
+			coreRel:     "./clients/dagger",
+			clients:     []string{"?test=./clients/test"},
+			expected:    `{"dependencies":{"@dagger.io/test":"file:./clients/test","@dagger.io/dagger":"file:./clients/dagger","typescript":"5.9.3"},"type":"module"}`,
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			res, err := updateSharedDeps(removeJSONComments(tc.packageJSON), tc.coreRel, tc.clients)
+			require.NoError(t, err)
+			require.JSONEq(t, tc.expected, res)
+		})
+	}
+}
+
+func TestUpdateSharedDeps_RejectsMalformedClientSpec(t *testing.T) {
+	for _, spec := range []string{"noequals", "=onlyrel", "name="} {
+		_, err := updateSharedDeps(`{}`, "core", []string{spec})
+		require.Error(t, err, "spec %q must be rejected", spec)
+	}
 }
