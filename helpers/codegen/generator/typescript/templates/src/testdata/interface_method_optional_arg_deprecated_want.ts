@@ -1,6 +1,6 @@
 
 export class TestFooer extends BaseClient {
-  private readonly _foo?: string = undefined
+  private readonly _foo?: string | undefined = undefined
 
   /**
    * Constructor is used for internal usage only, do not create object from it.

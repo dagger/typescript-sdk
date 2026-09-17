@@ -2,8 +2,7 @@
 
 Reused by:
 - method_solve.ts.gtpl   (class-field arrow form)
-- _augmentations.ts.gtpl (prototype-assignment form for dep-contributed
-  fields on extendable types)
+- _client.ts.gtpl (the per-module client's own Client class methods)
 
 The dot is an introspection.Field. */ -}}
 {{ define "method_solve_body" -}}

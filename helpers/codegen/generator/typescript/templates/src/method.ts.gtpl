@@ -30,7 +30,7 @@
 
 	{{- /* Write return type. */ -}}
 	{{- "" }}){{- "" }}: {{ .TypeRef | FormatOutputType }} => { {{- with .Directives.SourceMap }} // {{ .Module }} ({{ .Filelink | ModuleRelPath }}) {{- end }}
-	{{- /* Body is shared with the dep prototype augmentations. */ -}}
+	{{- /* Body is shared between the core and per-module client classes. */ -}}
 	{{- template "method_body" . }}
   }
 {{- end }}

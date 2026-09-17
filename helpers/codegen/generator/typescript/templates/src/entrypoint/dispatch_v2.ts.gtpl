@@ -37,43 +37,14 @@ function decodeRequest(raw: string): {
   }
 }
 
-{{- if boundModules }}
-
-// Serve the modules this scope binds a client for, so `dag.<module>()` resolves.
-//
-// Under a manifest v2 entrypoint there is no [[dependencies]] table to declare
-// them in — the engine rejects the key — so the dependency is established here
-// instead, at run time. It has to be this session: a nested exec takes its schema
-// from the active module's dependencies at the moment it is created, so serving
-// from the Dang entrypoint that spawned this container does not reach it.
-//
-// A local target goes through a raw query because `currentWorkspace` is
-// deliberately kept out of a module's generated bindings.
-async function serveBoundModules(): Promise<void> {
-{{- range $mod := boundModules }}
-  // {{ $mod.Name }}
-{{- if eq $mod.Kind "GIT_SOURCE" }}
-  await dag
-    .moduleSource({{ jsString $mod.Ref }}, { refPin: {{ jsString $mod.Pin }} })
-    .asModule()
-    .serve()
-{{- else }}
-  await (dag as any).getGQLClient().request(
-    `{ currentWorkspace { moduleSource(path: {{ jsString (workspaceModulePath $mod) }}) { asModule { serve } } } }`,
-  )
-{{- end }}
-{{- end }}
-}
-{{- end }}
-
 async function engineCall(): Promise<void> {
   const { receiverType, fnName, parentJson, args } = decodeRequest(await readStdin())
 
   await connection(
     async () => {
-{{- if boundModules }}
-      await serveBoundModules()
-{{- end }}
+      // No serve here: a module is only ever reached through a `dag.<module>()`
+      // call, and each generated client serves its own module before its first
+      // query.
       const result = await invoke(receiverType, fnName, parentJson, args)
       process.stdout.write(
         result === undefined || result === null ? "null" : JSON.stringify(result),

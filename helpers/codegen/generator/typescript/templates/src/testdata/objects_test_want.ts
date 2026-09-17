@@ -3,7 +3,7 @@
  * A directory whose contents persist across runs
  */
 export class CacheVolume extends BaseClient {
-  private readonly _id?: CacheVolumeID = undefined
+  private readonly _id?: CacheVolumeID | undefined = undefined
 
   /**
    * Constructor is used for internal usage only, do not create object from it.

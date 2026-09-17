@@ -76,7 +76,6 @@ client add`, and are persisted per scope in `dagger.toml`:
 | `template` | `--template` | `default` (a small working module; `empty` is a bare `@object` class) |
 | `packageManager` | `--package-manager` | unset |
 | `baseImage` | `--base-image` | unset |
-| `dualClients` | `--dual-clients` | `false` |
 
 ```sh
 dagger module init typescript --name my-module --runtime bun
@@ -98,10 +97,6 @@ runtime; Bun and Deno bundle their own.
 `--base-image` writes to `deno.json` for Deno modules and to `package.json`
 otherwise — matching where the engine reads it from.
 
-`--dual-clients` only affects module scopes, and only the standalone client
-package described below — see [Generate a typed client](#generate-a-typed-client).
-It is temporary, and goes away when a module's two client shapes become one.
-
 ## Generate a typed client
 
 Record a client for a module in the current scope:
@@ -121,32 +116,56 @@ What a scope gets depends on what the scope is:
 
 | Scope | Client output |
 | --- | --- |
-| A module | `sdk/`, the module's own bindings; plus `clients/` with `--dual-clients` |
-| Your own project | `.dagger/clients/` |
+| A module | `sdk/` (the library) plus `clients/` (its per-module clients) |
+| Your own project | `.dagger/clients/` — `sdk/` (the vendored library) plus flat per-module clients |
 
-A module binds its targets into the `sdk/` directory it already generates, which
-is what its source reaches through `@dagger.io/dagger` — so a client added inside
-a module is usable from it straight away. The standalone package under `clients/`
-is for code outside the module, and nothing needs it to build the module, so it
-is only written with `--dual-clients`.
+A module keeps its targets in a `clients/` directory beside the library:
+every module — a dependency, a recorded target, the module itself — becomes its
+own `clients/<module>.gen.ts` client with its own `dag` and entrypoint
+functions, reached through its own specifier. `sdk/` stays the core-only
+`@dagger.io/dagger` library:
 
-One package per scope, not one per target: the core API is the bulk of a
-generated client and every target in a scope shares it. The package holds
+```ts
+import { dag, Container } from "@dagger.io/dagger" // core API (sdk/)
+import { api } from "@dagger.io/api"               // a bound module (clients/api.gen.ts)
 
-- `dagger.gen.ts` — the core API types
-- `<module>.gen.ts` — one per recorded client target
-- `package.json`, `tsconfig.json` — pinned to the engine release this SDK ships
-  for, and named after the scope directory
+api().deploy(dag.container().from("alpine"))
+```
 
-A client-only package is self-contained and stands on its own. Install it
-yourself — `"@dagger.io/<scope>-client": "file:./.dagger/clients"` plus your
-package manager; the SDK never edits your own `package.json`. If you point
-`@dagger.io/dagger` at a local bundle, regeneration preserves that instead of
-resetting it to the version pin.
+The `@dagger.io/<module>` aliases are written into `tsconfig.json` (or
+`deno.json`) at generation, so a client added inside a module is usable from it
+straight away.
+
+A standalone client scope renders the same client files as a module, packaged
+as real npm packages:
+
+```
+.dagger/clients/
+  dagger/          the vendored @dagger.io/dagger library
+  <module>/        one package per target, named @dagger.io/<module>
+```
+
+Install what you use — a client's `file:` dependencies pull the library (and
+any sibling it references) along:
+
+```sh
+npm install ./.dagger/clients/api
+```
+
+```ts
+import { connection, dag } from "@dagger.io/dagger"
+import { api } from "@dagger.io/api"
+```
+
+No path aliases, no remote `@dagger.io/dagger` dependency — plain package
+resolution against the vendored, offline tree — and nothing of yours is
+edited; you run the install. The same packages can later come from a registry
+instead of a `file:` link, and a shared `.dagger/clients/` can back both a
+module and your own code.
 
 `clients` is the complete desired set, so `dagger module client rm` is just
-regeneration without that target: its bindings go, and the last target leaving
-takes the package with it.
+regeneration without that target: its client goes, and the last target leaving
+takes the scope with it.
 
 ## Regenerate
 

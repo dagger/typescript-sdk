@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"path/filepath"
 	"sort"
+	"strings"
 	"text/template"
 
 	"github.com/iancoleman/strcase"
@@ -17,27 +18,29 @@ import (
 )
 
 const (
-	// ClientGenFile is the core file name for module codegen (the module's own
-	// embedded SDK bindings).
+	// ClientGenFile is the core file name: it holds core Dagger types only and
+	// belongs to the @dagger.io/dagger library (the sdk/ directory), not to any
+	// one module. The library's index.ts re-exports it.
 	ClientGenFile = "client.gen.ts"
-	// CoreGenFile is the core file name for a standalone client: it holds only
-	// core Dagger types, with every module (including the bound one) split into
-	// its own <module>.gen.ts. Named to match the Go SDK's dagger.gen.go.
-	CoreGenFile = "dagger.gen.ts"
+	// LoaderGenFile is the entrypoint object loader. "loader" is a reserved
+	// module name: a module kebab-cased to it would claim the same file.
+	LoaderGenFile = "loader.gen.ts"
+	// ModuleClientsDir is where a module scope puts the per-module client files
+	// and the loader — beside the library, not inside it. The library (sdk/)
+	// stays core-only so it can become an npm package; the clients that depend
+	// on it live here and reach it through the @dagger.io/dagger specifier.
+	ModuleClientsDir = "clients"
 )
 
 type TypeScriptGenerator struct {
 	Config generator.Config
 }
 
-// GenerateModule generates a module's own embedded bindings, flat in the output
-// directory: the caller lays the result down as the module's sdk/ directory.
+// GenerateModule generates a scope's client bindings — a module's own or a
+// standalone client's: one core client.gen.ts plus one <module>.gen.ts per
+// module. Layout follows Config.ModuleConfig (EmitLoader / FlatClients).
 func (g *TypeScriptGenerator) GenerateModule(_ context.Context, schema *introspection.Schema, schemaVersion string) (*generator.GeneratedState, error) {
 	return generate(g.Config, ClientGenFile, schema, schemaVersion)
-}
-
-func (g *TypeScriptGenerator) GenerateClient(_ context.Context, schema *introspection.Schema, schemaVersion string) (*generator.GeneratedState, error) {
-	return generate(g.Config, CoreGenFile, schema, schemaVersion)
 }
 
 func (g *TypeScriptGenerator) GenerateLibrary(_ context.Context, schema *introspection.Schema, schemaVersion string) (*generator.GeneratedState, error) {
@@ -69,17 +72,47 @@ func generate(config generator.Config, target string, schema *introspection.Sche
 
 	// Split module-contributed types into their own <module>.gen.ts files.
 	// The core file is rendered from a schema with the module-owned types
-	// removed; for the extendable types (Query/Binding/Env) the contributed
-	// fields are dropped and re-attached as prototype augmentations in each
-	// per-module file.
+	// removed — for the extendable types (Query) the contributed fields are
+	// dropped — and each per-module file is a self-contained client: its own
+	// root Client built from those fields, its own dag, its own entrypoint
+	// functions. Nothing merges back into the core Client.
 	//
 	// Every module in the schema is split, including the one being generated
-	// for: its own API lands in <module>.gen.ts beside its dependencies', and
-	// the core file holds only core types. Nothing distinguishes a module's own
-	// API from a dependency's here — it is reached through the same client, and
-	// keeping it in the core file would make the one binding a reader goes
-	// looking for the only one not where the others are.
+	// for: its own API lands in <module>.gen.ts. In module codegen the core
+	// file is the library and the module files live beside it under clients/;
+	// in a standalone client they sit together in one package directory.
 	splitModules := schema.DependencyNames()
+
+	// A module scope keeps its client files in a clients/ subdirectory apart
+	// from the core file (its sdk/ and src/ share the root), so the two never
+	// collide by name — only the loader, their sibling, is reserved. Everything
+	// else — a flat standalone client, the library's own bindings — puts the
+	// client files in the output root beside the core file, so the core file's
+	// name is reserved too. A flat client scope also packages each client into
+	// its own directory beside the library's ("dagger"), so that name is
+	// reserved there as well.
+	nest := config.ModuleConfig != nil && !config.ModuleConfig.FlatClients
+	emitLoader := config.ModuleConfig != nil && config.ModuleConfig.EmitLoader
+	reserved := map[string]bool{}
+	if emitLoader {
+		reserved[strings.TrimSuffix(LoaderGenFile, ".gen.ts")] = true
+	}
+	if !nest {
+		reserved[strings.TrimSuffix(filepath.Base(target), ".gen.ts")] = true
+	}
+	if config.ModuleConfig != nil && config.ModuleConfig.FlatClients {
+		reserved["dagger"] = true
+	}
+	for _, depName := range splitModules {
+		if name := strcase.ToKebab(depName); reserved[name] {
+			return nil, fmt.Errorf("module name %q collides with the generated %s.gen.ts file", depName, name)
+		}
+	}
+
+	moduleDir := filepath.Dir(target)
+	if nest {
+		moduleDir = filepath.Join(moduleDir, ModuleClientsDir)
+	}
 
 	coreSchema := schema
 	if len(splitModules) > 0 {
@@ -102,17 +135,46 @@ func generate(config generator.Config, target string, schema *introspection.Sche
 		return nil, err
 	}
 
-	// Render one <module>.gen.ts file per split module.
+	// The source each module client serves on use, keyed kebab-cased to match
+	// the split names. A module with no entry (a manifest dependency the engine
+	// serves) renders no serve hook.
+	bound := map[string]generator.BoundModule{}
+	if config.ModuleConfig != nil {
+		for _, m := range config.ModuleConfig.BoundModules {
+			bound[strcase.ToKebab(m.Name)] = m
+		}
+	}
+
+	// Render one <module>.gen.ts client file per split module.
 	for _, depName := range splitModules {
 		depSchema := schema.Include(depName)
-		depTarget := filepath.Join(filepath.Dir(target), strcase.ToKebab(depName)+".gen.ts")
-		if err := renderTemplate(mfs, tmpl, "dep", depTarget, depFileData{
+		depTarget := filepath.Join(moduleDir, strcase.ToKebab(depName)+".gen.ts")
+		data := depFileData{
 			Schema:        depSchema,
 			SchemaVersion: schemaVersion,
 			Types:         depSchema.Types,
 			DepName:       depName,
-		}); err != nil {
+		}
+		if m, ok := bound[strcase.ToKebab(depName)]; ok {
+			bm := m
+			data.Bound = &bm
+		}
+		if err := renderTemplate(mfs, tmpl, "module_client", depTarget, data); err != nil {
 			return nil, fmt.Errorf("render module %q: %w", depName, err)
+		}
+	}
+
+	// A module scope also carries the entrypoint loader: the entrypoint loads
+	// core objects by ID, and only codegen knows which generated file declares
+	// which class. A standalone client has no entrypoint, so no loader.
+	if emitLoader {
+		loaderTarget := filepath.Join(moduleDir, LoaderGenFile)
+		if err := renderTemplate(mfs, tmpl, "loader", loaderTarget, depFileData{
+			Schema:        schema,
+			SchemaVersion: schemaVersion,
+			Types:         schema.Types,
+		}); err != nil {
+			return nil, fmt.Errorf("render loader: %w", err)
 		}
 	}
 
@@ -121,27 +183,19 @@ func generate(config generator.Config, target string, schema *introspection.Sche
 	}, nil
 }
 
-// selfModuleName returns the name of the module the client is generated for
-// (from the module or client config), or "" when generating outside a module
-// (e.g. the SDK's own library client).
-func selfModuleName(config generator.Config) string {
-	if config.ModuleConfig != nil {
-		return config.ModuleConfig.ModuleName
-	}
-	if config.ClientConfig != nil {
-		return config.ClientConfig.ModuleName
-	}
-	return ""
-}
-
-// depFileData is the template "dot" for both the core "api" template and the
-// per-dependency "dep" template. DepName is only set for dep files and is used
-// to derive a unique augmentation function name.
+// depFileData is the template "dot" for the core "api" template, the
+// per-module "module_client" template and the "loader" template. DepName is
+// only set for module files; it names the module the file is rendered for so
+// the import planner can tell its own types from siblings'.
 type depFileData struct {
 	Schema        *introspection.Schema
 	SchemaVersion string
 	Types         []*introspection.Type
 	DepName       string
+	// Bound is the module's serve source, set only for a module client whose
+	// module the generated client should serve on use. Nil for the core file,
+	// the loader, and modules the engine serves.
+	Bound *generator.BoundModule
 }
 
 // renderTemplate executes the named template against data and writes the

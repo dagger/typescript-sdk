@@ -21,6 +21,30 @@ const minimalSchema = `{
   "__schemaVersion": "v0.21.0"
 }`
 
+// moduleSchema is a client-facing schema for one module `name`: a Query field
+// that returns the module's object, plus the object itself, both carrying the
+// sourceMap directive the split keys off. Enough for the client to emit a
+// <name>.gen.ts client file.
+func moduleSchema(name string) string {
+	sm := `"directives": [{"name": "sourceMap", "args": [{"name": "module", "value": "\"` + name + `\""}]}]`
+	obj := strings.Title(name)
+	return `{
+  "__schema": {
+    "queryType": {"name": "Query"},
+    "types": [
+      {"kind": "OBJECT", "name": "Query", "fields": [
+        {"name": "` + name + `", "type": {"kind": "NON_NULL", "ofType": {"kind": "OBJECT", "name": "` + obj + `"}}, "args": [], ` + sm + `}
+      ]},
+      {"kind": "OBJECT", "name": "` + obj + `", "fields": [
+        {"name": "id", "type": {"kind": "NON_NULL", "ofType": {"kind": "SCALAR", "name": "` + obj + `ID"}}, "args": []}
+      ], ` + sm + `},
+      {"kind": "SCALAR", "name": "` + obj + `ID", ` + sm + `}
+    ]
+  },
+  "__schemaVersion": "v0.21.0"
+}`
+}
+
 func writeFile(t *testing.T, dir, name, contents string) string {
 	t.Helper()
 	path := filepath.Join(dir, name)
@@ -142,7 +166,7 @@ func TestRunClient(t *testing.T) {
 	      "name": "app",
 	      "kind": "DIR_SOURCE",
 	      "path": ".dagger/modules/app",
-	      "schemaPath": "`+writeFile(t, dir, "schema.json", minimalSchema)+`"
+	      "schemaPath": "`+writeFile(t, dir, "schema.json", moduleSchema("app"))+`"
 	    }
 	  ]
 	}`)
@@ -154,13 +178,22 @@ func TestRunClient(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	contents, err := os.ReadFile(filepath.Join(out, "dagger.gen.ts"))
+	// A standalone client renders the same shape as a module: a core client.gen.ts
+	// backed by the vendored library, plus a flat per-module client that serves
+	// its own module on use.
+	core, err := os.ReadFile(filepath.Join(out, "client.gen.ts"))
 	require.NoError(t, err)
-	require.Contains(t, string(contents), `from "@dagger.io/dagger"`)
+	require.Contains(t, string(core), `from "./core.js"`)
+	require.NoFileExists(t, filepath.Join(out, "dagger.gen.ts"))
+
+	client, err := os.ReadFile(filepath.Join(out, "app.gen.ts"))
+	require.NoError(t, err)
+	require.Contains(t, string(client), `from "@dagger.io/dagger"`)
+	require.Contains(t, string(client), "withServe({ key: \"app\"")
 }
 
-// TestRunClientServesEveryTarget covers the whole point of a per-scope package:
-// several modules, one core file, and a bootstrap that serves all of them.
+// TestRunClientServesEveryTarget covers a scope with several modules: one shared
+// core file, and each module rendered as its own client serving its own source.
 func TestRunClientServesEveryTarget(t *testing.T) {
 	dir := t.TempDir()
 	out := filepath.Join(dir, "out")
@@ -171,14 +204,14 @@ func TestRunClientServesEveryTarget(t *testing.T) {
 	      "name": "app",
 	      "kind": "DIR_SOURCE",
 	      "path": ".dagger/modules/app",
-	      "schemaPath": "`+writeFile(t, dir, "app.json", minimalSchema)+`"
+	      "schemaPath": "`+writeFile(t, dir, "app.json", moduleSchema("app"))+`"
 	    },
 	    {
 	      "name": "payments",
 	      "kind": "GIT_SOURCE",
 	      "ref": "github.com/acme/payments@main",
 	      "pin": "deadbeef",
-	      "schemaPath": "`+writeFile(t, dir, "payments.json", minimalSchema)+`"
+	      "schemaPath": "`+writeFile(t, dir, "payments.json", moduleSchema("payments"))+`"
 	    }
 	  ]
 	}`)
@@ -190,13 +223,18 @@ func TestRunClientServesEveryTarget(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	contents, err := os.ReadFile(filepath.Join(out, "dagger.gen.ts"))
+	// One shared core file, no per-target duplication.
+	require.FileExists(t, filepath.Join(out, "client.gen.ts"))
+
+	// Each module serves its own source: the local one by workspace path, the git
+	// one by ref+pin.
+	app, err := os.ReadFile(filepath.Join(out, "app.gen.ts"))
 	require.NoError(t, err)
-	core := string(contents)
-	require.Contains(t, core, `.moduleSource("/.dagger/modules/app")`)
-	require.Contains(t, core, `.moduleSource("github.com/acme/payments@main", { refPin: "deadbeef" })`)
-	// One core file, not one per target: the shared API is emitted once.
-	require.Equal(t, 1, strings.Count(core, "async function serveBoundModule"))
+	require.Contains(t, string(app), `moduleSource(path: "/.dagger/modules/app")`)
+
+	payments, err := os.ReadFile(filepath.Join(out, "payments.gen.ts"))
+	require.NoError(t, err)
+	require.Contains(t, string(payments), `.moduleSource("github.com/acme/payments@main", { refPin: "deadbeef" })`)
 }
 
 // TestRunClientRejectsUnservableModule guards the fail-closed check: a kind with

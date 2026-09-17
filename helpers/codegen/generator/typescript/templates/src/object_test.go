@@ -339,7 +339,7 @@ func TestModernTypeScriptIDSurface(t *testing.T) {
 
 	require.NotContains(t, got, "export type ContainerID")
 	require.NotContains(t, got, "loadContainerFromID")
-	require.Contains(t, got, "private readonly _id?: ID = undefined")
+	require.Contains(t, got, "private readonly _id?: ID | undefined = undefined")
 	require.Contains(t, got, "id = async (): Promise<ID> => {")
 	require.Contains(t, got, "const response: Awaited<ID> = await ctx.execute()")
 }
