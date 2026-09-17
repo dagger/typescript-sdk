@@ -56,21 +56,22 @@ func run(args []string) error {
 	case "package-json":
 		updated, err = updatePackageJSON(input)
 	case "tsconfig":
-		// tsconfig INPUT OUTPUT CLIENTS_DIR [MODULE...] — one @dagger.io/<module>
-		// path alias per generated module client, pointing at
-		// ./<CLIENTS_DIR>/<module>.gen.ts (or ./<module>.gen.ts when CLIENTS_DIR
-		// is empty, for a flat client scope).
-		if len(extra) < 1 {
-			return fmt.Errorf("usage: config-updater tsconfig INPUT_PATH OUTPUT_PATH CLIENTS_DIR [MODULE...]")
+		// tsconfig INPUT OUTPUT CORE_DIR CLIENTS_DIR [MODULE...] — point
+		// @dagger.io/dagger at CORE_DIR (config-relative; empty = the module's
+		// own ./sdk) and add one @dagger.io/<module> alias per generated client,
+		// pointing at ./<CLIENTS_DIR>/<module>.gen.ts (or ./<module>.gen.ts when
+		// CLIENTS_DIR is empty, for a flat client scope).
+		if len(extra) < 2 {
+			return fmt.Errorf("usage: config-updater tsconfig INPUT_PATH OUTPUT_PATH CORE_DIR CLIENTS_DIR [MODULE...]")
 		}
-		updated, err = updateTSConfig(input, extra[0], extra[1:])
+		updated, err = updateTSConfig(input, extra[0], extra[1], extra[2:])
 	case "deno-config":
-		// deno-config INPUT OUTPUT CLIENTS_DIR [MODULE...] — same per-module
+		// deno-config INPUT OUTPUT CORE_DIR CLIENTS_DIR [MODULE...] — same
 		// aliases, as import-map entries.
-		if len(extra) < 1 {
-			return fmt.Errorf("usage: config-updater deno-config INPUT_PATH OUTPUT_PATH CLIENTS_DIR [MODULE...]")
+		if len(extra) < 2 {
+			return fmt.Errorf("usage: config-updater deno-config INPUT_PATH OUTPUT_PATH CORE_DIR CLIENTS_DIR [MODULE...]")
 		}
-		updated, err = updateDenoConfig(input, extra[0], extra[1:])
+		updated, err = updateDenoConfig(input, extra[0], extra[1], extra[2:])
 	case "shared-deps":
 		// shared-deps INPUT OUTPUT CORE_REL [CLIENT_NAME=CLIENT_REL ...]
 		//
@@ -240,8 +241,8 @@ func pinTypeScript(packageJSON string) (string, error) {
 	return packageJSON, nil
 }
 
-func updateTSConfig(tsConfig, clientsDir string, modules []string) (string, error) {
-	tsConfig, err := updateScopeAliases(tsConfig, "compilerOptions.paths", "sdk", clientsDir, modules, true)
+func updateTSConfig(tsConfig, coreDir, clientsDir string, modules []string) (string, error) {
+	tsConfig, err := updateScopeAliases(tsConfig, "compilerOptions.paths", libDir(coreDir), clientsDir, modules, true)
 	if err != nil {
 		return "", err
 	}
@@ -285,12 +286,14 @@ func isModuleAlias(key string) bool {
 }
 
 // syncLibAliases points the @dagger.io/dagger and @dagger.io/dagger/telemetry
-// aliases at the vendored library under sdkDir. asArray selects tsconfig's
-// []string value shape over deno's plain string.
-func syncLibAliases(jsonStr, keyPath, sdkDir string, asArray bool) (string, error) {
+// aliases at the library under libDir — a path relative to the config, either
+// the module's own "./sdk" or the workspace's shared core
+// ("../../.dagger/core/typescript"). asArray selects tsconfig's []string value
+// shape over deno's plain string.
+func syncLibAliases(jsonStr, keyPath, libDir string, asArray bool) (string, error) {
 	entries := []struct{ alias, target string }{
-		{daggerLibPathAlias, "./" + sdkDir + "/index.ts"},
-		{daggerTelemetryPathAlias, "./" + sdkDir + "/telemetry.ts"},
+		{daggerLibPathAlias, libDir + "/index.ts"},
+		{daggerTelemetryPathAlias, libDir + "/telemetry.ts"},
 	}
 	var err error
 	for _, e := range entries {
@@ -306,11 +309,21 @@ func syncLibAliases(jsonStr, keyPath, sdkDir string, asArray bool) (string, erro
 	return jsonStr, nil
 }
 
+// libDir is the config-relative directory the @dagger.io/dagger aliases point
+// at: the module's own embedded "./sdk" when empty, or the given relative path
+// to the workspace's shared core.
+func libDir(coreDir string) string {
+	if coreDir == "" {
+		return "./sdk"
+	}
+	return coreDir
+}
+
 // updateScopeAliases syncs the SDK-owned aliases in a module scope's config —
 // @dagger.io/dagger, its /telemetry sub-path, and one @dagger.io/<module> per
 // generated client — leaving every other key alone.
-func updateScopeAliases(jsonStr, keyPath, sdkDir, clientsDir string, modules []string, asArray bool) (string, error) {
-	jsonStr, err := syncLibAliases(jsonStr, keyPath, sdkDir, asArray)
+func updateScopeAliases(jsonStr, keyPath, libDir, clientsDir string, modules []string, asArray bool) (string, error) {
+	jsonStr, err := syncLibAliases(jsonStr, keyPath, libDir, asArray)
 	if err != nil {
 		return "", err
 	}
@@ -356,7 +369,7 @@ func syncModuleAliases(jsonStr, keyPath, clientsDir string, modules []string, as
 	return jsonStr, nil
 }
 
-func updateDenoConfig(denoConfig, clientsDir string, modules []string) (string, error) {
+func updateDenoConfig(denoConfig, coreDir, clientsDir string, modules []string) (string, error) {
 	// Deno resolves dependencies through this map rather than node_modules, so
 	// the compiler the module's own code needs has to be declared here.
 	denoConfig, err := setIfNotExists(denoConfig, "imports.typescript", "npm:typescript@"+defaultTypeScriptVersion)
@@ -381,7 +394,7 @@ func updateDenoConfig(denoConfig, clientsDir string, modules []string) (string, 
 		return "", fmt.Errorf("set experimentalDecorators: %w", err)
 	}
 
-	denoConfig, err = updateScopeAliases(denoConfig, "imports", "sdk", clientsDir, modules, false)
+	denoConfig, err = updateScopeAliases(denoConfig, "imports", libDir(coreDir), clientsDir, modules, false)
 	if err != nil {
 		return "", err
 	}

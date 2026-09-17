@@ -150,6 +150,7 @@ func TestUpdateTSConfig(t *testing.T) {
 	type testCase struct {
 		name       string
 		tsConfig   string
+		coreDir    string
 		clientsDir string
 		modules    []string
 		expected   string
@@ -213,6 +214,20 @@ func TestUpdateTSConfig(t *testing.T) {
     }
   },
   "include": ["src/**/*"]
+}`,
+		},
+		{
+			name:     "a core dir points the dagger aliases at the shared core",
+			tsConfig: `{}`,
+			coreDir:  "../../.dagger/core/typescript",
+			expected: `{
+  "compilerOptions": {
+    "experimentalDecorators": true,
+    "paths": {
+      "@dagger.io/dagger": ["../../.dagger/core/typescript/index.ts"],
+      "@dagger.io/dagger/telemetry": ["../../.dagger/core/typescript/telemetry.ts"]
+    }
+  }
 }`,
 		},
 		{
@@ -282,7 +297,7 @@ func TestUpdateTSConfig(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			res, err := updateTSConfig(removeJSONComments(tc.tsConfig), tc.clientsDir, tc.modules)
+			res, err := updateTSConfig(removeJSONComments(tc.tsConfig), tc.coreDir, tc.clientsDir, tc.modules)
 			require.NoError(t, err)
 			require.JSONEq(t, tc.expected, res)
 		})
@@ -293,6 +308,7 @@ func TestUpdateDenoConfig(t *testing.T) {
 	type testCase struct {
 		name       string
 		denoConfig string
+		coreDir    string
 		clientsDir string
 		modules    []string
 		expected   string
@@ -498,7 +514,7 @@ func TestUpdateDenoConfig(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			res, err := updateDenoConfig(removeJSONComments(tc.denoConfig), tc.clientsDir, tc.modules)
+			res, err := updateDenoConfig(removeJSONComments(tc.denoConfig), tc.coreDir, tc.clientsDir, tc.modules)
 			require.NoError(t, err)
 			require.JSONEq(t, tc.expected, res)
 		})

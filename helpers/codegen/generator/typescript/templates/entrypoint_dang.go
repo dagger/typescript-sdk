@@ -36,6 +36,13 @@ type DangEntrypointOptions struct {
 	// uses whatever the base image ships.
 	PackageManagerVersion string
 
+	// CoreDir is the workspace-absolute path of the vendored shared core
+	// (@dagger.io/dagger), e.g. "/.dagger/core/typescript". When set, the recipe
+	// folds core into node_modules from there rather than the module's own
+	// sdk/ — the shared-core layout, one copy for the whole workspace. Empty
+	// keeps the embedded-sdk behavior a [runtime] module still needs.
+	CoreDir string
+
 	// DispatchFile is the generated dispatcher call() execs, relative to the
 	// module directory.
 	DispatchFile string
@@ -543,11 +550,16 @@ func (c *dangFuncCtx) tsConfigPath() string {
 // @dagger.io/dagger through deno.json rather than node_modules, and bun needs no
 // tsconfig because it runs the dispatcher directly.
 func (c *dangFuncCtx) dangRequiredFiles() []string {
-	files := []string{
-		c.dispatchFile(),
-		dangSDKDir + "/index.ts",
-		dangSDKDir + "/client.gen.ts",
-		dangSDKDir + "/core.js",
+	files := []string{c.dispatchFile()}
+	// The embedded sdk/ is only checked when the module carries one. Under the
+	// shared-core layout the library lives at CoreDir, outside the module dir
+	// this check reads, and a missing core surfaces at the fold instead.
+	if c.opts.CoreDir == "" {
+		files = append(files,
+			dangSDKDir+"/index.ts",
+			dangSDKDir+"/client.gen.ts",
+			dangSDKDir+"/core.js",
+		)
 	}
 	switch c.opts.Runtime {
 	case "deno":
@@ -722,10 +734,16 @@ func (c *dangFuncCtx) dangDependenciesChain() string {
 	// Deno resolves @dagger.io/dagger through the import map in deno.json, so only
 	// node and bun need the package where module resolution looks for it. Folded
 	// in here rather than mounted separately so node_modules stays one mount.
+	// From the workspace's one vendored core when CoreDir is set (the shared-core
+	// layout), else the module's own embedded sdk/.
 	if c.opts.Runtime != "deno" {
+		coreSrc := path.Join(c.moduleDir(), dangSDKDir)
+		if c.opts.CoreDir != "" {
+			coreSrc = c.opts.CoreDir
+		}
 		calls = append(calls, fmt.Sprintf(
 			`withDirectory("@dagger.io/dagger", workspace.directory(%s))`,
-			dangString(path.Join(c.moduleDir(), dangSDKDir))))
+			dangString(coreSrc)))
 	}
 
 	return dangChain("base", calls, "      ")

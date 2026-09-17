@@ -167,6 +167,7 @@ func runDangEntrypoint(args []string) error {
 		packageMgr   = fs.String("package-manager", "", "package manager the call() recipe installs with, as name[@version] (npm, yarn, pnpm, bun, deno)")
 		dispatchFile = fs.String("dispatch-file", typescriptgenerator.DefaultDispatchFile, "dispatcher call() execs, relative to the module directory")
 		tsconfigPath = fs.String("tsconfig", "tsconfig.json", "tsconfig tsx loads, relative to the module directory (node only)")
+		coreDir      = fs.String("core-dir", "", "workspace-absolute path of the vendored shared core (@dagger.io/dagger); empty keeps the module's embedded sdk/")
 	)
 	if err := fs.Parse(args); err != nil {
 		return err
@@ -197,6 +198,7 @@ func runDangEntrypoint(args []string) error {
 			PackageManagerVersion: pkgMgrVersion,
 			DispatchFile:          *dispatchFile,
 			TSConfigPath:          *tsconfigPath,
+			CoreDir:               *coreDir,
 		},
 	}
 	gen := &typescriptgenerator.TypeScriptGenerator{Config: cfg}

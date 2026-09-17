@@ -273,19 +273,27 @@ type TypescriptSdk {
       # its clients/ directory as its own <module>.gen.ts, so its source can call
       # itself and a caller outside it reaches it the same way.
       let selfTargets = selfClientTarget(staged, scope, name)
+      let cfg = configDir(ws)
+      let coreRel = if (entrypoint) { coreRelFromModule(source, cfg) } else { "" }
       let withSelf = targets + selfTargets
       let complete = moduleFiles(
         served,
         source,
-        withSelfBindings(staged, scope, name, firstPass, withSelf, selfTargets, rt),
+        withSelfBindings(staged, scope, name, firstPass, withSelf, selfTargets, rt, coreRel),
       )
 
       # The one vendored @dagger.io/dagger the workspace shares, written at the
       # config root. Only under an entrypoint, where the module owns its own
       # container recipe and can reach the workspace root; a `[runtime]` module
-      # sees only its own directory and keeps its embedded sdk/.
+      # sees only its own directory and keeps its embedded sdk/. The module's
+      # own embedded sdk/, left by an earlier layout, is pruned in the switch.
       let withCore = if (entrypoint) {
-        withSharedCore(complete, configDir(ws), served.moduleSource("/" + scope).introspectionSchemaJSON.contents, name)
+        withSharedCore(
+          prunedEmbeddedSdk(complete, source),
+          cfg,
+          served.moduleSource("/" + scope).introspectionSchemaJSON.contents,
+          name,
+        )
       } else {
         complete
       }
@@ -361,6 +369,21 @@ type TypescriptSdk {
   }
 
   """
+  Path from a module's source directory to the shared core, config-relative, for
+  the module's package.json file: dependency and its tsconfig @dagger.io/dagger
+  alias: one `..` per directory the module sits below the config root, then down
+  into .dagger/core/typescript.
+  """
+  let coreRelFromModule(sourcePath: String!, cfg: String!): String! {
+    let belowCfg = if (cfg == ".") { sourcePath } else { sourcePath.trimPrefix(cfg + "/") }
+    if (belowCfg == "." or belowCfg == "") {
+      "./.dagger/core/typescript"
+    } else {
+      belowCfg.split("/").map { seg => ".." }.join("/") + "/.dagger/core/typescript"
+    }
+  }
+
+  """
   The shared core library, rendered from a scope's client-facing core schema: the
   shipped bundle plus the core bindings, and nothing module-specific. Identical
   for every scope at one engine version, so whichever scope generates writes the
@@ -368,6 +391,29 @@ type TypescriptSdk {
   """
   let sharedCoreDirectory(schemaJSON: String!, moduleName: String!): Directory! {
     moduleSdkDirectory(generateModuleBindings(schemaJSON, moduleName, []))
+      .withNewFile("package.json", corePackageJSON)
+  }
+
+  """
+  The vendored core's package manifest: @dagger.io/dagger, entry at the
+  hand-written index.ts (which re-exports the runtime and the generated core
+  bindings), telemetry as its one sub-path. Spelled three ways because a resolver
+  reads one of them — `exports` is what node honours, `main`/`types` are what a
+  classic-resolution tsconfig and a publish need. Without it the folded directory
+  has no entry point and a bare `@dagger.io/dagger` import resolves to nothing.
+  """
+  let corePackageJSON: String! {
+    "{\n" +
+      "  \"name\": \"@dagger.io/dagger\",\n" +
+      "  \"version\": \"0.0.0\",\n" +
+      "  \"type\": \"module\",\n" +
+      "  \"main\": \"./index.ts\",\n" +
+      "  \"types\": \"./index.ts\",\n" +
+      "  \"exports\": {\n" +
+      "    \".\": \"./index.ts\",\n" +
+      "    \"./telemetry\": \"./telemetry.ts\"\n" +
+      "  }\n" +
+      "}\n"
   }
 
   """
@@ -1117,6 +1163,7 @@ type TypescriptSdk {
     sourcePath: String!,
     rt: Runtime!,
     pkgManager: String!,
+    coreDirAbs: String!,
   ): File! {
     entrypointCodegen(typedef)
       .withExec([
@@ -1127,6 +1174,7 @@ type TypescriptSdk {
         "--runtime", runtimeName(rt),
         "--module-path", sourcePath,
         "--package-manager", pkgManager,
+        "--core-dir", coreDirAbs,
       ])
       .file("/out/entrypoint/main.dang")
   }
@@ -1169,24 +1217,35 @@ type TypescriptSdk {
     runtime: Runtime!,
     packageManager: String!,
     targets: [ClientTarget!]!,
+    """
+    Path to the workspace's shared core, config-relative for the module's config
+    and workspace-absolute for the recipe. Empty keeps the embedded sdk/ a
+    `[runtime]` module needs.
+    """
+    coreRel: String!,
+    coreDirAbs: String!,
   ): Directory! {
     let bindings = generateModuleBindings(schemaJSON, moduleName, targets)
+    # Still assembled — the introspector scan reads the library beside the
+    # clients in its throwaway container — but only embedded in the module tree
+    # when there is no shared core to point at.
     let sdk = moduleSdkDirectory(bindings)
     let clients = moduleClientsDirectory(bindings)
     let typedef = moduleTypedefJSON(moduleName, source, sdk, clients)
+    let embedSdk = coreRel == ""
 
     # One loading path's files, never both. Naming a file is also what renders
     # it: the File the other branch would have produced is never pulled, so the
     # codegen exec behind it never runs. clients/ is common to both — it is what
     # the module's own source imports, whichever way the module is loaded.
     let base = if (entrypoint) {
-      directory
-        .withDirectory("sdk", sdk)
-        .withDirectory("clients", clients)
+      let withClients = directory.withDirectory("clients", clients)
+      let withSdk = if (embedSdk) { withClients.withDirectory("sdk", sdk) } else { withClients }
+      withSdk
         .withFile(dispatchFile, generateModuleDispatcher(typedef))
         .withFile(
           dangEntrypointDir + "/main.dang",
-          generateDangEntrypoint(typedef, moduleName, sourcePath, runtime, packageManager),
+          generateDangEntrypoint(typedef, moduleName, sourcePath, runtime, packageManager, coreDirAbs),
         )
     } else {
       directory
@@ -1203,7 +1262,7 @@ type TypescriptSdk {
     # materializes (kebab-cased differently, or a module that cannot load) is
     # corrected rather than kept.
     let aliasModules = bindingAliasModules(bindings).filter { m => m != moduleName } + [moduleName]
-    base.withDirectory(".", moduleConfigDirectory(existing, runtime, "clients", aliasModules))
+    base.withDirectory(".", moduleConfigDirectory(existing, runtime, "clients", aliasModules, coreRel))
   }
 
   """
@@ -1225,19 +1284,25 @@ type TypescriptSdk {
   "" for a flat standalone client — so the alias points at the right path.
   Callers derive the alias set from the bindings of the pass they are writing.
   """
-  let moduleConfigDirectory(existing: Directory!, runtime: Runtime!, clientsDir: String!, aliasModules: [String!]!): Directory! {
+  let moduleConfigDirectory(existing: Directory!, runtime: Runtime!, clientsDir: String!, aliasModules: [String!]!, coreRel: String!): Directory! {
     let configUpdater = configUpdaterBuilder
       .withDirectory("/existing", existing)
       .withDirectory("/out", directory)
 
     if (runtime == Runtime.DENO) {
       configUpdater
-        .withExec(["config-updater", "deno-config", "/existing/deno.json", "/out/deno.json", clientsDir] + aliasModules)
+        .withExec(["config-updater", "deno-config", "/existing/deno.json", "/out/deno.json", coreRel, clientsDir] + aliasModules)
         .directory("/out")
     } else {
+      # A module's own package.json carries no @dagger.io/dagger dependency: its
+      # recipe folds the library into node_modules and its tsconfig aliases it,
+      # so declaring it as a file: dep only breaks the recipe's isolated install,
+      # which cannot see a path outside the manifest it mounts. The file: link is
+      # a consumer's concern — a client-only scope's package.json, installed on
+      # the host — not the module's.
       configUpdater
         .withExec(["config-updater", "package-json", "/existing/package.json", "/out/package.json"])
-        .withExec(["config-updater", "tsconfig", "/existing/tsconfig.json", "/out/tsconfig.json", clientsDir] + aliasModules)
+        .withExec(["config-updater", "tsconfig", "/existing/tsconfig.json", "/out/tsconfig.json", coreRel, clientsDir] + aliasModules)
         .directory("/out")
     }
   }
@@ -1277,6 +1342,11 @@ type TypescriptSdk {
     # package.json through a container — so a `[runtime]` module does not pay
     # for an answer nothing would bake.
     let pkgManager = if (entrypoint) { effectivePackageManager(ws, sourcePath, rt) } else { "" }
+    # The shared core is only reachable — and only written — under an entrypoint;
+    # a `[runtime]` module keeps its embedded sdk/, so its core paths are empty.
+    let cfg = configDir(ws)
+    let coreRel = if (entrypoint) { coreRelFromModule(sourcePath, cfg) } else { "" }
+    let coreDirAbs = if (entrypoint) { "/" + coreLibPath(cfg) } else { "" }
 
     moduleDirectory(
       ws.moduleSource("/" + scope).introspectionSchemaJSON.contents,
@@ -1287,6 +1357,8 @@ type TypescriptSdk {
       rt,
       pkgManager,
       targets,
+      coreRel,
+      coreDirAbs,
     )
   }
 
@@ -1457,7 +1529,7 @@ type TypescriptSdk {
   client file in the changeset on every run that touches the module's source,
   long after the files themselves stopped changing.
   """
-  let withSelfBindings(staged: Workspace!, scope: String!, name: String!, generated: Directory!, targets: [ClientTarget!]!, selfTargets: [ClientTarget!]!, rt: Runtime!): Directory! {
+  let withSelfBindings(staged: Workspace!, scope: String!, name: String!, generated: Directory!, targets: [ClientTarget!]!, selfTargets: [ClientTarget!]!, rt: Runtime!, coreRel: String!): Directory! {
     if (selfTargets.length == 0) {
       # Nothing to fold in, so the first pass's clients are already the right ones.
       generated
@@ -1469,7 +1541,7 @@ type TypescriptSdk {
       generated
         .withoutDirectory("clients")
         .withDirectory("clients", moduleClientsDirectory(bindings))
-        .withDirectory(".", moduleConfigDirectory(generated, rt, "clients", bindingAliasModules(bindings)))
+        .withDirectory(".", moduleConfigDirectory(generated, rt, "clients", bindingAliasModules(bindings), coreRel))
     }
   }
 
@@ -1508,6 +1580,20 @@ type TypescriptSdk {
         pin: "",
         isSelf: true,
       )]
+    }
+  }
+
+  """
+  Take a module's embedded sdk/ with the switch to the shared core: the library
+  lives at .dagger/core/typescript now, and the copy under the module is the
+  duplication this layout removes. A no-op when there is none.
+  """
+  let prunedEmbeddedSdk(ws: Workspace!, sourcePath: String!): Workspace! {
+    let sdkPath = moduleSdkPath(sourcePath)
+    if (existingDir(ws, sdkPath).entries.length == 0) {
+      ws
+    } else {
+      ws.withoutDirectory("/" + sdkPath)
     }
   }
 

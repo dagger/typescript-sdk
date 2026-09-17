@@ -144,4 +144,8 @@ type DangEntrypointGeneratorConfig struct {
 	// TSConfigPath is the tsconfig tsx loads, relative to the module directory.
 	// Node only; defaults to "tsconfig.json".
 	TSConfigPath string
+
+	// CoreDir is the workspace-absolute path of the vendored shared core
+	// (@dagger.io/dagger). Empty keeps the module's embedded sdk/.
+	CoreDir string
 }
