@@ -821,7 +821,7 @@ type TypescriptSdk {
     let withConfig = if (runtime == Runtime.NODE) {
       builder
         .withExec(["config-updater", "package-json", existingPrefix + "package.json", "/rendered/package.json"])
-        .withExec(["config-updater", "tsconfig", existingPrefix + "tsconfig.json", "/rendered/tsconfig.json", "clients"])
+        .withExec(["config-updater", "tsconfig", existingPrefix + "tsconfig.json", "/rendered/tsconfig.json", "", "clients"])
     } else if (runtime == Runtime.BUN) {
       # The Dagger TypeScript runtime picks bun over node by spotting bun.lock,
       # so we emit an empty one for a fresh init. If the workspace already has
@@ -829,7 +829,7 @@ type TypescriptSdk {
       # directory, so writing it here would truncate the user's lockfile.
       let nodeConfig = builder
         .withExec(["config-updater", "package-json", existingPrefix + "package.json", "/rendered/package.json"])
-        .withExec(["config-updater", "tsconfig", existingPrefix + "tsconfig.json", "/rendered/tsconfig.json", "clients"])
+        .withExec(["config-updater", "tsconfig", existingPrefix + "tsconfig.json", "/rendered/tsconfig.json", "", "clients"])
       if (existing.exists(wsPrefix + "bun.lock")) {
         nodeConfig
       } else {
@@ -837,7 +837,7 @@ type TypescriptSdk {
       }
     } else {
       builder
-        .withExec(["config-updater", "deno-config", existingPrefix + "deno.json", "/rendered/deno.json", "clients"])
+        .withExec(["config-updater", "deno-config", existingPrefix + "deno.json", "/rendered/deno.json", "", "clients"])
     }
 
     withConfig.directory("/rendered")
