@@ -228,12 +228,21 @@ func (c *dangFuncCtx) dangObjectEntry(obj *TypedefObject) string {
 			calls = append(calls, c.dangFieldCall(prop))
 		}
 	}
-	// A plain object with no constructor is registered as-is; the engine treats
-	// the object that does declare one as the module's main object.
-	if obj.Constructor != nil {
+	// The engine identifies an entrypoint module's main object by its
+	// constructor typedef alone — no name fallback, and none of the default
+	// synthesis runtime modules get. The main object therefore always carries
+	// one, defaulted to no-arg, or the module never surfaces in the workspace.
+	if obj.Constructor != nil || c.isMainObject(obj) {
 		calls = append(calls, c.dangWrappedCall("withConstructor", c.dangConstructorExpr(obj)))
 	}
 	return dangChain("typeDef", calls, dangTypeIndent)
+}
+
+// isMainObject mirrors the engine's name rule for runtime modules
+// (gqlObjectName(object) == gqlObjectName(module)). The scanner already
+// pascal-cases the module name; pascalize normalizes the class name to match.
+func (c *dangFuncCtx) isMainObject(obj *TypedefObject) bool {
+	return pascalize(obj.Name) == pascalize(c.module.Name)
 }
 
 func (c *dangFuncCtx) dangEnumEntry(e *TypedefEnum) string {
