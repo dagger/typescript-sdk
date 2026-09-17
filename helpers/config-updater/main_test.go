@@ -638,6 +638,24 @@ func TestUpdateSharedDeps(t *testing.T) {
 			clients:     nil,
 			expected:    `{"dependencies":{"@dagger.io/test":"file:../../client/test","@dagger.io/dagger":"file:../../.dagger/core/typescript","typescript":"5.9.3"},"type":"module"}`,
 		},
+		{
+			// The self client is generated but not installed by default: a
+			// keep-only pair adds nothing when the user has not opted in.
+			name:        "a keep-only client is not added",
+			packageJSON: `{}`,
+			coreRel:     "./clients/dagger",
+			clients:     []string{"?test=./clients/test"},
+			expected:    `{"type":"module","dependencies":{"@dagger.io/dagger":"file:./clients/dagger","typescript":"5.9.3"}}`,
+		},
+		{
+			// ...but once the user installed it, the dep survives regeneration
+			// and is refreshed to the generated location.
+			name:        "a keep-only client the user installed is kept",
+			packageJSON: `{"dependencies":{"@dagger.io/test":"file:./clients/test"}}`,
+			coreRel:     "./clients/dagger",
+			clients:     []string{"?test=./clients/test"},
+			expected:    `{"dependencies":{"@dagger.io/test":"file:./clients/test","@dagger.io/dagger":"file:./clients/dagger","typescript":"5.9.3"},"type":"module"}`,
+		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()

@@ -109,9 +109,8 @@ func runEntrypoint(args []string) error {
 		outputFile  = fs.String("output-file", typescriptgenerator.DefaultEntrypointFile, "filename to write within the output directory")
 		moduleRoot  = fs.String("module-root", "", "absolute path of the module root, used to resolve source-import paths")
 		sdkImport   = fs.String("sdk-import", "@dagger.io/dagger", "bare specifier the entrypoint imports runtime helpers from")
-		sourceDir    = fs.String("source-dir", "src", "the module's source directory, relative to its root")
-		dispatch     = fs.Bool("dispatch", false, "render the manifest-v2 dispatcher (stdin/stdout, no register) instead of the legacy entrypoint")
-		loaderImport = fs.String("loader-import", "", "where the dispatcher imports the object loader from, relative to the module root (default clients/loader.gen.js)")
+		sourceDir   = fs.String("source-dir", "src", "the module's source directory, relative to its root")
+		dispatch    = fs.Bool("dispatch", false, "render the manifest-v2 dispatcher (stdin/stdout, no register) instead of the legacy entrypoint")
 	)
 	if err := fs.Parse(args); err != nil {
 		return err
@@ -133,10 +132,9 @@ func runEntrypoint(args []string) error {
 			TypedefJSONPath: *typedefPath,
 			OutputFile:      outName,
 			ModuleRoot:      *moduleRoot,
-			SDKImportPath:    *sdkImport,
-			SourceDir:        *sourceDir,
-			DispatchMode:     *dispatch,
-			LoaderImportPath: *loaderImport,
+			SDKImportPath:   *sdkImport,
+			SourceDir:       *sourceDir,
+			DispatchMode:    *dispatch,
 		},
 	}
 	gen := &typescriptgenerator.TypeScriptGenerator{Config: cfg}
@@ -169,7 +167,6 @@ func runDangEntrypoint(args []string) error {
 		packageMgr   = fs.String("package-manager", "", "package manager the call() recipe installs with, as name[@version] (npm, yarn, pnpm, bun, deno)")
 		dispatchFile = fs.String("dispatch-file", typescriptgenerator.DefaultDispatchFile, "dispatcher call() execs, relative to the module directory")
 		tsconfigPath = fs.String("tsconfig", "tsconfig.json", "tsconfig tsx loads, relative to the module directory (node only)")
-		coreDir      = fs.String("core-dir", "", "workspace-absolute path of the vendored shared core (@dagger.io/dagger); empty keeps the module's embedded sdk/")
 	)
 	if err := fs.Parse(args); err != nil {
 		return err
@@ -200,7 +197,6 @@ func runDangEntrypoint(args []string) error {
 			PackageManagerVersion: pkgMgrVersion,
 			DispatchFile:          *dispatchFile,
 			TSConfigPath:          *tsconfigPath,
-			CoreDir:               *coreDir,
 		},
 	}
 	gen := &typescriptgenerator.TypeScriptGenerator{Config: cfg}
@@ -293,6 +289,7 @@ func runModule(args []string) error {
 		moduleName        = fs.String("module-name", "", "name of the module to generate bindings for")
 		clientMetaPath    = fs.String("client-meta-path", "", "path to the client meta JSON whose modules are folded into these bindings")
 		outputDir         = fs.String("output", ".", "output directory for the generated bindings")
+		packaged          = fs.Bool("packaged-clients", false, "nest each client in its own clients/<module>/<module>.gen.ts package directory; the loader imports them relatively")
 	)
 	if err := fs.Parse(args); err != nil {
 		return err
@@ -332,9 +329,10 @@ func runModule(args []string) error {
 	gen := &typescriptgenerator.TypeScriptGenerator{Config: generator.Config{
 		OutputDir: *outputDir,
 		ModuleConfig: &generator.ModuleGeneratorConfig{
-			ModuleName:   *moduleName,
-			BoundModules: bound,
-			EmitLoader:   true,
+			ModuleName:      *moduleName,
+			BoundModules:    bound,
+			EmitLoader:      true,
+			PackagedClients: *packaged,
 		},
 	}}
 
@@ -412,6 +410,7 @@ func runClient(args []string) error {
 	var (
 		clientMetaPath = fs.String("client-meta-path", "", "path to the client meta JSON (engineVersion, bound modules)")
 		outputDir      = fs.String("output", ".", "output directory for the generated client")
+		packaged       = fs.Bool("packaged-clients", false, "nest each client in its own <module>/<module>.gen.ts package directory")
 	)
 	if err := fs.Parse(args); err != nil {
 		return err
@@ -454,9 +453,10 @@ func runClient(args []string) error {
 	gen := &typescriptgenerator.TypeScriptGenerator{Config: generator.Config{
 		OutputDir: *outputDir,
 		ModuleConfig: &generator.ModuleGeneratorConfig{
-			BoundModules: bound,
-			FlatClients:  true,
-			EmitLoader:   false,
+			BoundModules:    bound,
+			FlatClients:     true,
+			EmitLoader:      false,
+			PackagedClients: *packaged,
 		},
 	}}
 

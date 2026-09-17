@@ -99,10 +99,6 @@ type Mod {
           sdk.effectiveRuntime(ws, sourcePath),
           [],
         ),
-        # This path addresses a module by path with default settings (no
-        # entrypoint), so it stays on the embedded layout — its counterpart is
-        # already guarded against a module carrying generated clients.
-        "",
       )
 
       generated.changes(ws)

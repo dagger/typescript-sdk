@@ -93,6 +93,7 @@ func generate(config generator.Config, target string, schema *introspection.Sche
 	// reserved there as well.
 	nest := config.ModuleConfig != nil && !config.ModuleConfig.FlatClients
 	emitLoader := config.ModuleConfig != nil && config.ModuleConfig.EmitLoader
+	packaged := config.ModuleConfig != nil && config.ModuleConfig.PackagedClients
 	reserved := map[string]bool{}
 	if emitLoader {
 		reserved[strings.TrimSuffix(LoaderGenFile, ".gen.ts")] = true
@@ -100,7 +101,8 @@ func generate(config generator.Config, target string, schema *introspection.Sche
 	if !nest {
 		reserved[strings.TrimSuffix(filepath.Base(target), ".gen.ts")] = true
 	}
-	if config.ModuleConfig != nil && config.ModuleConfig.FlatClients {
+	if packaged || (config.ModuleConfig != nil && config.ModuleConfig.FlatClients) {
+		// The library's own package directory sits beside the client packages.
 		reserved["dagger"] = true
 	}
 	for _, depName := range splitModules {
@@ -145,10 +147,14 @@ func generate(config generator.Config, target string, schema *introspection.Sche
 		}
 	}
 
-	// Render one <module>.gen.ts client file per split module.
+	// Render one <module>.gen.ts client file per split module — nested in its
+	// own package directory when PackagedClients.
 	for _, depName := range splitModules {
 		depSchema := schema.Include(depName)
 		depTarget := filepath.Join(moduleDir, strcase.ToKebab(depName)+".gen.ts")
+		if packaged {
+			depTarget = filepath.Join(moduleDir, strcase.ToKebab(depName), strcase.ToKebab(depName)+".gen.ts")
+		}
 		data := depFileData{
 			Schema:        depSchema,
 			SchemaVersion: schemaVersion,

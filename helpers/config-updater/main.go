@@ -171,16 +171,27 @@ func updateSharedDeps(packageJSON, coreRel string, clientPairs []string) (string
 	}
 
 	// Desired @dagger.io/* deps: core plus each declared client. Built first so
-	// pruning below can drop anything not in it.
-	desired := map[string]string{
-		daggerLibPathAlias: "file:" + coreRel,
+	// pruning below can drop anything not in it. A "?"-prefixed pair is
+	// keep-only: the package is generated but not installed by default (the self
+	// client), so its dep is preserved when the user added it and never added
+	// for them. CORE_REL "-" means the scope has no generated core any more (its
+	// last client left), so the core dep is not desired and a file:./ one is
+	// pruned with the rest.
+	desired := map[string]string{}
+	if coreRel != "-" {
+		desired[daggerLibPathAlias] = "file:" + coreRel
 	}
+	keepOnly := map[string]bool{}
 	for _, pair := range clientPairs {
-		name, rel, ok := strings.Cut(pair, "=")
+		optional := strings.HasPrefix(pair, "?")
+		name, rel, ok := strings.Cut(strings.TrimPrefix(pair, "?"), "=")
 		if !ok || name == "" || rel == "" {
-			return "", fmt.Errorf("client spec %q must be NAME=REL", pair)
+			return "", fmt.Errorf("client spec %q must be [?]NAME=REL", pair)
 		}
 		desired["@dagger.io/"+name] = "file:" + rel
+		if optional {
+			keepOnly["@dagger.io/"+name] = true
+		}
 	}
 
 	// Prune only the SDK's own generated clients for this scope that this run no
@@ -198,7 +209,7 @@ func updateSharedDeps(packageJSON, coreRel string, clientPairs []string) (string
 			if _, keep := desired[key]; keep {
 				continue
 			}
-			if !strings.HasPrefix(val.String(), "file:./") {
+			if !isScopeLocalFileRef(val.String()) {
 				continue
 			}
 			packageJSON, err = sjson.Delete(packageJSON, "dependencies."+gjson.Escape(key))
@@ -209,13 +220,30 @@ func updateSharedDeps(packageJSON, coreRel string, clientPairs []string) (string
 	}
 
 	// Write the desired set. Sorted so the output is deterministic regardless of
-	// the order clients were passed in.
+	// the order clients were passed in. A keep-only dep is refreshed when
+	// present — so a moved package keeps a working path — and otherwise left out.
 	names := make([]string, 0, len(desired))
 	for name := range desired {
 		names = append(names, name)
 	}
 	sort.Strings(names)
 	for _, name := range names {
+		current := gjson.Get(packageJSON, "dependencies."+gjson.Escape(name))
+		if keepOnly[name] {
+			// Refresh only an install of our own generated package (a file: path
+			// inside the scope); absent means the user has not opted in, and any
+			// other value is theirs — a client installed from another scope, or a
+			// registry.
+			if !current.Exists() || !isScopeLocalFileRef(current.String()) {
+				continue
+			}
+		}
+		// npm rewrites "file:./x" to "file:x" on install; the two name the same
+		// package, so an already-equivalent value is left as npm spelled it
+		// rather than flip-flopping with every generate.
+		if current.Exists() && normalizeFileRef(current.String()) == normalizeFileRef(desired[name]) {
+			continue
+		}
 		packageJSON, err = sjson.Set(packageJSON, "dependencies."+gjson.Escape(name), desired[name])
 		if err != nil {
 			return "", fmt.Errorf("set %s dependency: %w", name, err)
@@ -223,6 +251,29 @@ func updateSharedDeps(packageJSON, coreRel string, clientPairs []string) (string
 	}
 
 	return pinTypeScript(packageJSON)
+}
+
+// normalizeFileRef strips the spelling differences npm introduces in a file:
+// value ("file:./x" vs "file:x"), so equivalence checks compare paths.
+func normalizeFileRef(value string) string {
+	rel, ok := strings.CutPrefix(value, "file:")
+	if !ok {
+		return value
+	}
+	return "file:" + strings.TrimPrefix(rel, "./")
+}
+
+// isScopeLocalFileRef reports whether a dependency value is a file: path inside
+// the scope — the SDK's own generated packages. npm rewrites "file:./x" to
+// "file:x" on install, so both spellings count; a parent path ("file:../…") or
+// an absolute one points outside the scope and is the user's.
+func isScopeLocalFileRef(value string) bool {
+	rel, ok := strings.CutPrefix(value, "file:")
+	if !ok {
+		return false
+	}
+	rel = strings.TrimPrefix(rel, "./")
+	return rel != "" && !strings.HasPrefix(rel, "../") && !strings.HasPrefix(rel, "/")
 }
 
 // defaultTypeScriptVersion mirrors dagger/dagger tsdistconsts.DefaultTypeScriptVersion.
@@ -315,6 +366,11 @@ func moduleAlias(module string) string {
 func moduleAliasTarget(clientsDir, module string) string {
 	if clientsDir == "" {
 		return "./" + module + ".gen.ts"
+	}
+	// A trailing slash selects the packaged layout, where each client sits in
+	// its own directory: ./clients/<m>/<m>.gen.ts rather than ./clients/<m>.gen.ts.
+	if strings.HasSuffix(clientsDir, "/") {
+		return "./" + clientsDir + module + "/" + module + ".gen.ts"
 	}
 	return "./" + clientsDir + "/" + module + ".gen.ts"
 }

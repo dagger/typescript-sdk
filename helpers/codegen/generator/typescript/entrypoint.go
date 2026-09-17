@@ -49,11 +49,10 @@ func (g *TypeScriptGenerator) GenerateEntrypoint(ctx context.Context) (*generato
 	}
 
 	tmpl := templates.NewEntrypoint(&module, templates.EntrypointOptions{
-		SDKImportPath:    cfg.SDKImportPath,
-		ModuleRoot:       cfg.ModuleRoot,
-		SourceDir:        cfg.SourceDir,
-		DispatchMode:     cfg.DispatchMode,
-		LoaderImportPath: cfg.LoaderImportPath,
+		SDKImportPath: cfg.SDKImportPath,
+		ModuleRoot:    cfg.ModuleRoot,
+		SourceDir:     cfg.SourceDir,
+		DispatchMode:  cfg.DispatchMode,
 	})
 
 	topLevel := "entrypoint"

@@ -36,13 +36,6 @@ type DangEntrypointOptions struct {
 	// uses whatever the base image ships.
 	PackageManagerVersion string
 
-	// CoreDir is the workspace-absolute path of the vendored shared core
-	// (@dagger.io/dagger), e.g. "/.dagger/core/typescript". When set, the recipe
-	// folds core into node_modules from there rather than the module's own
-	// sdk/ — the shared-core layout, one copy for the whole workspace. Empty
-	// keeps the embedded-sdk behavior a [runtime] module still needs.
-	CoreDir string
-
 	// DispatchFile is the generated dispatcher call() execs, relative to the
 	// module directory.
 	DispatchFile string
@@ -550,16 +543,12 @@ func (c *dangFuncCtx) tsConfigPath() string {
 // @dagger.io/dagger through deno.json rather than node_modules, and bun needs no
 // tsconfig because it runs the dispatcher directly.
 func (c *dangFuncCtx) dangRequiredFiles() []string {
-	files := []string{c.dispatchFile()}
-	// The embedded sdk/ is only checked when the module carries one. Under the
-	// shared-core layout the library lives at CoreDir, outside the module dir
-	// this check reads, and a missing core surfaces at the fold instead.
-	if c.opts.CoreDir == "" {
-		files = append(files,
-			dangSDKDir+"/index.ts",
-			dangSDKDir+"/client.gen.ts",
-			dangSDKDir+"/core.js",
-		)
+	files := []string{
+		c.dispatchFile(),
+		"clients/loader.gen.ts",
+		"clients/dagger/index.ts",
+		"clients/dagger/client.gen.ts",
+		"clients/dagger/core.js",
 	}
 	switch c.opts.Runtime {
 	case "deno":
@@ -714,15 +703,20 @@ func (c *dangFuncCtx) dangManagerSpec(name string) string {
 // one-line source edit would reinstall — and anything written before it under
 // the mount point is hidden by it.
 func (c *dangFuncCtx) dangDependenciesChain() string {
-	if c.opts.CoreDir != "" {
-		return c.dangSharedCoreDependenciesChain()
-	}
-
 	manifest := c.dangManifestFiles()
-	includes := make([]string, len(manifest))
-	for i, f := range manifest {
-		includes[i] = dangString(f)
+	includes := make([]string, 0, len(manifest)+1)
+	for _, f := range manifest {
+		includes = append(includes, dangString(f))
 	}
+	// The module's file: dependencies — clients/dagger and each client package —
+	// have to be in the install context beside the manifest for the specifiers
+	// to resolve. The whole clients/ tree comes along: it is generated content
+	// that changes only on regeneration, so it keys the layer with the manifest
+	// rather than the module's source, and a one-line src edit reinstalls
+	// nothing. The relative symlinks npm leaves in node_modules resolve under
+	// the runtime's workspace mount for the same reason they resolve here: the
+	// targets sit inside the module directory.
+	includes = append(includes, dangString("clients/**"))
 
 	calls := []string{
 		fmt.Sprintf("withWorkdir(%s)", dangString(dangInstallDir)),
@@ -734,62 +728,6 @@ func (c *dangFuncCtx) dangDependenciesChain() string {
 	}
 	calls = append(calls, c.dangInstallExecs()...)
 	calls = append(calls, fmt.Sprintf("directory(%s)", dangString(dangInstallDir+"/node_modules")))
-
-	// Deno resolves @dagger.io/dagger through the import map in deno.json, so only
-	// node and bun need the package where module resolution looks for it. Folded
-	// in here rather than mounted separately so node_modules stays one mount. The
-	// embedded sdk/ a [runtime] module keeps.
-	if c.opts.Runtime != "deno" {
-		calls = append(calls, fmt.Sprintf(
-			`withDirectory("@dagger.io/dagger", workspace.directory(%s))`,
-			dangString(path.Join(c.moduleDir(), dangSDKDir))))
-	}
-
-	return dangChain("base", calls, "      ")
-}
-
-// dangSharedCoreDependenciesChain installs a shared-core module's dependencies
-// with the vendored core resolved as a real package. package.json is the link:
-// the module declares @dagger.io/dagger as a file: dependency, and the install
-// wires it — no mount, no manual fold.
-//
-// The install has to see the file: target, so the workspace layout is replicated
-// under the install dir: the module manifest at its own workspace-relative path,
-// the vendored core at CoreDir. Then the module's `file:` specifier — relative to
-// its manifest — resolves to the mounted core. The install layer keys only on the
-// manifest and the core (both content-addressed), never the module's source, so a
-// one-line edit reinstalls nothing.
-func (c *dangFuncCtx) dangSharedCoreDependenciesChain() string {
-	manifest := c.dangManifestFiles()
-	includes := make([]string, 0, len(manifest)+2)
-	for _, f := range manifest {
-		includes = append(includes, dangString(f))
-	}
-	// The module's own client packages (modules/<mod>/<name>/) are file:
-	// dependencies too, so they have to be in the install context beside the
-	// manifest for `file:./<name>` to resolve. Named by shape rather than listed,
-	// since the recipe does not carry the client set.
-	includes = append(includes, dangString("*/package.json"), dangString("*/*.gen.ts"))
-
-	// Absolute paths inside the install dir that mirror the workspace tree.
-	modInstall := dangInstallDir
-	if c.moduleDir() != "/" {
-		modInstall = dangInstallDir + c.moduleDir()
-	}
-	coreInstall := dangInstallDir + c.opts.CoreDir
-
-	calls := []string{
-		fmt.Sprintf("withDirectory(%s, workspace.directory(%s, include: [%s]))",
-			dangString(modInstall), dangString(c.moduleDir()), strings.Join(includes, ", ")),
-		fmt.Sprintf("withDirectory(%s, workspace.directory(%s))",
-			dangString(coreInstall), dangString(c.opts.CoreDir)),
-		fmt.Sprintf("withWorkdir(%s)", dangString(modInstall)),
-		// Seeded so a manager that installs nothing still leaves a node_modules to
-		// read back below.
-		fmt.Sprintf("withDirectory(%s, directory)", dangString(modInstall+"/node_modules")),
-	}
-	calls = append(calls, c.dangInstallExecs()...)
-	calls = append(calls, fmt.Sprintf("directory(%s)", dangString(modInstall+"/node_modules")))
 
 	return dangChain("base", calls, "      ")
 }
