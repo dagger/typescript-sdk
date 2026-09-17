@@ -714,6 +714,10 @@ func (c *dangFuncCtx) dangManagerSpec(name string) string {
 // one-line source edit would reinstall — and anything written before it under
 // the mount point is hidden by it.
 func (c *dangFuncCtx) dangDependenciesChain() string {
+	if c.opts.CoreDir != "" {
+		return c.dangSharedCoreDependenciesChain()
+	}
+
 	manifest := c.dangManifestFiles()
 	includes := make([]string, len(manifest))
 	for i, f := range manifest {
@@ -733,18 +737,54 @@ func (c *dangFuncCtx) dangDependenciesChain() string {
 
 	// Deno resolves @dagger.io/dagger through the import map in deno.json, so only
 	// node and bun need the package where module resolution looks for it. Folded
-	// in here rather than mounted separately so node_modules stays one mount.
-	// From the workspace's one vendored core when CoreDir is set (the shared-core
-	// layout), else the module's own embedded sdk/.
+	// in here rather than mounted separately so node_modules stays one mount. The
+	// embedded sdk/ a [runtime] module keeps.
 	if c.opts.Runtime != "deno" {
-		coreSrc := path.Join(c.moduleDir(), dangSDKDir)
-		if c.opts.CoreDir != "" {
-			coreSrc = c.opts.CoreDir
-		}
 		calls = append(calls, fmt.Sprintf(
 			`withDirectory("@dagger.io/dagger", workspace.directory(%s))`,
-			dangString(coreSrc)))
+			dangString(path.Join(c.moduleDir(), dangSDKDir))))
 	}
+
+	return dangChain("base", calls, "      ")
+}
+
+// dangSharedCoreDependenciesChain installs a shared-core module's dependencies
+// with the vendored core resolved as a real package. package.json is the link:
+// the module declares @dagger.io/dagger as a file: dependency, and the install
+// wires it — no mount, no manual fold.
+//
+// The install has to see the file: target, so the workspace layout is replicated
+// under the install dir: the module manifest at its own workspace-relative path,
+// the vendored core at CoreDir. Then the module's `file:` specifier — relative to
+// its manifest — resolves to the mounted core. The install layer keys only on the
+// manifest and the core (both content-addressed), never the module's source, so a
+// one-line edit reinstalls nothing.
+func (c *dangFuncCtx) dangSharedCoreDependenciesChain() string {
+	manifest := c.dangManifestFiles()
+	includes := make([]string, len(manifest))
+	for i, f := range manifest {
+		includes[i] = dangString(f)
+	}
+
+	// Absolute paths inside the install dir that mirror the workspace tree.
+	modInstall := dangInstallDir
+	if c.moduleDir() != "/" {
+		modInstall = dangInstallDir + c.moduleDir()
+	}
+	coreInstall := dangInstallDir + c.opts.CoreDir
+
+	calls := []string{
+		fmt.Sprintf("withDirectory(%s, workspace.directory(%s, include: [%s]))",
+			dangString(modInstall), dangString(c.moduleDir()), strings.Join(includes, ", ")),
+		fmt.Sprintf("withDirectory(%s, workspace.directory(%s))",
+			dangString(coreInstall), dangString(c.opts.CoreDir)),
+		fmt.Sprintf("withWorkdir(%s)", dangString(modInstall)),
+		// Seeded so a manager that installs nothing still leaves a node_modules to
+		// read back below.
+		fmt.Sprintf("withDirectory(%s, directory)", dangString(modInstall+"/node_modules")),
+	}
+	calls = append(calls, c.dangInstallExecs()...)
+	calls = append(calls, fmt.Sprintf("directory(%s)", dangString(modInstall+"/node_modules")))
 
 	return dangChain("base", calls, "      ")
 }

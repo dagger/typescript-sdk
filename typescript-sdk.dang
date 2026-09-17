@@ -263,19 +263,24 @@ type TypescriptSdk {
         withClientDependencies(configured, scope, clients)
       }
 
+      # A module generates a client for itself only when its own path is among
+      # the clients someone recorded — `dagger module client add .`. It is opt-in:
+      # a module that never calls itself carries no self client and no clients/
+      # directory at all. The rest of the declared clients are external.
+      let selfRequested = targets.filter { t => t.isLocal and t.path == scope }.length > 0
+      let externalTargets = targets.filter { t => (t.isLocal and t.path == scope) == false }
+
       # First pass, staged on a workspace nothing reads back. Its only job is to
       # make the module loadable, which is what the self target needs; its
       # bindings are not the ones that belong on disk, so `served` — not this —
       # is what the result is written onto.
-      let firstPass = moduleGenerated(served, scope, source, name, rt, targets)
+      let firstPass = moduleGenerated(served, scope, source, name, rt, externalTargets)
       let staged = stagedModule(served, source, firstPass)
-      # The module's own API is a target like any other from here on: folded into
-      # its clients/ directory as its own <module>.gen.ts, so its source can call
-      # itself and a caller outside it reaches it the same way.
-      let selfTargets = selfClientTarget(staged, scope, name)
+      # The module's own API, folded in only when its own client was asked for.
+      let selfTargets = if (selfRequested) { selfClientTarget(staged, scope, name) } else { [] }
       let cfg = configDir(ws)
       let coreRel = if (entrypoint) { coreRelFromModule(source, cfg) } else { "" }
-      let withSelf = targets + selfTargets
+      let withSelf = externalTargets + selfTargets
       let complete = moduleFiles(
         served,
         source,
@@ -1294,14 +1299,18 @@ type TypescriptSdk {
         .withExec(["config-updater", "deno-config", "/existing/deno.json", "/out/deno.json", coreRel, clientsDir] + aliasModules)
         .directory("/out")
     } else {
-      # A module's own package.json carries no @dagger.io/dagger dependency: its
-      # recipe folds the library into node_modules and its tsconfig aliases it,
-      # so declaring it as a file: dep only breaks the recipe's isolated install,
-      # which cannot see a path outside the manifest it mounts. The file: link is
-      # a consumer's concern — a client-only scope's package.json, installed on
-      # the host — not the module's.
-      configUpdater
-        .withExec(["config-updater", "package-json", "/existing/package.json", "/out/package.json"])
+      # package.json is the link: with a shared core the module declares
+      # @dagger.io/dagger (and each client) as a file: dependency, and the recipe
+      # installs it. The embedded-sdk path strips the dep instead, because that
+      # runtime mounts the library rather than installing it. The tsconfig alias
+      # rides along for editor resolution before an install, but it is no longer
+      # what wires the package at run time.
+      let withPackageJSON = if (coreRel == "") {
+        configUpdater.withExec(["config-updater", "package-json", "/existing/package.json", "/out/package.json"])
+      } else {
+        configUpdater.withExec(["config-updater", "shared-deps", "/existing/package.json", "/out/package.json", coreRel])
+      }
+      withPackageJSON
         .withExec(["config-updater", "tsconfig", "/existing/tsconfig.json", "/out/tsconfig.json", coreRel, clientsDir] + aliasModules)
         .directory("/out")
     }
