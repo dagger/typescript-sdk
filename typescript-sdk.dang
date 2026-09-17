@@ -280,9 +280,19 @@ type TypescriptSdk {
         withSelfBindings(staged, scope, name, firstPass, withSelf, selfTargets, rt),
       )
 
+      # The one vendored @dagger.io/dagger the workspace shares, written at the
+      # config root. Only under an entrypoint, where the module owns its own
+      # container recipe and can reach the workspace root; a `[runtime]` module
+      # sees only its own directory and keeps its embedded sdk/.
+      let withCore = if (entrypoint) {
+        withSharedCore(complete, configDir(ws), served.moduleSource("/" + scope).introspectionSchemaJSON.contents, name)
+      } else {
+        complete
+      }
+
       # Back to the cwd the engine set: it rejects a generateScope that returns
       # a workspace standing somewhere else.
-      complete.withWorkdir(scope)
+      withCore.withWorkdir(scope)
     } else {
       # A client-only scope: its one output is the standalone package.
       clientScope(ws, scope, false, clientTargets(clients))
@@ -325,6 +335,48 @@ type TypescriptSdk {
   """
   let scopeFile(scope: String!, name: String!): String! {
     if (scope == ".") { name } else { scope + "/" + name }
+  }
+
+  """
+  Directory holding the workspace's dagger.toml, workspace-root-relative — "."
+  when there is none. Everything this SDK shares across scopes anchors here,
+  where the engine keeps .dagger/modules; found from the cwd because the config
+  may sit below the workspace root, where a search from the root never looks.
+  """
+  let configDir(ws: Workspace!): String! {
+    let found = ws.findUp("dagger.toml")
+    if (found == null) { "." } else { dirOf(found) }
+  }
+
+  """
+  The one vendored @dagger.io/dagger the whole workspace shares, workspace-root-
+  relative. One copy per SDK beside dagger.toml — under .dagger/core so it sits
+  with the engine's own .dagger state, suffixed by SDK so a Go or Python core
+  never collides with this one. Stands in for a published @dagger.io/dagger until
+  that exists; the swap later is a package.json specifier change and a directory
+  deletion, nothing regenerates.
+  """
+  let coreLibPath(cfg: String!): String! {
+    scopeFile(cfg, ".dagger/core/typescript")
+  }
+
+  """
+  The shared core library, rendered from a scope's client-facing core schema: the
+  shipped bundle plus the core bindings, and nothing module-specific. Identical
+  for every scope at one engine version, so whichever scope generates writes the
+  same bytes and the file-level skip keeps later passes quiet.
+  """
+  let sharedCoreDirectory(schemaJSON: String!, moduleName: String!): Directory! {
+    moduleSdkDirectory(generateModuleBindings(schemaJSON, moduleName, []))
+  }
+
+  """
+  Write the workspace's shared core at coreLibPath, idempotently. Its contents
+  are a function of the engine version alone, so a scope that regenerates rewrites
+  only what changed — nothing, once it is on disk.
+  """
+  let withSharedCore(ws: Workspace!, cfg: String!, schemaJSON: String!, moduleName: String!): Workspace! {
+    writeChanged(ws, coreLibPath(cfg), sharedCoreDirectory(schemaJSON, moduleName))
   }
 
   """
