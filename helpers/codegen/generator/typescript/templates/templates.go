@@ -32,10 +32,9 @@ func New(
 	topLevelTemplate := "api"
 	templateDeps := []string{
 		topLevelTemplate, "header", "objects", "object", "interface", "method", "method_solve", "call_args", "method_comment", "types", "args", "default",
-		// Dependency-splitting templates: the per-dep file ("dep"), the
-		// prototype augmentations, and the shared method bodies reused by both
-		// the class-field methods and the augmentation prototype methods.
-		"_dep", "_augmentations", "_method_body", "_method_solve_body",
+		// Module-splitting templates: the per-module client file, the
+		// entrypoint object loader, and the shared method bodies.
+		"_client", "_loader", "_method_body", "_method_solve_body",
 	}
 
 	fileNames := make([]string, 0, len(templateDeps))
@@ -94,8 +93,4 @@ type EntrypointOptions struct {
 	// stdout, and has no register() because the typedefs now live in the Dang
 	// entrypoint. invoke() and every state helper are identical.
 	DispatchMode bool
-
-	// BoundModules are the modules the dispatcher serves into its own session
-	// before dispatching, so `dag.<module>()` resolves. Dispatch mode only.
-	BoundModules []generator.BoundModule
 }

@@ -54,9 +54,16 @@ declare function getTracer(name?: string): Tracer;
 declare class Connection {
     private _gqlClient?;
     constructor(_gqlClient?: GraphQLClient | undefined);
+    private _served;
     resetClient(): void;
     setGQLClient(gqlClient: GraphQLClient): void;
     getGQLClient(): GraphQLClient;
+    /**
+     * Run `serve` the first time `key` is seen in this session and remember the
+     * result, so a generated client can ensure its module is served before its
+     * first query without serving it again on every call.
+     */
+    ensureServed(key: string, serve: () => Promise<void>): Promise<void>;
 }
 
 type QueryTree = {
@@ -65,10 +72,21 @@ type QueryTree = {
     inlineType?: string;
 };
 
+/**
+ * A module a generated client serves into the session before its first query.
+ * `key` memoizes the serve per session (the module's ref or path); `run`
+ * performs it, through a context that carries no serve of its own so it cannot
+ * recurse.
+ */
+type ServeSpec = {
+    key: string;
+    run: () => Promise<void>;
+};
 declare class Context {
     private _queryTree;
     private _connection;
-    constructor(_queryTree?: QueryTree[], _connection?: Connection);
+    private _serve?;
+    constructor(_queryTree?: QueryTree[], _connection?: Connection, _serve?: ServeSpec | undefined);
     getGQLClient(): GraphQLClient;
     copy(): Context;
     select(operation: string, args?: Record<string, unknown>): Context;
@@ -77,6 +95,12 @@ declare class Context {
      * Produces: node(id: "...") { ... on TypeName { children } }
      */
     selectNode(id: string, typeName: string): Context;
+    /**
+     * Return a copy of this context that serves `spec`'s module before the first
+     * query on it (or on any context derived from it) runs. Used by a generated
+     * module client to bind its own module to its `dag`.
+     */
+    withServe(spec: ServeSpec): Context;
     execute<T>(): Promise<T>;
 }
 /**

@@ -140,11 +140,10 @@ type Entrypoint implements ModuleEntrypoint {
   let dependencies(workspace: Workspace!): Directory! {
     base
       .withWorkdir("/deps")
-      .withDirectory("/deps", workspace.directory("/", include: ["package.json", "package-lock.json", ".npmrc"]))
+      .withDirectory("/deps", workspace.directory("/", include: ["package.json", "package-lock.json", ".npmrc", "clients/**"]))
       .withDirectory("/deps/node_modules", directory)
       .withExec(["npm", "install", "--omit=dev"])
       .directory("/deps/node_modules")
-      .withDirectory("@dagger.io/dagger", workspace.directory("/sdk"))
   }
 
   """
@@ -164,12 +163,14 @@ type Entrypoint implements ModuleEntrypoint {
     let dir = workspace.directory("/")
     if (dir.exists("__dagger.dispatch.ts") == false) {
       raise "module \"Smoke\" cannot run: the generated file \"__dagger.dispatch.ts\" is missing. Run `dagger generate` and commit what it writes."
-    } else if (dir.exists("sdk/index.ts") == false) {
-      raise "module \"Smoke\" cannot run: the generated file \"sdk/index.ts\" is missing. Run `dagger generate` and commit what it writes."
-    } else if (dir.exists("sdk/client.gen.ts") == false) {
-      raise "module \"Smoke\" cannot run: the generated file \"sdk/client.gen.ts\" is missing. Run `dagger generate` and commit what it writes."
-    } else if (dir.exists("sdk/core.js") == false) {
-      raise "module \"Smoke\" cannot run: the generated file \"sdk/core.js\" is missing. Run `dagger generate` and commit what it writes."
+    } else if (dir.exists("clients/loader.gen.ts") == false) {
+      raise "module \"Smoke\" cannot run: the generated file \"clients/loader.gen.ts\" is missing. Run `dagger generate` and commit what it writes."
+    } else if (dir.exists("clients/dagger/index.ts") == false) {
+      raise "module \"Smoke\" cannot run: the generated file \"clients/dagger/index.ts\" is missing. Run `dagger generate` and commit what it writes."
+    } else if (dir.exists("clients/dagger/client.gen.ts") == false) {
+      raise "module \"Smoke\" cannot run: the generated file \"clients/dagger/client.gen.ts\" is missing. Run `dagger generate` and commit what it writes."
+    } else if (dir.exists("clients/dagger/core.js") == false) {
+      raise "module \"Smoke\" cannot run: the generated file \"clients/dagger/core.js\" is missing. Run `dagger generate` and commit what it writes."
     } else if (dir.exists("package.json") == false) {
       raise "module \"Smoke\" cannot run: the generated file \"package.json\" is missing. Run `dagger generate` and commit what it writes."
     } else if (dir.exists("tsconfig.json") == false) {

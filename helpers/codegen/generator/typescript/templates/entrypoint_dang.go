@@ -554,9 +554,10 @@ func (c *dangFuncCtx) tsConfigPath() string {
 func (c *dangFuncCtx) dangRequiredFiles() []string {
 	files := []string{
 		c.dispatchFile(),
-		dangSDKDir + "/index.ts",
-		dangSDKDir + "/client.gen.ts",
-		dangSDKDir + "/core.js",
+		"clients/loader.gen.ts",
+		"clients/dagger/index.ts",
+		"clients/dagger/client.gen.ts",
+		"clients/dagger/core.js",
 	}
 	switch c.opts.Runtime {
 	case "deno":
@@ -712,10 +713,19 @@ func (c *dangFuncCtx) dangManagerSpec(name string) string {
 // the mount point is hidden by it.
 func (c *dangFuncCtx) dangDependenciesChain() string {
 	manifest := c.dangManifestFiles()
-	includes := make([]string, len(manifest))
-	for i, f := range manifest {
-		includes[i] = dangString(f)
+	includes := make([]string, 0, len(manifest)+1)
+	for _, f := range manifest {
+		includes = append(includes, dangString(f))
 	}
+	// The module's file: dependencies — clients/dagger and each client package —
+	// have to be in the install context beside the manifest for the specifiers
+	// to resolve. The whole clients/ tree comes along: it is generated content
+	// that changes only on regeneration, so it keys the layer with the manifest
+	// rather than the module's source, and a one-line src edit reinstalls
+	// nothing. The relative symlinks npm leaves in node_modules resolve under
+	// the runtime's workspace mount for the same reason they resolve here: the
+	// targets sit inside the module directory.
+	includes = append(includes, dangString("clients/**"))
 
 	calls := []string{
 		fmt.Sprintf("withWorkdir(%s)", dangString(dangInstallDir)),
@@ -727,15 +737,6 @@ func (c *dangFuncCtx) dangDependenciesChain() string {
 	}
 	calls = append(calls, c.dangInstallExecs()...)
 	calls = append(calls, fmt.Sprintf("directory(%s)", dangString(dangInstallDir+"/node_modules")))
-
-	// Deno resolves @dagger.io/dagger through the import map in deno.json, so only
-	// node and bun need the package where module resolution looks for it. Folded
-	// in here rather than mounted separately so node_modules stays one mount.
-	if c.opts.Runtime != "deno" {
-		calls = append(calls, fmt.Sprintf(
-			`withDirectory("@dagger.io/dagger", workspace.directory(%s))`,
-			dangString(path.Join(c.moduleDir(), dangSDKDir))))
-	}
 
 	return dangChain("base", calls, "      ")
 }

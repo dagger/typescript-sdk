@@ -100966,8 +100966,10 @@ class Connection {
   constructor(_gqlClient) {
     this._gqlClient = _gqlClient;
   }
+  _served = new Map;
   resetClient() {
     this._gqlClient = undefined;
+    this._served.clear();
   }
   setGQLClient(gqlClient) {
     this._gqlClient = gqlClient;
@@ -100978,6 +100980,14 @@ class Connection {
     }
     return this._gqlClient;
   }
+  ensureServed(key, serve) {
+    let pending = this._served.get(key);
+    if (!pending) {
+      pending = serve();
+      this._served.set(key, pending);
+    }
+    return pending;
+  }
 }
 var globalConnection = new Connection;
 
@@ -100985,27 +100995,35 @@ var globalConnection = new Connection;
 class Context {
   _queryTree;
   _connection;
-  constructor(_queryTree = [], _connection = globalConnection) {
+  _serve;
+  constructor(_queryTree = [], _connection = globalConnection, _serve) {
     this._queryTree = _queryTree;
     this._connection = _connection;
+    this._serve = _serve;
   }
   getGQLClient() {
     return this._connection.getGQLClient();
   }
   copy() {
-    return new Context([], this._connection);
+    return new Context([], this._connection, this._serve);
   }
   select(operation, args) {
-    return new Context([...this._queryTree, { operation, args }], this._connection);
+    return new Context([...this._queryTree, { operation, args }], this._connection, this._serve);
   }
   selectNode(id, typeName) {
     return new Context([
       ...this._queryTree,
       { operation: "node", args: { id }, inlineType: typeName }
-    ], this._connection);
+    ], this._connection, this._serve);
+  }
+  withServe(spec) {
+    return new Context(this._queryTree, this._connection, spec);
   }
   execute() {
-    return computeQuery(this._queryTree, this._connection.getGQLClient());
+    if (!this._serve) {
+      return computeQuery(this._queryTree, this._connection.getGQLClient());
+    }
+    return this._connection.ensureServed(this._serve.key, this._serve.run).then(() => computeQuery(this._queryTree, this._connection.getGQLClient()));
   }
 }
 

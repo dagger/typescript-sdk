@@ -4,18 +4,14 @@
  */
 import { Context, BaseClient } from "../common/context.js"
 
-
-
 /**
  * Declare a number as float in the Dagger API.
  */
 export type float = number
 
 // BaseClient is re-exported so consumers that previously did
-// `import { BaseClient } from "./client.gen.js"` keep working. The class
-// itself lives in the common SDK runtime (see ../common/context.ts) so that
-// per-dependency generated files can extend it without the ESM cycle that
-// arises once client.gen.ts `export *`s those dep files.
+// `import { BaseClient } from "./client.gen.js"` keep working; the class
+// itself lives in the common SDK runtime (see ../common/context.ts).
 export { BaseClient }
 
 export type AddressDirectoryOpts = {
@@ -3482,8 +3478,8 @@ export type __TypeInputFieldsOpts = {
  * A standardized address to load containers, directories, secrets, and other object types. Address format depends on the type, and is validated at type selection.
  */
 export class Address extends BaseClient {
-  private readonly _id?: ID = undefined
-  private readonly _value?: string = undefined
+  private readonly _id?: ID | undefined = undefined
+  private readonly _value?: string | undefined = undefined
 
   /**
    * Constructor is used for internal usage only, do not create object from it.
@@ -3650,9 +3646,9 @@ export class Address extends BaseClient {
 
 
 export class Agent extends BaseClient {
-  private readonly _id?: ID = undefined
-  private readonly _description?: string = undefined
-  private readonly _name?: string = undefined
+  private readonly _id?: ID | undefined = undefined
+  private readonly _description?: string | undefined = undefined
+  private readonly _name?: string | undefined = undefined
 
   /**
    * Constructor is used for internal usage only, do not create object from it.
@@ -3752,7 +3748,7 @@ export class Agent extends BaseClient {
 
 
 export class AgentGroup extends BaseClient {
-  private readonly _id?: ID = undefined
+  private readonly _id?: ID | undefined = undefined
 
   /**
    * Constructor is used for internal usage only, do not create object from it.
@@ -3828,7 +3824,7 @@ export class AgentGroup extends BaseClient {
  * A directory whose contents persist across runs.
  */
 export class CacheVolume extends BaseClient {
-  private readonly _id?: ID = undefined
+  private readonly _id?: ID | undefined = undefined
 
   /**
    * Constructor is used for internal usage only, do not create object from it.
@@ -3865,10 +3861,10 @@ export class CacheVolume extends BaseClient {
  * A comparison between two directories representing changes that can be applied.
  */
 export class Changeset extends BaseClient {
-  private readonly _id?: ID = undefined
-  private readonly _export?: string = undefined
-  private readonly _isEmpty?: boolean = undefined
-  private readonly _sync?: ID = undefined
+  private readonly _id?: ID | undefined = undefined
+  private readonly _export?: string | undefined = undefined
+  private readonly _isEmpty?: boolean | undefined = undefined
+  private readonly _sync?: ID | undefined = undefined
 
   /**
    * Constructor is used for internal usage only, do not create object from it.
@@ -4120,13 +4116,13 @@ export class Changeset extends BaseClient {
 
 
 export class Check extends BaseClient {
-  private readonly _id?: ID = undefined
-  private readonly _checkType?: string = undefined
-  private readonly _completed?: boolean = undefined
-  private readonly _description?: string = undefined
-  private readonly _name?: string = undefined
-  private readonly _passed?: boolean = undefined
-  private readonly _resultEmoji?: string = undefined
+  private readonly _id?: ID | undefined = undefined
+  private readonly _checkType?: string | undefined = undefined
+  private readonly _completed?: boolean | undefined = undefined
+  private readonly _description?: string | undefined = undefined
+  private readonly _name?: string | undefined = undefined
+  private readonly _passed?: boolean | undefined = undefined
+  private readonly _resultEmoji?: string | undefined = undefined
 
   /**
    * Constructor is used for internal usage only, do not create object from it.
@@ -4342,7 +4338,7 @@ export class Check extends BaseClient {
 
 
 export class CheckGroup extends BaseClient {
-  private readonly _id?: ID = undefined
+  private readonly _id?: ID | undefined = undefined
 
   /**
    * Constructor is used for internal usage only, do not create object from it.
@@ -4430,7 +4426,7 @@ export class CheckGroup extends BaseClient {
  * An internal persistent filesync mirror.
  */
 export class ClientFilesyncMirror extends BaseClient {
-  private readonly _id?: ID = undefined
+  private readonly _id?: ID | undefined = undefined
 
   /**
    * Constructor is used for internal usage only, do not create object from it.
@@ -4467,8 +4463,8 @@ export class ClientFilesyncMirror extends BaseClient {
  * Dagger Cloud configuration and state
  */
 export class Cloud extends BaseClient {
-  private readonly _id?: ID = undefined
-  private readonly _traceURL?: string = undefined
+  private readonly _id?: ID | undefined = undefined
+  private readonly _traceURL?: string | undefined = undefined
 
   /**
    * Constructor is used for internal usage only, do not create object from it.
@@ -4525,23 +4521,23 @@ export class Cloud extends BaseClient {
  * An OCI-compatible container, also known as a Docker container.
  */
 export class Container extends BaseClient {
-  private readonly _id?: ID = undefined
-  private readonly _combinedOutput?: string = undefined
-  private readonly _envVariable?: string = undefined
-  private readonly _exists?: boolean = undefined
-  private readonly _exitCode?: number = undefined
-  private readonly _export?: string = undefined
-  private readonly _exportImage?: Void = undefined
-  private readonly _imageRef?: string = undefined
-  private readonly _label?: string = undefined
-  private readonly _platform?: Platform = undefined
-  private readonly _publish?: string = undefined
-  private readonly _stderr?: string = undefined
-  private readonly _stdout?: string = undefined
-  private readonly _sync?: ID = undefined
-  private readonly _up?: Void = undefined
-  private readonly _user?: string = undefined
-  private readonly _workdir?: string = undefined
+  private readonly _id?: ID | undefined = undefined
+  private readonly _combinedOutput?: string | undefined = undefined
+  private readonly _envVariable?: string | undefined = undefined
+  private readonly _exists?: boolean | undefined = undefined
+  private readonly _exitCode?: number | undefined = undefined
+  private readonly _export?: string | undefined = undefined
+  private readonly _exportImage?: Void | undefined = undefined
+  private readonly _imageRef?: string | undefined = undefined
+  private readonly _label?: string | undefined = undefined
+  private readonly _platform?: Platform | undefined = undefined
+  private readonly _publish?: string | undefined = undefined
+  private readonly _stderr?: string | undefined = undefined
+  private readonly _stdout?: string | undefined = undefined
+  private readonly _sync?: ID | undefined = undefined
+  private readonly _up?: Void | undefined = undefined
+  private readonly _user?: string | undefined = undefined
+  private readonly _workdir?: string | undefined = undefined
 
   /**
    * Constructor is used for internal usage only, do not create object from it.
@@ -6147,8 +6143,8 @@ export class Container extends BaseClient {
  * Reflective module API provided to functions at runtime.
  */
 export class CurrentModule extends BaseClient {
-  private readonly _id?: ID = undefined
-  private readonly _name?: string = undefined
+  private readonly _id?: ID | undefined = undefined
+  private readonly _name?: string | undefined = undefined
 
   /**
    * Constructor is used for internal usage only, do not create object from it.
@@ -6286,12 +6282,12 @@ export class CurrentModule extends BaseClient {
 
 
 export class DiffStat extends BaseClient {
-  private readonly _id?: ID = undefined
-  private readonly _addedLines?: number = undefined
-  private readonly _kind?: DiffStatKind = undefined
-  private readonly _oldPath?: string = undefined
-  private readonly _path?: string = undefined
-  private readonly _removedLines?: number = undefined
+  private readonly _id?: ID | undefined = undefined
+  private readonly _addedLines?: number | undefined = undefined
+  private readonly _kind?: DiffStatKind | undefined = undefined
+  private readonly _oldPath?: string | undefined = undefined
+  private readonly _path?: string | undefined = undefined
+  private readonly _removedLines?: number | undefined = undefined
 
   /**
    * Constructor is used for internal usage only, do not create object from it.
@@ -6429,13 +6425,13 @@ export class DiffStat extends BaseClient {
  * A directory.
  */
 export class Directory extends BaseClient {
-  private readonly _id?: ID = undefined
-  private readonly _digest?: string = undefined
-  private readonly _exists?: boolean = undefined
-  private readonly _export?: string = undefined
-  private readonly _findUp?: string = undefined
-  private readonly _name?: string = undefined
-  private readonly _sync?: ID = undefined
+  private readonly _id?: ID | undefined = undefined
+  private readonly _digest?: string | undefined = undefined
+  private readonly _exists?: boolean | undefined = undefined
+  private readonly _export?: string | undefined = undefined
+  private readonly _findUp?: string | undefined = undefined
+  private readonly _name?: string | undefined = undefined
+  private readonly _sync?: ID | undefined = undefined
 
   /**
    * Constructor is used for internal usage only, do not create object from it.
@@ -7102,8 +7098,8 @@ export class Directory extends BaseClient {
  * The Dagger engine configuration and state
  */
 export class Engine extends BaseClient {
-  private readonly _id?: ID = undefined
-  private readonly _name?: string = undefined
+  private readonly _id?: ID | undefined = undefined
+  private readonly _name?: string | undefined = undefined
 
   /**
    * Constructor is used for internal usage only, do not create object from it.
@@ -7185,12 +7181,12 @@ export class Engine extends BaseClient {
  * A cache storage for the Dagger engine
  */
 export class EngineCache extends BaseClient {
-  private readonly _id?: ID = undefined
-  private readonly _maxUsedSpace?: number = undefined
-  private readonly _minFreeSpace?: number = undefined
-  private readonly _prune?: Void = undefined
-  private readonly _reservedSpace?: number = undefined
-  private readonly _targetSpace?: number = undefined
+  private readonly _id?: ID | undefined = undefined
+  private readonly _maxUsedSpace?: number | undefined = undefined
+  private readonly _minFreeSpace?: number | undefined = undefined
+  private readonly _prune?: Void | undefined = undefined
+  private readonly _reservedSpace?: number | undefined = undefined
+  private readonly _targetSpace?: number | undefined = undefined
 
   /**
    * Constructor is used for internal usage only, do not create object from it.
@@ -7347,14 +7343,14 @@ export class EngineCache extends BaseClient {
  * An individual cache entry in a cache entry set
  */
 export class EngineCacheEntry extends BaseClient {
-  private readonly _id?: ID = undefined
-  private readonly _activelyUsed?: boolean = undefined
-  private readonly _createdTimeUnixNano?: number = undefined
-  private readonly _dagqlCall?: string = undefined
-  private readonly _description?: string = undefined
-  private readonly _diskSpaceBytes?: number = undefined
-  private readonly _mostRecentUseTimeUnixNano?: number = undefined
-  private readonly _recordType?: string = undefined
+  private readonly _id?: ID | undefined = undefined
+  private readonly _activelyUsed?: boolean | undefined = undefined
+  private readonly _createdTimeUnixNano?: number | undefined = undefined
+  private readonly _dagqlCall?: string | undefined = undefined
+  private readonly _description?: string | undefined = undefined
+  private readonly _diskSpaceBytes?: number | undefined = undefined
+  private readonly _mostRecentUseTimeUnixNano?: number | undefined = undefined
+  private readonly _recordType?: string | undefined = undefined
 
   /**
    * Constructor is used for internal usage only, do not create object from it.
@@ -7545,9 +7541,9 @@ export class EngineCacheEntry extends BaseClient {
  * A set of cache entries returned by a query to a cache
  */
 export class EngineCacheEntrySet extends BaseClient {
-  private readonly _id?: ID = undefined
-  private readonly _diskSpaceBytes?: number = undefined
-  private readonly _entryCount?: number = undefined
+  private readonly _id?: ID | undefined = undefined
+  private readonly _diskSpaceBytes?: number | undefined = undefined
+  private readonly _entryCount?: number | undefined = undefined
 
   /**
    * Constructor is used for internal usage only, do not create object from it.
@@ -7642,10 +7638,10 @@ export class EngineCacheEntrySet extends BaseClient {
  * A definition of a custom enum defined in a Module.
  */
 export class EnumTypeDef extends BaseClient {
-  private readonly _id?: ID = undefined
-  private readonly _description?: string = undefined
-  private readonly _name?: string = undefined
-  private readonly _sourceModuleName?: string = undefined
+  private readonly _id?: ID | undefined = undefined
+  private readonly _description?: string | undefined = undefined
+  private readonly _name?: string | undefined = undefined
+  private readonly _sourceModuleName?: string | undefined = undefined
 
   /**
    * Constructor is used for internal usage only, do not create object from it.
@@ -7795,11 +7791,11 @@ export class EnumTypeDef extends BaseClient {
  * A definition of a value in a custom enum defined in a Module.
  */
 export class EnumValueTypeDef extends BaseClient {
-  private readonly _id?: ID = undefined
-  private readonly _deprecated?: string = undefined
-  private readonly _description?: string = undefined
-  private readonly _name?: string = undefined
-  private readonly _value?: string = undefined
+  private readonly _id?: ID | undefined = undefined
+  private readonly _deprecated?: string | undefined = undefined
+  private readonly _description?: string | undefined = undefined
+  private readonly _name?: string | undefined = undefined
+  private readonly _value?: string | undefined = undefined
 
   /**
    * Constructor is used for internal usage only, do not create object from it.
@@ -7932,9 +7928,9 @@ export class EnumValueTypeDef extends BaseClient {
  * A collection of environment variables.
  */
 export class EnvFile extends BaseClient {
-  private readonly _id?: ID = undefined
-  private readonly _exists?: boolean = undefined
-  private readonly _get?: string = undefined
+  private readonly _id?: ID | undefined = undefined
+  private readonly _exists?: boolean | undefined = undefined
+  private readonly _get?: string | undefined = undefined
 
   /**
    * Constructor is used for internal usage only, do not create object from it.
@@ -8098,9 +8094,9 @@ export class EnvFile extends BaseClient {
  * An environment variable name and value.
  */
 export class EnvVariable extends BaseClient {
-  private readonly _id?: ID = undefined
-  private readonly _name?: string = undefined
-  private readonly _value?: string = undefined
+  private readonly _id?: ID | undefined = undefined
+  private readonly _name?: string | undefined = undefined
+  private readonly _value?: string | undefined = undefined
 
   /**
    * Constructor is used for internal usage only, do not create object from it.
@@ -8175,8 +8171,8 @@ export class EnvVariable extends BaseClient {
 
 
 export class Error extends BaseClient {
-  private readonly _id?: ID = undefined
-  private readonly _message?: string = undefined
+  private readonly _id?: ID | undefined = undefined
+  private readonly _message?: string | undefined = undefined
 
   /**
    * Constructor is used for internal usage only, do not create object from it.
@@ -8272,9 +8268,9 @@ export class Error extends BaseClient {
 
 
 export class ErrorValue extends BaseClient {
-  private readonly _id?: ID = undefined
-  private readonly _name?: string = undefined
-  private readonly _value?: JSON = undefined
+  private readonly _id?: ID | undefined = undefined
+  private readonly _name?: string | undefined = undefined
+  private readonly _value?: JSON | undefined = undefined
 
   /**
    * Constructor is used for internal usage only, do not create object from it.
@@ -8360,8 +8356,8 @@ export interface Exportable {
 }
 
 export class _ExportableClient extends BaseClient {
-  private readonly _id?: ID = undefined
-  private readonly _export?: string = undefined
+  private readonly _id?: ID | undefined = undefined
+  private readonly _export?: string | undefined = undefined
 
   /**
    * Constructor is used for internal usage only, do not create object from it.
@@ -8413,10 +8409,10 @@ export class _ExportableClient extends BaseClient {
  * A field on an object has a static value, as opposed to a function on an object whose value is computed by invoking code (and can accept arguments).
  */
 export class FieldTypeDef extends BaseClient {
-  private readonly _id?: ID = undefined
-  private readonly _deprecated?: string = undefined
-  private readonly _description?: string = undefined
-  private readonly _name?: string = undefined
+  private readonly _id?: ID | undefined = undefined
+  private readonly _deprecated?: string | undefined = undefined
+  private readonly _description?: string | undefined = undefined
+  private readonly _name?: string | undefined = undefined
 
   /**
    * Constructor is used for internal usage only, do not create object from it.
@@ -8540,13 +8536,13 @@ export class FieldTypeDef extends BaseClient {
  * A file.
  */
 export class File extends BaseClient {
-  private readonly _id?: ID = undefined
-  private readonly _contents?: string = undefined
-  private readonly _digest?: string = undefined
-  private readonly _export?: string = undefined
-  private readonly _name?: string = undefined
-  private readonly _size?: number = undefined
-  private readonly _sync?: ID = undefined
+  private readonly _id?: ID | undefined = undefined
+  private readonly _contents?: string | undefined = undefined
+  private readonly _digest?: string | undefined = undefined
+  private readonly _export?: string | undefined = undefined
+  private readonly _name?: string | undefined = undefined
+  private readonly _size?: number | undefined = undefined
+  private readonly _sync?: ID | undefined = undefined
 
   /**
    * Constructor is used for internal usage only, do not create object from it.
@@ -8876,11 +8872,11 @@ export class File extends BaseClient {
  * A function always evaluates against a parent object and is given a set of named arguments.
  */
 export class Function_ extends BaseClient {
-  private readonly _id?: ID = undefined
-  private readonly _deprecated?: string = undefined
-  private readonly _description?: string = undefined
-  private readonly _name?: string = undefined
-  private readonly _sourceModuleName?: string = undefined
+  private readonly _id?: ID | undefined = undefined
+  private readonly _deprecated?: string | undefined = undefined
+  private readonly _description?: string | undefined = undefined
+  private readonly _name?: string | undefined = undefined
+  private readonly _sourceModuleName?: string | undefined = undefined
 
   /**
    * Constructor is used for internal usage only, do not create object from it.
@@ -9174,13 +9170,13 @@ export class Function_ extends BaseClient {
  * This is a specification for an argument at function definition time, not an argument passed at function call time.
  */
 export class FunctionArg extends BaseClient {
-  private readonly _id?: ID = undefined
-  private readonly _defaultAddress?: string = undefined
-  private readonly _defaultPath?: string = undefined
-  private readonly _defaultValue?: JSON = undefined
-  private readonly _deprecated?: string = undefined
-  private readonly _description?: string = undefined
-  private readonly _name?: string = undefined
+  private readonly _id?: ID | undefined = undefined
+  private readonly _defaultAddress?: string | undefined = undefined
+  private readonly _defaultPath?: string | undefined = undefined
+  private readonly _defaultValue?: JSON | undefined = undefined
+  private readonly _deprecated?: string | undefined = undefined
+  private readonly _description?: string | undefined = undefined
+  private readonly _name?: string | undefined = undefined
 
   /**
    * Constructor is used for internal usage only, do not create object from it.
@@ -9380,12 +9376,12 @@ export class FunctionArg extends BaseClient {
  * An active function call.
  */
 export class FunctionCall extends BaseClient {
-  private readonly _id?: ID = undefined
-  private readonly _name?: string = undefined
-  private readonly _parent?: JSON = undefined
-  private readonly _parentName?: string = undefined
-  private readonly _returnError?: Void = undefined
-  private readonly _returnValue?: Void = undefined
+  private readonly _id?: ID | undefined = undefined
+  private readonly _name?: string | undefined = undefined
+  private readonly _parent?: JSON | undefined = undefined
+  private readonly _parentName?: string | undefined = undefined
+  private readonly _returnError?: Void | undefined = undefined
+  private readonly _returnValue?: Void | undefined = undefined
 
   /**
    * Constructor is used for internal usage only, do not create object from it.
@@ -9542,9 +9538,9 @@ export class FunctionCall extends BaseClient {
  * A value passed as a named argument to a function call.
  */
 export class FunctionCallArgValue extends BaseClient {
-  private readonly _id?: ID = undefined
-  private readonly _name?: string = undefined
-  private readonly _value?: JSON = undefined
+  private readonly _id?: ID | undefined = undefined
+  private readonly _name?: string | undefined = undefined
+  private readonly _value?: JSON | undefined = undefined
 
   /**
    * Constructor is used for internal usage only, do not create object from it.
@@ -9621,7 +9617,7 @@ export class FunctionCallArgValue extends BaseClient {
  * The result of running an SDK's codegen.
  */
 export class GeneratedCode extends BaseClient {
-  private readonly _id?: ID = undefined
+  private readonly _id?: ID | undefined = undefined
 
   /**
    * Constructor is used for internal usage only, do not create object from it.
@@ -9728,11 +9724,11 @@ export class GeneratedCode extends BaseClient {
 
 
 export class Generator extends BaseClient {
-  private readonly _id?: ID = undefined
-  private readonly _completed?: boolean = undefined
-  private readonly _description?: string = undefined
-  private readonly _isEmpty?: boolean = undefined
-  private readonly _name?: string = undefined
+  private readonly _id?: ID | undefined = undefined
+  private readonly _completed?: boolean | undefined = undefined
+  private readonly _description?: string | undefined = undefined
+  private readonly _isEmpty?: boolean | undefined = undefined
+  private readonly _name?: string | undefined = undefined
 
   /**
    * Constructor is used for internal usage only, do not create object from it.
@@ -9908,8 +9904,8 @@ export class Generator extends BaseClient {
 
 
 export class GeneratorGroup extends BaseClient {
-  private readonly _id?: ID = undefined
-  private readonly _isEmpty?: boolean = undefined
+  private readonly _id?: ID | undefined = undefined
+  private readonly _isEmpty?: boolean | undefined = undefined
 
   /**
    * Constructor is used for internal usage only, do not create object from it.
@@ -10058,9 +10054,9 @@ export class GeneratorGroup extends BaseClient {
  * A Git bundle: a self-describing container of refs and the objects needed to reconstruct them, optionally rooted at prerequisite commits.
  */
 export class GitBundle extends BaseClient {
-  private readonly _id?: ID = undefined
-  private readonly _objectFormat?: string = undefined
-  private readonly _version?: number = undefined
+  private readonly _id?: ID | undefined = undefined
+  private readonly _objectFormat?: string | undefined = undefined
+  private readonly _version?: number | undefined = undefined
 
   /**
    * Constructor is used for internal usage only, do not create object from it.
@@ -10200,9 +10196,9 @@ export class GitBundle extends BaseClient {
  * A ref advertised by a Git bundle.
  */
 export class GitBundleRef extends BaseClient {
-  private readonly _id?: ID = undefined
-  private readonly _name?: string = undefined
-  private readonly _sha?: string = undefined
+  private readonly _id?: ID | undefined = undefined
+  private readonly _name?: string | undefined = undefined
+  private readonly _sha?: string | undefined = undefined
 
   /**
    * Constructor is used for internal usage only, do not create object from it.
@@ -10279,18 +10275,18 @@ export class GitBundleRef extends BaseClient {
  * An immutable git commit.
  */
 export class GitCommit extends BaseClient {
-  private readonly _id?: ID = undefined
-  private readonly _authorEmail?: string = undefined
-  private readonly _authorName?: string = undefined
-  private readonly _authoredDate?: string = undefined
-  private readonly _committedDate?: string = undefined
-  private readonly _committerEmail?: string = undefined
-  private readonly _committerName?: string = undefined
-  private readonly _message?: string = undefined
-  private readonly _messageBody?: string = undefined
-  private readonly _messageHeadline?: string = undefined
-  private readonly _sha?: string = undefined
-  private readonly _shortSha?: string = undefined
+  private readonly _id?: ID | undefined = undefined
+  private readonly _authorEmail?: string | undefined = undefined
+  private readonly _authorName?: string | undefined = undefined
+  private readonly _authoredDate?: string | undefined = undefined
+  private readonly _committedDate?: string | undefined = undefined
+  private readonly _committerEmail?: string | undefined = undefined
+  private readonly _committerName?: string | undefined = undefined
+  private readonly _message?: string | undefined = undefined
+  private readonly _messageBody?: string | undefined = undefined
+  private readonly _messageHeadline?: string | undefined = undefined
+  private readonly _sha?: string | undefined = undefined
+  private readonly _shortSha?: string | undefined = undefined
 
   /**
    * Constructor is used for internal usage only, do not create object from it.
@@ -10614,11 +10610,11 @@ export class GitCommit extends BaseClient {
  * A git ref (tag, branch, or commit).
  */
 export class GitRef extends BaseClient {
-  private readonly _id?: ID = undefined
-  private readonly _commit?: string = undefined
-  private readonly _commitSHA?: string = undefined
-  private readonly _name?: string = undefined
-  private readonly _ref?: string = undefined
+  private readonly _id?: ID | undefined = undefined
+  private readonly _commit?: string | undefined = undefined
+  private readonly _commitSHA?: string | undefined = undefined
+  private readonly _name?: string | undefined = undefined
+  private readonly _ref?: string | undefined = undefined
 
   /**
    * Constructor is used for internal usage only, do not create object from it.
@@ -10821,8 +10817,8 @@ export class GitRef extends BaseClient {
  * A git repository.
  */
 export class GitRepository extends BaseClient {
-  private readonly _id?: ID = undefined
-  private readonly _url?: string = undefined
+  private readonly _id?: ID | undefined = undefined
+  private readonly _url?: string | undefined = undefined
 
   /**
    * Constructor is used for internal usage only, do not create object from it.
@@ -11052,7 +11048,7 @@ export class GitRepository extends BaseClient {
  * An internal persistent HTTP state.
  */
 export class HTTPState extends BaseClient {
-  private readonly _id?: ID = undefined
+  private readonly _id?: ID | undefined = undefined
 
   /**
    * Constructor is used for internal usage only, do not create object from it.
@@ -11089,13 +11085,13 @@ export class HTTPState extends BaseClient {
  * Image healthcheck configuration.
  */
 export class HealthcheckConfig extends BaseClient {
-  private readonly _id?: ID = undefined
-  private readonly _interval?: string = undefined
-  private readonly _retries?: number = undefined
-  private readonly _shell?: boolean = undefined
-  private readonly _startInterval?: string = undefined
-  private readonly _startPeriod?: string = undefined
-  private readonly _timeout?: string = undefined
+  private readonly _id?: ID | undefined = undefined
+  private readonly _interval?: string | undefined = undefined
+  private readonly _retries?: number | undefined = undefined
+  private readonly _shell?: boolean | undefined = undefined
+  private readonly _startInterval?: string | undefined = undefined
+  private readonly _startPeriod?: string | undefined = undefined
+  private readonly _timeout?: string | undefined = undefined
 
   /**
    * Constructor is used for internal usage only, do not create object from it.
@@ -11266,8 +11262,8 @@ export class HealthcheckConfig extends BaseClient {
  * Information about the host environment.
  */
 export class Host extends BaseClient {
-  private readonly _id?: ID = undefined
-  private readonly _findUp?: string = undefined
+  private readonly _id?: ID | undefined = undefined
+  private readonly _findUp?: string | undefined = undefined
 
   /**
    * Constructor is used for internal usage only, do not create object from it.
@@ -11434,8 +11430,8 @@ export class Host extends BaseClient {
  * module accept input objects via their id rather than graphql input types.
  */
 export class InputTypeDef extends BaseClient {
-  private readonly _id?: ID = undefined
-  private readonly _name?: string = undefined
+  private readonly _id?: ID | undefined = undefined
+  private readonly _name?: string | undefined = undefined
 
   /**
    * Constructor is used for internal usage only, do not create object from it.
@@ -11512,10 +11508,10 @@ export class InputTypeDef extends BaseClient {
  * A definition of a custom interface defined in a Module.
  */
 export class InterfaceTypeDef extends BaseClient {
-  private readonly _id?: ID = undefined
-  private readonly _description?: string = undefined
-  private readonly _name?: string = undefined
-  private readonly _sourceModuleName?: string = undefined
+  private readonly _id?: ID | undefined = undefined
+  private readonly _description?: string | undefined = undefined
+  private readonly _name?: string | undefined = undefined
+  private readonly _sourceModuleName?: string | undefined = undefined
 
   /**
    * Constructor is used for internal usage only, do not create object from it.
@@ -11646,11 +11642,11 @@ export class InterfaceTypeDef extends BaseClient {
 
 
 export class JSONValue extends BaseClient {
-  private readonly _id?: ID = undefined
-  private readonly _asBoolean?: boolean = undefined
-  private readonly _asInteger?: number = undefined
-  private readonly _asString?: string = undefined
-  private readonly _contents?: JSON = undefined
+  private readonly _id?: ID | undefined = undefined
+  private readonly _asBoolean?: boolean | undefined = undefined
+  private readonly _asInteger?: number | undefined = undefined
+  private readonly _asString?: string | undefined = undefined
+  private readonly _contents?: JSON | undefined = undefined
 
   /**
    * Constructor is used for internal usage only, do not create object from it.
@@ -11891,19 +11887,19 @@ export class JSONValue extends BaseClient {
  * A conversation with a large language model (LLM): queue prompts, expose tools, and step the model until it completes its turn.
  */
 export class LLM extends BaseClient {
-  private readonly _id?: ID = undefined
-  private readonly _contextTokens?: number = undefined
-  private readonly _contextWindow?: number = undefined
-  private readonly _hasPending?: boolean = undefined
-  private readonly _lastReply?: string = undefined
-  private readonly _model?: string = undefined
-  private readonly _portableID?: ID = undefined
-  private readonly _provider?: string = undefined
-  private readonly _reasoningEffort?: string = undefined
-  private readonly _replay?: ID = undefined
-  private readonly _sync?: ID = undefined
-  private readonly _tools?: string = undefined
-  private readonly _transcript?: string = undefined
+  private readonly _id?: ID | undefined = undefined
+  private readonly _contextTokens?: number | undefined = undefined
+  private readonly _contextWindow?: number | undefined = undefined
+  private readonly _hasPending?: boolean | undefined = undefined
+  private readonly _lastReply?: string | undefined = undefined
+  private readonly _model?: string | undefined = undefined
+  private readonly _portableID?: ID | undefined = undefined
+  private readonly _provider?: string | undefined = undefined
+  private readonly _reasoningEffort?: string | undefined = undefined
+  private readonly _replay?: ID | undefined = undefined
+  private readonly _sync?: ID | undefined = undefined
+  private readonly _tools?: string | undefined = undefined
+  private readonly _transcript?: string | undefined = undefined
 
   /**
    * Constructor is used for internal usage only, do not create object from it.
@@ -12465,14 +12461,14 @@ export class LLM extends BaseClient {
  * A single piece of content within an LLM message.
  */
 export class LLMContentBlock extends BaseClient {
-  private readonly _id?: ID = undefined
-  private readonly _arguments?: JSON = undefined
-  private readonly _callId?: string = undefined
-  private readonly _errored?: boolean = undefined
-  private readonly _kind?: LLMContentBlockKind = undefined
-  private readonly _signature?: string = undefined
-  private readonly _text?: string = undefined
-  private readonly _toolName?: string = undefined
+  private readonly _id?: ID | undefined = undefined
+  private readonly _arguments?: JSON | undefined = undefined
+  private readonly _callId?: string | undefined = undefined
+  private readonly _errored?: boolean | undefined = undefined
+  private readonly _kind?: LLMContentBlockKind | undefined = undefined
+  private readonly _signature?: string | undefined = undefined
+  private readonly _text?: string | undefined = undefined
+  private readonly _toolName?: string | undefined = undefined
 
   /**
    * Constructor is used for internal usage only, do not create object from it.
@@ -12652,8 +12648,8 @@ export class LLMContentBlock extends BaseClient {
  * A single message in an LLM conversation.
  */
 export class LLMMessage extends BaseClient {
-  private readonly _id?: ID = undefined
-  private readonly _role?: LLMMessageRole = undefined
+  private readonly _id?: ID | undefined = undefined
+  private readonly _role?: LLMMessageRole | undefined = undefined
 
   /**
    * Constructor is used for internal usage only, do not create object from it.
@@ -12740,9 +12736,9 @@ export class LLMMessage extends BaseClient {
  * A skill available to a model: task-specific guidance discovered with ListSkills and read with ReadSkill.
  */
 export class LLMSkill extends BaseClient {
-  private readonly _id?: ID = undefined
-  private readonly _description?: string = undefined
-  private readonly _name?: string = undefined
+  private readonly _id?: ID | undefined = undefined
+  private readonly _description?: string | undefined = undefined
+  private readonly _name?: string | undefined = undefined
 
   /**
    * Constructor is used for internal usage only, do not create object from it.
@@ -12819,12 +12815,12 @@ export class LLMSkill extends BaseClient {
  * A count of tokens consumed by LLM API calls.
  */
 export class LLMTokenUsage extends BaseClient {
-  private readonly _id?: ID = undefined
-  private readonly _cachedTokenReads?: number = undefined
-  private readonly _cachedTokenWrites?: number = undefined
-  private readonly _inputTokens?: number = undefined
-  private readonly _outputTokens?: number = undefined
-  private readonly _totalTokens?: number = undefined
+  private readonly _id?: ID | undefined = undefined
+  private readonly _cachedTokenReads?: number | undefined = undefined
+  private readonly _cachedTokenWrites?: number | undefined = undefined
+  private readonly _inputTokens?: number | undefined = undefined
+  private readonly _outputTokens?: number | undefined = undefined
+  private readonly _totalTokens?: number | undefined = undefined
 
   /**
    * Constructor is used for internal usage only, do not create object from it.
@@ -12961,9 +12957,9 @@ export class LLMTokenUsage extends BaseClient {
  * A simple key value object that represents a label.
  */
 export class Label extends BaseClient {
-  private readonly _id?: ID = undefined
-  private readonly _name?: string = undefined
-  private readonly _value?: string = undefined
+  private readonly _id?: ID | undefined = undefined
+  private readonly _name?: string | undefined = undefined
+  private readonly _value?: string | undefined = undefined
 
   /**
    * Constructor is used for internal usage only, do not create object from it.
@@ -13040,7 +13036,7 @@ export class Label extends BaseClient {
  * A definition of a list type in a Module.
  */
 export class ListTypeDef extends BaseClient {
-  private readonly _id?: ID = undefined
+  private readonly _id?: ID | undefined = undefined
 
   /**
    * Constructor is used for internal usage only, do not create object from it.
@@ -13088,11 +13084,11 @@ export class ListTypeDef extends BaseClient {
  * A Dagger module.
  */
 export class Module_ extends BaseClient {
-  private readonly _id?: ID = undefined
-  private readonly _description?: string = undefined
-  private readonly _name?: string = undefined
-  private readonly _serve?: Void = undefined
-  private readonly _sync?: ID = undefined
+  private readonly _id?: ID | undefined = undefined
+  private readonly _description?: string | undefined = undefined
+  private readonly _name?: string | undefined = undefined
+  private readonly _serve?: Void | undefined = undefined
+  private readonly _sync?: ID | undefined = undefined
 
   /**
    * Constructor is used for internal usage only, do not create object from it.
@@ -13497,9 +13493,9 @@ export class Module_ extends BaseClient {
  * The client generated for the module.
  */
 export class ModuleConfigClient extends BaseClient {
-  private readonly _id?: ID = undefined
-  private readonly _directory?: string = undefined
-  private readonly _generator?: string = undefined
+  private readonly _id?: ID | undefined = undefined
+  private readonly _directory?: string | undefined = undefined
+  private readonly _generator?: string | undefined = undefined
 
   /**
    * Constructor is used for internal usage only, do not create object from it.
@@ -13576,26 +13572,26 @@ export class ModuleConfigClient extends BaseClient {
  * The source needed to load and run a module, along with any metadata about the source such as versions/urls/etc.
  */
 export class ModuleSource extends BaseClient {
-  private readonly _id?: ID = undefined
-  private readonly _asString?: string = undefined
-  private readonly _cloneRef?: string = undefined
-  private readonly _commit?: string = undefined
-  private readonly _configExists?: boolean = undefined
-  private readonly _digest?: string = undefined
-  private readonly _engineVersion?: string = undefined
-  private readonly _htmlRepoURL?: string = undefined
-  private readonly _htmlURL?: string = undefined
-  private readonly _kind?: ModuleSourceKind = undefined
-  private readonly _localContextDirectoryPath?: string = undefined
-  private readonly _moduleName?: string = undefined
-  private readonly _moduleOriginalName?: string = undefined
-  private readonly _originalSubpath?: string = undefined
-  private readonly _pin?: string = undefined
-  private readonly _repoRootPath?: string = undefined
-  private readonly _sourceRootSubpath?: string = undefined
-  private readonly _sourceSubpath?: string = undefined
-  private readonly _sync?: ID = undefined
-  private readonly _version?: string = undefined
+  private readonly _id?: ID | undefined = undefined
+  private readonly _asString?: string | undefined = undefined
+  private readonly _cloneRef?: string | undefined = undefined
+  private readonly _commit?: string | undefined = undefined
+  private readonly _configExists?: boolean | undefined = undefined
+  private readonly _digest?: string | undefined = undefined
+  private readonly _engineVersion?: string | undefined = undefined
+  private readonly _htmlRepoURL?: string | undefined = undefined
+  private readonly _htmlURL?: string | undefined = undefined
+  private readonly _kind?: ModuleSourceKind | undefined = undefined
+  private readonly _localContextDirectoryPath?: string | undefined = undefined
+  private readonly _moduleName?: string | undefined = undefined
+  private readonly _moduleOriginalName?: string | undefined = undefined
+  private readonly _originalSubpath?: string | undefined = undefined
+  private readonly _pin?: string | undefined = undefined
+  private readonly _repoRootPath?: string | undefined = undefined
+  private readonly _sourceRootSubpath?: string | undefined = undefined
+  private readonly _sourceSubpath?: string | undefined = undefined
+  private readonly _sync?: ID | undefined = undefined
+  private readonly _version?: string | undefined = undefined
 
   /**
    * Constructor is used for internal usage only, do not create object from it.
@@ -14483,7 +14479,7 @@ export interface Node {
 }
 
 export class _NodeClient extends BaseClient {
-  private readonly _id?: ID = undefined
+  private readonly _id?: ID | undefined = undefined
 
   /**
    * Constructor is used for internal usage only, do not create object from it.
@@ -14516,11 +14512,11 @@ export class _NodeClient extends BaseClient {
  * A definition of a custom object defined in a Module.
  */
 export class ObjectTypeDef extends BaseClient {
-  private readonly _id?: ID = undefined
-  private readonly _deprecated?: string = undefined
-  private readonly _description?: string = undefined
-  private readonly _name?: string = undefined
-  private readonly _sourceModuleName?: string = undefined
+  private readonly _id?: ID | undefined = undefined
+  private readonly _deprecated?: string | undefined = undefined
+  private readonly _description?: string | undefined = undefined
+  private readonly _name?: string | undefined = undefined
+  private readonly _sourceModuleName?: string | undefined = undefined
 
   /**
    * Constructor is used for internal usage only, do not create object from it.
@@ -14711,11 +14707,11 @@ export class ObjectTypeDef extends BaseClient {
  * A port exposed by a container.
  */
 export class Port extends BaseClient {
-  private readonly _id?: ID = undefined
-  private readonly _description?: string = undefined
-  private readonly _experimentalSkipHealthcheck?: boolean = undefined
-  private readonly _port?: number = undefined
-  private readonly _protocol?: NetworkProtocol = undefined
+  private readonly _id?: ID | undefined = undefined
+  private readonly _description?: string | undefined = undefined
+  private readonly _experimentalSkipHealthcheck?: boolean | undefined = undefined
+  private readonly _port?: number | undefined = undefined
+  private readonly _protocol?: NetworkProtocol | undefined = undefined
 
   /**
    * Constructor is used for internal usage only, do not create object from it.
@@ -14833,9 +14829,9 @@ export class Port extends BaseClient {
  * The root of the DAG.
  */
 export class Client extends BaseClient {
-  private readonly _id?: ID = undefined
-  private readonly _defaultPlatform?: Platform = undefined
-  private readonly _version?: string = undefined
+  private readonly _id?: ID | undefined = undefined
+  private readonly _defaultPlatform?: Platform | undefined = undefined
+  private readonly _version?: string | undefined = undefined
 
   /**
    * Constructor is used for internal usage only, do not create object from it.
@@ -15391,7 +15387,7 @@ export class Client extends BaseClient {
  * An internal persistent bare git mirror.
  */
 export class RemoteGitMirror extends BaseClient {
-  private readonly _id?: ID = undefined
+  private readonly _id?: ID | undefined = undefined
 
   /**
    * Constructor is used for internal usage only, do not create object from it.
@@ -15430,9 +15426,9 @@ export class RemoteGitMirror extends BaseClient {
  * The SDK config of the module.
  */
 export class SDKConfig extends BaseClient {
-  private readonly _id?: ID = undefined
-  private readonly _debug?: boolean = undefined
-  private readonly _source?: string = undefined
+  private readonly _id?: ID | undefined = undefined
+  private readonly _debug?: boolean | undefined = undefined
+  private readonly _source?: string | undefined = undefined
 
   /**
    * Constructor is used for internal usage only, do not create object from it.
@@ -15509,10 +15505,10 @@ export class SDKConfig extends BaseClient {
  * A definition of a custom scalar defined in a Module.
  */
 export class ScalarTypeDef extends BaseClient {
-  private readonly _id?: ID = undefined
-  private readonly _description?: string = undefined
-  private readonly _name?: string = undefined
-  private readonly _sourceModuleName?: string = undefined
+  private readonly _id?: ID | undefined = undefined
+  private readonly _description?: string | undefined = undefined
+  private readonly _name?: string | undefined = undefined
+  private readonly _sourceModuleName?: string | undefined = undefined
 
   /**
    * Constructor is used for internal usage only, do not create object from it.
@@ -15609,8 +15605,8 @@ export class ScalarTypeDef extends BaseClient {
  * A GraphQL introspection schema that can be inspected and merged.
  */
 export class Schema extends BaseClient {
-  private readonly _id?: ID = undefined
-  private readonly _contents?: JSON = undefined
+  private readonly _id?: ID | undefined = undefined
+  private readonly _contents?: JSON | undefined = undefined
 
   /**
    * Constructor is used for internal usage only, do not create object from it.
@@ -15688,11 +15684,11 @@ export class Schema extends BaseClient {
 
 
 export class SearchResult extends BaseClient {
-  private readonly _id?: ID = undefined
-  private readonly _absoluteOffset?: number = undefined
-  private readonly _filePath?: string = undefined
-  private readonly _lineNumber?: number = undefined
-  private readonly _matchedLines?: string = undefined
+  private readonly _id?: ID | undefined = undefined
+  private readonly _absoluteOffset?: number | undefined = undefined
+  private readonly _filePath?: string | undefined = undefined
+  private readonly _lineNumber?: number | undefined = undefined
+  private readonly _matchedLines?: string | undefined = undefined
 
   /**
    * Constructor is used for internal usage only, do not create object from it.
@@ -15825,10 +15821,10 @@ export class SearchResult extends BaseClient {
 
 
 export class SearchSubmatch extends BaseClient {
-  private readonly _id?: ID = undefined
-  private readonly _end?: number = undefined
-  private readonly _start?: number = undefined
-  private readonly _text?: string = undefined
+  private readonly _id?: ID | undefined = undefined
+  private readonly _end?: number | undefined = undefined
+  private readonly _start?: number | undefined = undefined
+  private readonly _text?: string | undefined = undefined
 
   /**
    * Constructor is used for internal usage only, do not create object from it.
@@ -15925,10 +15921,10 @@ export class SearchSubmatch extends BaseClient {
  * A reference to a secret value, which can be handled more safely than the value itself.
  */
 export class Secret extends BaseClient {
-  private readonly _id?: ID = undefined
-  private readonly _name?: string = undefined
-  private readonly _plaintext?: string = undefined
-  private readonly _uri?: string = undefined
+  private readonly _id?: ID | undefined = undefined
+  private readonly _name?: string | undefined = undefined
+  private readonly _plaintext?: string | undefined = undefined
+  private readonly _uri?: string | undefined = undefined
 
   /**
    * Constructor is used for internal usage only, do not create object from it.
@@ -16025,13 +16021,13 @@ export class Secret extends BaseClient {
  * A content-addressed service providing TCP connectivity.
  */
 export class Service extends BaseClient {
-  private readonly _id?: ID = undefined
-  private readonly _endpoint?: string = undefined
-  private readonly _hostname?: string = undefined
-  private readonly _start?: ID = undefined
-  private readonly _stop?: ID = undefined
-  private readonly _sync?: ID = undefined
-  private readonly _up?: Void = undefined
+  private readonly _id?: ID | undefined = undefined
+  private readonly _endpoint?: string | undefined = undefined
+  private readonly _hostname?: string | undefined = undefined
+  private readonly _start?: ID | undefined = undefined
+  private readonly _stop?: ID | undefined = undefined
+  private readonly _sync?: ID | undefined = undefined
+  private readonly _up?: Void | undefined = undefined
 
   /**
    * Constructor is used for internal usage only, do not create object from it.
@@ -16242,7 +16238,7 @@ export class Service extends BaseClient {
  * A Unix or TCP/IP socket that can be mounted into a container.
  */
 export class Socket extends BaseClient {
-  private readonly _id?: ID = undefined
+  private readonly _id?: ID | undefined = undefined
 
   /**
    * Constructor is used for internal usage only, do not create object from it.
@@ -16279,12 +16275,12 @@ export class Socket extends BaseClient {
  * Source location information.
  */
 export class SourceMap extends BaseClient {
-  private readonly _id?: ID = undefined
-  private readonly _column?: number = undefined
-  private readonly _filename?: string = undefined
-  private readonly _line?: number = undefined
-  private readonly _module?: string = undefined
-  private readonly _url?: string = undefined
+  private readonly _id?: ID | undefined = undefined
+  private readonly _column?: number | undefined = undefined
+  private readonly _filename?: string | undefined = undefined
+  private readonly _line?: number | undefined = undefined
+  private readonly _module?: string | undefined = undefined
+  private readonly _url?: string | undefined = undefined
 
   /**
    * Constructor is used for internal usage only, do not create object from it.
@@ -16421,11 +16417,11 @@ export class SourceMap extends BaseClient {
  * A file or directory status object.
  */
 export class Stat extends BaseClient {
-  private readonly _id?: ID = undefined
-  private readonly _fileType?: FileType = undefined
-  private readonly _name?: string = undefined
-  private readonly _permissions?: number = undefined
-  private readonly _size?: number = undefined
+  private readonly _id?: ID | undefined = undefined
+  private readonly _fileType?: FileType | undefined = undefined
+  private readonly _name?: string | undefined = undefined
+  private readonly _permissions?: number | undefined = undefined
+  private readonly _size?: number | undefined = undefined
 
   /**
    * Constructor is used for internal usage only, do not create object from it.
@@ -16550,8 +16546,8 @@ export interface Syncer {
 }
 
 export class _SyncerClient extends BaseClient {
-  private readonly _id?: ID = undefined
-  private readonly _sync?: ID = undefined
+  private readonly _id?: ID | undefined = undefined
+  private readonly _sync?: ID | undefined = undefined
 
   /**
    * Constructor is used for internal usage only, do not create object from it.
@@ -16596,8 +16592,8 @@ export class _SyncerClient extends BaseClient {
  * An interactive terminal that clients can connect to.
  */
 export class Terminal extends BaseClient {
-  private readonly _id?: ID = undefined
-  private readonly _sync?: ID = undefined
+  private readonly _id?: ID | undefined = undefined
+  private readonly _sync?: ID | undefined = undefined
 
   /**
    * Constructor is used for internal usage only, do not create object from it.
@@ -16650,7 +16646,7 @@ export class Terminal extends BaseClient {
 
 
 export class TerminalGroup extends BaseClient {
-  private readonly _id?: ID = undefined
+  private readonly _id?: ID | undefined = undefined
 
   /**
    * Constructor is used for internal usage only, do not create object from it.
@@ -16723,9 +16719,9 @@ export class TerminalGroup extends BaseClient {
 
 
 export class TerminalTarget extends BaseClient {
-  private readonly _id?: ID = undefined
-  private readonly _description?: string = undefined
-  private readonly _name?: string = undefined
+  private readonly _id?: ID | undefined = undefined
+  private readonly _description?: string | undefined = undefined
+  private readonly _name?: string | undefined = undefined
 
   /**
    * Constructor is used for internal usage only, do not create object from it.
@@ -16827,10 +16823,10 @@ export class TerminalTarget extends BaseClient {
  * A definition of a parameter or return type in a Module.
  */
 export class TypeDef extends BaseClient {
-  private readonly _id?: ID = undefined
-  private readonly _kind?: TypeDefKind = undefined
-  private readonly _name?: string = undefined
-  private readonly _optional?: boolean = undefined
+  private readonly _id?: ID | undefined = undefined
+  private readonly _kind?: TypeDefKind | undefined = undefined
+  private readonly _name?: string | undefined = undefined
+  private readonly _optional?: boolean | undefined = undefined
 
   /**
    * Constructor is used for internal usage only, do not create object from it.
@@ -17203,9 +17199,9 @@ export class TypeDef extends BaseClient {
 
 
 export class Up extends BaseClient {
-  private readonly _id?: ID = undefined
-  private readonly _description?: string = undefined
-  private readonly _name?: string = undefined
+  private readonly _id?: ID | undefined = undefined
+  private readonly _description?: string | undefined = undefined
+  private readonly _name?: string | undefined = undefined
 
   /**
    * Constructor is used for internal usage only, do not create object from it.
@@ -17325,7 +17321,7 @@ export class Up extends BaseClient {
 
 
 export class UpGroup extends BaseClient {
-  private readonly _id?: ID = undefined
+  private readonly _id?: ID | undefined = undefined
 
   /**
    * Constructor is used for internal usage only, do not create object from it.
@@ -17402,7 +17398,7 @@ export class UpGroup extends BaseClient {
  * A filesystem volume that can be mounted into containers.
  */
 export class Volume extends BaseClient {
-  private readonly _id?: ID = undefined
+  private readonly _id?: ID | undefined = undefined
 
   /**
    * Constructor is used for internal usage only, do not create object from it.
@@ -17439,14 +17435,14 @@ export class Volume extends BaseClient {
  * A Dagger workspace detected from the current working directory or constructed from a Directory.
  */
 export class Workspace extends BaseClient {
-  private readonly _id?: ID = undefined
-  private readonly _address?: string = undefined
-  private readonly _configFile?: string = undefined
-  private readonly _configRead?: string = undefined
-  private readonly _cwd?: string = undefined
-  private readonly _detectScope?: string = undefined
-  private readonly _export?: Void = undefined
-  private readonly _findUp?: string = undefined
+  private readonly _id?: ID | undefined = undefined
+  private readonly _address?: string | undefined = undefined
+  private readonly _configFile?: string | undefined = undefined
+  private readonly _configRead?: string | undefined = undefined
+  private readonly _cwd?: string | undefined = undefined
+  private readonly _detectScope?: string | undefined = undefined
+  private readonly _export?: Void | undefined = undefined
+  private readonly _findUp?: string | undefined = undefined
 
   /**
    * Constructor is used for internal usage only, do not create object from it.
@@ -18359,7 +18355,7 @@ export class Workspace extends BaseClient {
  * Local git state for a workspace.
  */
 export class WorkspaceGit extends BaseClient {
-  private readonly _id?: ID = undefined
+  private readonly _id?: ID | undefined = undefined
 
   /**
    * Constructor is used for internal usage only, do not create object from it.
@@ -18418,7 +18414,7 @@ export class WorkspaceGit extends BaseClient {
  * A planned workspace migration.
  */
 export class WorkspaceMigration extends BaseClient {
-  private readonly _id?: ID = undefined
+  private readonly _id?: ID | undefined = undefined
 
   /**
    * Constructor is used for internal usage only, do not create object from it.
@@ -18484,9 +18480,9 @@ export class WorkspaceMigration extends BaseClient {
  * A single logical part of a workspace migration.
  */
 export class WorkspaceMigrationStep extends BaseClient {
-  private readonly _id?: ID = undefined
-  private readonly _code?: string = undefined
-  private readonly _description?: string = undefined
+  private readonly _id?: ID | undefined = undefined
+  private readonly _code?: string | undefined = undefined
+  private readonly _description?: string | undefined = undefined
 
   /**
    * Constructor is used for internal usage only, do not create object from it.
@@ -18588,10 +18584,10 @@ export class WorkspaceMigrationStep extends BaseClient {
  * A module entry in the workspace configuration.
  */
 export class WorkspaceModule extends BaseClient {
-  private readonly _id?: ID = undefined
-  private readonly _entrypoint?: boolean = undefined
-  private readonly _name?: string = undefined
-  private readonly _source?: string = undefined
+  private readonly _id?: ID | undefined = undefined
+  private readonly _entrypoint?: boolean | undefined = undefined
+  private readonly _name?: string | undefined = undefined
+  private readonly _source?: string | undefined = undefined
 
   /**
    * Constructor is used for internal usage only, do not create object from it.
@@ -18720,12 +18716,12 @@ export class WorkspaceModule extends BaseClient {
  * A constructor-backed module setting.
  */
 export class WorkspaceModuleSetting extends BaseClient {
-  private readonly _id?: ID = undefined
-  private readonly _description?: string = undefined
-  private readonly _isList?: boolean = undefined
-  private readonly _isObject?: boolean = undefined
-  private readonly _key?: string = undefined
-  private readonly _value?: string = undefined
+  private readonly _id?: ID | undefined = undefined
+  private readonly _description?: string | undefined = undefined
+  private readonly _isList?: boolean | undefined = undefined
+  private readonly _isObject?: boolean | undefined = undefined
+  private readonly _key?: string | undefined = undefined
+  private readonly _value?: string | undefined = undefined
 
   /**
    * Constructor is used for internal usage only, do not create object from it.
@@ -18862,9 +18858,9 @@ export class WorkspaceModuleSetting extends BaseClient {
  * An installed SDK: a module marked for scaffolding other modules and clients.
  */
 export class WorkspaceSDK extends BaseClient {
-  private readonly _id?: ID = undefined
-  private readonly _name?: string = undefined
-  private readonly _ref?: string = undefined
+  private readonly _id?: ID | undefined = undefined
+  private readonly _name?: string | undefined = undefined
+  private readonly _ref?: string | undefined = undefined
 
   /**
    * Constructor is used for internal usage only, do not create object from it.
@@ -18975,5 +18971,4 @@ export class WorkspaceSDK extends BaseClient {
 
 
 export const dag = new Client()
-
 

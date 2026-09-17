@@ -1,17 +1,16 @@
 package generator
 
-// Config drives one codegen run. Exactly one of ModuleConfig / ClientConfig /
-// EntrypointConfig is set (none of them means library mode); that choice selects
-// the output file names and how the generated bindings import the SDK runtime.
+// Config drives one codegen run. ModuleConfig covers both a module's own
+// bindings and a standalone client scope — they render the same client files
+// against the same vendored library, differing only in layout (EmitLoader /
+// FlatClients). None of the *Config fields set means library mode.
 type Config struct {
 	// OutputDir is the path to put the generated code.
 	OutputDir string
 
-	// ModuleConfig is the specific config to generate a module's own bindings.
+	// ModuleConfig is the config to generate a scope's client bindings: a
+	// module's own or a standalone client's.
 	ModuleConfig *ModuleGeneratorConfig
-
-	// ClientConfig is the specific config to generate standalone client.
-	ClientConfig *ClientGeneratorConfig
 
 	// EntrypointConfig is the specific config to generate the static dispatch
 	// entrypoint file.
@@ -22,11 +21,40 @@ type Config struct {
 	DangEntrypointConfig *DangEntrypointGeneratorConfig
 }
 
-// Specific configuration for module generation.
+// ModuleGeneratorConfig drives a scope's client generation — the same for a
+// module's own bindings and a standalone client. The output is one core
+// client.gen.ts (the vendored library's bindings) plus one <module>.gen.ts
+// client per module, each serving its own module on use.
 type ModuleGeneratorConfig struct {
-	// Name of the module to generate code for. Its own types stay in the core
-	// file; only its dependencies are split into per-module files.
+	// Name of the module to generate code for, when this is a module's own
+	// bindings. Empty for a standalone client scope, which has no module of its
+	// own — only external targets.
 	ModuleName string
+
+	// BoundModules gives, per module name, the source a generated client serves
+	// on use: its git ref+pin or its workspace-relative path. A module client
+	// with an entry serves that module before its first query. Modules with no
+	// entry (e.g. a manifest dependency the engine already serves) get no serve
+	// hook.
+	BoundModules []BoundModule
+
+	// EmitLoader writes the entrypoint object loader beside the clients. Only a
+	// module scope has an entrypoint that needs it; a standalone client omits it.
+	EmitLoader bool
+
+	// FlatClients writes the per-module client files in the output root rather
+	// than a clients/ subdirectory. A standalone client scope is nothing but its
+	// clients, so they sit flat; a module keeps them under clients/, apart from
+	// its src/, entrypoint and sdk/.
+	FlatClients bool
+
+	// PackagedClients nests each client file in its own directory —
+	// <dir>/<module>/<module>.gen.ts — so the SDK can complete each into a
+	// self-contained npm package beside the library's own (dagger/). The loader
+	// imports each client by relative path rather than by package name, since a
+	// client package that is not installed (the default self client) must still
+	// resolve at dispatch time.
+	PackagedClients bool
 }
 
 // Module-source kinds a generated client can bind to. A local module
@@ -39,12 +67,11 @@ const (
 	ModuleKindDir   = "DIR_SOURCE"
 )
 
-// BoundModule identifies one module a generated client serves. The generated
-// serveBoundModule bootstrap uses Kind to decide how to load it at runtime: a
-// local module (LOCAL_SOURCE/DIR_SOURCE) is resolved against the workspace by
-// its workspace-root-relative Path
-// (dag.currentWorkspace().moduleSource(Path)); a git module (GIT_SOURCE) is
-// served from its canonical Ref + Pin, which resolve from anywhere.
+// BoundModule identifies one module a generated client serves. Its serve uses
+// Kind to decide how: a local module (LOCAL_SOURCE/DIR_SOURCE) resolves against
+// the workspace by its workspace-root-relative Path
+// (currentWorkspace().moduleSource(Path)); a git module (GIT_SOURCE) serves from
+// its canonical Ref + Pin, which resolve from anywhere.
 type BoundModule struct {
 	Name string `json:"name"`
 	Kind string `json:"kind"`
@@ -81,12 +108,6 @@ type EntrypointGeneratorConfig struct {
 	// entrypoint: one JSON request on stdin, one JSON result on stdout, and no
 	// register(). See EntrypointOptions.DispatchMode.
 	DispatchMode bool
-
-	// BoundModules are the modules the dispatcher serves into its own session
-	// before dispatching. Dispatch mode only: a v2 manifest has no
-	// [[dependencies]] table to declare them in, so the serve happens at run
-	// time instead. Empty means the module binds no clients.
-	BoundModules []BoundModule
 }
 
 // Specific configuration for generating the Dang module entrypoint — the program
@@ -131,23 +152,4 @@ type DangEntrypointGeneratorConfig struct {
 	// TSConfigPath is the tsconfig tsx loads, relative to the module directory.
 	// Node only; defaults to "tsconfig.json".
 	TSConfigPath string
-}
-
-// Specific configuration for client generation.
-type ClientGeneratorConfig struct {
-	// The name of the module to generate for.
-	ModuleName string
-
-	// BoundModules are the modules the generated client serves; they drive the
-	// generated serveBoundModule bootstrap. A client is generated per SDK scope
-	// rather than per module, so one package can serve several — the core API
-	// they share is emitted once.
-	BoundModules []BoundModule
-
-	// The directory where the client will be generated.
-	ClientDir string
-
-	// The engine version from dagger.json, used to pin the dagger.io/dagger dependency.
-	// This is only populated when generating from a module source (not in tests).
-	EngineVersion string
 }

@@ -8,9 +8,13 @@ import (
 	"strings"
 	"text/template"
 	"unicode"
-
-	"codegen/generator"
 )
+
+// LoaderImportPath is where the generated entrypoints import the object
+// loader from, relative to the module root: the loader.gen.ts module codegen
+// emits into the module's clients/ directory, with the .js suffix the other
+// generated imports use.
+const LoaderImportPath = "clients/loader.gen.js"
 
 // EntrypointTemplateFuncs returns the template.FuncMap used by
 // src/entrypoint/*.gtpl. All inline TS expression generation lives here so
@@ -42,8 +46,6 @@ func EntrypointTemplateFuncs(module *TypedefModule, opts EntrypointOptions) temp
 		"hasDefault":           hasDefault,
 		"engineIfaceTypeName":  c.engineIfaceTypeName,
 		"plannedImports":       c.plannedImports,
-		"boundModules":         func() []generator.BoundModule { return c.opts.BoundModules },
-		"workspaceModulePath":  workspaceModulePath,
 		"isVariadic":           func(a *TypedefArgument) bool { return a.IsVariadic },
 		"propFieldName":        propFieldName,
 		"sortedKeysObjects":    sortedObjectKeys,
@@ -78,19 +80,6 @@ func (c *entrypointFuncCtx) isExportedClass(obj *TypedefObject) bool {
 	return obj.Kind == "class" && obj.IsExported
 }
 
-// workspaceModulePath turns a bound module's workspace-root-relative path into
-// one the dispatcher can resolve.
-//
-// It has to be absolute. The workspace a module is handed has its cwd at the
-// module's own directory, not the workspace root, so a relative path is joined
-// onto the module — asking for ".dagger/modules/dep" from a module living at
-// ".dagger/modules/app" looks for ".dagger/modules/app/.dagger/modules/dep".
-// The standalone client package gets to use the relative form because its cwd is
-// the workspace root; this one does not.
-func workspaceModulePath(mod generator.BoundModule) string {
-	return "/" + strings.TrimPrefix(strings.TrimPrefix(mod.Path, "./"), "/")
-}
-
 // entrypointReservedBindings are the module-scope identifiers the generated
 // entrypoint imports from the SDK or declares itself. A user class whose name
 // matches one of these must be imported under an alias, otherwise it shadows
@@ -105,7 +94,6 @@ var entrypointReservedBindings = map[string]bool{
 	"connection":          true,
 	"dag":                 true,
 	"getRegisteredClass":  true,
-	"__dagger":            true,
 	"telemetry":           true,
 	// entrypoint-internal declarations
 	"__loadCoreObject": true,
@@ -479,23 +467,20 @@ func (c *entrypointFuncCtx) plannedImports() []importLine {
 	}
 	// DaggerError, FunctionCachePolicy, TypeDefKind and dag are all reachable only
 	// from register() and formatError(), and the dispatcher has neither: its
-	// typedefs live in the Dang entrypoint and a failure is a nonzero exit.
+	// typedefs live in the Dang entrypoint, a failure is a nonzero exit, and it
+	// no longer serves anything (each client serves its own module).
 	names := []string{"Context", "Error as DaggerError", "FunctionCachePolicy", "TypeDefKind", "connection", "dag", "getRegisteredClass"}
 	if c.opts.DispatchMode {
 		names = []string{"Context", "connection", "getRegisteredClass"}
-		// dag comes back only to serve bound modules. A module that binds none
-		// never touches it, and an unused import in generated code invites the
-		// reader to go looking for the use.
-		if len(c.opts.BoundModules) > 0 {
-			names = []string{"Context", "connection", "dag", "getRegisteredClass"}
-		}
 	}
 
 	var lines []importLine
 	lines = append(lines, importLine{From: sdk, Names: names})
-	// Namespace import of the generated client so __loadCoreObject can look up
-	// core/dependency object classes by name when loading them from an ID.
-	lines = append(lines, importLine{From: sdk, Namespace: "* as __dagger"})
+	// The generated loader maps a type name to its client class whichever
+	// per-module file declares it — there is no single namespace to look
+	// classes up in once every module has its own client. Imported relative to
+	// the module root, like the sdk/ directory it sits in.
+	lines = append(lines, importLine{From: "./" + LoaderImportPath, Names: []string{"__loadObject as __loadCoreObject"}})
 	lines = append(lines, importLine{From: sdk + "/telemetry", Namespace: "* as telemetry"})
 
 	// Group user imports by file path, deduping side-effect-only files.

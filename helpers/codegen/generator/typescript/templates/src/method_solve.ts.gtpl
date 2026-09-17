@@ -30,7 +30,7 @@
 
 	{{- /* Write return type */ -}}
 	{{- "" }}): Promise<{{ if .TypeRef.IsVoid }}void{{ else }}{{ . | FormatFieldReturnType }}{{ if IsNullableObject .TypeRef }} | null{{ end }}{{ end }}> => { {{- with .Directives.SourceMap }} // {{ .Module }} ({{ .Filelink | ModuleRelPath }}) {{- end }}
-	{{- /* Body is shared with the dep prototype augmentations. */ -}}
+	{{- /* Body is shared between the core and per-module client classes. */ -}}
 	{{- template "method_solve_body" . }}
   }
 {{- end }}

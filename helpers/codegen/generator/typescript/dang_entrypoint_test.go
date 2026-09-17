@@ -78,28 +78,24 @@ func TestGenerateDangEntrypointDefaultConstructor(t *testing.T) {
 // a different mount layout.
 func TestGenerateDangEntrypointRuntimes(t *testing.T) {
 	for _, tc := range []struct {
-		runtime  string
-		image    string
-		exec     string
-		wantsSDK bool
+		runtime string
+		image   string
+		exec    string
 	}{
 		{
-			runtime:  "node",
-			image:    "node:24.13.1-alpine@sha256:",
-			exec:     `["tsx", "--no-deprecation", "--tsconfig", "tsconfig.json", "__dagger.dispatch.ts", "engine-call"]`,
-			wantsSDK: true,
+			runtime: "node",
+			image:   "node:24.13.1-alpine@sha256:",
+			exec:    `["tsx", "--no-deprecation", "--tsconfig", "tsconfig.json", "__dagger.dispatch.ts", "engine-call"]`,
 		},
 		{
-			runtime:  "bun",
-			image:    "oven/bun:1.3.0-alpine@sha256:",
-			exec:     `["bun", "run", "__dagger.dispatch.ts", "engine-call"]`,
-			wantsSDK: true,
+			runtime: "bun",
+			image:   "oven/bun:1.3.0-alpine@sha256:",
+			exec:    `["bun", "run", "__dagger.dispatch.ts", "engine-call"]`,
 		},
 		{
-			runtime:  "deno",
-			image:    "denoland/deno:alpine-2.5.0@sha256:",
-			exec:     `["deno", "run", "-q", "-A", "__dagger.dispatch.ts", "engine-call"]`,
-			wantsSDK: false,
+			runtime: "deno",
+			image:   "denoland/deno:alpine-2.5.0@sha256:",
+			exec:    `["deno", "run", "-q", "-A", "__dagger.dispatch.ts", "engine-call"]`,
 		},
 	} {
 		t.Run(tc.runtime, func(t *testing.T) {
@@ -118,15 +114,9 @@ func TestGenerateDangEntrypointRuntimes(t *testing.T) {
 			require.Contains(t, got, tc.image)
 			require.Contains(t, got, tc.exec)
 
-			// Folded into the node_modules dependencies() returns rather than
-			// mounted on its own, so the module has one node_modules mount and
-			// nothing nests inside it.
-			const sdkFold = `withDirectory("@dagger.io/dagger"`
-			if tc.wantsSDK {
-				require.Contains(t, got, sdkFold)
-			} else {
-				require.NotContains(t, got, sdkFold)
-			}
+			// @dagger.io/dagger is installed as a package.json file: dependency
+			// (clients/dagger), never folded into node_modules by the recipe.
+			require.NotContains(t, got, `withDirectory("@dagger.io/dagger"`)
 
 			// tsx is a node-only loader, installed because a generated entrypoint
 			// has no engine image to mount it out of.
@@ -157,9 +147,8 @@ func TestGenerateDangEntrypointNestedModule(t *testing.T) {
 	got := readOverlay(t, state, DefaultDangEntrypointFile)
 
 	require.Contains(t, got, `withWorkdir("/workspace/.dagger/modules/smoke")`)
-	require.Contains(t, got,
-		`withDirectory("@dagger.io/dagger", workspace.directory("/.dagger/modules/smoke/sdk"))`)
-	// The install reads the module's own manifest, not the workspace root's.
+	// The install reads the module's own manifest and clients/, not the
+	// workspace root's.
 	require.Contains(t, got, `workspace.directory("/.dagger/modules/smoke", include: [`)
 }
 
@@ -227,7 +216,10 @@ func TestGenerateDangEntrypointInstallsDependencies(t *testing.T) {
 
 			require.Contains(t, got, tc.exec)
 			require.Contains(t, got, tc.cache)
-			require.Contains(t, got, "include: ["+tc.manifest+"]")
+			// The clients/ tree rides along with the manifest: the module's
+			// file: dependencies (clients/dagger and each client package) must be
+			// in the install context for the specifiers to resolve.
+			require.Contains(t, got, "include: ["+tc.manifest+`, "clients/**"]`)
 			if tc.setup != "" {
 				require.Contains(t, got, tc.setup)
 			}
@@ -351,7 +343,8 @@ func TestGenerateDangEntrypointGuardsGeneratedFiles(t *testing.T) {
 
 			// Every file the recipe mounts or execs.
 			for _, f := range append([]string{
-				"__dagger.dispatch.ts", "sdk/index.ts", "sdk/client.gen.ts", "sdk/core.js",
+				"__dagger.dispatch.ts", "clients/loader.gen.ts",
+				"clients/dagger/index.ts", "clients/dagger/client.gen.ts", "clients/dagger/core.js",
 			}, tc.wants...) {
 				require.Contains(t, got, `dir.exists("`+f+`")`)
 			}
