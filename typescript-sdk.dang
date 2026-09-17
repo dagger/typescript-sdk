@@ -1358,20 +1358,21 @@ type TypescriptSdk {
       # package.json is the link: with a shared core the module declares
       # @dagger.io/dagger (and each client) as a file: dependency, and the recipe
       # installs it. The embedded-sdk path strips the dep instead, because that
-      # runtime mounts the library rather than installing it. The tsconfig alias
-      # rides along for editor resolution before an install, but it is no longer
-      # what wires the package at run time.
+      # runtime mounts the library rather than installing it.
       let withPackageJSON = if (coreRel == "") {
         configUpdater.withExec(["config-updater", "package-json", "/existing/package.json", "/out/package.json"])
       } else {
         configUpdater.withExec(["config-updater", "shared-deps", "/existing/package.json", "/out/package.json", coreRel] + clientPairs)
       }
-      # With a shared core the clients are packages, resolved by name through
-      # node_modules after an install, so the tsconfig carries no per-client path
-      # alias — only the core one, for editor resolution before an install.
+      # With a shared core node/bun resolve every @dagger.io/* package — the
+      # library and each client — through node_modules after an install, so the
+      # tsconfig carries no path alias at all: "-" writes none and removes one an
+      # earlier layout left. The embedded layout keeps its ./sdk + per-client
+      # aliases, since nothing installs those.
+      let tsconfigCore = if (coreRel == "") { coreRel } else { "-" }
       let tsconfigAliases = if (coreRel == "") { aliasModules } else { [] }
       withPackageJSON
-        .withExec(["config-updater", "tsconfig", "/existing/tsconfig.json", "/out/tsconfig.json", coreRel, clientsDir] + tsconfigAliases)
+        .withExec(["config-updater", "tsconfig", "/existing/tsconfig.json", "/out/tsconfig.json", tsconfigCore, clientsDir] + tsconfigAliases)
         .directory("/out")
     }
   }
@@ -1852,10 +1853,16 @@ type TypescriptSdk {
         .filter { sibling => sibling != name }
         .map { sibling => "  \"@dagger.io/" + sibling + "\": \"file:../" + sibling + "\"" }
 
+    # main/types beside exports for the same reason the core package carries
+    # them: a module's tsconfig resolves with the classic `node` setting, which
+    # ignores `exports` — without a main/types a bare `@dagger.io/<name>` import
+    # resolves to nothing and the editor cannot find the module.
     "{\n" +
       "  \"name\": \"@dagger.io/" + name + "\",\n" +
       "  \"version\": \"0.0.0\",\n" +
       "  \"type\": \"module\",\n" +
+      "  \"main\": \"./" + name + ".gen.ts\",\n" +
+      "  \"types\": \"./" + name + ".gen.ts\",\n" +
       "  \"exports\": {\n" +
       "    \".\": \"./" + name + ".gen.ts\"\n" +
       "  },\n" +

@@ -231,6 +231,27 @@ func TestUpdateTSConfig(t *testing.T) {
 }`,
 		},
 		{
+			name:     "the no-lib-alias sentinel writes no dagger path alias and removes an old one",
+			tsConfig: `{"compilerOptions":{"paths":{"@dagger.io/dagger":["../../.dagger/core/typescript/index.ts"],"@dagger.io/dagger/telemetry":["../../.dagger/core/typescript/telemetry.ts"]}}}`,
+			coreDir:  "-",
+			expected: `{
+  "compilerOptions": {
+    "experimentalDecorators": true
+  }
+}`,
+		},
+		{
+			name:     "the no-lib-alias sentinel keeps the user's own paths",
+			tsConfig: `{"compilerOptions":{"paths":{"@user/lib":["./src/lib.ts"],"@dagger.io/dagger":["../../.dagger/core/typescript/index.ts"]}}}`,
+			coreDir:  "-",
+			expected: `{
+  "compilerOptions": {
+    "experimentalDecorators": true,
+    "paths": {"@user/lib": ["./src/lib.ts"]}
+  }
+}`,
+		},
+		{
 			name:       "tsconfig with modules adds one alias per module client",
 			tsConfig:   `{}`,
 			clientsDir: "clients",
@@ -606,6 +627,16 @@ func TestUpdateSharedDeps(t *testing.T) {
 			coreRel:     ".dagger/core/typescript",
 			clients:     nil,
 			expected:    `{"devDependencies":{"typescript":"5.0.0"},"type":"module","dependencies":{"@dagger.io/dagger":"file:.dagger/core/typescript"}}`,
+		},
+		{
+			// A client the user installed from another scope for a self-call
+			// (a file:../ path) is theirs; regeneration must not clobber it, even
+			// though it is not one of this scope's recorded clients.
+			name:        "a user-installed client from another scope is preserved",
+			packageJSON: `{"dependencies":{"@dagger.io/test":"file:../../client/test"}}`,
+			coreRel:     "../../.dagger/core/typescript",
+			clients:     nil,
+			expected:    `{"dependencies":{"@dagger.io/test":"file:../../client/test","@dagger.io/dagger":"file:../../.dagger/core/typescript","typescript":"5.9.3"},"type":"module"}`,
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {

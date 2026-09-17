@@ -183,15 +183,22 @@ func updateSharedDeps(packageJSON, coreRel string, clientPairs []string) (string
 		desired["@dagger.io/"+name] = "file:" + rel
 	}
 
-	// Prune every @dagger.io/* dependency this run does not write, so a client
-	// removed from the scope loses its dep. Only the dependencies section is the
-	// SDK's to manage this way.
+	// Prune only the SDK's own generated clients for this scope that this run no
+	// longer writes — those are the "file:./<name>" deps beside the manifest. A
+	// dep the user added by hand, pointing at another scope's client (a "file:../"
+	// path) or a registry, is theirs to keep: installing a client generated
+	// elsewhere for a self-call is a real use, and regeneration must not clobber
+	// it. Core (@dagger.io/dagger, a "file:../" path) is always in `desired`, so
+	// it is never touched here.
 	if existing := gjson.Get(packageJSON, "dependencies"); existing.Exists() {
-		for key := range existing.Map() {
+		for key, val := range existing.Map() {
 			if !strings.HasPrefix(key, "@dagger.io/") {
 				continue
 			}
 			if _, keep := desired[key]; keep {
+				continue
+			}
+			if !strings.HasPrefix(val.String(), "file:./") {
 				continue
 			}
 			packageJSON, err = sjson.Delete(packageJSON, "dependencies."+gjson.Escape(key))
@@ -241,10 +248,35 @@ func pinTypeScript(packageJSON string) (string, error) {
 	return packageJSON, nil
 }
 
+// noLibAlias is the CORE_DIR sentinel that says "the SDK is not the resolver":
+// write no @dagger.io/dagger path alias, and remove one a previous layout left.
+// The shared-core node/bun layout uses it — the module resolves the library
+// through package.json + an install, not a tsconfig path.
+const noLibAlias = "-"
+
 func updateTSConfig(tsConfig, coreDir, clientsDir string, modules []string) (string, error) {
-	tsConfig, err := updateScopeAliases(tsConfig, "compilerOptions.paths", libDir(coreDir), clientsDir, modules, true)
+	var err error
+	if coreDir == noLibAlias {
+		tsConfig, err = removeLibAliases(tsConfig, "compilerOptions.paths")
+	} else {
+		tsConfig, err = syncLibAliases(tsConfig, "compilerOptions.paths", libDir(coreDir), true)
+	}
 	if err != nil {
 		return "", err
+	}
+
+	tsConfig, err = syncModuleAliases(tsConfig, "compilerOptions.paths", clientsDir, modules, true)
+	if err != nil {
+		return "", err
+	}
+
+	// A paths object emptied by the removals above is noise; drop it so the
+	// module's tsconfig carries only what it needs.
+	if gjson.Get(tsConfig, "compilerOptions.paths").Exists() && len(gjson.Get(tsConfig, "compilerOptions.paths").Map()) == 0 {
+		tsConfig, err = sjson.Delete(tsConfig, "compilerOptions.paths")
+		if err != nil {
+			return "", err
+		}
 	}
 
 	tsConfig, err = sjson.Set(tsConfig, "compilerOptions.experimentalDecorators", true)
@@ -253,6 +285,20 @@ func updateTSConfig(tsConfig, coreDir, clientsDir string, modules []string) (str
 	}
 
 	return tsConfig, nil
+}
+
+// removeLibAliases deletes the @dagger.io/dagger and /telemetry aliases under
+// keyPath, for a scope where package.json rather than a path alias resolves the
+// library.
+func removeLibAliases(jsonStr, keyPath string) (string, error) {
+	for _, alias := range []string{daggerLibPathAlias, daggerTelemetryPathAlias} {
+		var err error
+		jsonStr, err = sjson.Delete(jsonStr, keyPath+"."+gjson.Escape(alias))
+		if err != nil {
+			return "", fmt.Errorf("remove %s alias: %w", alias, err)
+		}
+	}
+	return jsonStr, nil
 }
 
 // moduleAliasPrefix scopes the per-module specifiers a module's source imports
