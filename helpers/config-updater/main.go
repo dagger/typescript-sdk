@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"io/fs"
 	"os"
+	"sort"
 	"strings"
 
 	"github.com/tidwall/gjson"
@@ -70,8 +71,19 @@ func run(args []string) error {
 			return fmt.Errorf("usage: config-updater deno-config INPUT_PATH OUTPUT_PATH CLIENTS_DIR [MODULE...]")
 		}
 		updated, err = updateDenoConfig(input, extra[0], extra[1:])
+	case "shared-deps":
+		// shared-deps INPUT OUTPUT CORE_REL [CLIENT_NAME=CLIENT_REL ...]
+		//
+		// Wire a package.json to the workspace's vendored shared core and to the
+		// client packages this scope declares, all as file: dependencies in the
+		// @dagger.io/* namespace the SDK owns. CORE_REL and each CLIENT_REL are
+		// paths relative to the directory holding this package.json.
+		if len(extra) < 1 {
+			return fmt.Errorf("usage: config-updater shared-deps INPUT_PATH OUTPUT_PATH CORE_REL [NAME=REL ...]")
+		}
+		updated, err = updateSharedDeps(input, extra[0], extra[1:])
 	default:
-		return fmt.Errorf("unknown subcommand %q (expected one of: package-json, tsconfig, deno-config)", subcommand)
+		return fmt.Errorf("unknown subcommand %q (expected one of: package-json, tsconfig, deno-config, shared-deps)", subcommand)
 	}
 	if err != nil {
 		return fmt.Errorf("%s: %w", subcommand, err)
@@ -135,6 +147,74 @@ func updatePackageJSON(packageJSON string) (string, error) {
 	}
 
 	return packageJSON, nil
+}
+
+// updateSharedDeps rewrites a package.json so the @dagger.io/* namespace it
+// depends on matches exactly what this scope resolves: the vendored shared core
+// as @dagger.io/dagger, and one @dagger.io/<name> per client this scope
+// declares. Each is a file: dependency on a path relative to this package.
+//
+// This is the whole link under the "package manifest is the only link" design:
+// the config the language's own resolver reads is what wires a consumer to a
+// client, not a dagger.toml entry and not a mount. The SDK owns the whole
+// @dagger.io/* namespace here, so a client that has left the scope has its dep
+// pruned — anything under @dagger.io/* that this run does not write is removed,
+// which is how a dropped client stops resolving.
+//
+// Non-@dagger.io dependencies, and every other key in the file, are the user's
+// and are left untouched.
+func updateSharedDeps(packageJSON, coreRel string, clientPairs []string) (string, error) {
+	packageJSON, err := sjson.Set(packageJSON, "type", "module")
+	if err != nil {
+		return "", fmt.Errorf("set type=module: %w", err)
+	}
+
+	// Desired @dagger.io/* deps: core plus each declared client. Built first so
+	// pruning below can drop anything not in it.
+	desired := map[string]string{
+		daggerLibPathAlias: "file:" + coreRel,
+	}
+	for _, pair := range clientPairs {
+		name, rel, ok := strings.Cut(pair, "=")
+		if !ok || name == "" || rel == "" {
+			return "", fmt.Errorf("client spec %q must be NAME=REL", pair)
+		}
+		desired["@dagger.io/"+name] = "file:" + rel
+	}
+
+	// Prune every @dagger.io/* dependency this run does not write, so a client
+	// removed from the scope loses its dep. Only the dependencies section is the
+	// SDK's to manage this way.
+	if existing := gjson.Get(packageJSON, "dependencies"); existing.Exists() {
+		for key := range existing.Map() {
+			if !strings.HasPrefix(key, "@dagger.io/") {
+				continue
+			}
+			if _, keep := desired[key]; keep {
+				continue
+			}
+			packageJSON, err = sjson.Delete(packageJSON, "dependencies."+gjson.Escape(key))
+			if err != nil {
+				return "", fmt.Errorf("prune %s: %w", key, err)
+			}
+		}
+	}
+
+	// Write the desired set. Sorted so the output is deterministic regardless of
+	// the order clients were passed in.
+	names := make([]string, 0, len(desired))
+	for name := range desired {
+		names = append(names, name)
+	}
+	sort.Strings(names)
+	for _, name := range names {
+		packageJSON, err = sjson.Set(packageJSON, "dependencies."+gjson.Escape(name), desired[name])
+		if err != nil {
+			return "", fmt.Errorf("set %s dependency: %w", name, err)
+		}
+	}
+
+	return pinTypeScript(packageJSON)
 }
 
 // defaultTypeScriptVersion mirrors dagger/dagger tsdistconsts.DefaultTypeScriptVersion.

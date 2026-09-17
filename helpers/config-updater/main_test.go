@@ -552,3 +552,59 @@ func TestReadInput(t *testing.T) {
 		require.JSONEq(t, `{"name": "demo"}`, got)
 	})
 }
+
+func TestUpdateSharedDeps(t *testing.T) {
+	type testCase struct {
+		name        string
+		packageJSON string
+		coreRel     string
+		clients     []string
+		expected    string
+	}
+
+	for _, tc := range []testCase{
+		{
+			name:        "module with no clients depends only on the vendored core",
+			packageJSON: `{}`,
+			coreRel:     "../../.dagger/core/typescript",
+			clients:     nil,
+			expected:    `{"type":"module","dependencies":{"@dagger.io/dagger":"file:../../.dagger/core/typescript","typescript":"5.9.3"}}`,
+		},
+		{
+			name:        "one declared client is a file: dep beside core",
+			packageJSON: `{}`,
+			coreRel:     "../../.dagger/core/typescript",
+			clients:     []string{"b=./.dagger/clients/b"},
+			expected:    `{"type":"module","dependencies":{"@dagger.io/dagger":"file:../../.dagger/core/typescript","@dagger.io/b":"file:./.dagger/clients/b","typescript":"5.9.3"}}`,
+		},
+		{
+			name:        "a dropped client's dep is pruned, the user's own deps and keys survive",
+			packageJSON: `{"name":"my-app","dependencies":{"lodash":"^4","@dagger.io/dagger":"file:old","@dagger.io/gone":"file:./.dagger/clients/gone","@dagger.io/b":"file:./.dagger/clients/b"}}`,
+			coreRel:     ".dagger/core/typescript",
+			clients:     []string{"b=./.dagger/clients/b"},
+			expected:    `{"name":"my-app","dependencies":{"lodash":"^4","@dagger.io/dagger":"file:.dagger/core/typescript","@dagger.io/b":"file:./.dagger/clients/b","typescript":"5.9.3"},"type":"module"}`,
+		},
+		{
+			name:        "the user's typescript pin is left alone",
+			packageJSON: `{"devDependencies":{"typescript":"5.0.0"}}`,
+			coreRel:     ".dagger/core/typescript",
+			clients:     nil,
+			expected:    `{"devDependencies":{"typescript":"5.0.0"},"type":"module","dependencies":{"@dagger.io/dagger":"file:.dagger/core/typescript"}}`,
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			res, err := updateSharedDeps(removeJSONComments(tc.packageJSON), tc.coreRel, tc.clients)
+			require.NoError(t, err)
+			require.JSONEq(t, tc.expected, res)
+		})
+	}
+}
+
+func TestUpdateSharedDeps_RejectsMalformedClientSpec(t *testing.T) {
+	for _, spec := range []string{"noequals", "=onlyrel", "name="} {
+		_, err := updateSharedDeps(`{}`, "core", []string{spec})
+		require.Error(t, err, "spec %q must be rejected", spec)
+	}
+}
