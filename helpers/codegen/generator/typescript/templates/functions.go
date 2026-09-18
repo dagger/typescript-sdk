@@ -152,18 +152,10 @@ func (funcs typescriptTemplateFuncs) FuncMap() template.FuncMap {
 		"RootClientType":      funcs.rootClientType,
 		"IsExtendableType":    funcs.isExtendableType,
 		// Serve-on-use: a module client serves its own module before its first
-		// query, so a client used outside the dispatcher still resolves.
-		"JSString":      jsString,
-		"IsGitModule":   func(kind string) bool { return kind == generator.ModuleKindGit },
-		"WorkspacePath": workspaceServePath,
+		// query, so a client used outside the dispatcher still resolves. The
+		// address it serves from comes off BoundModule itself.
+		"JSString": jsString,
 	}
-}
-
-// workspaceServePath normalizes a local module's path to the workspace-root
-// absolute form the currentWorkspace serve resolves from, cwd-independent —
-// matching the dispatcher's own local serve.
-func workspaceServePath(path string) string {
-	return "/" + strings.TrimPrefix(strings.TrimPrefix(path, "./"), "/")
 }
 
 // legacyTypeScriptSDKCompatCutoverVersion is the first engine version whose

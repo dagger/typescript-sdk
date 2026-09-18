@@ -21,17 +21,15 @@ type ClientChecks {
   Assert a generated client serves the local module at `path` before its first
   query.
 
-  Asserted as the whole selection rather than the word "serve": a local module
-  is served through a raw `currentWorkspace` query (the typed bindings keep
-  `currentWorkspace` out), so this pins both the serve and which module it
-  names. A git target renders `.moduleSource(ref, { refPin }).asModule().serve()`
-  instead — a different form, which is why matching on one alone reads as a
-  passing check for the other.
+  Asserted as the whole call rather than the word "serve": `serveModule` takes
+  the address, so the address is what says *which* module gets served — and a
+  workspace-root-absolute one at that, since a relative address would resolve
+  against whatever cwd the calling session happens to sit at.
   """
   let servesLocalModule(contents: String!, path: String!, message: String!): Void {
     Asserts.stringContains(
       contents,
-      "moduleSource(path: \"/" + path + "\") { asModule { serve } }",
+      "serveModule(\"/" + path + "\")",
       message,
     )
     null

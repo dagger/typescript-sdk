@@ -1,5 +1,7 @@
 package generator
 
+import "strings"
+
 // Config drives one codegen run. ModuleConfig covers both a module's own
 // bindings and a standalone client scope — they render the same client files
 // against the same vendored library, differing only in layout (EmitLoader /
@@ -59,25 +61,48 @@ type ModuleGeneratorConfig struct {
 
 // Module-source kinds a generated client can bind to. A local module
 // (LOCAL_SOURCE, or DIR_SOURCE — how a workspace-local module resolves in
-// practice) is served by its workspace-relative path; a GIT_SOURCE module is
-// served from its canonical ref + pin.
+// practice) is addressed by its workspace-relative path; a GIT_SOURCE module by
+// its canonical ref + pin.
 const (
 	ModuleKindGit   = "GIT_SOURCE"
 	ModuleKindLocal = "LOCAL_SOURCE"
 	ModuleKindDir   = "DIR_SOURCE"
 )
 
-// BoundModule identifies one module a generated client serves. Its serve uses
-// Kind to decide how: a local module (LOCAL_SOURCE/DIR_SOURCE) resolves against
-// the workspace by its workspace-root-relative Path
-// (currentWorkspace().moduleSource(Path)); a git module (GIT_SOURCE) serves from
-// its canonical Ref + Pin, which resolve from anywhere.
+// BoundModule identifies one module a generated client serves. Kind decides how
+// the module is addressed: a local module (LOCAL_SOURCE/DIR_SOURCE) by its
+// workspace-root-relative Path, a git module (GIT_SOURCE) by its canonical Ref +
+// Pin. Both collapse into the single address Query.serveModule takes, which
+// classifies it engine-side.
 type BoundModule struct {
 	Name string `json:"name"`
 	Kind string `json:"kind"`
 	Path string `json:"path"`
 	Ref  string `json:"ref"`
 	Pin  string `json:"pin"`
+}
+
+// ServeAddress is the address Query.serveModule resolves this module from: a git
+// module's canonical ref, or a local module's path.
+//
+// The local form is made workspace-root absolute: the engine resolves a relative
+// address against the workspace cwd, which is wherever the session happens to
+// sit inside the workspace and so not something a baked address may depend on.
+func (m BoundModule) ServeAddress() string {
+	if m.Kind == ModuleKindGit {
+		return m.Ref
+	}
+	return "/" + strings.TrimPrefix(strings.TrimPrefix(m.Path, "./"), "/")
+}
+
+// ServeRefPin is the version Query.serveModule pins this module's address at.
+// Empty for a local module: a workspace path carries no version, and the engine
+// ignores a pin on that branch.
+func (m BoundModule) ServeRefPin() string {
+	if m.Kind == ModuleKindGit {
+		return m.Pin
+	}
+	return ""
 }
 
 // Specific configuration for entrypoint generation.
