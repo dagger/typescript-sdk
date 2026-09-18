@@ -28,13 +28,180 @@ export type AddressFileOpts = {
   noCache?: boolean
 }
 
-export type AgentGroupComposeOpts = {
+export type AgentNotifyOpts = {
+  /**
+   * The lifecycle states that fire an event. IDLE events carry the turn's final reply; FAILED events carry the loop error.
+   */
+  on?: AgentState[]
+}
+
+export type AgentPauseOpts = {
+  /**
+   * Preempt the in-flight step instead of letting it finish. All completed steps are kept and the interrupted turn stays open: messages it consumed remain pending, while unconsumed mailbox messages are discarded. Resume continues the turn from the last committed step. On an idle, never-started, or failed agent there is nothing to preempt, so this is a plain pause.
+   */
+  interrupt?: boolean
+}
+
+export type AgentSendOpts = {
+  /**
+   * The ref of a message in the SENDER's own mailbox this send answers (e.g. "#3", from its attribution header). The recipient sees the two paired, and awaiters of the replied-to message resolve with this reply immediately instead of at the sender's turn end.
+   */
+  replyTo?: string
+}
+
+export type AgentStopOpts = {
+  /**
+   * Cancel the loop immediately instead of letting an in-flight step finish. Either way the completed steps are preserved in the snapshot.
+   */
+  kill?: boolean
+}
+
+/**
+ * EXPERIMENTAL: Agent APIs are likely to change.
+ * 
+ * How a message landed in an agent's evaluation.
+ */
+export enum AgentMessageDelivery {
+
+  /**
+   * The message is queued: the agent is paused or failed, and a resume will drain it.
+   */
+  Queued = "QUEUED",
+
+  /**
+   * The message opened a new turn: the agent was idle or newly started.
+   */
+  Started = "STARTED",
+
+  /**
+   * The message was absorbed into the in-flight turn at a step boundary, steering it.
+   */
+  Steered = "STEERED",
+}
+
+/**
+ * Utility function to convert a AgentMessageDelivery value to its name so
+ * it can be uses as argument to call a exposed function.
+ */
+export function AgentMessageDeliveryValueToName(value: AgentMessageDelivery): string {
+  switch (value) {
+    case AgentMessageDelivery.Queued:
+      return "QUEUED"
+    case AgentMessageDelivery.Started:
+      return "STARTED"
+    case AgentMessageDelivery.Steered:
+      return "STEERED"
+    default:
+      return value
+  }
+}
+
+/**
+ * Utility function to convert a AgentMessageDelivery name to its value so
+ * it can be properly used inside the module runtime.
+ */
+export function AgentMessageDeliveryNameToValue(name: string): AgentMessageDelivery {
+  switch (name) {
+    case "QUEUED":
+      return AgentMessageDelivery.Queued
+    case "STARTED":
+      return AgentMessageDelivery.Started
+    case "STEERED":
+      return AgentMessageDelivery.Steered
+    default:
+      return name as AgentMessageDelivery
+  }
+}
+export type AgentMiddlewareGroupComposeOpts = {
   /**
    * The base LLM to compose onto. Defaults to a fresh workspace-bound LLM.
    */
   base?: LLM
 }
 
+/**
+ * EXPERIMENTAL: Agent APIs are likely to change.
+ * 
+ * Computed lifecycle state of an agent.
+ */
+export enum AgentState {
+
+  /**
+   * The loop failed; snapshot holds the completed prefix. Resume retries.
+   */
+  Failed = "FAILED",
+
+  /**
+   * Mailbox empty, turn complete; blocked in receive.
+   */
+  Idle = "IDLE",
+
+  /**
+   * Mailbox accepting but not draining, until resume.
+   */
+  Paused = "PAUSED",
+
+  /**
+   * A model request or tool evaluation is in flight.
+   */
+  Running = "RUNNING",
+
+  /**
+   * Runtime released; snapshot remains readable.
+   */
+  Stopped = "STOPPED",
+
+  /**
+   * Blocked on input from the user (derived; see waitingOn).
+   */
+  WaitingInput = "WAITING_INPUT",
+}
+
+/**
+ * Utility function to convert a AgentState value to its name so
+ * it can be uses as argument to call a exposed function.
+ */
+export function AgentStateValueToName(value: AgentState): string {
+  switch (value) {
+    case AgentState.Failed:
+      return "FAILED"
+    case AgentState.Idle:
+      return "IDLE"
+    case AgentState.Paused:
+      return "PAUSED"
+    case AgentState.Running:
+      return "RUNNING"
+    case AgentState.Stopped:
+      return "STOPPED"
+    case AgentState.WaitingInput:
+      return "WAITING_INPUT"
+    default:
+      return value
+  }
+}
+
+/**
+ * Utility function to convert a AgentState name to its value so
+ * it can be properly used inside the module runtime.
+ */
+export function AgentStateNameToValue(name: string): AgentState {
+  switch (name) {
+    case "FAILED":
+      return AgentState.Failed
+    case "IDLE":
+      return AgentState.Idle
+    case "PAUSED":
+      return AgentState.Paused
+    case "RUNNING":
+      return AgentState.Running
+    case "STOPPED":
+      return AgentState.Stopped
+    case "WAITING_INPUT":
+      return AgentState.WaitingInput
+    default:
+      return name as AgentState
+  }
+}
 export type BuildArg = {
   /**
    * The build argument name.
@@ -106,6 +273,18 @@ export function CacheSharingModeNameToValue(name: string): CacheSharingMode {
       return name as CacheSharingMode
   }
 }
+export type ChangesetFilterOpts = {
+  /**
+   * Only include changes at paths matching these patterns. Empty includes all paths.
+   */
+  include?: string[]
+
+  /**
+   * Exclude changes at paths matching these patterns.
+   */
+  exclude?: string[]
+}
+
 export type ChangesetWithChangesetOpts = {
   /**
    * What to do on a merge conflict
@@ -1778,6 +1957,13 @@ export type GitCommitAncestorReleaseTagOpts = {
   includePreRelease?: boolean
 }
 
+export type GitCommitChangesOpts = {
+  /**
+   * Use this commit as the comparison base instead of the first parent. The comparison commit may belong to an unrelated history or repository.
+   */
+  against?: GitCommit
+}
+
 export type GitCommitReleaseTagOpts = {
   /**
    * Include pre-release tags when choosing the latest tag.
@@ -1802,6 +1988,69 @@ export type GitCommitTreeOpts = {
   includeTags?: boolean
 }
 
+/**
+ * How a Git push updated the remote ref.
+ */
+export enum GitPushDisposition {
+
+  /**
+   * The remote ref was created.
+   */
+  Created = "CREATED",
+
+  /**
+   * The remote ref was fast-forwarded.
+   */
+  FastForward = "FAST_FORWARD",
+
+  /**
+   * The remote ref was replaced under an explicit lease.
+   */
+  Forced = "FORCED",
+
+  /**
+   * The remote ref already pointed to this commit.
+   */
+  UpToDate = "UP_TO_DATE",
+}
+
+/**
+ * Utility function to convert a GitPushDisposition value to its name so
+ * it can be uses as argument to call a exposed function.
+ */
+export function GitPushDispositionValueToName(value: GitPushDisposition): string {
+  switch (value) {
+    case GitPushDisposition.Created:
+      return "CREATED"
+    case GitPushDisposition.FastForward:
+      return "FAST_FORWARD"
+    case GitPushDisposition.Forced:
+      return "FORCED"
+    case GitPushDisposition.UpToDate:
+      return "UP_TO_DATE"
+    default:
+      return value
+  }
+}
+
+/**
+ * Utility function to convert a GitPushDisposition name to its value so
+ * it can be properly used inside the module runtime.
+ */
+export function GitPushDispositionNameToValue(name: string): GitPushDisposition {
+  switch (name) {
+    case "CREATED":
+      return GitPushDisposition.Created
+    case "FAST_FORWARD":
+      return GitPushDisposition.FastForward
+    case "FORCED":
+      return GitPushDisposition.Forced
+    case "UP_TO_DATE":
+      return GitPushDisposition.UpToDate
+    default:
+      return name as GitPushDisposition
+  }
+}
 export type GitRefAsWorkspaceOpts = {
   /**
    * Current working directory inside the workspace root. Defaults to the workspace root.
@@ -1826,6 +2075,28 @@ export type GitRefLogOpts = {
   base?: GitRef
 }
 
+export type GitRefPushOpts = {
+  /**
+   * Destination remote repository. Defaults to the origin remote's push routing, or the source's repository URL when none is registered. Required when the source has no remote URL.
+   */
+  to?: GitRepository
+
+  /**
+   * Name of a registered remote to push to (see GitRepository.withRemote). Defaults to origin. The remote's push URLs, or its URL, become the destination; more than one push URL requires an explicit to instead.
+   */
+  remote?: string
+
+  /**
+   * Destination branch; a refs/ prefix is used verbatim. Defaults to this ref's branch name. Required for detached and non-branch refs.
+   */
+  branch?: string
+
+  /**
+   * Optional lease: a full lowercase object ID allows replacement only if the remote ref still has that value. Checked even for up-to-date pushes. Empty or omitted uses normal non-force rules, creating the ref if it does not exist.
+   */
+  expectedRemoteSHA?: string
+}
+
 export type GitRefTreeOpts = {
   /**
    * Set to true to discard .git directory.
@@ -1841,6 +2112,33 @@ export type GitRefTreeOpts = {
    * Set to true to populate tag refs in the local checkout .git.
    */
   includeTags?: boolean
+}
+
+export type GitRefWithCommitOpts = {
+  /**
+   * Committer name. Defaults to authorName.
+   */
+  committerName?: string
+
+  /**
+   * Committer email. Defaults to authorEmail.
+   */
+  committerEmail?: string
+
+  /**
+   * RFC3339 committer date. Defaults to date.
+   */
+  committerDate?: string
+
+  /**
+   * Allow a commit whose tree matches its parent, including when the supplied edits are already present. Defaults to false.
+   */
+  allowEmpty?: boolean
+
+  /**
+   * Add a Signed-off-by trailer using the commit author's name and email.
+   */
+  signoff?: boolean
 }
 
 export type GitRepositoryAsWorkspaceOpts = {
@@ -1883,6 +2181,13 @@ export type GitRepositoryWithBundleOpts = {
    * An optional remote ref hint for fetching a prerequisite when the remote does not allow fetches by object ID.
    */
   prerequisiteRef?: string
+}
+
+export type GitRepositoryWithRemoteOpts = {
+  /**
+   * Push destination, when pushes go somewhere other than url. Empty uses url.
+   */
+  pushUrl?: string
 }
 
 export type HostDirectoryOpts = {
@@ -2066,6 +2371,30 @@ export type LLMLoopOpts = {
   maxTokens?: number
 }
 
+export type LLMSpawnOpts = {
+  /**
+   * Display label for the agent — telemetry and error messages; carries no identity. Defaults to a short name derived from the conversation.
+   */
+  name?: string
+
+  /**
+   * The runtime handle to restore the instance under, as published on its loop span as dagger.io/agent.id. Omit to mint a fresh instance.
+   */
+  handle?: string
+
+  /**
+   * The lifecycle state to create the agent in, as facts on the entry: IDLE is ready to be prompted, PAUSED parks it, FAILED holds an error a resume retries past, STOPPED preserves a dormant snapshot that send or resume can relaunch.
+   * 
+   * RUNNING and WAITING_INPUT are refused: they describe a loop, and a restored loop died with the session that published it — restore such an agent as IDLE, its interrupted turn's input still pending on the conversation.
+   */
+  state?: AgentState
+
+  /**
+   * The loop error to create the agent with, for state FAILED. Refused with any other state.
+   */
+  error?: string
+}
+
 export type LLMStepOpts = {
   /**
    * Cap the model's output tokens for this step. Defaults to the model's maximum.
@@ -2078,6 +2407,13 @@ export type LLMWithModelOpts = {
    * The provider serving the model, e.g. "openai". Overrides the provider otherwise inferred from the model name — useful when the name matches no known pattern (e.g. a fine-tune), or matches the wrong one.
    */
   provider?: string
+}
+
+export type LLMWithPromptOpts = {
+  /**
+   * The message's recorded provenance, when it arrived through an agent mailbox rather than from the user. Rendered to the model as an attribution header at request-build time.
+   */
+  origin?: LLMMessageOriginInput
 }
 
 export type LLMWithResponseOpts = {
@@ -2212,6 +2548,84 @@ export function LLMContentBlockKindNameToValue(name: string): LLMContentBlockKin
       return LLMContentBlockKind.ToolResult
     default:
       return name as LLMContentBlockKind
+  }
+}
+export type LLMMessageOriginInput = {
+  /**
+   * The display name of the sending or observed agent.
+   */
+  agentName?: string
+
+  /**
+   * Who put this message on the record.
+   */
+  kind: LLMMessageOriginKind
+
+  /**
+   * The message's short ref within the receiving agent's runtime, e.g. "#3".
+   */
+  ref?: string
+
+  /**
+   * The ref of the message this one answers, if any.
+   */
+  replyTo?: string
+}
+
+/**
+ * EXPERIMENTAL: Agent APIs are likely to change.
+ * 
+ * Who put a message on the conversation record.
+ */
+export enum LLMMessageOriginKind {
+
+  /**
+   * Another agent: the message was sent from within that agent's turn.
+   */
+  Agent = "AGENT",
+
+  /**
+   * The engine, reporting a subscribed agent's lifecycle transition.
+   */
+  Event = "EVENT",
+
+  /**
+   * The user: a prompt submitted by a client rather than sent by an agent.
+   */
+  User = "USER",
+}
+
+/**
+ * Utility function to convert a LLMMessageOriginKind value to its name so
+ * it can be uses as argument to call a exposed function.
+ */
+export function LLMMessageOriginKindValueToName(value: LLMMessageOriginKind): string {
+  switch (value) {
+    case LLMMessageOriginKind.Agent:
+      return "AGENT"
+    case LLMMessageOriginKind.Event:
+      return "EVENT"
+    case LLMMessageOriginKind.User:
+      return "USER"
+    default:
+      return value
+  }
+}
+
+/**
+ * Utility function to convert a LLMMessageOriginKind name to its value so
+ * it can be properly used inside the module runtime.
+ */
+export function LLMMessageOriginKindNameToValue(name: string): LLMMessageOriginKind {
+  switch (name) {
+    case "AGENT":
+      return LLMMessageOriginKind.Agent
+    case "EVENT":
+      return LLMMessageOriginKind.Event
+    case "USER":
+      return LLMMessageOriginKind.User
+    default:
+      return name as LLMMessageOriginKind
   }
 }
 /**
@@ -2693,6 +3107,13 @@ export type ClientSecretOpts = {
   cacheKey?: string
 }
 
+export type ClientServeModuleOpts = {
+  /**
+   * The pinned version of a remote module address.
+   */
+  refPin?: string
+}
+
 export type ClientSshfsVolumeOpts = {
   /**
    * known_hosts material used to verify the remote host key. Required unless insecureSkipHostKeyCheck is true.
@@ -3139,6 +3560,11 @@ export type WorkspaceAgentsOpts = {
    * Only include agents matching the specified patterns
    */
   include?: string[]
+
+  /**
+   * Exclude agents matching the specified patterns
+   */
+  exclude?: string[]
 }
 
 export type WorkspaceChangesOpts = {
@@ -3170,6 +3596,18 @@ export type WorkspaceChecksOpts = {
   onlyGenerate?: boolean
 }
 
+export type WorkspaceCompareCommitsFromOpts = {
+  /**
+   * Full lowercase commit hashes or unambiguous lowercase hex prefixes (4-40 characters) to select, in any order. Prefixes resolve against the frozen source's Git objects and are recorded as full hashes; duplicate selections after resolution are rejected. Empty selects all new source commits. Selected commits must be within the source's latest 10000 commits.
+   */
+  commits?: string[]
+
+  /**
+   * Maximum commits in either differing history, from 1 to 1000. Exceeding the limit fails; nothing is silently omitted.
+   */
+  maxCommits?: number
+}
+
 export type WorkspaceConfigReadOpts = {
   /**
    * Dotted key path (e.g. modules.greeter.source). Empty for full config.
@@ -3192,6 +3630,18 @@ export type WorkspaceDirectoryOpts = {
    * Apply .gitignore filter rules inside the directory.
    */
   gitignore?: boolean
+}
+
+export type WorkspaceExportOpts = {
+  /**
+   * Destination checkout path on the calling client. Relative paths start at the client's working directory. Omit to apply a local workspace's overlay changes at its host root.
+   */
+  path?: string
+
+  /**
+   * Earlier workspace state to compare against. With path, this must be a previously exported frozen source workspace.
+   */
+  from?: Workspace
 }
 
 export type WorkspaceFindRootsOpts = {
@@ -3223,6 +3673,20 @@ export type WorkspaceGeneratorsOpts = {
    * Only include generators matching the specified patterns
    */
   include?: string[]
+}
+
+export type WorkspaceMigrateOpts = {
+  /**
+   * Additional local modules to migrate. Relative paths start at the workspace cwd; absolute paths start at the workspace root.
+   */
+  modules?: string[]
+}
+
+export type WorkspaceMigrateModuleOpts = {
+  /**
+   * Module directory. Relative paths start at the workspace cwd; absolute paths start at the workspace root.
+   */
+  path?: string
 }
 
 export type WorkspaceSearchOpts = {
@@ -3308,6 +3772,35 @@ export type WorkspaceWithClientOpts = {
   settings?: JSON
 }
 
+export type WorkspaceWithCommitOpts = {
+  /**
+   * Author and committer name. Defaults to git config user.name in the calling client's working directory, otherwise Dagger.
+   */
+  authorName?: string
+
+  /**
+   * Author and committer email. Defaults to git config user.email in the calling client's working directory, otherwise dagger@localhost.
+   */
+  authorEmail?: string
+
+  /**
+   * Add a Signed-off-by trailer using the commit author's name and email.
+   */
+  signoff?: boolean
+}
+
+export type WorkspaceWithCommitsFromOpts = {
+  /**
+   * Full lowercase commit hashes or unambiguous lowercase hex prefixes (4-40 characters) to select, in any order. Prefixes resolve against the frozen source's Git objects and are recorded as full hashes; duplicate selections after resolution are rejected. Empty selects all new source commits. Selected commits must be within the source's latest 10000 commits.
+   */
+  commits?: string[]
+
+  /**
+   * Maximum commits in either differing history, from 1 to 1000. Exceeding the limit fails; nothing is silently omitted.
+   */
+  maxCommits?: number
+}
+
 export type WorkspaceWithConfigEnvOpts = {
   /**
    * Write to the workspace config directory at the workspace cwd.
@@ -3346,6 +3839,16 @@ export type WorkspaceWithInitModuleOpts = {
   path?: string
 
   /**
+   * Install the module. When omitted, install only if path is omitted.
+   */
+  install?: boolean
+
+  /**
+   * Select this module as the entrypoint and install it. False prevents automatic selection. When omitted, select only if both path and name are omitted and the module is installed.
+   */
+  entrypoint?: boolean
+
+  /**
    * Explicit SDK-module constructor setting overrides for this scope.
    */
   settings?: JSON
@@ -3368,6 +3871,13 @@ export type WorkspaceWithNewFileOpts = {
    * Permissions of the new file.
    */
   permissions?: number
+}
+
+export type WorkspaceWithResetOpts = {
+  /**
+   * Discard uncommitted changes, resetting the working tree to the commit.
+   */
+  hard?: boolean
 }
 
 export type WorkspaceWithSdkOpts = {
@@ -3413,9 +3923,14 @@ export type WorkspaceWithUpdatedLockOpts = {
 
 export type WorkspaceWithUpdatedModulesOpts = {
   /**
-   * Installed module names to refresh. An empty list refreshes all installed modules.
+   * Installed module names or sources. A version suffix sets a new request. An empty list refreshes all installed modules.
    */
   names?: string[]
+
+  /**
+   * New version request for exactly one selected module. Cannot be combined with a version suffix.
+   */
+  version?: string
 }
 
 export type WorkspaceWithoutClientOpts = {
@@ -3453,6 +3968,123 @@ export type WorkspaceWithoutSdkOpts = {
   here?: boolean
 }
 
+/**
+ * Why a source commit cannot be pulled.
+ */
+export enum WorkspaceCommitPickReason {
+
+  /**
+   * The patch conflicts with committed content.
+   */
+  Content = "CONTENT",
+
+  /**
+   * The commit touches uncommitted paths in the receiving workspace.
+   */
+  Dirty = "DIRTY",
+
+  /**
+   * No conflict.
+   */
+  None = "NONE",
+}
+
+/**
+ * Utility function to convert a WorkspaceCommitPickReason value to its name so
+ * it can be uses as argument to call a exposed function.
+ */
+export function WorkspaceCommitPickReasonValueToName(value: WorkspaceCommitPickReason): string {
+  switch (value) {
+    case WorkspaceCommitPickReason.Content:
+      return "CONTENT"
+    case WorkspaceCommitPickReason.Dirty:
+      return "DIRTY"
+    case WorkspaceCommitPickReason.None:
+      return "NONE"
+    default:
+      return value
+  }
+}
+
+/**
+ * Utility function to convert a WorkspaceCommitPickReason name to its value so
+ * it can be properly used inside the module runtime.
+ */
+export function WorkspaceCommitPickReasonNameToValue(name: string): WorkspaceCommitPickReason {
+  switch (name) {
+    case "CONTENT":
+      return WorkspaceCommitPickReason.Content
+    case "DIRTY":
+      return WorkspaceCommitPickReason.Dirty
+    case "NONE":
+      return WorkspaceCommitPickReason.None
+    default:
+      return name as WorkspaceCommitPickReason
+  }
+}
+/**
+ * Whether a source commit can be pulled.
+ */
+export enum WorkspaceCommitPickStatus {
+
+  /**
+   * The commit cannot be applied; see reason and conflictPaths.
+   */
+  Conflict = "CONFLICT",
+
+  /**
+   * The commit can be applied.
+   */
+  Pickable = "PICKABLE",
+
+  /**
+   * The commit is already present by hash or cherry-pick origin.
+   */
+  Picked = "PICKED",
+
+  /**
+   * The patch is already present, or applying it would be empty.
+   */
+  Redundant = "REDUNDANT",
+}
+
+/**
+ * Utility function to convert a WorkspaceCommitPickStatus value to its name so
+ * it can be uses as argument to call a exposed function.
+ */
+export function WorkspaceCommitPickStatusValueToName(value: WorkspaceCommitPickStatus): string {
+  switch (value) {
+    case WorkspaceCommitPickStatus.Conflict:
+      return "CONFLICT"
+    case WorkspaceCommitPickStatus.Pickable:
+      return "PICKABLE"
+    case WorkspaceCommitPickStatus.Picked:
+      return "PICKED"
+    case WorkspaceCommitPickStatus.Redundant:
+      return "REDUNDANT"
+    default:
+      return value
+  }
+}
+
+/**
+ * Utility function to convert a WorkspaceCommitPickStatus name to its value so
+ * it can be properly used inside the module runtime.
+ */
+export function WorkspaceCommitPickStatusNameToValue(name: string): WorkspaceCommitPickStatus {
+  switch (name) {
+    case "CONFLICT":
+      return WorkspaceCommitPickStatus.Conflict
+    case "PICKABLE":
+      return WorkspaceCommitPickStatus.Pickable
+    case "PICKED":
+      return WorkspaceCommitPickStatus.Picked
+    case "REDUNDANT":
+      return WorkspaceCommitPickStatus.Redundant
+    default:
+      return name as WorkspaceCommitPickStatus
+  }
+}
 export type __DirectiveArgsOpts = {
   includeDeprecated?: boolean
 }
@@ -3644,11 +4276,24 @@ export class Address extends BaseClient {
   }
 }
 
-
+/**
+ * EXPERIMENTAL: Agent APIs are likely to change.
+ * 
+ * A conversation loop running as an addressable, long-lived entity within the session. The conversation itself remains observable at any time as an immutable LLM value.
+ */
 export class Agent extends BaseClient {
   private readonly _id?: ID | undefined = undefined
-  private readonly _description?: string | undefined = undefined
+  private readonly _error?: string | undefined = undefined
+  private readonly _handle?: string | undefined = undefined
   private readonly _name?: string | undefined = undefined
+  private readonly _notify?: ID | undefined = undefined
+  private readonly _pause?: ID | undefined = undefined
+  private readonly _reseed?: ID | undefined = undefined
+  private readonly _resume?: ID | undefined = undefined
+  private readonly _send?: ID | undefined = undefined
+  private readonly _state?: AgentState | undefined = undefined
+  private readonly _stop?: ID | undefined = undefined
+  private readonly _wait?: ID | undefined = undefined
 
   /**
    * Constructor is used for internal usage only, do not create object from it.
@@ -3656,14 +4301,32 @@ export class Agent extends BaseClient {
    constructor(
     ctx?: Context,
      _id?: ID,
-     _description?: string,
+     _error?: string,
+     _handle?: string,
      _name?: string,
+     _notify?: ID,
+     _pause?: ID,
+     _reseed?: ID,
+     _resume?: ID,
+     _send?: ID,
+     _state?: AgentState,
+     _stop?: ID,
+     _wait?: ID,
    ) {
      super(ctx)
 
      this._id = _id
-     this._description = _description
+     this._error = _error
+     this._handle = _handle
      this._name = _name
+     this._notify = _notify
+     this._pause = _pause
+     this._reseed = _reseed
+     this._resume = _resume
+     this._send = _send
+     this._state = _state
+     this._stop = _stop
+     this._wait = _wait
    }
 
   /**
@@ -3685,7 +4348,437 @@ export class Agent extends BaseClient {
   }
 
   /**
+   * Why the loop failed, for a FAILED agent; empty otherwise.
+   * 
+   * The snapshot holds the completed prefix — send or resume retries from it.
+   * @experimental
+   */
+  error = async (): Promise<string> => {
+    if (this._error) {
+      return this._error
+    }
+
+    const ctx = this._ctx.select(
+      "error",
+    )
+
+    const response: Awaited<string> = await ctx.execute()
+
+    
+    return response
+  }
+
+  /**
+   * The opaque runtime handle minted by the spawn that created this agent.
+   * 
+   * It is the same value the agent's loop span publishes as dagger.io/agent.id, so a client can correlate the agent with what it discovers in the trace. Two spawns of an identical composition have different handles; a display name is shared freely.
+   * @experimental
+   */
+  handle = async (): Promise<string> => {
+    if (this._handle) {
+      return this._handle
+    }
+
+    const ctx = this._ctx.select(
+      "handle",
+    )
+
+    const response: Awaited<string> = await ctx.execute()
+
+    
+    return response
+  }
+
+  /**
+   * Look up a previously sent message by its ref.
+   * 
+   * This is the lookup send pins its result's identity through: the returned handle's ID is an honest, replayable chain, addressable from any request in the session (the cancel-and-request-again contract).
+   * 
+   * Fails if the agent has no runtime entry in this session, or no record of the given ref.
+   * @param ref The message's short ref within this agent's runtime, e.g. "#3": the token its attribution header shows and a reply's replyTo names. A bare ordinal ("3") is accepted too.
+   * @experimental
+   */
+  message = (ref: string): AgentMessage => {
+
+    const ctx = this._ctx.select(
+      "message",
+      { ref },
+    )
+    return new AgentMessage(ctx)
+  }
+
+  /**
+   * Display label for the agent; carries no identity.
+   * @experimental
+   */
+  name = async (): Promise<string> => {
+    if (this._name) {
+      return this._name
+    }
+
+    const ctx = this._ctx.select(
+      "name",
+    )
+
+    const response: Awaited<string> = await ctx.execute()
+
+    
+    return response
+  }
+
+  /**
+   * Subscribe another agent to this agent's lifecycle: each transition into one of the given states enqueues an event message to the subscriber — steering its open turn, or waking it if idle, like any other message.
+   * 
+   * This is how a supervisor hears every completion and failure without polling or blocking: subscribe at spawn time, keep working, and events arrive as attributed messages.
+   * 
+   * Events never relaunch a stopped subscriber, and an already-reached state fires immediately at subscribe time, so a fast agent settling before the subscription lands is not missed.
+   * 
+   * Idempotent per subscriber; re-subscribing replaces the state set.
+   * @param subscriber The agent to deliver event messages to. You must hold its handle: subscriptions are capability-based like everything else.
+   * @param opts.on The lifecycle states that fire an event. IDLE events carry the turn's final reply; FAILED events carry the loop error.
+   * @experimental
+   */
+  notify = async (subscriber: Agent, 
+    opts?: AgentNotifyOpts): Promise<Agent> => {
+    const ctx = this._ctx.select(
+      "notify",
+      { subscriber, ...opts},
+    )
+
+    const response: Awaited<ID> = await ctx.execute()
+
+    
+    return new Agent(ctx.copy().selectNode(response, "Agent"))
+  }
+
+  /**
+   * Stop draining the mailbox once the in-flight step completes, or immediately with interrupt.
+   * 
+   * Pause takes priority over pending work: a mid-turn pause suspends the turn, which resume continues. Messages sent while paused enqueue with QUEUED delivery until a resume.
+   * 
+   * Pausing a never-started agent leaves it paused for its eventual resume; pausing a failed agent is allowed (resume decides the retry); pausing a stopped agent fails.
+   * @param opts.interrupt Preempt the in-flight step instead of letting it finish. All completed steps are kept and the interrupted turn stays open: messages it consumed remain pending, while unconsumed mailbox messages are discarded. Resume continues the turn from the last committed step. On an idle, never-started, or failed agent there is nothing to preempt, so this is a plain pause.
+   * @experimental
+   */
+  pause = async (
+    opts?: AgentPauseOpts): Promise<Agent> => {
+    const ctx = this._ctx.select(
+      "pause",
+      { ...opts},
+    )
+
+    const response: Awaited<ID> = await ctx.execute()
+
+    
+    return new Agent(ctx.copy().selectNode(response, "Agent"))
+  }
+
+  /**
+   * Replace this instance's committed conversation with the given one, keeping the entry: identity, mailbox, and lifecycle state are untouched. A paused suspended turn is abandoned and its consumed messages are resolved before replacement.
+   * 
+   * This is the continuity verb. Compaction, a workspace rebind, a model change, or rewinding an interrupted prompt produce a new conversation value for the SAME agent; reseed swaps it in place, where a stop-and-respawn would mint a successor instance and split the agent across two roster entries. It is the client-facing form of what a continuation tool already does mid-turn: the agent adopts a new conversation without changing who it is.
+   * 
+   * The next turn continues from the reseeded conversation, and queued messages drain onto it. A FAILED agent keeps its error — resume retries from the new conversation.
+   * 
+   * Fails if the instance has no runtime entry in this session (only a spawned or re-hydrated instance holds a conversation to replace), if a step is in flight, or if the agent is stopped.
+   * @param conversation The conversation that becomes the agent's committed history, replacing the current one.
+   * @experimental
+   */
+  reseed = async (conversation: LLM): Promise<Agent> => {
+    const ctx = this._ctx.select(
+      "reseed",
+      { conversation},
+    )
+
+    const response: Awaited<ID> = await ctx.execute()
+
+    
+    return new Agent(ctx.copy().selectNode(response, "Agent"))
+  }
+
+  /**
+   * Resume draining the mailbox: a suspended turn continues from the last committed step, and queued messages drain.
+   * 
+   * Resuming a never-started agent starts its evaluation loop, detached from the calling request: it steps the conversation while input is pending, then idles awaiting further lifecycle operations. Resuming a FAILED agent retries its pending step. Resuming a STOPPED agent relaunches the same instance from its last committed snapshot.
+   * 
+   * No-op on a running or idle agent.
+   * @experimental
+   */
+  resume = async (): Promise<Agent> => {
+    const ctx = this._ctx.select(
+      "resume",
+    )
+
+    const response: Awaited<ID> = await ctx.execute()
+
+    
+    return new Agent(ctx.copy().selectNode(response, "Agent"))
+  }
+
+  /**
+   * Enqueue a message, on the record: it is consumed at a step boundary, appends to the agent's history, and steers the running turn or opens a new one.
+   * 
+   * Never blocks, never drops; concurrent sends queue in order.
+   * 
+   * The returned message is pinned through the message lookup field, so its handle is re-addressable from any request in the session: cancel a response request and request it again freely.
+   * 
+   * Sending to a never-started agent starts it (signal-with-start). Sending to a stopped agent restarts the same instance from its last committed snapshot. Sending to a paused or failed agent enqueues with QUEUED delivery, to be drained by a resume.
+   * @param message The message text, appended to the agent's history as a prompt when a turn consumes it.
+   * @param opts.replyTo The ref of a message in the SENDER's own mailbox this send answers (e.g. "#3", from its attribution header). The recipient sees the two paired, and awaiters of the replied-to message resolve with this reply immediately instead of at the sender's turn end.
+   * @experimental
+   */
+  send = async (message: string, 
+    opts?: AgentSendOpts): Promise<ID> => {
+    if (this._send) {
+      return this._send
+    }
+
+    const ctx = this._ctx.select(
+      "send",
+      { message, ...opts},
+    )
+
+    const response: Awaited<ID> = await ctx.execute()
+
+    
+    return response
+  }
+
+  /**
+   * The conversation as of the last committed step: immutable, branchable, persistable.
+   * 
+   * The seed conversation if the agent never stepped.
+   * 
+   * Branching from it does not affect the agent.
+   * @experimental
+   */
+  snapshot = (): LLM => {
+
+    const ctx = this._ctx.select(
+      "snapshot",
+    )
+    return new LLM(ctx)
+  }
+
+  /**
+   * Computed lifecycle state; never stored.
+   * 
+   * An agent that was never started reports IDLE: its mailbox is empty and no turn is open.
+   * @experimental
+   */
+  state = async (): Promise<AgentState> => {
+    if (this._state) {
+      return this._state
+    }
+
+    const ctx = this._ctx.select(
+      "state",
+    )
+
+    const response: Awaited<AgentState> = await ctx.execute()
+
+    return AgentStateNameToValue(response)
+  }
+
+  /**
+   * Release the agent's runtime. The tombstone (state, snapshot) stays readable for the rest of the session.
+   * @param opts.kill Cancel the loop immediately instead of letting an in-flight step finish. Either way the completed steps are preserved in the snapshot.
+   * @experimental
+   */
+  stop = async (
+    opts?: AgentStopOpts): Promise<Agent> => {
+    const ctx = this._ctx.select(
+      "stop",
+      { ...opts},
+    )
+
+    const response: Awaited<ID> = await ctx.execute()
+
+    
+    return new Agent(ctx.copy().selectNode(response, "Agent"))
+  }
+
+  /**
+   * Block until the agent settles: IDLE, FAILED, or STOPPED. Read which from state afterwards.
+   * 
+   * Unlike waiting for one exact state, this cannot hang merely because the agent settled in a different outcome.
+   * @experimental
+   */
+  wait = async (): Promise<Agent> => {
+    const ctx = this._ctx.select(
+      "wait",
+    )
+
+    const response: Awaited<ID> = await ctx.execute()
+
+    
+    return new Agent(ctx.copy().selectNode(response, "Agent"))
+  }
+}
+
+/**
+ * EXPERIMENTAL: Agent APIs are likely to change.
+ * 
+ * A message delivered to an agent's mailbox.
+ */
+export class AgentMessage extends BaseClient {
+  private readonly _id?: ID | undefined = undefined
+  private readonly _delivery?: AgentMessageDelivery | undefined = undefined
+  private readonly _ref?: string | undefined = undefined
+  private readonly _response?: string | undefined = undefined
+
+  /**
+   * Constructor is used for internal usage only, do not create object from it.
+   */
+   constructor(
+    ctx?: Context,
+     _id?: ID,
+     _delivery?: AgentMessageDelivery,
+     _ref?: string,
+     _response?: string,
+   ) {
+     super(ctx)
+
+     this._id = _id
+     this._delivery = _delivery
+     this._ref = _ref
+     this._response = _response
+   }
+
+  /**
+   * A unique identifier for this AgentMessage.
+   */
+  id = async (): Promise<ID> => {
+    if (this._id) {
+      return this._id
+    }
+
+    const ctx = this._ctx.select(
+      "id",
+    )
+
+    const response: Awaited<ID> = await ctx.execute()
+
+    
+    return response
+  }
+
+  /**
+   * How the message conclusively landed: opened a new turn (STARTED), was absorbed into the running turn at a step boundary (STEERED), or queued behind it (QUEUED).
+   * 
+   * Blocks until provider or native lifecycle evidence is conclusive. Once recorded, the result or cancellation error is immutable.
+   * @experimental
+   */
+  delivery = async (): Promise<AgentMessageDelivery> => {
+    if (this._delivery) {
+      return this._delivery
+    }
+
+    const ctx = this._ctx.select(
+      "delivery",
+    )
+
+    const response: Awaited<AgentMessageDelivery> = await ctx.execute()
+
+    return AgentMessageDeliveryNameToValue(response)
+  }
+
+  /**
+   * The message's short ref within the receiving agent's runtime, e.g. "#3".
+   * 
+   * This is the deterministic token the recipient's attribution header shows and a reply's replyTo names — quote it when telling the recipient what to answer.
+   * @experimental
+   */
+  ref = async (): Promise<string> => {
+    if (this._ref) {
+      return this._ref
+    }
+
+    const ctx = this._ctx.select(
+      "ref",
+    )
+
+    const response: Awaited<string> = await ctx.execute()
+
+    
+    return response
+  }
+
+  /**
+   * Block until this message is answered, and return the answer: an explicit reply (a send whose replyTo names this message), or the final reply of the turn that consumed it, whichever comes first.
+   * 
+   * Idempotent: cancel and request the response again freely; concurrent waiters share the result.
+   * 
+   * Fails if the agent stops before the message resolves. On a failed agent it projects the failure — but the message stays pending, so after a resume consumes it, requesting the response again returns the real reply.
+   * 
+   * Refused when called from inside an agent turn whose wait would deadlock: turns should not block on other agents — send without awaiting, and the reply arrives as a message.
+   * @experimental
+   */
+  response = async (): Promise<string> => {
+    if (this._response) {
+      return this._response
+    }
+
+    const ctx = this._ctx.select(
+      "response",
+    )
+
+    const response: Awaited<string> = await ctx.execute()
+
+    
+    return response
+  }
+}
+
+
+
+/**
+ * EXPERIMENTAL: Agent APIs are likely to change.
+ * 
+ * An agent middleware contributed by a module.
+ */
+export class AgentMiddleware extends BaseClient {
+  private readonly _id?: ID | undefined = undefined
+  private readonly _description?: string | undefined = undefined
+  private readonly _name?: string | undefined = undefined
+
+  /**
+   * Constructor is used for internal usage only, do not create object from it.
+   */
+   constructor(
+    ctx?: Context,
+     _id?: ID,
+     _description?: string,
+     _name?: string,
+   ) {
+     super(ctx)
+
+     this._id = _id
+     this._description = _description
+     this._name = _name
+   }
+
+  /**
+   * A unique identifier for this AgentMiddleware.
+   */
+  id = async (): Promise<ID> => {
+    if (this._id) {
+      return this._id
+    }
+
+    const ctx = this._ctx.select(
+      "id",
+    )
+
+    const response: Awaited<ID> = await ctx.execute()
+
+    
+    return response
+  }
+
+  /**
    * The description of the agent
+   * @experimental
    */
   description = async (): Promise<string> => {
     if (this._description) {
@@ -3703,7 +4796,8 @@ export class Agent extends BaseClient {
   }
 
   /**
-   * Return the fully qualified name of the agent
+   * Return the command name of the agent. Entrypoint targets omit the module prefix.
+   * @experimental
    */
   name = async (): Promise<string> => {
     if (this._name) {
@@ -3722,6 +4816,7 @@ export class Agent extends BaseClient {
 
   /**
    * The original module in which the agent has been defined
+   * @experimental
    */
   originalModule = (): Module_ => {
 
@@ -3733,6 +4828,7 @@ export class Agent extends BaseClient {
 
   /**
    * The path of the agent within its module
+   * @experimental
    */
   path = async (): Promise<string[]> => {
     const ctx = this._ctx.select(
@@ -3746,8 +4842,12 @@ export class Agent extends BaseClient {
   }
 }
 
-
-export class AgentGroup extends BaseClient {
+/**
+ * EXPERIMENTAL: Agent APIs are likely to change.
+ * 
+ * A group of agent middlewares composable onto a base LLM.
+ */
+export class AgentMiddlewareGroup extends BaseClient {
   private readonly _id?: ID | undefined = undefined
 
   /**
@@ -3763,7 +4863,7 @@ export class AgentGroup extends BaseClient {
    }
 
   /**
-   * A unique identifier for this AgentGroup.
+   * A unique identifier for this AgentMiddlewareGroup.
    */
   id = async (): Promise<ID> => {
     if (this._id) {
@@ -3783,8 +4883,9 @@ export class AgentGroup extends BaseClient {
   /**
    * Compose all selected agent middlewares onto a base LLM, in alphabetical module:fn order, and return the composed LLM.
    * @param opts.base The base LLM to compose onto. Defaults to a fresh workspace-bound LLM.
+   * @experimental
    */
-  compose = (opts?: AgentGroupComposeOpts): LLM => {
+  compose = (opts?: AgentMiddlewareGroupComposeOpts): LLM => {
 
     const ctx = this._ctx.select(
       "compose",
@@ -3795,8 +4896,9 @@ export class AgentGroup extends BaseClient {
 
   /**
    * Return a list of individual agents and their details
+   * @experimental
    */
-  list = async (): Promise<Agent[]> => {
+  list = async (): Promise<AgentMiddleware[]> => {
     type list = {
       id: ID
     }
@@ -3808,9 +4910,11 @@ export class AgentGroup extends BaseClient {
     const response: Awaited<list[]> = await ctx.execute()
 
     
-    return response.map((r) => new Agent(ctx.copy().selectNode(r.id, "Agent")))
+    return response.map((r) => new AgentMiddleware(ctx.copy().selectNode(r.id, "AgentMiddleware")))
   }
 }
+
+
 
 
 
@@ -3985,6 +5089,22 @@ export class Changeset extends BaseClient {
 
     
     return response
+  }
+
+  /**
+   * Select changes matching the supplied glob patterns, preserving their original baseline.
+   * 
+   * Includes additions, modifications, and deletions. Selecting only one side of a rename yields an addition or deletion.
+   * @param opts.include Only include changes at paths matching these patterns. Empty includes all paths.
+   * @param opts.exclude Exclude changes at paths matching these patterns.
+   */
+  filter = (opts?: ChangesetFilterOpts): Changeset => {
+
+    const ctx = this._ctx.select(
+      "filter",
+      { ...opts },
+    )
+    return new Changeset(ctx)
   }
 
   /**
@@ -4167,7 +5287,7 @@ export class Check extends BaseClient {
   }
 
   /**
-   * The type of check: 'check' for annotated checks, 'generate' for generate-as-checks
+   * The type of check: 'check' for annotated checks, 'generate' for generate-as-checks, 'load' for a workspace module that could not be loaded
    */
   checkType = async (): Promise<string> => {
     if (this._checkType) {
@@ -4237,7 +5357,7 @@ export class Check extends BaseClient {
   }
 
   /**
-   * Return the fully qualified name of the check
+   * Return the command name of the check. Entrypoint targets omit the module prefix.
    */
   name = async (): Promise<string> => {
     if (this._name) {
@@ -9035,6 +10155,7 @@ export class Function_ extends BaseClient {
 
   /**
    * Returns the function with a flag indicating it is an agent middleware.
+   * @experimental
    */
   withAgent = (): Function_ => {
 
@@ -9834,7 +10955,7 @@ export class Generator extends BaseClient {
   }
 
   /**
-   * Return the fully qualified name of the generator
+   * Return the command name of the generator. Entrypoint targets omit the module prefix.
    */
   name = async (): Promise<string> => {
     if (this._name) {
@@ -10414,6 +11535,21 @@ export class GitCommit extends BaseClient {
   }
 
   /**
+   * Returns the changes from the first parent to this commit, excluding Git metadata.
+   * 
+   * Root commits are compared with an empty tree. Merge commits are compared with their first parent, not a merge base.
+   * @param opts.against Use this commit as the comparison base instead of the first parent. The comparison commit may belong to an unrelated history or repository.
+   */
+  changes = (opts?: GitCommitChangesOpts): Changeset => {
+
+    const ctx = this._ctx.select(
+      "changes",
+      { ...opts },
+    )
+    return new Changeset(ctx)
+  }
+
+  /**
    * Git committer date, in RFC3339 format.
    */
   committedDate = async (): Promise<string> => {
@@ -10606,6 +11742,128 @@ export class GitCommit extends BaseClient {
   }
 }
 
+
+
+/**
+ * A receipt for a completed Git push. Reading or replaying the receipt does not push again.
+ */
+export class GitPushResult extends BaseClient {
+  private readonly _id?: ID | undefined = undefined
+  private readonly _disposition?: GitPushDisposition | undefined = undefined
+  private readonly _previousSHA?: string | undefined = undefined
+  private readonly _ref?: string | undefined = undefined
+  private readonly _sha?: string | undefined = undefined
+
+  /**
+   * Constructor is used for internal usage only, do not create object from it.
+   */
+   constructor(
+    ctx?: Context,
+     _id?: ID,
+     _disposition?: GitPushDisposition,
+     _previousSHA?: string,
+     _ref?: string,
+     _sha?: string,
+   ) {
+     super(ctx)
+
+     this._id = _id
+     this._disposition = _disposition
+     this._previousSHA = _previousSHA
+     this._ref = _ref
+     this._sha = _sha
+   }
+
+  /**
+   * A unique identifier for this GitPushResult.
+   */
+  id = async (): Promise<ID> => {
+    if (this._id) {
+      return this._id
+    }
+
+    const ctx = this._ctx.select(
+      "id",
+    )
+
+    const response: Awaited<ID> = await ctx.execute()
+
+    
+    return response
+  }
+
+  /**
+   * How the remote ref was updated.
+   */
+  disposition = async (): Promise<GitPushDisposition> => {
+    if (this._disposition) {
+      return this._disposition
+    }
+
+    const ctx = this._ctx.select(
+      "disposition",
+    )
+
+    const response: Awaited<GitPushDisposition> = await ctx.execute()
+
+    return GitPushDispositionNameToValue(response)
+  }
+
+  /**
+   * The previous remote object ID; empty when the ref was created.
+   */
+  previousSHA = async (): Promise<string> => {
+    if (this._previousSHA) {
+      return this._previousSHA
+    }
+
+    const ctx = this._ctx.select(
+      "previousSHA",
+    )
+
+    const response: Awaited<string> = await ctx.execute()
+
+    
+    return response
+  }
+
+  /**
+   * The fully qualified remote ref.
+   */
+  ref = async (): Promise<string> => {
+    if (this._ref) {
+      return this._ref
+    }
+
+    const ctx = this._ctx.select(
+      "ref",
+    )
+
+    const response: Awaited<string> = await ctx.execute()
+
+    
+    return response
+  }
+
+  /**
+   * The object ID pushed to the remote.
+   */
+  sha = async (): Promise<string> => {
+    if (this._sha) {
+      return this._sha
+    }
+
+    const ctx = this._ctx.select(
+      "sha",
+    )
+
+    const response: Awaited<string> = await ctx.execute()
+
+    
+    return response
+  }
+}
+
 /**
  * A git ref (tag, branch, or commit).
  */
@@ -10652,6 +11910,19 @@ export class GitRef extends BaseClient {
 
     
     return response
+  }
+
+  /**
+   * Return this ref's repository with HEAD pinned to the selected commit.
+   * 
+   * Preserves the original repository backend, connection information, and other refs. Does not modify a branch or checkout, or prune history.
+   */
+  asRepository = (): GitRepository => {
+
+    const ctx = this._ctx.select(
+      "asRepository",
+    )
+    return new GitRepository(ctx)
   }
 
   /**
@@ -10759,6 +12030,26 @@ export class GitRef extends BaseClient {
   }
 
   /**
+   * Push this ref's commit and history to a remote repository using the destination's credentials.
+   * 
+   * The source can come from a remote repository or an engine-side Git repository. To publish a workspace's commits, use Workspace.git.head.push. Pushing does not modify the calling client's checkout, and checkout hooks do not run.
+   * 
+   * A missing remote ref is created. Without a lease, Git's normal non-force rules apply. Each invocation performs a push; loading the returned receipt does not push again.
+   * @param opts.to Destination remote repository. Defaults to the origin remote's push routing, or the source's repository URL when none is registered. Required when the source has no remote URL.
+   * @param opts.remote Name of a registered remote to push to (see GitRepository.withRemote). Defaults to origin. The remote's push URLs, or its URL, become the destination; more than one push URL requires an explicit to instead.
+   * @param opts.branch Destination branch; a refs/ prefix is used verbatim. Defaults to this ref's branch name. Required for detached and non-branch refs.
+   * @param opts.expectedRemoteSHA Optional lease: a full lowercase object ID allows replacement only if the remote ref still has that value. Checked even for up-to-date pushes. Empty or omitted uses normal non-force rules, creating the ref if it does not exist.
+   */
+  push = (opts?: GitRefPushOpts): GitPushResult => {
+
+    const ctx = this._ctx.select(
+      "push",
+      { ...opts },
+    )
+    return new GitPushResult(ctx)
+  }
+
+  /**
    * The resolved ref name at this ref.
    * @deprecated Use "name" instead.
    */
@@ -10801,6 +12092,32 @@ export class GitRef extends BaseClient {
       { ...opts },
     )
     return new Directory(ctx)
+  }
+
+  /**
+   * Create a single-parent commit on this ref by applying a changeset's edits.
+   * 
+   * Three-way merges the changeset against this ref's tree, using its before snapshot as the base. Preserves compatible parent edits and fails on conflicts. Does not modify the input repository or host checkout.
+   * 
+   * Identity and dates are explicit; neither client Git configuration nor the current clock is consulted.
+   * @param changes Changes to apply. Use Changeset.filter to select paths before committing.
+   * @param message Commit message.
+   * @param date RFC3339 author date; also the default committer date.
+   * @param authorName Author name.
+   * @param authorEmail Author email.
+   * @param opts.committerName Committer name. Defaults to authorName.
+   * @param opts.committerEmail Committer email. Defaults to authorEmail.
+   * @param opts.committerDate RFC3339 committer date. Defaults to date.
+   * @param opts.allowEmpty Allow a commit whose tree matches its parent, including when the supplied edits are already present. Defaults to false.
+   * @param opts.signoff Add a Signed-off-by trailer using the commit author's name and email.
+   */
+  withCommit = (changes: Changeset, message: string, date: string, authorName: string, authorEmail: string, opts?: GitRefWithCommitOpts): GitRef => {
+
+    const ctx = this._ctx.select(
+      "withCommit",
+      { changes, message, date, authorName, authorEmail, ...opts },
+    )
+    return new GitRef(ctx)
   }
 
   /**
@@ -10853,7 +12170,9 @@ export class GitRepository extends BaseClient {
   }
 
   /**
-   * Creates a synthetic workspace from this git repository.
+   * Creates a synthetic workspace from this repository's HEAD and uncommitted file changes.
+   * 
+   * Pending changes are applied at the repository root. The staging split is not preserved. The source repository is not modified.
    * @param opts.cwd Current working directory inside the workspace root. Defaults to the workspace root.
    */
   asWorkspace = (opts?: GitRepositoryAsWorkspaceOpts): Workspace => {
@@ -10912,6 +12231,8 @@ export class GitRepository extends BaseClient {
   /**
    * Returns details of a commit.
    * @param id Identifier of the commit (e.g., "b6315d8f2810962c601af73f86831f6866ea798b").
+   * 
+   * May be abbreviated to an unambiguous hex prefix (4-40 characters), which is expanded against locally available objects. Remote repositories (resolved via ls-remote) can only expand prefixes of already-fetched commits; use the full SHA otherwise.
    */
   commit = (id: string): GitCommit => {
 
@@ -10951,6 +12272,8 @@ export class GitRepository extends BaseClient {
   /**
    * Returns details of a ref.
    * @param name Ref's name (can be a commit identifier, a tag name, a branch name, or a fully-qualified ref).
+   * 
+   * Commit identifiers may be abbreviated: an unambiguous hex prefix (4-40 characters) of a commit SHA resolves like git rev-parse, with named refs taking precedence. Abbreviated SHAs resolve against locally available objects, so remote repositories (resolved via ls-remote) can only expand prefixes of already-fetched commits; use the full SHA or a named ref otherwise.
    */
   ref = (name: string): GitRef => {
 
@@ -11030,6 +12353,42 @@ export class GitRepository extends BaseClient {
     const ctx = this._ctx.select(
       "withBundle",
       { bundle, ...opts },
+    )
+    return new GitRepository(ctx)
+  }
+
+  /**
+   * Replace this repository's storage with the supplied self-contained Git repository, retaining its logical URL and push destinations.
+   * 
+   * Accepts a whole checkout (including .git and pending file edits), .git contents, or a bare repository. Does not initialize a repository, merge histories, or modify either input.
+   * 
+   * The receiver's logical routing wins over the supplied Git configuration; that configuration is not rewritten. Use Directory.asGit to open the supplied repository without retaining the receiver's routing.
+   * @param directory Existing Git storage to open. Git metadata and object dependencies must be contained in this directory.
+   */
+  withContents = (directory: Directory): GitRepository => {
+
+    const ctx = this._ctx.select(
+      "withContents",
+      { directory },
+    )
+    return new GitRepository(ctx)
+  }
+
+  /**
+   * Register a named remote on this repository, replacing any registered remote of the same name.
+   * 
+   * Registered remotes are recorded in checkouts materialized from this repository (GitRef.tree, Workspace.git.directory), so remote-aware tooling like gh can resolve and fetch from them. The origin remote also routes push when no explicit destination is passed: its push URL, or its URL, becomes the default destination.
+   * 
+   * Routing metadata only, never a credential grant: pushes still authenticate with the caller's own credentials and require approval as usual.
+   * @param name The remote's name, e.g. "origin" or "upstream".
+   * @param url The remote's fetch URL.
+   * @param opts.pushUrl Push destination, when pushes go somewhere other than url. Empty uses url.
+   */
+  withRemote = (name: string, url: string, opts?: GitRepositoryWithRemoteOpts): GitRepository => {
+
+    const ctx = this._ctx.select(
+      "withRemote",
+      { name, url, ...opts },
     )
     return new GitRepository(ctx)
   }
@@ -11897,6 +13256,7 @@ export class LLM extends BaseClient {
   private readonly _provider?: string | undefined = undefined
   private readonly _reasoningEffort?: string | undefined = undefined
   private readonly _replay?: ID | undefined = undefined
+  private readonly _spawn?: ID | undefined = undefined
   private readonly _sync?: ID | undefined = undefined
   private readonly _tools?: string | undefined = undefined
   private readonly _transcript?: string | undefined = undefined
@@ -11916,6 +13276,7 @@ export class LLM extends BaseClient {
      _provider?: string,
      _reasoningEffort?: string,
      _replay?: ID,
+     _spawn?: ID,
      _sync?: ID,
      _tools?: string,
      _transcript?: string,
@@ -11932,6 +13293,7 @@ export class LLM extends BaseClient {
      this._provider = _provider
      this._reasoningEffort = _reasoningEffort
      this._replay = _replay
+     this._spawn = _spawn
      this._sync = _sync
      this._tools = _tools
      this._transcript = _transcript
@@ -11953,6 +13315,23 @@ export class LLM extends BaseClient {
 
     
     return response
+  }
+
+  /**
+   * Reconstruct a spawned agent from its runtime handle.
+   * 
+   * This is the lookup spawn pins its result's identity through: the returned handle's ID is an honest, replayable chain denoting the one instance the spawn minted. It never creates an instance itself.
+   * @param handle The opaque runtime handle minted by the spawn that created the agent.
+   * @param name The agent's display name, as recorded by the spawn.
+   * @experimental
+   */
+  agent = (handle: string, name: string): Agent => {
+
+    const ctx = this._ctx.select(
+      "agent",
+      { handle, name },
+    )
+    return new Agent(ctx)
   }
 
   /**
@@ -12177,6 +13556,43 @@ export class LLM extends BaseClient {
   }
 
   /**
+   * Spawn the conversation as an agent: a startable, addressable evaluation loop seeded with this conversation's state, tools, and workspace.
+   * 
+   * Every spawn mints a unique agent instance — two spawns of an identical conversation are two distinct agents, like two calls to a process spawn. The result is pinned to the instance (via the agent lookup field), so re-loading its ID re-addresses the same agent from any request in the session.
+   * 
+   * The loop is not started: the agent spends nothing until it is prompted or resumed, and any input pending on the conversation is stepped then.
+   * 
+   * With a handle, spawn restores an instance instead of minting one: this conversation becomes the committed history of the agent that handle names, so prompting it continues where it left off — rebuild a conversation's ID from a trace, load it, and spawn it under the handle it belonged to. Fails if that instance already has a runtime entry in this session: a restore must happen before anything else addresses the instance, since by then it may have stepped.
+   * @param opts.name Display label for the agent — telemetry and error messages; carries no identity. Defaults to a short name derived from the conversation.
+   * @param opts.handle The runtime handle to restore the instance under, as published on its loop span as dagger.io/agent.id. Omit to mint a fresh instance.
+   * @param opts.state The lifecycle state to create the agent in, as facts on the entry: IDLE is ready to be prompted, PAUSED parks it, FAILED holds an error a resume retries past, STOPPED preserves a dormant snapshot that send or resume can relaunch.
+   * 
+   * RUNNING and WAITING_INPUT are refused: they describe a loop, and a restored loop died with the session that published it — restore such an agent as IDLE, its interrupted turn's input still pending on the conversation.
+   * @param opts.error The loop error to create the agent with, for state FAILED. Refused with any other state.
+   * @experimental
+   */
+  spawn = async (
+    opts?: LLMSpawnOpts): Promise<ID> => {
+    if (this._spawn) {
+      return this._spawn
+    }
+
+	const metadata = {
+	    state: { is_enum: true, value_to_name: AgentStateValueToName },
+	}
+
+    const ctx = this._ctx.select(
+      "spawn",
+      { ...opts, __metadata: metadata},
+    )
+
+    const response: Awaited<ID> = await ctx.execute()
+
+    
+    return response
+  }
+
+  /**
    * Advance the conversation by a single step: send the queued prompt or tool results to the model, evaluate any tool calls it makes, and queue their results. Use loop to step until the model ends its turn.
    * @param opts.maxTokens Cap the model's output tokens for this step. Defaults to the model's maximum.
    */
@@ -12281,12 +13697,13 @@ export class LLM extends BaseClient {
   /**
    * Queue a user prompt, to be sent to the model on the next step or loop.
    * @param prompt The prompt to send
+   * @param opts.origin The message's recorded provenance, when it arrived through an agent mailbox rather than from the user. Rendered to the model as an attribution header at request-build time.
    */
-  withPrompt = (prompt: string): LLM => {
+  withPrompt = (prompt: string, opts?: LLMWithPromptOpts): LLM => {
 
     const ctx = this._ctx.select(
       "withPrompt",
-      { prompt },
+      { prompt, ...opts },
     )
     return new LLM(ctx)
   }
@@ -12344,6 +13761,17 @@ export class LLM extends BaseClient {
     const ctx = this._ctx.select(
       "withSkills",
       { directory },
+    )
+    return new LLM(ctx)
+  }
+
+  /**
+   * Switch to the configured small model for the current provider, or that provider's recommended default. The message history is preserved; unknown providers without a small-model configuration keep their current model.
+   */
+  withSmallModel = (): LLM => {
+
+    const ctx = this._ctx.select(
+      "withSmallModel",
     )
     return new LLM(ctx)
   }
@@ -12702,6 +14130,25 @@ export class LLMMessage extends BaseClient {
   }
 
   /**
+   * Who put this message on the record, when it arrived through an agent mailbox.
+   * 
+   * Null for the user's own prompts and for everything the model or tools produced.
+   * @experimental
+   */
+  origin = async (): Promise<LLMMessageOrigin | null> => {
+    const ctx = this._ctx.select(
+      "origin",
+    ).select("id")
+
+    const response: Awaited<string | null> = await ctx.execute()
+
+    if (response === null) {
+      return null
+    }
+    return new LLMMessageOrigin(ctx.copy().selectNode(response, "LLMMessageOrigin"))
+  }
+
+  /**
    * The role that produced this message.
    */
   role = async (): Promise<LLMMessageRole> => {
@@ -12729,6 +14176,136 @@ export class LLMMessage extends BaseClient {
     return new LLMTokenUsage(ctx)
   }
 }
+
+/**
+ * EXPERIMENTAL: Agent APIs are likely to change.
+ * 
+ * The recorded provenance of a message that arrived through an agent mailbox.
+ */
+export class LLMMessageOrigin extends BaseClient {
+  private readonly _id?: ID | undefined = undefined
+  private readonly _agentName?: string | undefined = undefined
+  private readonly _kind?: LLMMessageOriginKind | undefined = undefined
+  private readonly _ref?: string | undefined = undefined
+  private readonly _replyTo?: string | undefined = undefined
+
+  /**
+   * Constructor is used for internal usage only, do not create object from it.
+   */
+   constructor(
+    ctx?: Context,
+     _id?: ID,
+     _agentName?: string,
+     _kind?: LLMMessageOriginKind,
+     _ref?: string,
+     _replyTo?: string,
+   ) {
+     super(ctx)
+
+     this._id = _id
+     this._agentName = _agentName
+     this._kind = _kind
+     this._ref = _ref
+     this._replyTo = _replyTo
+   }
+
+  /**
+   * A unique identifier for this LLMMessageOrigin.
+   */
+  id = async (): Promise<ID> => {
+    if (this._id) {
+      return this._id
+    }
+
+    const ctx = this._ctx.select(
+      "id",
+    )
+
+    const response: Awaited<ID> = await ctx.execute()
+
+    
+    return response
+  }
+
+  /**
+   * The display name of the sending agent (for AGENT origins) or the observed agent (for EVENT origins).
+   * @experimental
+   */
+  agentName = async (): Promise<string> => {
+    if (this._agentName) {
+      return this._agentName
+    }
+
+    const ctx = this._ctx.select(
+      "agentName",
+    )
+
+    const response: Awaited<string> = await ctx.execute()
+
+    
+    return response
+  }
+
+  /**
+   * Who put this message on the record.
+   * @experimental
+   */
+  kind = async (): Promise<LLMMessageOriginKind> => {
+    if (this._kind) {
+      return this._kind
+    }
+
+    const ctx = this._ctx.select(
+      "kind",
+    )
+
+    const response: Awaited<LLMMessageOriginKind> = await ctx.execute()
+
+    return LLMMessageOriginKindNameToValue(response)
+  }
+
+  /**
+   * The message's short ref within the receiving agent's runtime, e.g. "#3": the deterministic token replies name (send's replyTo) and the message lookup takes.
+   * @experimental
+   */
+  ref = async (): Promise<string> => {
+    if (this._ref) {
+      return this._ref
+    }
+
+    const ctx = this._ctx.select(
+      "ref",
+    )
+
+    const response: Awaited<string> = await ctx.execute()
+
+    
+    return response
+  }
+
+  /**
+   * The ref of the message this one answers, in the sender's own runtime, if any.
+   * @experimental
+   */
+  replyTo = async (): Promise<string> => {
+    if (this._replyTo) {
+      return this._replyTo
+    }
+
+    const ctx = this._ctx.select(
+      "replyTo",
+    )
+
+    const response: Awaited<string> = await ctx.execute()
+
+    
+    return response
+  }
+}
+
+
+
+
 
 
 
@@ -14830,7 +16407,9 @@ export class Port extends BaseClient {
  */
 export class Client extends BaseClient {
   private readonly _id?: ID | undefined = undefined
+  private readonly _currentTimestamp?: string | undefined = undefined
   private readonly _defaultPlatform?: Platform | undefined = undefined
+  private readonly _serveModule?: Void | undefined = undefined
   private readonly _version?: string | undefined = undefined
 
   /**
@@ -14839,13 +16418,17 @@ export class Client extends BaseClient {
    constructor(
     ctx?: Context,
      _id?: ID,
+     _currentTimestamp?: string,
      _defaultPlatform?: Platform,
+     _serveModule?: Void,
      _version?: string,
    ) {
      super(ctx)
 
      this._id = _id
+     this._currentTimestamp = _currentTimestamp
      this._defaultPlatform = _defaultPlatform
+     this._serveModule = _serveModule
      this._version = _version
    }
 
@@ -14991,6 +16574,20 @@ export class Client extends BaseClient {
       "currentNode",
     )
     return new _NodeClient(ctx)
+  }
+
+  /**
+   * The current UTC time in RFC3339 format. Never cached.
+   */
+  currentTimestamp = async (): Promise<string> => {
+    const ctx = this._ctx.select(
+      "currentTimestamp",
+    )
+
+    const response: Awaited<string> = await ctx.execute()
+
+    
+    return response
   }
 
   /**
@@ -15304,6 +16901,29 @@ export class Client extends BaseClient {
       { uri, ...opts },
     )
     return new Secret(ctx)
+  }
+
+  /**
+   * Load the module at the given address and serve its API in the current session.
+   * 
+   * A local address resolves against the caller's workspace, so a generated client can serve the module it is bound to without reaching for the workspace itself.
+   * @param address A module address, or an explicit path into the caller's workspace.
+   * 
+   * Absolute paths (e.g. "/.dagger/modules/hello") resolve from the workspace root, relative ones (e.g. "./hello") from the workspace cwd.
+   * 
+   * Installed module names are not accepted.
+   * @param opts.refPin The pinned version of a remote module address.
+   */
+  serveModule = async (address: string, 
+    opts?: ClientServeModuleOpts): Promise<void> => {
+    const ctx = this._ctx.select(
+      "serveModule",
+      { address, ...opts},
+    )
+
+    await ctx.execute()
+
+    
   }
 
   /**
@@ -16776,7 +18396,7 @@ export class TerminalTarget extends BaseClient {
   }
 
   /**
-   * Return the fully qualified name of the terminal target
+   * Return the command name of the terminal target. Entrypoint targets omit the module prefix.
    */
   name = async (): Promise<string> => {
     if (this._name) {
@@ -17256,7 +18876,7 @@ export class Up extends BaseClient {
   }
 
   /**
-   * Return the fully qualified name of the service
+   * Return the command name of the service. Entrypoint targets omit the module prefix.
    */
   name = async (): Promise<string> => {
     if (this._name) {
@@ -17441,6 +19061,7 @@ export class Workspace extends BaseClient {
   private readonly _configRead?: string | undefined = undefined
   private readonly _cwd?: string | undefined = undefined
   private readonly _detectScope?: string | undefined = undefined
+  private readonly _entrypoint?: string | undefined = undefined
   private readonly _export?: Void | undefined = undefined
   private readonly _findUp?: string | undefined = undefined
 
@@ -17455,6 +19076,7 @@ export class Workspace extends BaseClient {
      _configRead?: string,
      _cwd?: string,
      _detectScope?: string,
+     _entrypoint?: string,
      _export?: Void,
      _findUp?: string,
    ) {
@@ -17466,6 +19088,7 @@ export class Workspace extends BaseClient {
      this._configRead = _configRead
      this._cwd = _cwd
      this._detectScope = _detectScope
+     this._entrypoint = _entrypoint
      this._export = _export
      this._findUp = _findUp
    }
@@ -17509,14 +19132,16 @@ export class Workspace extends BaseClient {
   /**
    * Return all agent middlewares from modules loaded in the workspace.
    * @param opts.include Only include agents matching the specified patterns
+   * @param opts.exclude Exclude agents matching the specified patterns
+   * @experimental
    */
-  agents = (opts?: WorkspaceAgentsOpts): AgentGroup => {
+  agents = (opts?: WorkspaceAgentsOpts): AgentMiddlewareGroup => {
 
     const ctx = this._ctx.select(
       "agents",
       { ...opts },
     )
-    return new AgentGroup(ctx)
+    return new AgentMiddlewareGroup(ctx)
   }
 
   /**
@@ -17548,6 +19173,33 @@ export class Workspace extends BaseClient {
       { ...opts },
     )
     return new CheckGroup(ctx)
+  }
+
+  /**
+   * Preview which source commits withCommitsFrom would apply, skip, or report as conflicting.
+   * 
+   * Results are ordered oldest first and account for earlier applicable commits in the same preview. The preview does not apply commits or write to the checkout.
+   * 
+   * A local receiver is snapshotted automatically; untracked files require interactive approval. Source uncommitted changes are ignored. Exceeding maxCommits fails rather than returning a partial preview. Divergent merge commits require manual integration.
+   * @param source Git-backed source workspace. For a local checkout, call snapshot on the source first and pass the returned workspace.
+   * @param opts.commits Full lowercase commit hashes or unambiguous lowercase hex prefixes (4-40 characters) to select, in any order. Prefixes resolve against the frozen source's Git objects and are recorded as full hashes; duplicate selections after resolution are rejected. Empty selects all new source commits. Selected commits must be within the source's latest 10000 commits.
+   * @param opts.maxCommits Maximum commits in either differing history, from 1 to 1000. Exceeding the limit fails; nothing is silently omitted.
+   */
+  compareCommitsFrom = async (source: Workspace, 
+    opts?: WorkspaceCompareCommitsFromOpts): Promise<WorkspaceCommitPick[]> => {
+    type compareCommitsFrom = {
+      id: ID
+    }
+
+    const ctx = this._ctx.select(
+      "compareCommitsFrom",
+      { source, ...opts},
+    ).select("id")
+
+    const response: Awaited<compareCommitsFrom[]> = await ctx.execute()
+
+    
+    return response.map((r) => new WorkspaceCommitPick(ctx.copy().selectNode(r.id, "WorkspaceCommitPick")))
   }
 
   /**
@@ -17656,6 +19308,26 @@ export class Workspace extends BaseClient {
   }
 
   /**
+   * Installed name of the module selected as the workspace entrypoint, or an empty string when none is selected.
+   * 
+   * Reflects the selected env's effective view. Fails if several modules are selected.
+   */
+  entrypoint = async (): Promise<string> => {
+    if (this._entrypoint) {
+      return this._entrypoint
+    }
+
+    const ctx = this._ctx.select(
+      "entrypoint",
+    )
+
+    const response: Awaited<string> = await ctx.execute()
+
+    
+    return response
+  }
+
+  /**
    * List named environments defined in the workspace configuration.
    */
   envList = async (): Promise<string[]> => {
@@ -17670,17 +19342,23 @@ export class Workspace extends BaseClient {
   }
 
   /**
-   * Write this workspace's pending changes to its local Git workspace on the current client's host.
+   * Write this workspace's commits and pending changes to a checkout on the calling client.
    * 
-   * Like Directory.export, the write is a side effect on the client that makes the call — never on the client that created the workspace. Inside a module, this cannot reach the caller's host.
+   * With path, accept a frozen source, integrate divergent commits by cherry-picking, preserve unrelated checkout edits, and refuse conflicts. The source is unchanged. Pass from to save only work since an earlier source value, including previously saved pending edits that are now committed.
+   * 
+   * Without path, apply a local workspace's overlay changes at its host root. Pass from to apply only changes since an earlier local workspace state. Export paths are relative to the workspace root regardless of its working directory. Like Directory.export, this writes only to the client making the call, never the source's client.
+   * @param opts.path Destination checkout path on the calling client. Relative paths start at the client's working directory. Omit to apply a local workspace's overlay changes at its host root.
+   * @param opts.from Earlier workspace state to compare against. With path, this must be a previously exported frozen source workspace.
    */
-  export = async (): Promise<void> => {
+  export = async (
+    opts?: WorkspaceExportOpts): Promise<void> => {
     if (this._export) {
       return
     }
 
     const ctx = this._ctx.select(
       "export",
+      { ...opts},
     )
 
     await ctx.execute()
@@ -17799,12 +19477,31 @@ export class Workspace extends BaseClient {
   /**
    * Plan the explicit migration needed for the current workspace.
    * 
+   * Include installed local modules and their local dependencies. Other module candidates remain unchanged unless selected.
+   * 
    * The returned plan has an empty changeset and no steps when no migration is needed.
+   * @param opts.modules Additional local modules to migrate. Relative paths start at the workspace cwd; absolute paths start at the workspace root.
    */
-  migrate = (): WorkspaceMigration => {
+  migrate = (opts?: WorkspaceMigrateOpts): WorkspaceMigration => {
 
     const ctx = this._ctx.select(
       "migrate",
+      { ...opts },
+    )
+    return new WorkspaceMigration(ctx)
+  }
+
+  /**
+   * Plan migration of one local module without migrating its dependencies or creating a workspace configuration.
+   * 
+   * Include SDK registration when a workspace configuration exists and remove obsolete generated-file ignore rules.
+   * @param opts.path Module directory. Relative paths start at the workspace cwd; absolute paths start at the workspace root.
+   */
+  migrateModule = (opts?: WorkspaceMigrateModuleOpts): WorkspaceMigration => {
+
+    const ctx = this._ctx.select(
+      "migrateModule",
+      { ...opts },
     )
     return new WorkspaceMigration(ctx)
   }
@@ -17859,17 +19556,6 @@ export class Workspace extends BaseClient {
 
     
     return response.map((r) => new WorkspaceModule(ctx.copy().selectNode(r.id, "WorkspaceModule")))
-  }
-
-  /**
-   * Return this workspace with its cached host reads invalidated, so subsequent file and directory reads re-read the live host instead of a snapshot cached earlier in the session.
-   */
-  reloaded = (): Workspace => {
-
-    const ctx = this._ctx.select(
-      "reloaded",
-    )
-    return new Workspace(ctx)
   }
 
   /**
@@ -17952,6 +19638,26 @@ export class Workspace extends BaseClient {
   }
 
   /**
+   * Return a snapshot of this workspace as a stable value.
+   * 
+   * Git capture is a progressive enhancement: if the workspace has no Git repository or commits, or the client cannot capture Git, return this workspace unchanged. Approval rejections and capture failures remain errors.
+   * 
+   * Use the returned workspace for subsequent reads, edits, and module loading against the captured baseline. Snapshotting an existing stable value preserves its baseline; snapshot currentWorkspace again to capture later checkout changes.
+   * 
+   * Only the owning client can capture a local checkout. Tracked changes are captured automatically; untracked files require interactive approval. Remote Git refs are pinned to their resolved commits. Capturing leaves the checkout unchanged.
+   * 
+   * The recipe is portable when a remote can serve its base; otherwise it is frozen for this session only.
+   * @experimental
+   */
+  snapshot = (): Workspace => {
+
+    const ctx = this._ctx.select(
+      "snapshot",
+    )
+    return new Workspace(ctx)
+  }
+
+  /**
    * Return all terminal targets from modules loaded in the workspace.
    * @param opts.include Only include terminal targets matching the specified patterns
    */
@@ -17996,6 +19702,51 @@ export class Workspace extends BaseClient {
   }
 
   /**
+   * Create a Git commit from a changeset and return a stable workspace with HEAD advanced.
+   * 
+   * The changeset is three-way merged into both HEAD and the frozen working tree. Compatible unselected edits remain uncommitted; incoming changes need not already be in the working tree. Conflicts with either tree fail without modifying the workspace. Empty changesets, or changes already present in HEAD, fail with nothing to commit.
+   * 
+   * A local workspace is snapshotted automatically before committing; untracked files require interactive approval. The host checkout is not modified.
+   * 
+   * Missing author fields are resolved from Git config in the calling client's working directory at commit time, then recorded explicitly for reproducible commits. Unconfigured fields default to Dagger and dagger@localhost.
+   * @param changes Changeset to commit, for example git.uncommitted.filter(...). Paths are rooted at the repository; rename sides are determined by the changeset. Git metadata (.git) is ignored; metadata-only changes fail with nothing to commit.
+   * @param message Commit message.
+   * @param date RFC3339 author and committer date. Required for reproducible commits.
+   * @param opts.authorName Author and committer name. Defaults to git config user.name in the calling client's working directory, otherwise Dagger.
+   * @param opts.authorEmail Author and committer email. Defaults to git config user.email in the calling client's working directory, otherwise dagger@localhost.
+   * @param opts.signoff Add a Signed-off-by trailer using the commit author's name and email.
+   */
+  withCommit = (changes: Changeset, message: string, date: string, opts?: WorkspaceWithCommitOpts): Workspace => {
+
+    const ctx = this._ctx.select(
+      "withCommit",
+      { changes, message, date, ...opts },
+    )
+    return new Workspace(ctx)
+  }
+
+  /**
+   * Integrate source commits into this workspace and return the result, preserving this workspace's uncommitted changes and metadata.
+   * 
+   * Fast-forward when the selected commits include all new ancestors of their tip; otherwise cherry-pick them oldest first. Already integrated commits and patches already present are skipped. Any conflict fails the operation. Source uncommitted changes are not transferred; merge them explicitly if needed. Use compareCommitsFrom to preview the integration.
+   * 
+   * A local receiver is snapshotted automatically; untracked files require interactive approval. The checkout is not modified. Export the result with an explicit path to write it to a checkout.
+   * 
+   * Cherry-picks preserve the source author and author date, use the calling client's Git config for committer identity, and reuse the source committer date for reproducible hashes. Origin trailers track cherry-picked commits. Divergent merge commits require manual integration.
+   * @param source Git-backed source workspace. For a local checkout, call snapshot on the source first and pass the returned workspace.
+   * @param opts.commits Full lowercase commit hashes or unambiguous lowercase hex prefixes (4-40 characters) to select, in any order. Prefixes resolve against the frozen source's Git objects and are recorded as full hashes; duplicate selections after resolution are rejected. Empty selects all new source commits. Selected commits must be within the source's latest 10000 commits.
+   * @param opts.maxCommits Maximum commits in either differing history, from 1 to 1000. Exceeding the limit fails; nothing is silently omitted.
+   */
+  withCommitsFrom = (source: Workspace, opts?: WorkspaceWithCommitsFromOpts): Workspace => {
+
+    const ctx = this._ctx.select(
+      "withCommitsFrom",
+      { source, ...opts },
+    )
+    return new Workspace(ctx)
+  }
+
+  /**
    * Return this workspace with a named config environment created.
    * @param name Environment name.
    * @param opts.here Write to the workspace config directory at the workspace cwd.
@@ -18005,6 +19756,33 @@ export class Workspace extends BaseClient {
     const ctx = this._ctx.select(
       "withConfigEnv",
       { name, ...opts },
+    )
+    return new Workspace(ctx)
+  }
+
+  /**
+   * Select the config environment carried by this workspace.
+   * @param name Environment name, or empty to clear the selection.
+   */
+  withConfigEnvironment = (name: string): Workspace => {
+
+    const ctx = this._ctx.select(
+      "withConfigEnvironment",
+      { name },
+    )
+    return new Workspace(ctx)
+  }
+
+  /**
+   * Select workspace-root-relative config and lockfile paths. Empty paths clear the selection.
+   * @param configFile Config file path.
+   * @param lockFile Lockfile path.
+   */
+  withConfigPaths = (configFile: string, lockFile: string): Workspace => {
+
+    const ctx = this._ctx.select(
+      "withConfigPaths",
+      { configFile, lockFile },
     )
     return new Workspace(ctx)
   }
@@ -18044,6 +19822,21 @@ export class Workspace extends BaseClient {
   }
 
   /**
+   * Return this workspace with an installed module selected as its entrypoint.
+   * 
+   * Every other entrypoint selection is cleared. Entrypoints live in the base workspace config.
+   * @param name Exact installed module name.
+   */
+  withEntrypoint = (name: string): Workspace => {
+
+    const ctx = this._ctx.select(
+      "withEntrypoint",
+      { name },
+    )
+    return new Workspace(ctx)
+  }
+
+  /**
    * Return this workspace with a file added or replaced, without mutating the source.
    * @param path Destination path. Relative paths resolve from the workspace cwd.
    * @param source File to add.
@@ -18065,6 +19858,8 @@ export class Workspace extends BaseClient {
    * @param sdk Workspace SDK name or module entry name to use. Required.
    * @param opts.name Module name. The engine infers it from path, the active config file, or the workspace root when omitted.
    * @param opts.path Module path relative to the workspace cwd, or an absolute workspace path. Defaults to .dagger/modules/<name> beside the active workspace config.
+   * @param opts.install Install the module. When omitted, install only if path is omitted.
+   * @param opts.entrypoint Select this module as the entrypoint and install it. False prevents automatic selection. When omitted, select only if both path and name are omitted and the module is installed.
    * @param opts.settings Explicit SDK-module constructor setting overrides for this scope.
    */
   withInitModule = (sdk: string, opts?: WorkspaceWithInitModuleOpts): Workspace => {
@@ -18072,6 +19867,19 @@ export class Workspace extends BaseClient {
     const ctx = this._ctx.select(
       "withInitModule",
       { sdk, ...opts },
+    )
+    return new Workspace(ctx)
+  }
+
+  /**
+   * Return this workspace with a native configuration, without changing an existing configuration.
+   * 
+   * Fail if legacy configuration needs workspace migration.
+   */
+  withInitialized = (): Workspace => {
+
+    const ctx = this._ctx.select(
+      "withInitialized",
     )
     return new Workspace(ctx)
   }
@@ -18157,6 +19965,26 @@ export class Workspace extends BaseClient {
   }
 
   /**
+   * Move this workspace's Git HEAD to a commit and return the resulting stable workspace.
+   * 
+   * A local workspace is snapshotted automatically before resetting; untracked files require interactive approval. The host checkout is not modified. By default the difference between the previous working tree and the target commit stays uncommitted, as with git reset --mixed, so history can be reworked and reapplied with withCommit — e.g. to amend the latest commit message, reset to its parent and commit again.
+   * 
+   * With hard, the working tree is reset to the commit and every uncommitted change is discarded.
+   * 
+   * Commits orphaned by the reset are not preserved: the frozen repository keeps reachable history only, so a reset cannot be undone by resetting forward again.
+   * @param commit Full commit hash to reset HEAD to.
+   * @param opts.hard Discard uncommitted changes, resetting the working tree to the commit.
+   */
+  withReset = (commit: string, opts?: WorkspaceWithResetOpts): Workspace => {
+
+    const ctx = this._ctx.select(
+      "withReset",
+      { commit, ...opts },
+    )
+    return new Workspace(ctx)
+  }
+
+  /**
    * Return this workspace with an SDK installed in its config.
    * @param ref SDK module reference to install.
    * @param opts.name Override name for the installed SDK entry.
@@ -18207,10 +20035,11 @@ export class Workspace extends BaseClient {
   }
 
   /**
-   * Return this workspace with refreshed lockfile state for installed modules.
+   * Return this workspace with updated module versions and lockfile state.
    * 
    * An SDK client scope is regenerated when it targets an updated module.
-   * @param opts.names Installed module names to refresh. An empty list refreshes all installed modules.
+   * @param opts.names Installed module names or sources. A version suffix sets a new request. An empty list refreshes all installed modules.
+   * @param opts.version New version request for exactly one selected module. Cannot be combined with a version suffix.
    */
   withUpdatedModules = (opts?: WorkspaceWithUpdatedModulesOpts): Workspace => {
 
@@ -18299,6 +20128,17 @@ export class Workspace extends BaseClient {
   }
 
   /**
+   * Return this workspace with no module selected as its entrypoint.
+   */
+  withoutEntrypoint = (): Workspace => {
+
+    const ctx = this._ctx.select(
+      "withoutEntrypoint",
+    )
+    return new Workspace(ctx)
+  }
+
+  /**
    * Return this workspace with a file removed, without mutating the source.
    * @param path Path of the file to remove. Relative paths resolve from the workspace cwd.
    */
@@ -18315,7 +20155,7 @@ export class Workspace extends BaseClient {
    * Return this workspace with a module removed from its config.
    * 
    * When the session selects an env, only that env's overlay entry is removed.
-   * @param name Name of the installed module entry to remove.
+   * @param name Installed module name or source to remove. Version selectors are not accepted.
    * @param opts.here Write to the workspace config directory at the workspace cwd.
    */
   withoutModule = (name: string, opts?: WorkspaceWithoutModuleOpts): Workspace => {
@@ -18323,6 +20163,21 @@ export class Workspace extends BaseClient {
     const ctx = this._ctx.select(
       "withoutModule",
       { name, ...opts },
+    )
+    return new Workspace(ctx)
+  }
+
+  /**
+   * Return this workspace with the content mounted at the given path unmounted.
+   * 
+   * Removes directory and file mounts at or below the path, revealing the underlying workspace content. Other mounts and pending changes are preserved.
+   * @param path Location of the mount to remove. Relative paths resolve from the workspace cwd. Use / to remove all mounts.
+   */
+  withoutMount = (path: string): Workspace => {
+
+    const ctx = this._ctx.select(
+      "withoutMount",
+      { path },
     )
     return new Workspace(ctx)
   }
@@ -18350,6 +20205,112 @@ export class Workspace extends BaseClient {
     return arg(this)
   }
 }
+
+/**
+ * A source commit classified against the receiving workspace.
+ */
+export class WorkspaceCommitPick extends BaseClient {
+  private readonly _id?: ID | undefined = undefined
+  private readonly _reason?: WorkspaceCommitPickReason | undefined = undefined
+  private readonly _status?: WorkspaceCommitPickStatus | undefined = undefined
+
+  /**
+   * Constructor is used for internal usage only, do not create object from it.
+   */
+   constructor(
+    ctx?: Context,
+     _id?: ID,
+     _reason?: WorkspaceCommitPickReason,
+     _status?: WorkspaceCommitPickStatus,
+   ) {
+     super(ctx)
+
+     this._id = _id
+     this._reason = _reason
+     this._status = _status
+   }
+
+  /**
+   * A unique identifier for this WorkspaceCommitPick.
+   */
+  id = async (): Promise<ID> => {
+    if (this._id) {
+      return this._id
+    }
+
+    const ctx = this._ctx.select(
+      "id",
+    )
+
+    const response: Awaited<ID> = await ctx.execute()
+
+    
+    return response
+  }
+
+  /**
+   * The commit in the source workspace.
+   */
+  commit = (): GitCommit => {
+
+    const ctx = this._ctx.select(
+      "commit",
+    )
+    return new GitCommit(ctx)
+  }
+
+  /**
+   * Workspace-root-relative conflicting paths. Empty unless the status is CONFLICT.
+   */
+  conflictPaths = async (): Promise<string[]> => {
+    const ctx = this._ctx.select(
+      "conflictPaths",
+    )
+
+    const response: Awaited<string[]> = await ctx.execute()
+
+    
+    return response
+  }
+
+  /**
+   * Why the commit conflicts, or NONE.
+   */
+  reason = async (): Promise<WorkspaceCommitPickReason> => {
+    if (this._reason) {
+      return this._reason
+    }
+
+    const ctx = this._ctx.select(
+      "reason",
+    )
+
+    const response: Awaited<WorkspaceCommitPickReason> = await ctx.execute()
+
+    return WorkspaceCommitPickReasonNameToValue(response)
+  }
+
+  /**
+   * Whether this commit can be applied.
+   */
+  status = async (): Promise<WorkspaceCommitPickStatus> => {
+    if (this._status) {
+      return this._status
+    }
+
+    const ctx = this._ctx.select(
+      "status",
+    )
+
+    const response: Awaited<WorkspaceCommitPickStatus> = await ctx.execute()
+
+    return WorkspaceCommitPickStatusNameToValue(response)
+  }
+}
+
+
+
+
 
 /**
  * Local git state for a workspace.
@@ -18388,6 +20349,21 @@ export class WorkspaceGit extends BaseClient {
   }
 
   /**
+   * Return a self-contained Git metadata directory for this workspace's HEAD, including its full reachable history and an index matching HEAD.
+   * 
+   * Mount this directory at .git alongside workspace.directory("/") to create a usable checkout. Pending workspace edits remain uncommitted; the original checkout's staging state is not preserved.
+   * 
+   * This is a snapshot: Git writes to a mounted copy do not update the workspace. The workspace must have a Git repository with a HEAD commit.
+   */
+  directory = (): Directory => {
+
+    const ctx = this._ctx.select(
+      "directory",
+    )
+    return new Directory(ctx)
+  }
+
+  /**
    * The checked-out HEAD of this workspace.
    */
   head = (): GitRef => {
@@ -18415,6 +20391,7 @@ export class WorkspaceGit extends BaseClient {
  */
 export class WorkspaceMigration extends BaseClient {
   private readonly _id?: ID | undefined = undefined
+  private readonly _configFile?: string | undefined = undefined
 
   /**
    * Constructor is used for internal usage only, do not create object from it.
@@ -18422,10 +20399,12 @@ export class WorkspaceMigration extends BaseClient {
    constructor(
     ctx?: Context,
      _id?: ID,
+     _configFile?: string,
    ) {
      super(ctx)
 
      this._id = _id
+     this._configFile = _configFile
    }
 
   /**
@@ -18455,6 +20434,38 @@ export class WorkspaceMigration extends BaseClient {
       "changes",
     )
     return new Changeset(ctx)
+  }
+
+  /**
+   * Native workspace config path after migration, relative to the workspace root. Empty if no workspace config exists.
+   */
+  configFile = async (): Promise<string> => {
+    if (this._configFile) {
+      return this._configFile
+    }
+
+    const ctx = this._ctx.select(
+      "configFile",
+    )
+
+    const response: Awaited<string> = await ctx.execute()
+
+    
+    return response
+  }
+
+  /**
+   * Unselected legacy module directories relative to the workspace root. Candidates can include fixtures.
+   */
+  moduleCandidates = async (): Promise<string[]> => {
+    const ctx = this._ctx.select(
+      "moduleCandidates",
+    )
+
+    const response: Awaited<string[]> = await ctx.execute()
+
+    
+    return response
   }
 
   /**
@@ -18717,9 +20728,11 @@ export class WorkspaceModule extends BaseClient {
  */
 export class WorkspaceModuleSetting extends BaseClient {
   private readonly _id?: ID | undefined = undefined
+  private readonly _defaultValue?: string | undefined = undefined
   private readonly _description?: string | undefined = undefined
   private readonly _isList?: boolean | undefined = undefined
   private readonly _isObject?: boolean | undefined = undefined
+  private readonly _isString?: boolean | undefined = undefined
   private readonly _key?: string | undefined = undefined
   private readonly _value?: string | undefined = undefined
 
@@ -18729,18 +20742,22 @@ export class WorkspaceModuleSetting extends BaseClient {
    constructor(
     ctx?: Context,
      _id?: ID,
+     _defaultValue?: string,
      _description?: string,
      _isList?: boolean,
      _isObject?: boolean,
+     _isString?: boolean,
      _key?: string,
      _value?: string,
    ) {
      super(ctx)
 
      this._id = _id
+     this._defaultValue = _defaultValue
      this._description = _description
      this._isList = _isList
      this._isObject = _isObject
+     this._isString = _isString
      this._key = _key
      this._value = _value
    }
@@ -18758,6 +20775,24 @@ export class WorkspaceModuleSetting extends BaseClient {
     )
 
     const response: Awaited<ID> = await ctx.execute()
+
+    
+    return response
+  }
+
+  /**
+   * The constructor argument's declared default, formatted like value, or empty when the argument has no default.
+   */
+  defaultValue = async (): Promise<string> => {
+    if (this._defaultValue) {
+      return this._defaultValue
+    }
+
+    const ctx = this._ctx.select(
+      "defaultValue",
+    )
+
+    const response: Awaited<string> = await ctx.execute()
 
     
     return response
@@ -18818,6 +20853,24 @@ export class WorkspaceModuleSetting extends BaseClient {
   }
 
   /**
+   * Whether the setting is a string argument, stored as a TOML string even when the value reads as a number or boolean.
+   */
+  isString = async (): Promise<boolean> => {
+    if (this._isString) {
+      return this._isString
+    }
+
+    const ctx = this._ctx.select(
+      "isString",
+    )
+
+    const response: Awaited<boolean> = await ctx.execute()
+
+    
+    return response
+  }
+
+  /**
    * The setting key.
    */
   key = async (): Promise<string> => {
@@ -18836,7 +20889,7 @@ export class WorkspaceModuleSetting extends BaseClient {
   }
 
   /**
-   * The configured value after applying the selected workspace environment, or empty when unset.
+   * The value stored in workspace config after applying the selected workspace environment, or empty when unset.
    */
   value = async (): Promise<string> => {
     if (this._value) {
