@@ -5640,6 +5640,56 @@ export class Cloud extends BaseClient {
 /**
  * An OCI-compatible container, also known as a Docker container.
  */
+export class CollectionDelta extends BaseClient {
+  private readonly _id?: ID = undefined
+
+  /**
+   * Constructor is used for internal usage only, do not create object from it.
+   */
+  constructor(ctx?: Context, _id?: ID) {
+    super(ctx)
+
+    this._id = _id
+  }
+
+  /**
+   * A unique identifier for this CollectionDelta.
+   */
+  id = async (): Promise<ID> => {
+    if (this._id) {
+      return this._id
+    }
+
+    const ctx = this._ctx.select("id")
+
+    const response: Awaited<ID> = await ctx.execute()
+
+    return response
+  }
+
+  /**
+   * Current keys absent from the original collection, in current order.
+   */
+  addedKeys = async (): Promise<string[]> => {
+    const ctx = this._ctx.select("addedKeys")
+
+    const response: Awaited<string[]> = await ctx.execute()
+
+    return response
+  }
+
+  /**
+   * Original keys absent from the current collection, in original order.
+   */
+  removedKeys = async (): Promise<string[]> => {
+    const ctx = this._ctx.select("removedKeys")
+
+    const response: Awaited<string[]> = await ctx.execute()
+
+    return response
+  }
+}
+
 export class Container extends BaseClient {
   private readonly _id?: ID | undefined = undefined
   private readonly _combinedOutput?: string | undefined = undefined
@@ -18636,6 +18686,36 @@ export class TypeDef extends BaseClient {
   /**
    * Adds a function for constructing a new instance of an Object TypeDef, failing if the type is not an object.
    */
+  withCollection = (): TypeDef => {
+    const ctx = this._ctx.select("withCollection")
+    return new TypeDef(ctx)
+  }
+
+  /**
+   * Select the field that receives changes from the original collection.
+   */
+  withCollectionDelta = (name: string): TypeDef => {
+    const ctx = this._ctx.select("withCollectionDelta", { name })
+    return new TypeDef(ctx)
+  }
+
+  /**
+   * Select the item lookup function for this collection.
+   */
+  withCollectionGet = (name: string): TypeDef => {
+    const ctx = this._ctx.select("withCollectionGet", { name })
+    return new TypeDef(ctx)
+  }
+
+  /**
+   * Select the stored keys field for this collection.
+   */
+  withCollectionKeys = (name: string): TypeDef => {
+    const ctx = this._ctx.select("withCollectionKeys", { name })
+    return new TypeDef(ctx)
+  }
+
+
   withConstructor = (function_: Function_): TypeDef => {
 
     const ctx = this._ctx.select(
