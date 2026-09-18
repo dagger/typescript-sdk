@@ -101035,6 +101035,54 @@ class BaseClient {
 }
 
 // src/api/client.gen.ts
+function AgentMessageDeliveryNameToValue(name) {
+  switch (name) {
+    case "QUEUED":
+      return "QUEUED" /* Queued */;
+    case "STARTED":
+      return "STARTED" /* Started */;
+    case "STEERED":
+      return "STEERED" /* Steered */;
+    default:
+      return name;
+  }
+}
+function AgentStateValueToName(value) {
+  switch (value) {
+    case "FAILED" /* Failed */:
+      return "FAILED";
+    case "IDLE" /* Idle */:
+      return "IDLE";
+    case "PAUSED" /* Paused */:
+      return "PAUSED";
+    case "RUNNING" /* Running */:
+      return "RUNNING";
+    case "STOPPED" /* Stopped */:
+      return "STOPPED";
+    case "WAITING_INPUT" /* WaitingInput */:
+      return "WAITING_INPUT";
+    default:
+      return value;
+  }
+}
+function AgentStateNameToValue(name) {
+  switch (name) {
+    case "FAILED":
+      return "FAILED" /* Failed */;
+    case "IDLE":
+      return "IDLE" /* Idle */;
+    case "PAUSED":
+      return "PAUSED" /* Paused */;
+    case "RUNNING":
+      return "RUNNING" /* Running */;
+    case "STOPPED":
+      return "STOPPED" /* Stopped */;
+    case "WAITING_INPUT":
+      return "WAITING_INPUT" /* WaitingInput */;
+    default:
+      return name;
+  }
+}
 function CacheSharingModeValueToName(value) {
   switch (value) {
     case "LOCKED" /* Locked */:
@@ -101125,6 +101173,20 @@ function FunctionCachePolicyValueToName(value) {
       return value;
   }
 }
+function GitPushDispositionNameToValue(name) {
+  switch (name) {
+    case "CREATED":
+      return "CREATED" /* Created */;
+    case "FAST_FORWARD":
+      return "FAST_FORWARD" /* FastForward */;
+    case "FORCED":
+      return "FORCED" /* Forced */;
+    case "UP_TO_DATE":
+      return "UP_TO_DATE" /* UpToDate */;
+    default:
+      return name;
+  }
+}
 function ImageLayerCompressionValueToName(value) {
   switch (value) {
     case "EStarGZ" /* EStarGz */:
@@ -101159,6 +101221,18 @@ function LLMContentBlockKindNameToValue(name) {
       return "TOOL_CALL" /* ToolCall */;
     case "TOOL_RESULT":
       return "TOOL_RESULT" /* ToolResult */;
+    default:
+      return name;
+  }
+}
+function LLMMessageOriginKindNameToValue(name) {
+  switch (name) {
+    case "AGENT":
+      return "AGENT" /* Agent */;
+    case "EVENT":
+      return "EVENT" /* Event */;
+    case "USER":
+      return "USER" /* User */;
     default:
       return name;
   }
@@ -101307,6 +101381,32 @@ function TypeDefKindNameToValue(name) {
       return name;
   }
 }
+function WorkspaceCommitPickReasonNameToValue(name) {
+  switch (name) {
+    case "CONTENT":
+      return "CONTENT" /* Content */;
+    case "DIRTY":
+      return "DIRTY" /* Dirty */;
+    case "NONE":
+      return "NONE" /* None */;
+    default:
+      return name;
+  }
+}
+function WorkspaceCommitPickStatusNameToValue(name) {
+  switch (name) {
+    case "CONFLICT":
+      return "CONFLICT" /* Conflict */;
+    case "PICKABLE":
+      return "PICKABLE" /* Pickable */;
+    case "PICKED":
+      return "PICKED" /* Picked */;
+    case "REDUNDANT":
+      return "REDUNDANT" /* Redundant */;
+    default:
+      return name;
+  }
+}
 
 class Address extends BaseClient {
   _id = undefined;
@@ -101376,6 +101476,168 @@ class Address extends BaseClient {
 
 class Agent extends BaseClient {
   _id = undefined;
+  _error = undefined;
+  _handle = undefined;
+  _name = undefined;
+  _notify = undefined;
+  _pause = undefined;
+  _reseed = undefined;
+  _resume = undefined;
+  _send = undefined;
+  _state = undefined;
+  _stop = undefined;
+  _wait = undefined;
+  constructor(ctx, _id, _error, _handle, _name, _notify, _pause, _reseed, _resume, _send, _state, _stop, _wait) {
+    super(ctx);
+    this._id = _id;
+    this._error = _error;
+    this._handle = _handle;
+    this._name = _name;
+    this._notify = _notify;
+    this._pause = _pause;
+    this._reseed = _reseed;
+    this._resume = _resume;
+    this._send = _send;
+    this._state = _state;
+    this._stop = _stop;
+    this._wait = _wait;
+  }
+  id = async () => {
+    if (this._id) {
+      return this._id;
+    }
+    const ctx = this._ctx.select("id");
+    const response = await ctx.execute();
+    return response;
+  };
+  error = async () => {
+    if (this._error) {
+      return this._error;
+    }
+    const ctx = this._ctx.select("error");
+    const response = await ctx.execute();
+    return response;
+  };
+  handle = async () => {
+    if (this._handle) {
+      return this._handle;
+    }
+    const ctx = this._ctx.select("handle");
+    const response = await ctx.execute();
+    return response;
+  };
+  message = (ref) => {
+    const ctx = this._ctx.select("message", { ref });
+    return new AgentMessage(ctx);
+  };
+  name = async () => {
+    if (this._name) {
+      return this._name;
+    }
+    const ctx = this._ctx.select("name");
+    const response = await ctx.execute();
+    return response;
+  };
+  notify = async (subscriber, opts) => {
+    const ctx = this._ctx.select("notify", { subscriber, ...opts });
+    const response = await ctx.execute();
+    return new Agent(ctx.copy().selectNode(response, "Agent"));
+  };
+  pause = async (opts) => {
+    const ctx = this._ctx.select("pause", { ...opts });
+    const response = await ctx.execute();
+    return new Agent(ctx.copy().selectNode(response, "Agent"));
+  };
+  reseed = async (conversation) => {
+    const ctx = this._ctx.select("reseed", { conversation });
+    const response = await ctx.execute();
+    return new Agent(ctx.copy().selectNode(response, "Agent"));
+  };
+  resume = async () => {
+    const ctx = this._ctx.select("resume");
+    const response = await ctx.execute();
+    return new Agent(ctx.copy().selectNode(response, "Agent"));
+  };
+  send = async (message, opts) => {
+    if (this._send) {
+      return this._send;
+    }
+    const ctx = this._ctx.select("send", { message, ...opts });
+    const response = await ctx.execute();
+    return response;
+  };
+  snapshot = () => {
+    const ctx = this._ctx.select("snapshot");
+    return new LLM(ctx);
+  };
+  state = async () => {
+    if (this._state) {
+      return this._state;
+    }
+    const ctx = this._ctx.select("state");
+    const response = await ctx.execute();
+    return AgentStateNameToValue(response);
+  };
+  stop = async (opts) => {
+    const ctx = this._ctx.select("stop", { ...opts });
+    const response = await ctx.execute();
+    return new Agent(ctx.copy().selectNode(response, "Agent"));
+  };
+  wait = async () => {
+    const ctx = this._ctx.select("wait");
+    const response = await ctx.execute();
+    return new Agent(ctx.copy().selectNode(response, "Agent"));
+  };
+}
+
+class AgentMessage extends BaseClient {
+  _id = undefined;
+  _delivery = undefined;
+  _ref = undefined;
+  _response = undefined;
+  constructor(ctx, _id, _delivery, _ref, _response) {
+    super(ctx);
+    this._id = _id;
+    this._delivery = _delivery;
+    this._ref = _ref;
+    this._response = _response;
+  }
+  id = async () => {
+    if (this._id) {
+      return this._id;
+    }
+    const ctx = this._ctx.select("id");
+    const response = await ctx.execute();
+    return response;
+  };
+  delivery = async () => {
+    if (this._delivery) {
+      return this._delivery;
+    }
+    const ctx = this._ctx.select("delivery");
+    const response = await ctx.execute();
+    return AgentMessageDeliveryNameToValue(response);
+  };
+  ref = async () => {
+    if (this._ref) {
+      return this._ref;
+    }
+    const ctx = this._ctx.select("ref");
+    const response = await ctx.execute();
+    return response;
+  };
+  response = async () => {
+    if (this._response) {
+      return this._response;
+    }
+    const ctx = this._ctx.select("response");
+    const response = await ctx.execute();
+    return response;
+  };
+}
+
+class AgentMiddleware extends BaseClient {
+  _id = undefined;
   _description = undefined;
   _name = undefined;
   constructor(ctx, _id, _description, _name) {
@@ -101419,7 +101681,7 @@ class Agent extends BaseClient {
   };
 }
 
-class AgentGroup extends BaseClient {
+class AgentMiddlewareGroup extends BaseClient {
   _id = undefined;
   constructor(ctx, _id) {
     super(ctx);
@@ -101440,7 +101702,7 @@ class AgentGroup extends BaseClient {
   list = async () => {
     const ctx = this._ctx.select("list").select("id");
     const response = await ctx.execute();
-    return response.map((r) => new Agent(ctx.copy().selectNode(r.id, "Agent")));
+    return response.map((r) => new AgentMiddleware(ctx.copy().selectNode(r.id, "AgentMiddleware")));
   };
 }
 
@@ -101509,6 +101771,10 @@ class Changeset extends BaseClient {
     const ctx = this._ctx.select("export", { path });
     const response = await ctx.execute();
     return response;
+  };
+  filter = (opts) => {
+    const ctx = this._ctx.select("filter", { ...opts });
+    return new Changeset(ctx);
   };
   isEmpty = async () => {
     if (this._isEmpty) {
@@ -103901,6 +104167,10 @@ class GitCommit extends BaseClient {
     const response = await ctx.execute();
     return response;
   };
+  changes = (opts) => {
+    const ctx = this._ctx.select("changes", { ...opts });
+    return new Changeset(ctx);
+  };
   committedDate = async () => {
     if (this._committedDate) {
       return this._committedDate;
@@ -103984,6 +104254,62 @@ class GitCommit extends BaseClient {
   };
 }
 
+class GitPushResult extends BaseClient {
+  _id = undefined;
+  _disposition = undefined;
+  _previousSHA = undefined;
+  _ref = undefined;
+  _sha = undefined;
+  constructor(ctx, _id, _disposition, _previousSHA, _ref, _sha) {
+    super(ctx);
+    this._id = _id;
+    this._disposition = _disposition;
+    this._previousSHA = _previousSHA;
+    this._ref = _ref;
+    this._sha = _sha;
+  }
+  id = async () => {
+    if (this._id) {
+      return this._id;
+    }
+    const ctx = this._ctx.select("id");
+    const response = await ctx.execute();
+    return response;
+  };
+  disposition = async () => {
+    if (this._disposition) {
+      return this._disposition;
+    }
+    const ctx = this._ctx.select("disposition");
+    const response = await ctx.execute();
+    return GitPushDispositionNameToValue(response);
+  };
+  previousSHA = async () => {
+    if (this._previousSHA) {
+      return this._previousSHA;
+    }
+    const ctx = this._ctx.select("previousSHA");
+    const response = await ctx.execute();
+    return response;
+  };
+  ref = async () => {
+    if (this._ref) {
+      return this._ref;
+    }
+    const ctx = this._ctx.select("ref");
+    const response = await ctx.execute();
+    return response;
+  };
+  sha = async () => {
+    if (this._sha) {
+      return this._sha;
+    }
+    const ctx = this._ctx.select("sha");
+    const response = await ctx.execute();
+    return response;
+  };
+}
+
 class GitRef extends BaseClient {
   _id = undefined;
   _commit = undefined;
@@ -104005,6 +104331,10 @@ class GitRef extends BaseClient {
     const ctx = this._ctx.select("id");
     const response = await ctx.execute();
     return response;
+  };
+  asRepository = () => {
+    const ctx = this._ctx.select("asRepository");
+    return new GitRepository(ctx);
   };
   asWorkspace = (opts) => {
     const ctx = this._ctx.select("asWorkspace", { ...opts });
@@ -104043,6 +104373,10 @@ class GitRef extends BaseClient {
     const response = await ctx.execute();
     return response;
   };
+  push = (opts) => {
+    const ctx = this._ctx.select("push", { ...opts });
+    return new GitPushResult(ctx);
+  };
   ref = async () => {
     if (this._ref) {
       return this._ref;
@@ -104058,6 +104392,10 @@ class GitRef extends BaseClient {
   tree = (opts) => {
     const ctx = this._ctx.select("tree", { ...opts });
     return new Directory(ctx);
+  };
+  withCommit = (changes, message, date, authorName, authorEmail, opts) => {
+    const ctx = this._ctx.select("withCommit", { changes, message, date, authorName, authorEmail, ...opts });
+    return new GitRef(ctx);
   };
   with = (arg) => {
     return arg(this);
@@ -104136,6 +104474,14 @@ class GitRepository extends BaseClient {
   };
   withBundle = (bundle, opts) => {
     const ctx = this._ctx.select("withBundle", { bundle, ...opts });
+    return new GitRepository(ctx);
+  };
+  withContents = (directory) => {
+    const ctx = this._ctx.select("withContents", { directory });
+    return new GitRepository(ctx);
+  };
+  withRemote = (name, url, opts) => {
+    const ctx = this._ctx.select("withRemote", { name, url, ...opts });
     return new GitRepository(ctx);
   };
   with = (arg) => {
@@ -104467,10 +104813,11 @@ class LLM extends BaseClient {
   _provider = undefined;
   _reasoningEffort = undefined;
   _replay = undefined;
+  _spawn = undefined;
   _sync = undefined;
   _tools = undefined;
   _transcript = undefined;
-  constructor(ctx, _id, _contextTokens, _contextWindow, _hasPending, _lastReply, _model, _portableID, _provider, _reasoningEffort, _replay, _sync, _tools, _transcript) {
+  constructor(ctx, _id, _contextTokens, _contextWindow, _hasPending, _lastReply, _model, _portableID, _provider, _reasoningEffort, _replay, _spawn, _sync, _tools, _transcript) {
     super(ctx);
     this._id = _id;
     this._contextTokens = _contextTokens;
@@ -104482,6 +104829,7 @@ class LLM extends BaseClient {
     this._provider = _provider;
     this._reasoningEffort = _reasoningEffort;
     this._replay = _replay;
+    this._spawn = _spawn;
     this._sync = _sync;
     this._tools = _tools;
     this._transcript = _transcript;
@@ -104493,6 +104841,10 @@ class LLM extends BaseClient {
     const ctx = this._ctx.select("id");
     const response = await ctx.execute();
     return response;
+  };
+  agent = (handle, name) => {
+    const ctx = this._ctx.select("agent", { handle, name });
+    return new Agent(ctx);
   };
   contextTokens = async () => {
     if (this._contextTokens) {
@@ -104581,6 +104933,17 @@ class LLM extends BaseClient {
     const response = await ctx.execute();
     return response.map((r) => new LLMSkill(ctx.copy().selectNode(r.id, "LLMSkill")));
   };
+  spawn = async (opts) => {
+    if (this._spawn) {
+      return this._spawn;
+    }
+    const metadata = {
+      state: { is_enum: true, value_to_name: AgentStateValueToName }
+    };
+    const ctx = this._ctx.select("spawn", { ...opts, __metadata: metadata });
+    const response = await ctx.execute();
+    return response;
+  };
   step = (opts) => {
     const ctx = this._ctx.select("step", { ...opts });
     return new LLM(ctx);
@@ -104618,8 +104981,8 @@ class LLM extends BaseClient {
     const ctx = this._ctx.select("withModel", { model, ...opts });
     return new LLM(ctx);
   };
-  withPrompt = (prompt) => {
-    const ctx = this._ctx.select("withPrompt", { prompt });
+  withPrompt = (prompt, opts) => {
+    const ctx = this._ctx.select("withPrompt", { prompt, ...opts });
     return new LLM(ctx);
   };
   withPromptFile = (file) => {
@@ -104636,6 +104999,10 @@ class LLM extends BaseClient {
   };
   withSkills = (directory) => {
     const ctx = this._ctx.select("withSkills", { directory });
+    return new LLM(ctx);
+  };
+  withSmallModel = () => {
+    const ctx = this._ctx.select("withSmallModel");
     return new LLM(ctx);
   };
   withSystemPrompt = (prompt) => {
@@ -104782,6 +105149,14 @@ class LLMMessage extends BaseClient {
     const response = await ctx.execute();
     return response.map((r) => new LLMContentBlock(ctx.copy().selectNode(r.id, "LLMContentBlock")));
   };
+  origin = async () => {
+    const ctx = this._ctx.select("origin").select("id");
+    const response = await ctx.execute();
+    if (response === null) {
+      return null;
+    }
+    return new LLMMessageOrigin(ctx.copy().selectNode(response, "LLMMessageOrigin"));
+  };
   role = async () => {
     if (this._role) {
       return this._role;
@@ -104793,6 +105168,62 @@ class LLMMessage extends BaseClient {
   tokenUsage = () => {
     const ctx = this._ctx.select("tokenUsage");
     return new LLMTokenUsage(ctx);
+  };
+}
+
+class LLMMessageOrigin extends BaseClient {
+  _id = undefined;
+  _agentName = undefined;
+  _kind = undefined;
+  _ref = undefined;
+  _replyTo = undefined;
+  constructor(ctx, _id, _agentName, _kind, _ref, _replyTo) {
+    super(ctx);
+    this._id = _id;
+    this._agentName = _agentName;
+    this._kind = _kind;
+    this._ref = _ref;
+    this._replyTo = _replyTo;
+  }
+  id = async () => {
+    if (this._id) {
+      return this._id;
+    }
+    const ctx = this._ctx.select("id");
+    const response = await ctx.execute();
+    return response;
+  };
+  agentName = async () => {
+    if (this._agentName) {
+      return this._agentName;
+    }
+    const ctx = this._ctx.select("agentName");
+    const response = await ctx.execute();
+    return response;
+  };
+  kind = async () => {
+    if (this._kind) {
+      return this._kind;
+    }
+    const ctx = this._ctx.select("kind");
+    const response = await ctx.execute();
+    return LLMMessageOriginKindNameToValue(response);
+  };
+  ref = async () => {
+    if (this._ref) {
+      return this._ref;
+    }
+    const ctx = this._ctx.select("ref");
+    const response = await ctx.execute();
+    return response;
+  };
+  replyTo = async () => {
+    if (this._replyTo) {
+      return this._replyTo;
+    }
+    const ctx = this._ctx.select("replyTo");
+    const response = await ctx.execute();
+    return response;
   };
 }
 
@@ -105644,12 +106075,16 @@ class Port extends BaseClient {
 
 class Client extends BaseClient {
   _id = undefined;
+  _currentTimestamp = undefined;
   _defaultPlatform = undefined;
+  _serveModule = undefined;
   _version = undefined;
-  constructor(ctx, _id, _defaultPlatform, _version) {
+  constructor(ctx, _id, _currentTimestamp, _defaultPlatform, _serveModule, _version) {
     super(ctx);
     this._id = _id;
+    this._currentTimestamp = _currentTimestamp;
     this._defaultPlatform = _defaultPlatform;
+    this._serveModule = _serveModule;
     this._version = _version;
   }
   getGQLClient() {
@@ -105698,6 +106133,11 @@ class Client extends BaseClient {
   currentNode = () => {
     const ctx = this._ctx.select("currentNode");
     return new _NodeClient(ctx);
+  };
+  currentTimestamp = async () => {
+    const ctx = this._ctx.select("currentTimestamp");
+    const response = await ctx.execute();
+    return response;
   };
   currentTypeDefs = async (opts) => {
     const ctx = this._ctx.select("currentTypeDefs", { ...opts }).select("id");
@@ -105791,6 +106231,10 @@ class Client extends BaseClient {
   secret = (uri, opts) => {
     const ctx = this._ctx.select("secret", { uri, ...opts });
     return new Secret(ctx);
+  };
+  serveModule = async (address, opts) => {
+    const ctx = this._ctx.select("serveModule", { address, ...opts });
+    await ctx.execute();
   };
   setSecret = (name, plaintext) => {
     const ctx = this._ctx.select("setSecret", { name, plaintext });
@@ -106629,9 +107073,10 @@ class Workspace extends BaseClient {
   _configRead = undefined;
   _cwd = undefined;
   _detectScope = undefined;
+  _entrypoint = undefined;
   _export = undefined;
   _findUp = undefined;
-  constructor(ctx, _id, _address, _configFile, _configRead, _cwd, _detectScope, _export, _findUp) {
+  constructor(ctx, _id, _address, _configFile, _configRead, _cwd, _detectScope, _entrypoint, _export, _findUp) {
     super(ctx);
     this._id = _id;
     this._address = _address;
@@ -106639,6 +107084,7 @@ class Workspace extends BaseClient {
     this._configRead = _configRead;
     this._cwd = _cwd;
     this._detectScope = _detectScope;
+    this._entrypoint = _entrypoint;
     this._export = _export;
     this._findUp = _findUp;
   }
@@ -106660,7 +107106,7 @@ class Workspace extends BaseClient {
   };
   agents = (opts) => {
     const ctx = this._ctx.select("agents", { ...opts });
-    return new AgentGroup(ctx);
+    return new AgentMiddlewareGroup(ctx);
   };
   changes = (opts) => {
     const ctx = this._ctx.select("changes", { ...opts });
@@ -106669,6 +107115,11 @@ class Workspace extends BaseClient {
   checks = (opts) => {
     const ctx = this._ctx.select("checks", { ...opts });
     return new CheckGroup(ctx);
+  };
+  compareCommitsFrom = async (source, opts) => {
+    const ctx = this._ctx.select("compareCommitsFrom", { source, ...opts }).select("id");
+    const response = await ctx.execute();
+    return response.map((r) => new WorkspaceCommitPick(ctx.copy().selectNode(r.id, "WorkspaceCommitPick")));
   };
   configFile = async () => {
     if (this._configFile) {
@@ -106706,16 +107157,24 @@ class Workspace extends BaseClient {
     const ctx = this._ctx.select("directory", { path, ...opts });
     return new Directory(ctx);
   };
+  entrypoint = async () => {
+    if (this._entrypoint) {
+      return this._entrypoint;
+    }
+    const ctx = this._ctx.select("entrypoint");
+    const response = await ctx.execute();
+    return response;
+  };
   envList = async () => {
     const ctx = this._ctx.select("envList");
     const response = await ctx.execute();
     return response;
   };
-  export = async () => {
+  export = async (opts) => {
     if (this._export) {
       return;
     }
-    const ctx = this._ctx.select("export");
+    const ctx = this._ctx.select("export", { ...opts });
     await ctx.execute();
   };
   file = (path) => {
@@ -106748,8 +107207,12 @@ class Workspace extends BaseClient {
     const response = await ctx.execute();
     return response;
   };
-  migrate = () => {
-    const ctx = this._ctx.select("migrate");
+  migrate = (opts) => {
+    const ctx = this._ctx.select("migrate", { ...opts });
+    return new WorkspaceMigration(ctx);
+  };
+  migrateModule = (opts) => {
+    const ctx = this._ctx.select("migrateModule", { ...opts });
     return new WorkspaceMigration(ctx);
   };
   module_ = (name) => {
@@ -106764,10 +107227,6 @@ class Workspace extends BaseClient {
     const ctx = this._ctx.select("modules").select("id");
     const response = await ctx.execute();
     return response.map((r) => new WorkspaceModule(ctx.copy().selectNode(r.id, "WorkspaceModule")));
-  };
-  reloaded = () => {
-    const ctx = this._ctx.select("reloaded");
-    return new Workspace(ctx);
   };
   sdk = (name) => {
     const ctx = this._ctx.select("sdk", { name });
@@ -106787,6 +107246,10 @@ class Workspace extends BaseClient {
     const ctx = this._ctx.select("services", { ...opts });
     return new UpGroup(ctx);
   };
+  snapshot = () => {
+    const ctx = this._ctx.select("snapshot");
+    return new Workspace(ctx);
+  };
   terminals = (opts) => {
     const ctx = this._ctx.select("terminals", { ...opts });
     return new TerminalGroup(ctx);
@@ -106802,8 +107265,24 @@ class Workspace extends BaseClient {
     });
     return new Workspace(ctx);
   };
+  withCommit = (changes, message, date, opts) => {
+    const ctx = this._ctx.select("withCommit", { changes, message, date, ...opts });
+    return new Workspace(ctx);
+  };
+  withCommitsFrom = (source, opts) => {
+    const ctx = this._ctx.select("withCommitsFrom", { source, ...opts });
+    return new Workspace(ctx);
+  };
   withConfigEnv = (name, opts) => {
     const ctx = this._ctx.select("withConfigEnv", { name, ...opts });
+    return new Workspace(ctx);
+  };
+  withConfigEnvironment = (name) => {
+    const ctx = this._ctx.select("withConfigEnvironment", { name });
+    return new Workspace(ctx);
+  };
+  withConfigPaths = (configFile, lockFile) => {
+    const ctx = this._ctx.select("withConfigPaths", { configFile, lockFile });
     return new Workspace(ctx);
   };
   withConfigValue = (key, value, opts) => {
@@ -106814,12 +107293,20 @@ class Workspace extends BaseClient {
     const ctx = this._ctx.select("withDirectory", { path, source });
     return new Workspace(ctx);
   };
+  withEntrypoint = (name) => {
+    const ctx = this._ctx.select("withEntrypoint", { name });
+    return new Workspace(ctx);
+  };
   withFile = (path, source, opts) => {
     const ctx = this._ctx.select("withFile", { path, source, ...opts });
     return new Workspace(ctx);
   };
   withInitModule = (sdk, opts) => {
     const ctx = this._ctx.select("withInitModule", { sdk, ...opts });
+    return new Workspace(ctx);
+  };
+  withInitialized = () => {
+    const ctx = this._ctx.select("withInitialized");
     return new Workspace(ctx);
   };
   withModule = (ref, opts) => {
@@ -106840,6 +107327,10 @@ class Workspace extends BaseClient {
   };
   withNewFile = (path, contents, opts) => {
     const ctx = this._ctx.select("withNewFile", { path, contents, ...opts });
+    return new Workspace(ctx);
+  };
+  withReset = (commit, opts) => {
+    const ctx = this._ctx.select("withReset", { commit, ...opts });
     return new Workspace(ctx);
   };
   withSDK = (ref, opts) => {
@@ -106881,6 +107372,10 @@ class Workspace extends BaseClient {
     const ctx = this._ctx.select("withoutDirectory", { path });
     return new Workspace(ctx);
   };
+  withoutEntrypoint = () => {
+    const ctx = this._ctx.select("withoutEntrypoint");
+    return new Workspace(ctx);
+  };
   withoutFile = (path) => {
     const ctx = this._ctx.select("withoutFile", { path });
     return new Workspace(ctx);
@@ -106889,12 +107384,61 @@ class Workspace extends BaseClient {
     const ctx = this._ctx.select("withoutModule", { name, ...opts });
     return new Workspace(ctx);
   };
+  withoutMount = (path) => {
+    const ctx = this._ctx.select("withoutMount", { path });
+    return new Workspace(ctx);
+  };
   withoutSDK = (name, opts) => {
     const ctx = this._ctx.select("withoutSDK", { name, ...opts });
     return new Workspace(ctx);
   };
   with = (arg) => {
     return arg(this);
+  };
+}
+
+class WorkspaceCommitPick extends BaseClient {
+  _id = undefined;
+  _reason = undefined;
+  _status = undefined;
+  constructor(ctx, _id, _reason, _status) {
+    super(ctx);
+    this._id = _id;
+    this._reason = _reason;
+    this._status = _status;
+  }
+  id = async () => {
+    if (this._id) {
+      return this._id;
+    }
+    const ctx = this._ctx.select("id");
+    const response = await ctx.execute();
+    return response;
+  };
+  commit = () => {
+    const ctx = this._ctx.select("commit");
+    return new GitCommit(ctx);
+  };
+  conflictPaths = async () => {
+    const ctx = this._ctx.select("conflictPaths");
+    const response = await ctx.execute();
+    return response;
+  };
+  reason = async () => {
+    if (this._reason) {
+      return this._reason;
+    }
+    const ctx = this._ctx.select("reason");
+    const response = await ctx.execute();
+    return WorkspaceCommitPickReasonNameToValue(response);
+  };
+  status = async () => {
+    if (this._status) {
+      return this._status;
+    }
+    const ctx = this._ctx.select("status");
+    const response = await ctx.execute();
+    return WorkspaceCommitPickStatusNameToValue(response);
   };
 }
 
@@ -106912,6 +107456,10 @@ class WorkspaceGit extends BaseClient {
     const response = await ctx.execute();
     return response;
   };
+  directory = () => {
+    const ctx = this._ctx.select("directory");
+    return new Directory(ctx);
+  };
   head = () => {
     const ctx = this._ctx.select("head");
     return new GitRef(ctx);
@@ -106924,9 +107472,11 @@ class WorkspaceGit extends BaseClient {
 
 class WorkspaceMigration extends BaseClient {
   _id = undefined;
-  constructor(ctx, _id) {
+  _configFile = undefined;
+  constructor(ctx, _id, _configFile) {
     super(ctx);
     this._id = _id;
+    this._configFile = _configFile;
   }
   id = async () => {
     if (this._id) {
@@ -106939,6 +107489,19 @@ class WorkspaceMigration extends BaseClient {
   changes = () => {
     const ctx = this._ctx.select("changes");
     return new Changeset(ctx);
+  };
+  configFile = async () => {
+    if (this._configFile) {
+      return this._configFile;
+    }
+    const ctx = this._ctx.select("configFile");
+    const response = await ctx.execute();
+    return response;
+  };
+  moduleCandidates = async () => {
+    const ctx = this._ctx.select("moduleCandidates");
+    const response = await ctx.execute();
+    return response;
   };
   steps = async () => {
     const ctx = this._ctx.select("steps").select("id");
@@ -107050,17 +107613,21 @@ class WorkspaceModule extends BaseClient {
 
 class WorkspaceModuleSetting extends BaseClient {
   _id = undefined;
+  _defaultValue = undefined;
   _description = undefined;
   _isList = undefined;
   _isObject = undefined;
+  _isString = undefined;
   _key = undefined;
   _value = undefined;
-  constructor(ctx, _id, _description, _isList, _isObject, _key, _value) {
+  constructor(ctx, _id, _defaultValue, _description, _isList, _isObject, _isString, _key, _value) {
     super(ctx);
     this._id = _id;
+    this._defaultValue = _defaultValue;
     this._description = _description;
     this._isList = _isList;
     this._isObject = _isObject;
+    this._isString = _isString;
     this._key = _key;
     this._value = _value;
   }
@@ -107069,6 +107636,14 @@ class WorkspaceModuleSetting extends BaseClient {
       return this._id;
     }
     const ctx = this._ctx.select("id");
+    const response = await ctx.execute();
+    return response;
+  };
+  defaultValue = async () => {
+    if (this._defaultValue) {
+      return this._defaultValue;
+    }
+    const ctx = this._ctx.select("defaultValue");
     const response = await ctx.execute();
     return response;
   };
@@ -107093,6 +107668,14 @@ class WorkspaceModuleSetting extends BaseClient {
       return this._isObject;
     }
     const ctx = this._ctx.select("isObject");
+    const response = await ctx.execute();
+    return response;
+  };
+  isString = async () => {
+    if (this._isString) {
+      return this._isString;
+    }
+    const ctx = this._ctx.select("isString");
     const response = await ctx.execute();
     return response;
   };
