@@ -99,6 +99,9 @@ type Mod {
           sdk.effectiveRuntime(ws, sourcePath),
           [],
         ),
+        # This path runs no second pass, so it never learns the module's client
+        # set and must not prune bindings it could not re-render.
+        false,
       )
 
       generated.changes(ws)

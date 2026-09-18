@@ -722,6 +722,48 @@ type GenerateChecks {
   }
 
   """
+  A module whose source imports its own client must keep it through
+  regeneration.
+
+  Loading a [runtime] module executes its TypeScript, and the self client only
+  renders in the second pass — so the first pass's staged tree must keep the
+  previous generation's <self>.gen.ts for the import to resolve, or the load
+  fails, the second pass never runs, and the prune deletes the very file the
+  source needs. That exact sequence shipped once: uncommenting a self-call
+  erased sdk/<self>.gen.ts on the next generate.
+  """
+  generateSelfImportSurvivesCheck(ws: Workspace!): Void @check {
+    let path = fixtures.depLibModule
+    let source = path + "/src/index.ts"
+    let settled = ws.withChanges(Gen.scope(ws, path, "gendep"))
+
+    # The source now imports and calls its own generated client.
+    let edited = settled.withNewFile(
+      "/" + source,
+      "import { gendep } from \"@dagger.io/gendep\"\n" +
+        settled.file("/" + source).contents.trimSuffix("}\n") +
+        "\n  @func()\n  viaSelf(): string {\n    return typeof gendep\n  }\n}\n",
+    )
+    let changes = Gen.scope(edited, path, "gendep")
+
+    let removed = "removed [" + changes.removedPaths.join(", ") + "]"
+    Asserts.assert(
+      Asserts.contains(changes.removedPaths, path + "/sdk/gendep.gen.ts") == false,
+      "regenerating a module that imports its own client removed the client: " + removed,
+    )
+    # The second pass ran: the self client is re-rendered with the new function
+    # on it, not merely left alone.
+    Asserts.generated(changes, path + "/sdk/gendep.gen.ts")
+    Asserts.stringContains(
+      changes.after.directory(path).file("sdk/gendep.gen.ts").contents,
+      "viaSelf",
+      "the self client should carry the function added alongside the self import",
+    )
+
+    null
+  }
+
+  """
   A module with a local dependency should get bindings for it.
 
   Dependency edges still exist in a manifest even though new wiring goes through

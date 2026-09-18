@@ -289,6 +289,12 @@ type TypescriptSdk {
         served,
         source,
         withSelfBindings(staged, scope, name, firstPass, withSelf, selfTargets, rt, existingModuleConfig(served, source)),
+        # An embedded module's second pass runs whenever the staged module
+        # loads, so an empty self set there means it did not — and a run that
+        # could not read the module's client set has no business pruning
+        # bindings it could not re-render. The entrypoint path loads through the
+        # Dang literals and is never in that position.
+        entrypoint or selfTargets.length > 0,
       )
 
       # The workspace-level .dagger/core an earlier layout shared is gone: every
@@ -1394,16 +1400,16 @@ type TypescriptSdk {
   written, so a workspace built this way reports the whole tree. Only
   `moduleFiles` is allowed to reach the caller.
 
-  The existing bindings come out before the generated ones go in, because this
-  tree has to compile: a `<dep>.gen.ts` left over from a dependency that is gone
-  exports an API against a module no longer served, and the module cannot be
-  loaded — which is the one thing this staging exists to do.
+  The existing bindings stay in, deliberately. Loading a [runtime] module
+  executes its TypeScript, and a source that imports its own client resolves it
+  to the previous generation's <self>.gen.ts — which this first pass has not
+  rendered yet, so removing the existing copy is what makes the staged module
+  unloadable and the second pass impossible. A binding that has gone stale the
+  other way — a dropped dependency's file — is inert at load time as long as
+  nothing imports it; the write path prunes it once the module has loaded.
   """
   let stagedModule(ws: Workspace!, sourcePath: String!, generated: Directory!): Workspace! {
-    let existing = existingDir(ws, sourcePath)
-      .withoutFiles(moduleBindings(ws, sourcePath).map { entry => "sdk/" + entry })
-
-    ws.withNewDirectory("/" + sourcePath, existing.withDirectory(".", generated))
+    ws.withNewDirectory("/" + sourcePath, existingDir(ws, sourcePath).withDirectory(".", generated))
   }
 
   """
@@ -1422,7 +1428,7 @@ type TypescriptSdk {
   Written with withFile rather than withNewFile so the generated files keep the
   permissions they were rendered with.
   """
-  let moduleFiles(ws: Workspace!, sourcePath: String!, generated: Directory!): Workspace! {
+  let moduleFiles(ws: Workspace!, sourcePath: String!, generated: Directory!, pruneStale: Boolean!): Workspace! {
     if (entrypoint) {
       # clients/ is fully generated under an entrypoint, so anything in it this
       # run does not render is stale and removed. Earlier layouts are taken with
@@ -1440,9 +1446,14 @@ type TypescriptSdk {
       )
     } else {
       # An embedded module's clients live inside sdk/ now; a clients/ directory
-      # an earlier layout left is taken with the move.
+      # an earlier layout left is taken with the move. Stale bindings are pruned
+      # only when the module loaded: a run that could not read the client set
+      # would otherwise delete the self client — the very file whose absence in
+      # the staged tree can be why the load failed — and leave the module more
+      # broken than it found it.
+      let pruned = if (pruneStale) { prunedBindings(ws, sourcePath, generated) } else { ws }
       writeChanged(
-        prunedEmbeddedClientsDir(prunedInactiveDispatch(prunedBindings(ws, sourcePath, generated), sourcePath), sourcePath),
+        prunedEmbeddedClientsDir(prunedInactiveDispatch(pruned, sourcePath), sourcePath),
         sourcePath,
         generated,
       )
