@@ -99,6 +99,9 @@ type Mod {
           sdk.effectiveRuntime(ws, sourcePath),
           [],
         ),
+        # This path runs no second pass, so it never learns the module's client
+        # set and must not prune bindings it could not re-render.
+        false,
       )
 
       generated.changes(ws)
@@ -110,8 +113,12 @@ type Mod {
   in sdk/ that only the scope's recorded targets can reproduce.
   """
   let hasClients(ws: Workspace!): Boolean! {
+    # An entrypoint module keeps its clients under clients/; an embedded one
+    # ships them inside sdk/, where the loader marks their presence.
     let dir = if (sourcePath == ".") { "clients" } else { sourcePath + "/clients" }
-    ws.directory("/", include: [dir + "/**"]).exists(dir)
+    let loader = if (sourcePath == ".") { "sdk/loader.gen.ts" } else { sourcePath + "/sdk/loader.gen.ts" }
+    ws.directory("/", include: [dir + "/**", loader]).exists(dir) or
+      ws.directory("/", include: [loader]).exists(loader)
   }
 
   """
