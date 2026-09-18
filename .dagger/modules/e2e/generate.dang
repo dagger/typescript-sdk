@@ -424,7 +424,7 @@ type GenerateChecks {
     # dispatch side serves it — see generateDispatcherServesNothingCheck.
     Asserts.stringContains(
       selfClient,
-      "moduleSource(path: \"/" + path + "\") { asModule { serve } }",
+      "serveModule(\"/" + path + "\")",
       "the module's own client should serve it for self calls",
     )
 
@@ -440,9 +440,9 @@ type GenerateChecks {
   entrypoint's dispatcher because that is the one this branch took the serving
   out of; the legacy entrypoint never had any.
 
-  Matched on asModule, the mechanism both serve forms go through: the dispatcher
-  still *mentions* serving, in a comment explaining that it does not, so the
-  bare word says nothing.
+  Matched on serveModule, the one call a serve goes through: the dispatcher still
+  *mentions* serving, in a comment explaining that it does not, so the bare word
+  says nothing.
   """
   generateDispatcherServesNothingCheck(ws: Workspace!): Void @check {
     let path = fixtures.depLibModule
@@ -450,13 +450,13 @@ type GenerateChecks {
 
     Asserts.generated(changes, path + "/__dagger.dispatch.ts")
     Asserts.assert(
-      changes.after.directory(path).file("__dagger.dispatch.ts").contents.contains("asModule") == false,
+      changes.after.directory(path).file("__dagger.dispatch.ts").contents.contains("serveModule") == false,
       "the entrypoint's dispatcher should not serve anything; each client serves its own module",
     )
 
     let runtimeChanges = Gen.module(ws, path, "gendep")
     Asserts.assert(
-      runtimeChanges.after.directory(path).file("__dagger.entrypoint.ts").contents.contains("asModule") == false,
+      runtimeChanges.after.directory(path).file("__dagger.entrypoint.ts").contents.contains("serveModule") == false,
       "the legacy entrypoint should not serve anything; each client serves its own module",
     )
 

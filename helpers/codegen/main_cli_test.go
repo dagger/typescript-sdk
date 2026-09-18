@@ -230,11 +230,11 @@ func TestRunClientServesEveryTarget(t *testing.T) {
 	// one by ref+pin.
 	app, err := os.ReadFile(filepath.Join(out, "app.gen.ts"))
 	require.NoError(t, err)
-	require.Contains(t, string(app), `moduleSource(path: "/.dagger/modules/app")`)
+	require.Contains(t, string(app), `await __dag.serveModule("/.dagger/modules/app")`)
 
 	payments, err := os.ReadFile(filepath.Join(out, "payments.gen.ts"))
 	require.NoError(t, err)
-	require.Contains(t, string(payments), `.moduleSource("github.com/acme/payments@main", { refPin: "deadbeef" })`)
+	require.Contains(t, string(payments), `await __dag.serveModule("github.com/acme/payments@main", { refPin: "deadbeef" })`)
 }
 
 // TestRunClientRejectsUnservableModule guards the fail-closed check: a kind with

@@ -80,18 +80,14 @@ export class Client extends BaseClient {}
 {{ if .Bound }}
 {{- /* Serve this module into the session before this client's first query, so a
 caller reaching it — this module's source, or another module — resolves it
-without a central serve. Memoized per session by the module's own source. */}}
+without a central serve. Memoized per session by the module's own source.
+
+One call whichever kind the module is: serveModule classifies the address
+engine-side, so a local module needs no workspace handle out here. That is what
+keeps the bootstrap legitimate from inside a module, where the workspace API is
+deliberately out of reach. */}}
 async function __serveModule(): Promise<void> {
-{{- if IsGitModule .Bound.Kind }}
-  await __dag.moduleSource({{ JSString .Bound.Ref }}, { refPin: {{ JSString .Bound.Pin }} }).asModule().serve()
-{{- else }}
-  {{- /* A local module resolves against the workspace by its root-relative path;
-  currentWorkspace is reached by raw query because it is kept out of a module's
-  generated bindings. */}}
-  await (__dag as any).getGQLClient().request(
-    `{ currentWorkspace { moduleSource(path: {{ JSString (WorkspacePath .Bound.Path) }}) { asModule { serve } } } }`,
-  )
-{{- end }}
+  await __dag.serveModule({{ JSString .Bound.ServeAddress }}{{ with .Bound.ServeRefPin }}, { refPin: {{ JSString . }} }{{ end }})
 }
 
 export const dag = new Client(

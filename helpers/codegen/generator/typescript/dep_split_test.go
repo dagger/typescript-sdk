@@ -242,9 +242,9 @@ func TestClientTemplate_ImportsRootArgTypes(t *testing.T) {
 }
 
 // TestClientTemplate_ServesModuleOnUse asserts a module client whose Bound
-// metadata is set serves its own module before the first query: a git module
-// through the core dag's moduleSource, a local one through a currentWorkspace
-// raw query, and its dag carries the serve.
+// metadata is set serves its own module before the first query, through one
+// serveModule call for both kinds: a git module by canonical ref + pin, a local
+// one by workspace-root-absolute path, and its dag carries the serve.
 func TestClientTemplate_ServesModuleOnUse(t *testing.T) {
 	buildSchema := func() *introspection.Schema {
 		helloModule := newSourceMapDirective("hello")
@@ -271,21 +271,33 @@ func TestClientTemplate_ServesModuleOnUse(t *testing.T) {
 		return templates.New("v0.21.0", buildSchema(), "", generator.Config{ModuleConfig: &generator.ModuleGeneratorConfig{ModuleName: "host"}})
 	}
 
-	t.Run("git module serves through the core dag", func(t *testing.T) {
+	t.Run("git module serves by ref and pin", func(t *testing.T) {
 		out := renderModuleClientTemplateBound(t, tmpl(), buildSchema().Include("hello"), "hello",
 			&generator.BoundModule{Name: "hello", Kind: "GIT_SOURCE", Ref: "github.com/foo/hello@main", Pin: "abc"})
 		require.Contains(t, out, `import { dag as __dag } from "@dagger.io/dagger"`)
-		require.Contains(t, out, `await __dag.moduleSource("github.com/foo/hello@main", { refPin: "abc" }).asModule().serve()`)
+		require.Contains(t, out, `await __dag.serveModule("github.com/foo/hello@main", { refPin: "abc" })`)
 		require.Contains(t, out, `new Context().withServe({ key: "hello", run: __serveModule })`)
-		require.NotContains(t, out, "currentWorkspace")
 	})
 
-	t.Run("local module serves through a currentWorkspace query", func(t *testing.T) {
+	t.Run("local module serves by workspace path", func(t *testing.T) {
 		out := renderModuleClientTemplateBound(t, tmpl(), buildSchema().Include("hello"), "hello",
 			&generator.BoundModule{Name: "hello", Kind: "DIR_SOURCE", Path: ".dagger/modules/hello"})
-		require.Contains(t, out, `moduleSource(path: "/.dagger/modules/hello") { asModule { serve } }`)
+		require.Contains(t, out, `await __dag.serveModule("/.dagger/modules/hello")`)
 		require.Contains(t, out, "new Context().withServe({")
-		require.NotContains(t, out, ".moduleSource(\"github")
+		require.NotContains(t, out, "refPin",
+			"a workspace path carries no version to pin")
+	})
+
+	t.Run("neither kind reaches for a raw query", func(t *testing.T) {
+		for _, bound := range []*generator.BoundModule{
+			{Name: "hello", Kind: "GIT_SOURCE", Ref: "github.com/foo/hello@main", Pin: "abc"},
+			{Name: "hello", Kind: "DIR_SOURCE", Path: ".dagger/modules/hello"},
+		} {
+			out := renderModuleClientTemplateBound(t, tmpl(), buildSchema().Include("hello"), "hello", bound)
+			require.NotContains(t, out, "getGQLClient().request",
+				"serveModule resolves the address engine-side, so no client hand-assembles a document")
+			require.NotContains(t, out, "currentWorkspace")
+		}
 	})
 
 	t.Run("no bound metadata means no serve hook", func(t *testing.T) {
@@ -584,7 +596,7 @@ func TestGenerate_Client_SplitsBoundModule(t *testing.T) {
 	require.Contains(t, hello, "export class Hello extends BaseClient")
 	require.Contains(t, hello, "export class Client extends BaseClient")
 	require.Contains(t, hello, "export const dag = new Client(")
-	require.Contains(t, hello, `.moduleSource("github.com/foo/hello@main", { refPin: "abcdef" }).asModule().serve()`)
+	require.Contains(t, hello, `await __dag.serveModule("github.com/foo/hello@main", { refPin: "abcdef" })`)
 	require.Contains(t, hello, "export function hi(): Promise<string> {")
 	require.Contains(t, hello, `import { Context, BaseClient } from "@dagger.io/dagger"`)
 	require.NotContains(t, hello, "declare module")
