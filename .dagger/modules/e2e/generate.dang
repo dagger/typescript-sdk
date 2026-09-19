@@ -1,8 +1,7 @@
 """
-Checks for module codegen: `generateScope`, the entry point the engine drives,
-and `Mod.generate` for addressing one module by path.
+Checks for module codegen through `generateScope`, the entry point the engine drives.
 
-Neither stages a dependency closure any more. The engine orders scopes so a
+The SDK does not stage a dependency closure. The engine orders scopes so a
 module is generated before anything that holds a client for it, and threads each
 result into the next, so a module's codegen already sees current bindings.
 """
@@ -17,24 +16,6 @@ type GenerateChecks {
     let changes = Gen.module(ws, fixtures.depLibModule, "gendep")
 
     Asserts.generated(changes, fixtures.depLibModule + "/sdk/index.ts")
-
-    null
-  }
-
-  """
-  A legacy dagger.json module should be refused rather than generated.
-
-  Its runtime regenerates everything on every call, so anything written here is
-  a second, differently-versioned copy of the same files that the runtime then
-  ignores. Refusing says so out loud instead of leaving a tree that looks
-  generated and drifts.
-  """
-  generateRefusesLegacyCheck(ws: Workspace!): Void @check {
-    Asserts.stringContains(
-      Gen.failure(typescriptSdk.mod(ws, path: fixtures.generateModule).generate(ws)),
-      "configured by dagger.json",
-      "generating a legacy module should be refused",
-    )
 
     null
   }
@@ -337,7 +318,7 @@ type GenerateChecks {
   """
   generateDependencyCheck(ws: Workspace!): Void @check {
     let staged = Gen.withDependency(ws)
-    let changes = typescriptSdk.mod(staged, path: fixtures.depAppModule).generate(staged)
+    let changes = Gen.module(staged, fixtures.depAppModule, "generate-deps-app")
 
     Asserts.generated(changes, fixtures.depAppModule + "/sdk/index.ts")
     Asserts.generated(changes, fixtures.depAppModule + "/sdk/gendep.gen.ts")
@@ -357,8 +338,7 @@ type GenerateChecks {
   """
   A marked tree should generate nothing.
 
-  The marker is how a scope stays recorded — so `mod` resolution and config
-  reading still find it — while `dagger generate` writes nothing into it. Found
+  The marker lets a scope stay recorded while `dagger generate` writes nothing into it. Found
   with findUp, so one file covers everything beneath it; the fixtures rely on
   that, and so does any repo that vendors modules it does not want regenerated.
 

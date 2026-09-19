@@ -95,17 +95,6 @@ type Asserts {
   }
 
   """
-  Assert that a changeset touched exactly one file, the named one (no adds, no
-  removes) — the shape a config edit must have.
-  """
-  let onlyFileChanged(changes: Changeset!, path: String!, message: String!): Void {
-    assert(contains(changes.modifiedPaths, path), message + ": did not modify " + path)
-    assert(changes.modifiedPaths.length == 1, message + ": modified more than one file")
-    assert(changes.addedPaths.length == 0, message + ": should not add files")
-    assert(changes.removedPaths.length == 0, message + ": should not remove files")
-  }
-
-  """
   Fail unless a result holds exactly the wanted paths, in any order.
   """
   let paths(got: [String!]!, want: [String!]!, context: String!): Void {
