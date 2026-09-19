@@ -177,70 +177,6 @@ The engine reads the scope list, orders it so a module is generated before
 anything holding a client for it, threads each result into the next, and calls
 this SDK once per scope.
 
-## Module management helpers
-
-The SDK also exposes auxiliary functions for working with existing modules,
-callable directly with `dagger call`, addressed by the workspace install name:
-
-```sh
-dagger call typescript-sdk <function> [flags]
-```
-
-### Configure an existing module
-
-Read current configuration:
-
-```sh
-dagger call typescript-sdk mod --path my-module config package-manager
-dagger call typescript-sdk mod --path my-module config base-image
-```
-
-Change configuration with `config set` — pass either flag, or both in a single
-call. Each returns a `Changeset` so you confirm the diff before anything is
-written:
-
-```sh
-dagger call typescript-sdk mod --path my-module config set --package-manager pnpm@8.15.4
-dagger call typescript-sdk mod --path my-module config set --base-image node:23.2.0-alpine
-dagger call typescript-sdk mod --path my-module config set \
-    --package-manager pnpm@8.15.4 --base-image node:23.2.0-alpine
-```
-
-Unset stays as separate commands:
-
-```sh
-dagger call typescript-sdk mod --path my-module config unset-package-manager
-dagger call typescript-sdk mod --path my-module config unset-base-image
-```
-
-`--path` may point anywhere inside the module; `mod` walks up to the nearest
-enclosing module config. Pass `--find-up=false` to address a module root
-directly.
-
-Config always resolves through the module's *source* directory, which the
-module config's `source` field can move away from the module root — the layout
-`dagger setup` migration produces, where the config lives in
-`.dagger/modules/<name>/` and points back at pre-existing code:
-
-```sh
-# reads and writes ci/package.json, not .dagger/modules/my-module/package.json
-dagger call typescript-sdk mod \
-    --path .dagger/modules/my-module --find-up=false config package-manager
-```
-
-### Generate one module
-
-```sh
-dagger call typescript-sdk mod --path my-module generate
-```
-
-Addresses one module directly, for inspecting or repairing it in isolation. It
-generates exactly the module asked for, against the workspace as it stands —
-none of the scope ordering `dagger generate` does applies. A module configured
-by a pre-1.0 `dagger.json` is refused: the engine's runtime regenerates those at
-call time, so writing files here would only leave a second, differently
-versioned copy behind.
-
 ## Development
 
 Run the checks:
@@ -250,11 +186,11 @@ dagger check
 ```
 
 `e-2-e:*` drives this SDK's functions the way the engine does, one file per
-surface (lookup, discovery, init, config, generate, client), sharing the
+surface (discovery, init, generate, client), sharing the
 assertions in `util.dang` and the fixture tree under
 `.dagger/modules/e2e/fixtures`. `runtimes:*` generates a module per JavaScript
 runtime and loads it. List them with `dagger check -l`, or run one group with
-`dagger check "e-2-e:config:*"`.
+`dagger check "e-2-e:discovery:*"`.
 
 `engine-e-2-e:*` covers the half no dang check can reach: it builds an engine
 from dagger/dagger#13992, runs it as a playground with this checkout mounted,

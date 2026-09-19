@@ -74,8 +74,7 @@ type TypescriptSdk {
 
   Found with findUp from the scope, so one file disables generation for
   everything beneath it — which is the point, and what no per-scope config
-  expresses. A scope can be recorded so that `mod` resolution and config reading
-  still see it, while `dagger generate` writes nothing into it.
+  expresses. A scope can stay recorded while `dagger generate` writes nothing into it.
 
   A setting, so a caller that has to generate a marked tree anyway can say so:
   empty means no marker, and the e2e checks use that to exercise generation on
@@ -97,13 +96,6 @@ type TypescriptSdk {
   this, and the fixture check fails until they agree.
   """
   targetEngineVersion: String! = "1.0.0-beta.11"
-
-  """
-  Config filenames that mark a Dagger module root: the CLI 1.0
-  `dagger-module.toml` (workspace-managed modules) and the legacy `dagger.json`.
-  A managed module is discovered by whichever it uses.
-  """
-  let moduleConfigFilenames: [String!]! = ["dagger-module.toml", "dagger.json"]
 
   """
   Directory holding the generated Dang entrypoint, relative to the module root.
@@ -405,53 +397,6 @@ type TypescriptSdk {
     } else {
       ws.withoutDirectory("/" + old)
     }
-  }
-
-  """
-  Return the TypeScript SDK module at or above a workspace path.
-
-  Resolution is rejected when the module it lands on is owned by another SDK, so
-  a wrong `path` fails loudly instead of running TypeScript codegen over someone
-  else's module.
-  """
-  mod(
-    ws: Workspace!,
-    """
-    Workspace-relative path to resolve: any path inside the module with findUp, the module root itself without it.
-    """
-    path: String! = ".",
-    """
-    Walk up from `path` to the nearest enclosing module config. Turn off to address a module root directly.
-    """
-    findUp: Boolean! = true,
-  ): Mod! {
-    let modPath = if (findUp) {
-      # Nearest enclosing module config, regardless of filename order: the deepest
-      # hit wins, so a closer dagger.json is not shadowed by an ancestor
-      # dagger-module.toml (and vice versa) — matching Workspace.findRoots.
-      let foundConfigPath = moduleConfigFilenames.reduce(null) { acc, name =>
-        let found = ws.findUp(name, path)
-        if (configHitDepth(found) > configHitDepth(acc)) { found } else { acc }
-      }
-      if (foundConfigPath == null) {
-        raise "no Dagger module found containing path: " + path
-      } else {
-        let configPath = foundConfigPath.trimPrefix("/")
-        if (isTypescriptConfig(ws, configPath) == false) {
-          raise "Dagger module does not use the TypeScript SDK: " + path
-        } else {
-          let dir = configPath.split("/").dropLast(1).join("/")
-          if (dir == "") { "." } else { dir }
-        }
-      }
-    } else {
-      path.trimPrefix("/")
-    }
-
-    Mod(
-      rootPath: modPath,
-      ws: ws,
-    )
   }
 
   """
@@ -866,7 +811,7 @@ type TypescriptSdk {
   Container with the module-config helper compiled and on PATH.
 
   Shared by init's template configuration (configuredTemplate) and ModConfig's
-  per-file edits (ModConfig.tool).
+  package-manager reader (ModConfig.tool).
   """
   let moduleConfigBuilder: Container! {
     goHelper("module-config")

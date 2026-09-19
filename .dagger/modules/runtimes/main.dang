@@ -50,7 +50,7 @@ type Runtimes {
   """
   Generate a fixture, stage the result, and load the module from it.
 
-  Staging through withChanges rather than writing to disk keeps the generated
+  Generating into a Workspace rather than writing to disk keeps the generated
   tree out of the fixture entirely — which also sidesteps the trap that a
   module whose .gitignore covers sdk/ hides its own generated files from the
   engine's module context.
@@ -61,7 +61,9 @@ type Runtimes {
   """
   let assertRuns(ws: Workspace!, runtime: String!, objectName: String!): Void {
     let path = fixtures + "/" + runtime
-    let staged = ws.withChanges(typescriptSdk.mod(ws, path: path).generate(ws))
+    let staged = typescriptSdk(skipGenerateFilename: "")
+      .generateScope(ws.withWorkdir(path), isModule: true, name: "runtime-" + runtime, clients: [])
+      .withWorkdir(".")
 
     let objects = staged.moduleSource("/" + path).asModule.objects
       .{{ asObject.{{ name }} }}

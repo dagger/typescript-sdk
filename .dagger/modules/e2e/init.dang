@@ -330,4 +330,23 @@ type InitChecks {
 
     null
   }
+
+  """
+  Reject a scope that has both Node and Deno configuration files.
+  """
+  contradictoryRuntimeCheck: Void @check {
+    let ws = directory
+      .withNewFile("app/package.json", "{\"type\":\"module\"}")
+      .withNewFile("app/deno.json", "{\"nodeModulesDir\":\"auto\"}")
+      .asWorkspace
+
+    Asserts.stringContains(
+      Gen.failure(Gen.module(ws, "app", "both")),
+      "both deno.json and package.json",
+      "an ambiguous Deno/Node layout was not rejected",
+    )
+
+    null
+  }
+
 }

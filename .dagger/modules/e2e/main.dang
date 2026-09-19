@@ -21,13 +21,6 @@ type E2e {
   }
 
   """
-  Checks for resolving the module that owns a workspace path.
-  """
-  lookup: LookupChecks! {
-    LookupChecks
-  }
-
-  """
   Checks for which managed modules are in scope from a given cwd.
   """
   discovery: DiscoveryChecks! {
@@ -42,14 +35,7 @@ type E2e {
   }
 
   """
-  Checks for reading and editing a module's TypeScript build configuration.
-  """
-  config: ConfigChecks! {
-    ConfigChecks
-  }
-
-  """
-  Checks for module codegen, single and workspace-wide.
+  Checks for module codegen through the scope generator.
   """
   generate: GenerateChecks! {
     GenerateChecks
