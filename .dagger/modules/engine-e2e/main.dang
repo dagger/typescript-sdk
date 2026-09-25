@@ -77,6 +77,10 @@ type EngineE2e {
   lost; the only stable name left is the shared one. The trade is that the
   volume is no longer per-engine-commit, so it is shared with anything else
   running an engine-dev on the host.
+
+  Every `dagger` exec in the playground passes `disableDaggerInDagger`.
+  Without it the CLI joins the outer session and talks to the outer engine,
+  not the pinned one.
   """
   let playground(ws: Workspace!): Container! {
     let engineCommit = self.engineCommit(ws)
@@ -115,11 +119,11 @@ type EngineE2e {
   Asserting on the recorded scope entry is what makes that visible here.
   """
   devSdkCheck(ws: Workspace!): Void @check {
-    let listed = playground(ws).withExec(["dagger", "sdk", "list"])
+    let listed = playground(ws).withExec(["dagger", "sdk", "list"], disableDaggerInDagger: true)
     assert(listed.stdout.contains("typescript"), "the development TypeScript SDK was not listed")
 
     let initialized = listed
-      .withExec(["dagger", "module", "init", "typescript", "--auto-apply", "--name", "sdk-smoke", "--path", modulePath])
+      .withExec(["dagger", "module", "init", "typescript", "--auto-apply", "--name", "sdk-smoke", "--path", modulePath], disableDaggerInDagger: true)
       .withExec(["test", "-f", modulePath + "/dagger-module.toml"])
       .withExec(["test", "!", "-e", modulePath + "/dagger.json"])
       .withExec(["test", "-f", modulePath + "/package.json"])
@@ -146,12 +150,12 @@ type EngineE2e {
     # baseImageAddress is set by the module's constructor, so a call that
     # returns it also says the constructor ran and its default was applied.
     let address = initialized
-      .withExec(["dagger", "-m", modulePath, "call", "base-image-address"])
+      .withExec(["dagger", "-m", modulePath, "call", "base-image-address"], disableDaggerInDagger: true)
       .stdout
     assert(address.contains("alpine"), "calling the generated module returned: " + address)
 
     let release = initialized
-      .withExec(["dagger", "-m", modulePath, "call", "container", "file", "--path", "/etc/alpine-release", "contents"])
+      .withExec(["dagger", "-m", modulePath, "call", "container", "file", "--path", "/etc/alpine-release", "contents"], disableDaggerInDagger: true)
       .stdout
     assert(release.trimSpace != "", "the generated module did not run")
 
@@ -176,7 +180,7 @@ type EngineE2e {
         "--template", "empty",
         "--package-manager", "pnpm@9.1.0",
         "--base-image", "node:24-alpine",
-      ])
+      ], disableDaggerInDagger: true)
       .withExec(["grep", "-q", "export class SdkSettings {}", settingsPath + "/src/index.ts"])
       .withExec(["grep", "-q", "pnpm@9.1.0", settingsPath + "/package.json"])
       .withExec(["grep", "-q", "node:24-alpine", settingsPath + "/package.json"])
@@ -187,7 +191,7 @@ type EngineE2e {
         "--name", "sdk-deno",
         "--path", denoPath,
         "--runtime", "deno",
-      ])
+      ], disableDaggerInDagger: true)
       .withExec(["test", "-f", denoPath + "/deno.json"])
       .withExec(["test", "!", "-e", denoPath + "/package.json"])
       .sync
@@ -198,7 +202,7 @@ type EngineE2e {
   """Run all SDK checks and generated-file checks inside the pinned engine."""
   checksCheck(ws: Workspace!): Void @check {
     playground(ws)
-      .withExec(["dagger", "check"])
+      .withExec(["dagger", "check"], disableDaggerInDagger: true)
       .sync
 
     null
@@ -209,9 +213,9 @@ type EngineE2e {
     # Bundle generation consumes the bindings, and fixture generation consumes
     # the bundle. Run these stages in order against the updated checkout.
     let generated = playground(ws)
-      .withExec(["dagger", "generate", "--auto-apply", "packager:library-bindings"])
-      .withExec(["dagger", "generate", "--auto-apply", "packager:library-bundle"])
-      .withExec(["dagger", "generate", "--auto-apply"])
+      .withExec(["dagger", "generate", "--auto-apply", "packager:library-bindings"], disableDaggerInDagger: true)
+      .withExec(["dagger", "generate", "--auto-apply", "packager:library-bundle"], disableDaggerInDagger: true)
+      .withExec(["dagger", "generate", "--auto-apply"], disableDaggerInDagger: true)
       .directory(".")
       .withoutDirectory(".git")
 

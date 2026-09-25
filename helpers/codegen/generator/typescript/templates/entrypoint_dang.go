@@ -219,13 +219,30 @@ func (c *dangFuncCtx) dangTypeEntries() []string {
 
 func (c *dangFuncCtx) dangObjectEntry(obj *TypedefObject) string {
 	calls := []string{c.dangObjectDef(obj)}
+	if obj.IsCollection {
+		calls = append(calls, "withCollection")
+	}
 
 	for _, name := range sortedFunctionKeys(obj.Methods) {
-		calls = append(calls, c.dangWrappedCall("withFunction", c.dangFunctionExpr(obj.Methods[name])))
+		method := obj.Methods[name]
+		calls = append(calls, c.dangWrappedCall("withFunction", c.dangFunctionExpr(method)))
+		if method.IsCollectionGet {
+			member := method.Name
+			if method.Alias != "" {
+				member = method.Alias
+			}
+			calls = append(calls, fmt.Sprintf("withCollectionGet(%s)", dangString(member)))
+		}
 	}
 	for _, name := range sortedPropertyKeys(obj.Properties) {
 		if prop := obj.Properties[name]; prop.IsExposed {
 			calls = append(calls, c.dangFieldCall(prop))
+			if prop.IsCollectionKeys {
+				calls = append(calls, fmt.Sprintf("withCollectionKeys(%s)", dangString(propFieldName(prop))))
+			}
+			if prop.IsCollectionDelta {
+				calls = append(calls, fmt.Sprintf("withCollectionDelta(%s)", dangString(propFieldName(prop))))
+			}
 		}
 	}
 	// The engine identifies an entrypoint module's main object by its

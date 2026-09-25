@@ -101083,6 +101083,18 @@ function AgentStateNameToValue(name) {
       return name;
   }
 }
+function ArtifactDimensionKindNameToValue(name) {
+  switch (name) {
+    case "COLLECTION":
+      return "COLLECTION" /* Collection */;
+    case "MODULE":
+      return "MODULE" /* Module */;
+    case "TYPE":
+      return "TYPE" /* Type */;
+    default:
+      return name;
+  }
+}
 function CacheSharingModeValueToName(value) {
   switch (value) {
     case "LOCKED" /* Locked */:
@@ -101213,6 +101225,12 @@ function ImageMediaTypesValueToName(value) {
 }
 function LLMContentBlockKindNameToValue(name) {
   switch (name) {
+    case "AUDIO":
+      return "AUDIO" /* Audio */;
+    case "DOCUMENT":
+      return "DOCUMENT" /* Document */;
+    case "IMAGE":
+      return "IMAGE" /* Image */;
     case "TEXT":
       return "TEXT" /* Text */;
     case "THINKING":
@@ -101636,15 +101654,231 @@ class AgentMessage extends BaseClient {
   };
 }
 
-class AgentMiddleware extends BaseClient {
+class Artifact extends BaseClient {
   _id = undefined;
   _description = undefined;
-  _name = undefined;
-  constructor(ctx, _id, _description, _name) {
+  _loadError = undefined;
+  _moduleName = undefined;
+  _uri = undefined;
+  constructor(ctx, _id, _description, _loadError, _moduleName, _uri) {
     super(ctx);
     this._id = _id;
     this._description = _description;
+    this._loadError = _loadError;
+    this._moduleName = _moduleName;
+    this._uri = _uri;
+  }
+  id = async () => {
+    if (this._id) {
+      return this._id;
+    }
+    const ctx = this._ctx.select("id");
+    const response = await ctx.execute();
+    return response;
+  };
+  arguments_ = async () => {
+    const ctx = this._ctx.select("arguments").select("id");
+    const response = await ctx.execute();
+    return response.map((r) => new FunctionArg(ctx.copy().selectNode(r.id, "FunctionArg")));
+  };
+  description = async () => {
+    if (this._description) {
+      return this._description;
+    }
+    const ctx = this._ctx.select("description");
+    const response = await ctx.execute();
+    return response;
+  };
+  dimensionKeys = async () => {
+    const ctx = this._ctx.select("dimensionKeys").select("id");
+    const response = await ctx.execute();
+    return response.map((r) => new ArtifactDimensionKey(ctx.copy().selectNode(r.id, "ArtifactDimensionKey")));
+  };
+  directives = async () => {
+    const ctx = this._ctx.select("directives");
+    const response = await ctx.execute();
+    return response;
+  };
+  loadError = async () => {
+    if (this._loadError) {
+      return this._loadError;
+    }
+    const ctx = this._ctx.select("loadError");
+    const response = await ctx.execute();
+    return response;
+  };
+  moduleName = async () => {
+    if (this._moduleName) {
+      return this._moduleName;
+    }
+    const ctx = this._ctx.select("moduleName");
+    const response = await ctx.execute();
+    return response;
+  };
+  path = async () => {
+    const ctx = this._ctx.select("path");
+    const response = await ctx.execute();
+    return response;
+  };
+  uri = async (opts) => {
+    if (this._uri) {
+      return this._uri;
+    }
+    const ctx = this._ctx.select("uri", { ...opts });
+    const response = await ctx.execute();
+    return response;
+  };
+  value = (opts) => {
+    const ctx = this._ctx.select("value", { ...opts });
+    return new _NodeClient(ctx);
+  };
+}
+
+class ArtifactDimension extends BaseClient {
+  _id = undefined;
+  _collectionType = undefined;
+  _identifier = undefined;
+  _itemType = undefined;
+  _keyDescription = undefined;
+  _keyName = undefined;
+  _kind = undefined;
+  _name = undefined;
+  _qualifiedName = undefined;
+  constructor(ctx, _id, _collectionType, _identifier, _itemType, _keyDescription, _keyName, _kind, _name, _qualifiedName) {
+    super(ctx);
+    this._id = _id;
+    this._collectionType = _collectionType;
+    this._identifier = _identifier;
+    this._itemType = _itemType;
+    this._keyDescription = _keyDescription;
+    this._keyName = _keyName;
+    this._kind = _kind;
     this._name = _name;
+    this._qualifiedName = _qualifiedName;
+  }
+  id = async () => {
+    if (this._id) {
+      return this._id;
+    }
+    const ctx = this._ctx.select("id");
+    const response = await ctx.execute();
+    return response;
+  };
+  collectionType = async () => {
+    if (this._collectionType) {
+      return this._collectionType;
+    }
+    const ctx = this._ctx.select("collectionType");
+    const response = await ctx.execute();
+    return response;
+  };
+  identifier = async () => {
+    if (this._identifier) {
+      return this._identifier;
+    }
+    const ctx = this._ctx.select("identifier");
+    const response = await ctx.execute();
+    return response;
+  };
+  itemType = async () => {
+    if (this._itemType) {
+      return this._itemType;
+    }
+    const ctx = this._ctx.select("itemType");
+    const response = await ctx.execute();
+    return response;
+  };
+  keyDescription = async () => {
+    if (this._keyDescription) {
+      return this._keyDescription;
+    }
+    const ctx = this._ctx.select("keyDescription");
+    const response = await ctx.execute();
+    return response;
+  };
+  keyName = async () => {
+    if (this._keyName) {
+      return this._keyName;
+    }
+    const ctx = this._ctx.select("keyName");
+    const response = await ctx.execute();
+    return response;
+  };
+  kind = async () => {
+    if (this._kind) {
+      return this._kind;
+    }
+    const ctx = this._ctx.select("kind");
+    const response = await ctx.execute();
+    return ArtifactDimensionKindNameToValue(response);
+  };
+  name = async () => {
+    if (this._name) {
+      return this._name;
+    }
+    const ctx = this._ctx.select("name");
+    const response = await ctx.execute();
+    return response;
+  };
+  qualifiedName = async () => {
+    if (this._qualifiedName) {
+      return this._qualifiedName;
+    }
+    const ctx = this._ctx.select("qualifiedName");
+    const response = await ctx.execute();
+    return response;
+  };
+}
+
+class ArtifactDimensionKey extends BaseClient {
+  _id = undefined;
+  _dimension = undefined;
+  _key = undefined;
+  constructor(ctx, _id, _dimension, _key) {
+    super(ctx);
+    this._id = _id;
+    this._dimension = _dimension;
+    this._key = _key;
+  }
+  id = async () => {
+    if (this._id) {
+      return this._id;
+    }
+    const ctx = this._ctx.select("id");
+    const response = await ctx.execute();
+    return response;
+  };
+  dimension = async () => {
+    if (this._dimension) {
+      return this._dimension;
+    }
+    const ctx = this._ctx.select("dimension");
+    const response = await ctx.execute();
+    return response;
+  };
+  key = async () => {
+    if (this._key) {
+      return this._key;
+    }
+    const ctx = this._ctx.select("key");
+    const response = await ctx.execute();
+    return response;
+  };
+}
+
+class ArtifactPath extends BaseClient {
+  _id = undefined;
+  _description = undefined;
+  _loadError = undefined;
+  _moduleName = undefined;
+  _uri = undefined;
+  constructor(ctx, _id, _description, _loadError, _moduleName, _uri) {
+    super(ctx);
+    this._id = _id;
+    this._description = _description;
+    this._loadError = _loadError;
+    this._moduleName = _moduleName;
+    this._uri = _uri;
   }
   id = async () => {
     if (this._id) {
@@ -101662,26 +101896,38 @@ class AgentMiddleware extends BaseClient {
     const response = await ctx.execute();
     return response;
   };
-  name = async () => {
-    if (this._name) {
-      return this._name;
-    }
-    const ctx = this._ctx.select("name");
+  dimensions = async () => {
+    const ctx = this._ctx.select("dimensions");
     const response = await ctx.execute();
     return response;
   };
-  originalModule = () => {
-    const ctx = this._ctx.select("originalModule");
-    return new Module_(ctx);
+  loadError = async () => {
+    if (this._loadError) {
+      return this._loadError;
+    }
+    const ctx = this._ctx.select("loadError");
+    const response = await ctx.execute();
+    return response;
   };
-  path = async () => {
-    const ctx = this._ctx.select("path");
+  moduleName = async () => {
+    if (this._moduleName) {
+      return this._moduleName;
+    }
+    const ctx = this._ctx.select("moduleName");
+    const response = await ctx.execute();
+    return response;
+  };
+  uri = async () => {
+    if (this._uri) {
+      return this._uri;
+    }
+    const ctx = this._ctx.select("uri");
     const response = await ctx.execute();
     return response;
   };
 }
 
-class AgentMiddlewareGroup extends BaseClient {
+class ArtifactResult extends BaseClient {
   _id = undefined;
   constructor(ctx, _id) {
     super(ctx);
@@ -101695,14 +101941,188 @@ class AgentMiddlewareGroup extends BaseClient {
     const response = await ctx.execute();
     return response;
   };
-  compose = (opts) => {
-    const ctx = this._ctx.select("compose", { ...opts });
-    return new LLM(ctx);
+  artifact = () => {
+    const ctx = this._ctx.select("artifact");
+    return new Artifact(ctx);
   };
-  list = async () => {
-    const ctx = this._ctx.select("list").select("id");
+  error = async () => {
+    const ctx = this._ctx.select("error").select("id");
     const response = await ctx.execute();
-    return response.map((r) => new AgentMiddleware(ctx.copy().selectNode(r.id, "AgentMiddleware")));
+    if (response === null) {
+      return null;
+    }
+    return new Error2(ctx.copy().selectNode(response, "Error"));
+  };
+  value = async () => {
+    const ctx = this._ctx.select("value").select("id");
+    const response = await ctx.execute();
+    if (response === null) {
+      return null;
+    }
+    return new _NodeClient(ctx.copy().selectNode(response, "Node"));
+  };
+}
+
+class Artifacts extends BaseClient {
+  _id = undefined;
+  _uri = undefined;
+  constructor(ctx, _id, _uri) {
+    super(ctx);
+    this._id = _id;
+    this._uri = _uri;
+  }
+  id = async () => {
+    if (this._id) {
+      return this._id;
+    }
+    const ctx = this._ctx.select("id");
+    const response = await ctx.execute();
+    return response;
+  };
+  asChangesets = async () => {
+    const ctx = this._ctx.select("asChangesets").select("id");
+    const response = await ctx.execute();
+    return response.map((r) => new Changeset(ctx.copy().selectNode(r.id, "Changeset")));
+  };
+  asChecks = async () => {
+    const ctx = this._ctx.select("asChecks").select("id");
+    const response = await ctx.execute();
+    return response.map((r) => new Check(ctx.copy().selectNode(r.id, "Check")));
+  };
+  asExpertise = async () => {
+    const ctx = this._ctx.select("asExpertise").select("id");
+    const response = await ctx.execute();
+    return response.map((r) => new Expertise(ctx.copy().selectNode(r.id, "Expertise")));
+  };
+  asGenerators = async () => {
+    const ctx = this._ctx.select("asGenerators").select("id");
+    const response = await ctx.execute();
+    return response.map((r) => new Generator(ctx.copy().selectNode(r.id, "Generator")));
+  };
+  asServices = async () => {
+    const ctx = this._ctx.select("asServices").select("id");
+    const response = await ctx.execute();
+    return response.map((r) => new Service(ctx.copy().selectNode(r.id, "Service")));
+  };
+  dimensionDefinitions = async () => {
+    const ctx = this._ctx.select("dimensionDefinitions").select("id");
+    const response = await ctx.execute();
+    return response.map((r) => new ArtifactDimension(ctx.copy().selectNode(r.id, "ArtifactDimension")));
+  };
+  dimensionItems = async (dimension) => {
+    const ctx = this._ctx.select("dimensionItems", { dimension }).select("id");
+    const response = await ctx.execute();
+    return response.map((r) => new Artifact(ctx.copy().selectNode(r.id, "Artifact")));
+  };
+  dimensionKeys = async (dimension) => {
+    const ctx = this._ctx.select("dimensionKeys", { dimension });
+    const response = await ctx.execute();
+    return response;
+  };
+  dimensions = async () => {
+    const ctx = this._ctx.select("dimensions");
+    const response = await ctx.execute();
+    return response;
+  };
+  filterAgentCommand = () => {
+    const ctx = this._ctx.select("filterAgentCommand");
+    return new Artifacts(ctx);
+  };
+  filterCheckCommand = (opts) => {
+    const ctx = this._ctx.select("filterCheckCommand", { ...opts });
+    return new Artifacts(ctx);
+  };
+  filterDimensionKeys = (dimension, keys) => {
+    const ctx = this._ctx.select("filterDimensionKeys", { dimension, keys });
+    return new Artifacts(ctx);
+  };
+  filterDimensions = (dimensions) => {
+    const ctx = this._ctx.select("filterDimensions", { dimensions });
+    return new Artifacts(ctx);
+  };
+  filterDirectives = (directives, opts) => {
+    const ctx = this._ctx.select("filterDirectives", { directives, ...opts });
+    return new Artifacts(ctx);
+  };
+  filterGenerateCommand = () => {
+    const ctx = this._ctx.select("filterGenerateCommand");
+    return new Artifacts(ctx);
+  };
+  filterParentDirectives = (directives, opts) => {
+    const ctx = this._ctx.select("filterParentDirectives", { directives, ...opts });
+    return new Artifacts(ctx);
+  };
+  filterParentTypes = (types, opts) => {
+    const ctx = this._ctx.select("filterParentTypes", { types, ...opts });
+    return new Artifacts(ctx);
+  };
+  filterPath = (path) => {
+    const ctx = this._ctx.select("filterPath", { path });
+    return new Artifacts(ctx);
+  };
+  filterPathPattern = (pattern) => {
+    const ctx = this._ctx.select("filterPathPattern", { pattern });
+    return new Artifacts(ctx);
+  };
+  filterTypes = (types, opts) => {
+    const ctx = this._ctx.select("filterTypes", { types, ...opts });
+    return new Artifacts(ctx);
+  };
+  filterUpCommand = () => {
+    const ctx = this._ctx.select("filterUpCommand");
+    return new Artifacts(ctx);
+  };
+  filterUri = (uri) => {
+    const ctx = this._ctx.select("filterUri", { uri });
+    return new Artifacts(ctx);
+  };
+  items = async () => {
+    const ctx = this._ctx.select("items").select("id");
+    const response = await ctx.execute();
+    return response.map((r) => new Artifact(ctx.copy().selectNode(r.id, "Artifact")));
+  };
+  modules = async () => {
+    const ctx = this._ctx.select("modules").select("id");
+    const response = await ctx.execute();
+    return response.map((r) => new Module_(ctx.copy().selectNode(r.id, "Module")));
+  };
+  one = () => {
+    const ctx = this._ctx.select("one");
+    return new Artifact(ctx);
+  };
+  pathDefinitions = async (opts) => {
+    const ctx = this._ctx.select("pathDefinitions", { ...opts }).select("id");
+    const response = await ctx.execute();
+    return response.map((r) => new ArtifactPath(ctx.copy().selectNode(r.id, "ArtifactPath")));
+  };
+  types = async () => {
+    const ctx = this._ctx.select("types").select("id");
+    const response = await ctx.execute();
+    return response.map((r) => new TypeDef(ctx.copy().selectNode(r.id, "TypeDef")));
+  };
+  uri = async () => {
+    if (this._uri) {
+      return this._uri;
+    }
+    const ctx = this._ctx.select("uri");
+    const response = await ctx.execute();
+    return response;
+  };
+  values = async (opts) => {
+    const ctx = this._ctx.select("values", { ...opts }).select("id");
+    const response = await ctx.execute();
+    return response.map((r) => new ArtifactResult(ctx.copy().selectNode(r.id, "ArtifactResult")));
+  };
+  withArtifacts = (artifacts) => {
+    const ctx = this._ctx.select("withArtifacts", { artifacts });
+    return new Artifacts(ctx);
+  };
+  withoutUri = (uri) => {
+    const ctx = this._ctx.select("withoutUri", { uri });
+    return new Artifacts(ctx);
+  };
+  with = (arg) => {
+    return arg(this);
   };
 }
 
@@ -101824,21 +102244,13 @@ class Changeset extends BaseClient {
 
 class Check extends BaseClient {
   _id = undefined;
-  _checkType = undefined;
-  _completed = undefined;
-  _description = undefined;
-  _name = undefined;
-  _passed = undefined;
-  _resultEmoji = undefined;
-  constructor(ctx, _id, _checkType, _completed, _description, _name, _passed, _resultEmoji) {
+  _assertion = undefined;
+  _pass = undefined;
+  constructor(ctx, _id, _assertion, _pass) {
     super(ctx);
     this._id = _id;
-    this._checkType = _checkType;
-    this._completed = _completed;
-    this._description = _description;
-    this._name = _name;
-    this._passed = _passed;
-    this._resultEmoji = _resultEmoji;
+    this._assertion = _assertion;
+    this._pass = _pass;
   }
   id = async () => {
     if (this._id) {
@@ -101848,27 +102260,11 @@ class Check extends BaseClient {
     const response = await ctx.execute();
     return response;
   };
-  checkType = async () => {
-    if (this._checkType) {
-      return this._checkType;
+  assertion = async () => {
+    if (this._assertion) {
+      return this._assertion;
     }
-    const ctx = this._ctx.select("checkType");
-    const response = await ctx.execute();
-    return response;
-  };
-  completed = async () => {
-    if (this._completed) {
-      return this._completed;
-    }
-    const ctx = this._ctx.select("completed");
-    const response = await ctx.execute();
-    return response;
-  };
-  description = async () => {
-    if (this._description) {
-      return this._description;
-    }
-    const ctx = this._ctx.select("description");
+    const ctx = this._ctx.select("assertion");
     const response = await ctx.execute();
     return response;
   };
@@ -101880,74 +102276,25 @@ class Check extends BaseClient {
     }
     return new Error2(ctx.copy().selectNode(response, "Error"));
   };
-  name = async () => {
-    if (this._name) {
-      return this._name;
+  pass = async () => {
+    if (this._pass) {
+      return this._pass;
     }
-    const ctx = this._ctx.select("name");
+    const ctx = this._ctx.select("pass");
     const response = await ctx.execute();
     return response;
   };
-  originalModule = () => {
-    const ctx = this._ctx.select("originalModule");
-    return new Module_(ctx);
-  };
-  passed = async () => {
-    if (this._passed) {
-      return this._passed;
+  report = async () => {
+    const ctx = this._ctx.select("report").select("id");
+    const response = await ctx.execute();
+    if (response === null) {
+      return null;
     }
-    const ctx = this._ctx.select("passed");
-    const response = await ctx.execute();
-    return response;
+    return new Directory(ctx.copy().selectNode(response, "Directory"));
   };
-  path = async () => {
-    const ctx = this._ctx.select("path");
-    const response = await ctx.execute();
-    return response;
-  };
-  resultEmoji = async () => {
-    if (this._resultEmoji) {
-      return this._resultEmoji;
-    }
-    const ctx = this._ctx.select("resultEmoji");
-    const response = await ctx.execute();
-    return response;
-  };
-  run = () => {
-    const ctx = this._ctx.select("run");
+  sync = () => {
+    const ctx = this._ctx.select("sync");
     return new Check(ctx);
-  };
-  with = (arg) => {
-    return arg(this);
-  };
-}
-
-class CheckGroup extends BaseClient {
-  _id = undefined;
-  constructor(ctx, _id) {
-    super(ctx);
-    this._id = _id;
-  }
-  id = async () => {
-    if (this._id) {
-      return this._id;
-    }
-    const ctx = this._ctx.select("id");
-    const response = await ctx.execute();
-    return response;
-  };
-  list = async () => {
-    const ctx = this._ctx.select("list").select("id");
-    const response = await ctx.execute();
-    return response.map((r) => new Check(ctx.copy().selectNode(r.id, "Check")));
-  };
-  report = () => {
-    const ctx = this._ctx.select("report");
-    return new File(ctx);
-  };
-  run = (opts) => {
-    const ctx = this._ctx.select("run", { ...opts });
-    return new CheckGroup(ctx);
   };
   with = (arg) => {
     return arg(this);
@@ -101974,6 +102321,93 @@ class Cloud extends BaseClient {
       return this._traceURL;
     }
     const ctx = this._ctx.select("traceURL");
+    const response = await ctx.execute();
+    return response;
+  };
+}
+class CollectionTypeDef extends BaseClient {
+  _id = undefined;
+  constructor(ctx, _id) {
+    super(ctx);
+    this._id = _id;
+  }
+  id = async () => {
+    if (this._id) {
+      return this._id;
+    }
+    const ctx = this._ctx.select("id");
+    const response = await ctx.execute();
+    return response;
+  };
+  batchType = async () => {
+    const ctx = this._ctx.select("batchType").select("id");
+    const response = await ctx.execute();
+    if (response === null) {
+      return null;
+    }
+    return new TypeDef(ctx.copy().selectNode(response, "TypeDef"));
+  };
+  keyType = () => {
+    const ctx = this._ctx.select("keyType");
+    return new TypeDef(ctx);
+  };
+  valueType = () => {
+    const ctx = this._ctx.select("valueType");
+    return new TypeDef(ctx);
+  };
+}
+
+class Command extends BaseClient {
+  _id = undefined;
+  _insecureRootCapabilities = undefined;
+  _privilegedNesting = undefined;
+  _workdir = undefined;
+  constructor(ctx, _id, _insecureRootCapabilities, _privilegedNesting, _workdir) {
+    super(ctx);
+    this._id = _id;
+    this._insecureRootCapabilities = _insecureRootCapabilities;
+    this._privilegedNesting = _privilegedNesting;
+    this._workdir = _workdir;
+  }
+  id = async () => {
+    if (this._id) {
+      return this._id;
+    }
+    const ctx = this._ctx.select("id");
+    const response = await ctx.execute();
+    return response;
+  };
+  args = async () => {
+    const ctx = this._ctx.select("args");
+    const response = await ctx.execute();
+    return response;
+  };
+  env = async () => {
+    const ctx = this._ctx.select("env").select("id");
+    const response = await ctx.execute();
+    return response.map((r) => new EnvVariable(ctx.copy().selectNode(r.id, "EnvVariable")));
+  };
+  insecureRootCapabilities = async () => {
+    if (this._insecureRootCapabilities) {
+      return this._insecureRootCapabilities;
+    }
+    const ctx = this._ctx.select("insecureRootCapabilities");
+    const response = await ctx.execute();
+    return response;
+  };
+  privilegedNesting = async () => {
+    if (this._privilegedNesting) {
+      return this._privilegedNesting;
+    }
+    const ctx = this._ctx.select("privilegedNesting");
+    const response = await ctx.execute();
+    return response;
+  };
+  workdir = async () => {
+    if (this._workdir) {
+      return this._workdir;
+    }
+    const ctx = this._ctx.select("workdir");
     const response = await ctx.execute();
     return response;
   };
@@ -102217,6 +102651,10 @@ class Container extends BaseClient {
     const ctx = this._ctx.select("rootfs");
     return new Directory(ctx);
   };
+  shell = (opts) => {
+    const ctx = this._ctx.select("shell", { ...opts });
+    return new Command(ctx);
+  };
   stat = async (path, opts) => {
     const ctx = this._ctx.select("stat", { path, ...opts }).select("id");
     const response = await ctx.execute();
@@ -102366,12 +102804,20 @@ class Container extends BaseClient {
     const ctx = this._ctx.select("withRootfs", { directory });
     return new Container(ctx);
   };
+  withRun = (command, opts) => {
+    const ctx = this._ctx.select("withRun", { command, ...opts });
+    return new Container(ctx);
+  };
   withSecretVariable = (name, secret) => {
     const ctx = this._ctx.select("withSecretVariable", { name, secret });
     return new Container(ctx);
   };
   withServiceBinding = (alias, service) => {
     const ctx = this._ctx.select("withServiceBinding", { alias, service });
+    return new Container(ctx);
+  };
+  withShell = (interactive, opts) => {
+    const ctx = this._ctx.select("withShell", { interactive, ...opts });
     return new Container(ctx);
   };
   withSymlink = (target, linkName, opts) => {
@@ -102502,10 +102948,6 @@ class CurrentModule extends BaseClient {
   generatedContextDirectory = () => {
     const ctx = this._ctx.select("generatedContextDirectory");
     return new Directory(ctx);
-  };
-  generators = (opts) => {
-    const ctx = this._ctx.select("generators", { ...opts });
-    return new GeneratorGroup(ctx);
   };
   name = async () => {
     if (this._name) {
@@ -103340,6 +103782,51 @@ class ErrorValue extends BaseClient {
     return response;
   };
 }
+
+class Expertise extends BaseClient {
+  _id = undefined;
+  _description = undefined;
+  _name = undefined;
+  constructor(ctx, _id, _description, _name) {
+    super(ctx);
+    this._id = _id;
+    this._description = _description;
+    this._name = _name;
+  }
+  id = async () => {
+    if (this._id) {
+      return this._id;
+    }
+    const ctx = this._ctx.select("id");
+    const response = await ctx.execute();
+    return response;
+  };
+  description = async () => {
+    if (this._description) {
+      return this._description;
+    }
+    const ctx = this._ctx.select("description");
+    const response = await ctx.execute();
+    return response;
+  };
+  name = async () => {
+    if (this._name) {
+      return this._name;
+    }
+    const ctx = this._ctx.select("name");
+    const response = await ctx.execute();
+    return response;
+  };
+  originalModule = () => {
+    const ctx = this._ctx.select("originalModule");
+    return new Module_(ctx);
+  };
+  path = async () => {
+    const ctx = this._ctx.select("path");
+    const response = await ctx.execute();
+    return response;
+  };
+}
 class FieldTypeDef extends BaseClient {
   _id = undefined;
   _deprecated = undefined;
@@ -103871,17 +104358,9 @@ class GeneratedCode extends BaseClient {
 
 class Generator extends BaseClient {
   _id = undefined;
-  _completed = undefined;
-  _description = undefined;
-  _isEmpty = undefined;
-  _name = undefined;
-  constructor(ctx, _id, _completed, _description, _isEmpty, _name) {
+  constructor(ctx, _id) {
     super(ctx);
     this._id = _id;
-    this._completed = _completed;
-    this._description = _description;
-    this._isEmpty = _isEmpty;
-    this._name = _name;
   }
   id = async () => {
     if (this._id) {
@@ -103891,115 +104370,17 @@ class Generator extends BaseClient {
     const response = await ctx.execute();
     return response;
   };
-  changes = () => {
-    const ctx = this._ctx.select("changes");
+  changeset = () => {
+    const ctx = this._ctx.select("changeset");
     return new Changeset(ctx);
   };
-  completed = async () => {
-    if (this._completed) {
-      return this._completed;
-    }
-    const ctx = this._ctx.select("completed");
-    const response = await ctx.execute();
-    return response;
+  stale = () => {
+    const ctx = this._ctx.select("stale");
+    return new Check(ctx);
   };
-  description = async () => {
-    if (this._description) {
-      return this._description;
-    }
-    const ctx = this._ctx.select("description");
-    const response = await ctx.execute();
-    return response;
-  };
-  isEmpty = async () => {
-    if (this._isEmpty) {
-      return this._isEmpty;
-    }
-    const ctx = this._ctx.select("isEmpty");
-    const response = await ctx.execute();
-    return response;
-  };
-  name = async () => {
-    if (this._name) {
-      return this._name;
-    }
-    const ctx = this._ctx.select("name");
-    const response = await ctx.execute();
-    return response;
-  };
-  originalModule = async () => {
-    const ctx = this._ctx.select("originalModule").select("id");
-    const response = await ctx.execute();
-    if (response === null) {
-      return null;
-    }
-    return new Module_(ctx.copy().selectNode(response, "Module"));
-  };
-  path = async () => {
-    const ctx = this._ctx.select("path");
-    const response = await ctx.execute();
-    return response;
-  };
-  run = () => {
-    const ctx = this._ctx.select("run");
+  sync = () => {
+    const ctx = this._ctx.select("sync");
     return new Generator(ctx);
-  };
-  with = (arg) => {
-    return arg(this);
-  };
-}
-
-class GeneratorGroup extends BaseClient {
-  _id = undefined;
-  _isEmpty = undefined;
-  constructor(ctx, _id, _isEmpty) {
-    super(ctx);
-    this._id = _id;
-    this._isEmpty = _isEmpty;
-  }
-  id = async () => {
-    if (this._id) {
-      return this._id;
-    }
-    const ctx = this._ctx.select("id");
-    const response = await ctx.execute();
-    return response;
-  };
-  changes = (opts) => {
-    const metadata = {
-      onConflict: { is_enum: true, value_to_name: ChangesetsMergeConflictValueToName }
-    };
-    const ctx = this._ctx.select("changes", { ...opts, __metadata: metadata });
-    return new Changeset(ctx);
-  };
-  isEmpty = async () => {
-    if (this._isEmpty) {
-      return this._isEmpty;
-    }
-    const ctx = this._ctx.select("isEmpty");
-    const response = await ctx.execute();
-    return response;
-  };
-  list = async () => {
-    const ctx = this._ctx.select("list").select("id");
-    const response = await ctx.execute();
-    return response.map((r) => new Generator(ctx.copy().selectNode(r.id, "Generator")));
-  };
-  loadFailures = async () => {
-    const ctx = this._ctx.select("loadFailures");
-    const response = await ctx.execute();
-    return response;
-  };
-  run = () => {
-    const ctx = this._ctx.select("run");
-    return new GeneratorGroup(ctx);
-  };
-  workspace = (opts) => {
-    const metadata = {
-      onConflict: { is_enum: true, value_to_name: ChangesetsMergeConflictValueToName }
-    };
-    const ctx = this._ctx.select("workspace", { ...opts, __metadata: metadata });
-    return new Workspace(ctx);
   };
   with = (arg) => {
     return arg(this);
@@ -104806,29 +105187,29 @@ class LLM extends BaseClient {
   _id = undefined;
   _contextTokens = undefined;
   _contextWindow = undefined;
+  _emitHistory = undefined;
   _hasPending = undefined;
   _lastReply = undefined;
   _model = undefined;
   _portableID = undefined;
   _provider = undefined;
   _reasoningEffort = undefined;
-  _replay = undefined;
   _spawn = undefined;
   _sync = undefined;
   _tools = undefined;
   _transcript = undefined;
-  constructor(ctx, _id, _contextTokens, _contextWindow, _hasPending, _lastReply, _model, _portableID, _provider, _reasoningEffort, _replay, _spawn, _sync, _tools, _transcript) {
+  constructor(ctx, _id, _contextTokens, _contextWindow, _emitHistory, _hasPending, _lastReply, _model, _portableID, _provider, _reasoningEffort, _spawn, _sync, _tools, _transcript) {
     super(ctx);
     this._id = _id;
     this._contextTokens = _contextTokens;
     this._contextWindow = _contextWindow;
+    this._emitHistory = _emitHistory;
     this._hasPending = _hasPending;
     this._lastReply = _lastReply;
     this._model = _model;
     this._portableID = _portableID;
     this._provider = _provider;
     this._reasoningEffort = _reasoningEffort;
-    this._replay = _replay;
     this._spawn = _spawn;
     this._sync = _sync;
     this._tools = _tools;
@@ -104846,6 +105227,10 @@ class LLM extends BaseClient {
     const ctx = this._ctx.select("agent", { handle, name });
     return new Agent(ctx);
   };
+  compose = (expertise) => {
+    const ctx = this._ctx.select("compose", { expertise });
+    return new LLM(ctx);
+  };
   contextTokens = async () => {
     if (this._contextTokens) {
       return this._contextTokens;
@@ -104861,6 +105246,11 @@ class LLM extends BaseClient {
     const ctx = this._ctx.select("contextWindow");
     const response = await ctx.execute();
     return response;
+  };
+  emitHistory = async () => {
+    const ctx = this._ctx.select("emitHistory");
+    const response = await ctx.execute();
+    return new LLM(ctx.copy().selectNode(response, "LLM"));
   };
   fork = (label) => {
     const ctx = this._ctx.select("fork", { label });
@@ -104923,10 +105313,9 @@ class LLM extends BaseClient {
     const response = await ctx.execute();
     return response;
   };
-  replay = async () => {
-    const ctx = this._ctx.select("replay");
-    const response = await ctx.execute();
-    return new LLM(ctx.copy().selectNode(response, "LLM"));
+  recompose = (expertise) => {
+    const ctx = this._ctx.select("recompose", { expertise });
+    return new LLM(ctx);
   };
   skills = async () => {
     const ctx = this._ctx.select("skills").select("id");
@@ -104973,6 +105362,14 @@ class LLM extends BaseClient {
     const response = await ctx.execute();
     return response;
   };
+  withContent = (content, opts) => {
+    const ctx = this._ctx.select("withContent", { content, ...opts });
+    return new LLM(ctx);
+  };
+  withContentFile = (file, opts) => {
+    const ctx = this._ctx.select("withContentFile", { file, ...opts });
+    return new LLM(ctx);
+  };
   withMCPServer = (name, service) => {
     const ctx = this._ctx.select("withMCPServer", { name, service });
     return new LLM(ctx);
@@ -105009,8 +105406,8 @@ class LLM extends BaseClient {
     const ctx = this._ctx.select("withSystemPrompt", { prompt });
     return new LLM(ctx);
   };
-  withToolResult = (callId, content, errored) => {
-    const ctx = this._ctx.select("withToolResult", { callId, content, errored });
+  withToolResult = (callId, content, errored, opts) => {
+    const ctx = this._ctx.select("withToolResult", { callId, content, errored, ...opts });
     return new LLM(ctx);
   };
   withTools = (object, opts) => {
@@ -105046,18 +105443,22 @@ class LLMContentBlock extends BaseClient {
   _id = undefined;
   _arguments = undefined;
   _callId = undefined;
+  _data = undefined;
   _errored = undefined;
   _kind = undefined;
+  _mimeType = undefined;
   _signature = undefined;
   _text = undefined;
   _toolName = undefined;
-  constructor(ctx, _id, _arguments, _callId, _errored, _kind, _signature, _text, _toolName) {
+  constructor(ctx, _id, _arguments, _callId, _data, _errored, _kind, _mimeType, _signature, _text, _toolName) {
     super(ctx);
     this._id = _id;
     this._arguments = _arguments;
     this._callId = _callId;
+    this._data = _data;
     this._errored = _errored;
     this._kind = _kind;
+    this._mimeType = _mimeType;
     this._signature = _signature;
     this._text = _text;
     this._toolName = _toolName;
@@ -105086,6 +105487,19 @@ class LLMContentBlock extends BaseClient {
     const response = await ctx.execute();
     return response;
   };
+  content = async () => {
+    const ctx = this._ctx.select("content").select("id");
+    const response = await ctx.execute();
+    return response.map((r) => new LLMContentBlock(ctx.copy().selectNode(r.id, "LLMContentBlock")));
+  };
+  data = async () => {
+    if (this._data) {
+      return this._data;
+    }
+    const ctx = this._ctx.select("data");
+    const response = await ctx.execute();
+    return response;
+  };
   errored = async () => {
     if (this._errored) {
       return this._errored;
@@ -105101,6 +105515,14 @@ class LLMContentBlock extends BaseClient {
     const ctx = this._ctx.select("kind");
     const response = await ctx.execute();
     return LLMContentBlockKindNameToValue(response);
+  };
+  mimeType = async () => {
+    if (this._mimeType) {
+      return this._mimeType;
+    }
+    const ctx = this._ctx.select("mimeType");
+    const response = await ctx.execute();
+    return response;
   };
   signature = async () => {
     if (this._signature) {
@@ -105407,13 +105829,13 @@ class Module_ extends BaseClient {
     const response = await ctx.execute();
     return response;
   };
-  check = (name) => {
-    const ctx = this._ctx.select("check", { name });
-    return new Check(ctx);
-  };
-  checks = (opts) => {
-    const ctx = this._ctx.select("checks", { ...opts });
-    return new CheckGroup(ctx);
+  contextSource = async () => {
+    const ctx = this._ctx.select("contextSource").select("id");
+    const response = await ctx.execute();
+    if (response === null) {
+      return null;
+    }
+    return new ModuleSource(ctx.copy().selectNode(response, "ModuleSource"));
   };
   dependencies = async () => {
     const ctx = this._ctx.select("dependencies").select("id");
@@ -105436,14 +105858,6 @@ class Module_ extends BaseClient {
   generatedContextDirectory = () => {
     const ctx = this._ctx.select("generatedContextDirectory");
     return new Directory(ctx);
-  };
-  generator = (name) => {
-    const ctx = this._ctx.select("generator", { name });
-    return new Generator(ctx);
-  };
-  generators = (opts) => {
-    const ctx = this._ctx.select("generators", { ...opts });
-    return new GeneratorGroup(ctx);
   };
   interfaces = async () => {
     const ctx = this._ctx.select("interfaces").select("id");
@@ -105489,10 +105903,6 @@ class Module_ extends BaseClient {
     }
     const ctx = this._ctx.select("serve", { ...opts });
     await ctx.execute();
-  };
-  services = (opts) => {
-    const ctx = this._ctx.select("services", { ...opts });
-    return new UpGroup(ctx);
   };
   source = async () => {
     const ctx = this._ctx.select("source").select("id");
@@ -106568,8 +106978,8 @@ class Service extends BaseClient {
     const response = await ctx.execute();
     return response;
   };
-  ports = async () => {
-    const ctx = this._ctx.select("ports").select("id");
+  ports = async (opts) => {
+    const ctx = this._ctx.select("ports", { ...opts }).select("id");
     const response = await ctx.execute();
     return response.map((r) => new Port(ctx.copy().selectNode(r.id, "Port")));
   };
@@ -106745,79 +107155,6 @@ class Stat extends BaseClient {
     return response;
   };
 }
-class TerminalGroup extends BaseClient {
-  _id = undefined;
-  constructor(ctx, _id) {
-    super(ctx);
-    this._id = _id;
-  }
-  id = async () => {
-    if (this._id) {
-      return this._id;
-    }
-    const ctx = this._ctx.select("id");
-    const response = await ctx.execute();
-    return response;
-  };
-  list = async () => {
-    const ctx = this._ctx.select("list").select("id");
-    const response = await ctx.execute();
-    return response.map((r) => new TerminalTarget(ctx.copy().selectNode(r.id, "TerminalTarget")));
-  };
-  run = () => {
-    const ctx = this._ctx.select("run");
-    return new TerminalGroup(ctx);
-  };
-  with = (arg) => {
-    return arg(this);
-  };
-}
-
-class TerminalTarget extends BaseClient {
-  _id = undefined;
-  _description = undefined;
-  _name = undefined;
-  constructor(ctx, _id, _description, _name) {
-    super(ctx);
-    this._id = _id;
-    this._description = _description;
-    this._name = _name;
-  }
-  id = async () => {
-    if (this._id) {
-      return this._id;
-    }
-    const ctx = this._ctx.select("id");
-    const response = await ctx.execute();
-    return response;
-  };
-  description = async () => {
-    if (this._description) {
-      return this._description;
-    }
-    const ctx = this._ctx.select("description");
-    const response = await ctx.execute();
-    return response;
-  };
-  name = async () => {
-    if (this._name) {
-      return this._name;
-    }
-    const ctx = this._ctx.select("name");
-    const response = await ctx.execute();
-    return response;
-  };
-  originalModule = () => {
-    const ctx = this._ctx.select("originalModule");
-    return new Module_(ctx);
-  };
-  path = async () => {
-    const ctx = this._ctx.select("path");
-    const response = await ctx.execute();
-    return response;
-  };
-}
-
 class TypeDef extends BaseClient {
   _id = undefined;
   _kind = undefined;
@@ -106837,6 +107174,14 @@ class TypeDef extends BaseClient {
     const ctx = this._ctx.select("id");
     const response = await ctx.execute();
     return response;
+  };
+  asCollection = async () => {
+    const ctx = this._ctx.select("asCollection").select("id");
+    const response = await ctx.execute();
+    if (response === null) {
+      return null;
+    }
+    return new CollectionTypeDef(ctx.copy().selectNode(response, "CollectionTypeDef"));
   };
   asEnum = async () => {
     const ctx = this._ctx.select("asEnum").select("id");
@@ -106910,6 +107255,22 @@ class TypeDef extends BaseClient {
     const response = await ctx.execute();
     return response;
   };
+  withCollection = () => {
+    const ctx = this._ctx.select("withCollection");
+    return new TypeDef(ctx);
+  };
+  withCollectionDelta = (name) => {
+    const ctx = this._ctx.select("withCollectionDelta", { name });
+    return new TypeDef(ctx);
+  };
+  withCollectionGet = (name) => {
+    const ctx = this._ctx.select("withCollectionGet", { name });
+    return new TypeDef(ctx);
+  };
+  withCollectionKeys = (name) => {
+    const ctx = this._ctx.select("withCollectionKeys", { name });
+    return new TypeDef(ctx);
+  };
   withConstructor = (function_) => {
     const ctx = this._ctx.select("withConstructor", {
       function: function_
@@ -106970,86 +107331,6 @@ class TypeDef extends BaseClient {
   };
 }
 
-class Up extends BaseClient {
-  _id = undefined;
-  _description = undefined;
-  _name = undefined;
-  constructor(ctx, _id, _description, _name) {
-    super(ctx);
-    this._id = _id;
-    this._description = _description;
-    this._name = _name;
-  }
-  id = async () => {
-    if (this._id) {
-      return this._id;
-    }
-    const ctx = this._ctx.select("id");
-    const response = await ctx.execute();
-    return response;
-  };
-  description = async () => {
-    if (this._description) {
-      return this._description;
-    }
-    const ctx = this._ctx.select("description");
-    const response = await ctx.execute();
-    return response;
-  };
-  name = async () => {
-    if (this._name) {
-      return this._name;
-    }
-    const ctx = this._ctx.select("name");
-    const response = await ctx.execute();
-    return response;
-  };
-  originalModule = () => {
-    const ctx = this._ctx.select("originalModule");
-    return new Module_(ctx);
-  };
-  path = async () => {
-    const ctx = this._ctx.select("path");
-    const response = await ctx.execute();
-    return response;
-  };
-  run = () => {
-    const ctx = this._ctx.select("run");
-    return new Up(ctx);
-  };
-  with = (arg) => {
-    return arg(this);
-  };
-}
-
-class UpGroup extends BaseClient {
-  _id = undefined;
-  constructor(ctx, _id) {
-    super(ctx);
-    this._id = _id;
-  }
-  id = async () => {
-    if (this._id) {
-      return this._id;
-    }
-    const ctx = this._ctx.select("id");
-    const response = await ctx.execute();
-    return response;
-  };
-  list = async () => {
-    const ctx = this._ctx.select("list").select("id");
-    const response = await ctx.execute();
-    return response.map((r) => new Up(ctx.copy().selectNode(r.id, "Up")));
-  };
-  run = () => {
-    const ctx = this._ctx.select("run");
-    return new UpGroup(ctx);
-  };
-  with = (arg) => {
-    return arg(this);
-  };
-}
-
 class Volume extends BaseClient {
   _id = undefined;
   constructor(ctx, _id) {
@@ -107104,17 +107385,13 @@ class Workspace extends BaseClient {
     const response = await ctx.execute();
     return response;
   };
-  agents = (opts) => {
-    const ctx = this._ctx.select("agents", { ...opts });
-    return new AgentMiddlewareGroup(ctx);
+  artifacts = (opts) => {
+    const ctx = this._ctx.select("artifacts", { ...opts });
+    return new Artifacts(ctx);
   };
   changes = (opts) => {
     const ctx = this._ctx.select("changes", { ...opts });
     return new Changeset(ctx);
-  };
-  checks = (opts) => {
-    const ctx = this._ctx.select("checks", { ...opts });
-    return new CheckGroup(ctx);
   };
   compareCommitsFrom = async (source, opts) => {
     const ctx = this._ctx.select("compareCommitsFrom", { source, ...opts }).select("id");
@@ -107194,10 +107471,6 @@ class Workspace extends BaseClient {
     const response = await ctx.execute();
     return response;
   };
-  generators = (opts) => {
-    const ctx = this._ctx.select("generators", { ...opts });
-    return new GeneratorGroup(ctx);
-  };
   git = () => {
     const ctx = this._ctx.select("git");
     return new WorkspaceGit(ctx);
@@ -107228,6 +107501,10 @@ class Workspace extends BaseClient {
     const response = await ctx.execute();
     return response.map((r) => new WorkspaceModule(ctx.copy().selectNode(r.id, "WorkspaceModule")));
   };
+  resolve = (value) => {
+    const ctx = this._ctx.select("resolve", { value });
+    return new Address(ctx);
+  };
   sdk = (name) => {
     const ctx = this._ctx.select("sdk", { name });
     return new WorkspaceSDK(ctx);
@@ -107242,17 +107519,9 @@ class Workspace extends BaseClient {
     const response = await ctx.execute();
     return response.map((r) => new SearchResult(ctx.copy().selectNode(r.id, "SearchResult")));
   };
-  services = (opts) => {
-    const ctx = this._ctx.select("services", { ...opts });
-    return new UpGroup(ctx);
-  };
   snapshot = () => {
     const ctx = this._ctx.select("snapshot");
     return new Workspace(ctx);
-  };
-  terminals = (opts) => {
-    const ctx = this._ctx.select("terminals", { ...opts });
-    return new TerminalGroup(ctx);
   };
   withChanges = (changes) => {
     const ctx = this._ctx.select("withChanges", { changes });
@@ -107719,6 +107988,10 @@ class WorkspaceSDK extends BaseClient {
     const ctx = this._ctx.select("clients").select("id");
     const response = await ctx.execute();
     return response.map((r) => new WorkspaceModule(ctx.copy().selectNode(r.id, "WorkspaceModule")));
+  };
+  generate = () => {
+    const ctx = this._ctx.select("generate");
+    return new Changeset(ctx);
   };
   modules = async () => {
     const ctx = this._ctx.select("modules").select("id");
@@ -108357,6 +108630,10 @@ init_errors();
 var import_reflect_metadata = __toESM(require_Reflect(), 1);
 
 class Registry {
+  collection = () => this.object();
+  keys = () => () => {};
+  delta = () => () => {};
+  get = () => () => {};
   object = () => {
     return (constructor) => {
       Reflect.defineMetadata(constructor.name, { class_: constructor }, this);
@@ -108418,6 +108695,10 @@ var registry = new Registry;
 
 // src/module/decorators.ts
 var object = registry.object;
+var collection = registry.collection;
+var keys = registry.keys;
+var get = registry.get;
+var delta = registry.delta;
 var func = registry.func;
 var check = registry.check;
 var generate = registry.generate;
@@ -108429,6 +108710,10 @@ var argument = registry.argument;
 
 // src/module/introspector/dagger_module/decorator.ts
 var OBJECT_DECORATOR = object.name;
+var COLLECTION_DECORATOR = collection.name;
+var KEYS_DECORATOR = keys.name;
+var GET_DECORATOR = get.name;
+var DELTA_DECORATOR = delta.name;
 var FUNCTION_DECORATOR = func.name;
 var CHECK_DECORATOR = check.name;
 var GENERATOR_DECORATOR = generate.name;
@@ -108744,6 +109029,7 @@ class DaggerFunction extends Locatable {
   isGenerator = false;
   isUp = false;
   isAgent = false;
+  isCollectionGet = false;
   signature;
   symbol;
   constructor(node, ast2) {
@@ -108753,6 +109039,7 @@ class DaggerFunction extends Locatable {
     this.symbol = this.ast.getSymbolOrThrow(node.name);
     this.signature = this.ast.getSignatureFromFunctionOrThrow(node);
     this.name = this.node.name.getText();
+    this.isCollectionGet = this.ast.isNodeDecoratedWith(this.node, GET_DECORATOR);
     const { description, deprecated } = this.ast.getSymbolDoc(this.symbol);
     this.description = description;
     this.deprecated = deprecated;
@@ -108985,6 +109272,8 @@ class DaggerProperty extends Locatable {
   deprecated;
   alias;
   isExposed;
+  isCollectionKeys;
+  isCollectionDelta;
   symbol;
   _typeRef;
   type;
@@ -108997,7 +109286,9 @@ class DaggerProperty extends Locatable {
     }
     this.symbol = this.ast.getSymbolOrThrow(this.node.name);
     this.name = this.node.name.getText();
-    this.isExposed = this.ast.isNodeDecoratedWith(this.node, FUNCTION_DECORATOR) || this.ast.isNodeDecoratedWith(this.node, FIELD_DECORATOR);
+    this.isCollectionKeys = this.ast.isNodeDecoratedWith(this.node, KEYS_DECORATOR);
+    this.isCollectionDelta = this.ast.isNodeDecoratedWith(this.node, DELTA_DECORATOR);
+    this.isExposed = this.isCollectionKeys || this.isCollectionDelta || this.ast.isNodeDecoratedWith(this.node, FUNCTION_DECORATOR) || this.ast.isNodeDecoratedWith(this.node, FIELD_DECORATOR);
     const { description, deprecated } = this.ast.getSymbolDoc(this.symbol);
     this.description = description;
     this.deprecated = deprecated;
@@ -109057,6 +109348,7 @@ class DaggerProperty extends Locatable {
 class DaggerObject extends Locatable {
   node;
   ast;
+  isCollection;
   name;
   description;
   deprecated;
@@ -109077,7 +109369,8 @@ class DaggerObject extends Locatable {
       throw new IntrospectionError(`could not resolve name of class at ${AST.getNodePosition(node)}.`);
     }
     this.name = this.node.name.getText();
-    if (!this.ast.isNodeDecoratedWith(node, OBJECT_DECORATOR)) {
+    this.isCollection = this.ast.isNodeDecoratedWith(node, COLLECTION_DECORATOR);
+    if (!this.isCollection && !this.ast.isNodeDecoratedWith(node, OBJECT_DECORATOR)) {
       throw new IntrospectionError(`class ${this.name} at ${AST.getNodePosition(node)} is used by the module but not exposed with a dagger decorator.`);
     }
     const modifiers = ts8.getCombinedModifierFlags(this.node);
@@ -109100,7 +109393,7 @@ class DaggerObject extends Locatable {
         this._constructor = new DaggerConstructor(member, this.ast);
         continue;
       }
-      if (ts8.isMethodDeclaration(member) && this.ast.isNodeDecoratedWith(member, FUNCTION_DECORATOR)) {
+      if (ts8.isMethodDeclaration(member) && (this.ast.isNodeDecoratedWith(member, FUNCTION_DECORATOR) || this.ast.isNodeDecoratedWith(member, GET_DECORATOR))) {
         const daggerFunction = new DaggerFunction(member, this.ast);
         this.methods[daggerFunction.alias ?? daggerFunction.name] = daggerFunction;
         continue;
@@ -109324,7 +109617,7 @@ class DaggerModule {
           };
           continue;
         }
-        if (this.ast.isNodeDecoratedWith(classRef.node, OBJECT_DECORATOR)) {
+        if (this.ast.isNodeDecoratedWith(classRef.node, OBJECT_DECORATOR) || this.ast.isNodeDecoratedWith(classRef.node, COLLECTION_DECORATOR)) {
           const daggerObject = new DaggerObject(classRef.node, this.ast);
           this.objects[daggerObject.name] = daggerObject;
           this.references[daggerObject.name] = {
@@ -109442,7 +109735,7 @@ class DaggerModule {
       if (convertedDecl.node.name && convertedDecl.node.name.getText() === this.name) {
         return [convertedDecl];
       }
-      if (this.ast.isNodeDecoratedWith(classDecl.node, OBJECT_DECORATOR)) {
+      if (this.ast.isNodeDecoratedWith(classDecl.node, OBJECT_DECORATOR) || this.ast.isNodeDecoratedWith(classDecl.node, COLLECTION_DECORATOR)) {
         allClasses.push(convertedDecl);
       }
     }
@@ -109528,7 +109821,11 @@ function serializeIntrospection(module2, opts = {}) {
   const localTypeNames = collectLocalTypeNames(module2);
   const types3 = [];
   for (const object3 of Object.values(module2.objects)) {
-    types3.push(introspectObject(object3, moduleName, localTypeNames));
+    if (object3.isCollection) {
+      types3.push(...introspectCollection(object3, moduleName, localTypeNames));
+    } else {
+      types3.push(introspectObject(object3, moduleName, localTypeNames));
+    }
   }
   for (const iface of Object.values(module2.interfaces)) {
     types3.push(introspectInterface(iface, moduleName, localTypeNames));
@@ -109592,6 +109889,77 @@ function introspectObject(object3, moduleName, local) {
     interfaces: [],
     fields
   };
+}
+function introspectCollection(object3, moduleName, local) {
+  const properties = Object.values(object3.properties);
+  const methods = Object.values(object3.methods);
+  const keys2 = properties.find((p2) => p2.isCollectionKeys) ?? properties.find((p2) => p2.isExposed && toLowerCamel(p2.alias ?? p2.name) === "keys");
+  const get2 = methods.find((m3) => m3.isCollectionGet) ?? methods.find((m3) => toLowerCamel(m3.alias ?? m3.name) === "get");
+  if (!keys2 || !get2) {
+    throw new Error(`collection "${object3.name}" requires a stored keys field and a get method`);
+  }
+  const lookup = introspectMethod(get2, moduleName, local);
+  if (lookup.args.length !== 1) {
+    throw new Error(`collection "${object3.name}" get method requires one argument`);
+  }
+  lookup.name = "get";
+  lookup.args[0].name = "key";
+  const name = introspectTypeName(object3.name, moduleName);
+  const keyList = introspectProperty(keys2, moduleName, local);
+  keyList.name = "keys";
+  const objectRef = (name2) => ({
+    kind: TypeKind.NonNull,
+    ofType: { kind: TypeKind.Object, name: name2 }
+  });
+  const collection2 = {
+    kind: TypeKind.Object,
+    name,
+    description: trim(object3.description),
+    interfaces: [],
+    fields: [
+      keyList,
+      {
+        name: "list",
+        description: "",
+        args: [],
+        type: {
+          kind: TypeKind.NonNull,
+          ofType: { kind: TypeKind.List, ofType: lookup.type }
+        }
+      },
+      lookup,
+      {
+        name: "subset",
+        description: "",
+        type: objectRef(name),
+        args: [{ name: "keys", description: "", type: keyList.type }]
+      },
+      nodeIDField(name)
+    ]
+  };
+  const batchMethods = methods.filter((method) => method !== get2);
+  if (batchMethods.length === 0) {
+    return [collection2];
+  }
+  const batchName = name + "_Batch";
+  collection2.fields.push({
+    name: "batch",
+    description: "",
+    args: [],
+    type: objectRef(batchName)
+  });
+  return [
+    collection2,
+    {
+      kind: TypeKind.Object,
+      name: batchName,
+      interfaces: [],
+      fields: [
+        ...batchMethods.map((method) => introspectMethod(method, moduleName, local)),
+        nodeIDField(batchName)
+      ]
+    }
+  ];
 }
 function introspectInterface(iface, moduleName, local) {
   const name = introspectTypeName(iface.name, moduleName);
@@ -109936,6 +110304,7 @@ function serializeObject(obj) {
   return {
     name: obj.name,
     kind: obj.kind(),
+    isCollection: obj.isCollection === true,
     isExported: isExported !== false,
     isDefaultExport: isDefaultExport === true,
     description: obj.description,
@@ -109961,6 +110330,7 @@ function serializeFunction(fn) {
     isGenerator: f4.isGenerator === true,
     isUp: f4.isUp === true,
     isAgent: f4.isAgent === true,
+    isCollectionGet: f4.isCollectionGet === true,
     location: f4.getLocation(),
     returnType: f4.returnType ? serializeType(f4.returnType) : undefined,
     arguments: Object.values(f4.arguments).map(serializeArgument)
@@ -109989,6 +110359,8 @@ function serializeProperty(prop) {
     description: prop.description,
     deprecated: prop.deprecated,
     isExposed: prop.isExposed === true,
+    isCollectionKeys: prop.isCollectionKeys === true,
+    isCollectionDelta: prop.isCollectionDelta === true,
     type: prop.type ? serializeType(prop.type) : undefined,
     location: prop.getLocation()
   };
@@ -110057,8 +110429,14 @@ class Register {
         deprecated: object3.deprecated
       };
       let typeDef = dag.typeDef().withObject(object3.name, objectOpts);
+      if (object3.isCollection) {
+        typeDef = typeDef.withCollection();
+      }
       Object.values(object3.methods).forEach((method) => {
         typeDef = typeDef.withFunction(this.addFunction(method));
+        if (method.isCollectionGet) {
+          typeDef = typeDef.withCollectionGet(method.alias ?? method.name);
+        }
       });
       Object.values(object3.properties).forEach((field2) => {
         if (field2.isExposed) {
@@ -110068,6 +110446,12 @@ class Register {
             deprecated: field2.deprecated
           };
           typeDef = typeDef.withField(field2.alias ?? field2.name, addTypeDef(field2.type), fieldOpts);
+          if (field2.isCollectionKeys) {
+            typeDef = typeDef.withCollectionKeys(field2.alias ?? field2.name);
+          }
+          if (field2.isCollectionDelta) {
+            typeDef = typeDef.withCollectionDelta(field2.alias ?? field2.name);
+          }
         }
       });
       if (object3._constructor) {
