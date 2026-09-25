@@ -6,5 +6,5 @@ engineVersion = "v1.0.0-0"
 
 [[dependencies]]
   name = "engine-dev"
-  source = "github.com/dagger/dagger/.dagger/modules/engine-dev@main"
-  pin = "06660c3cde2d9da65d8b009531efd04cfc5578ed"
+  source = "github.com/dagger/dagger/.dagger/modules/engine-dev@collections"
+  pin = "c30748a2f1382a2cddac6ae4300a4ef1ff42377c"
