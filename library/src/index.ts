@@ -4,18 +4,21 @@ export { GraphQLClient } from "graphql-request"
 export * from "./telemetry/index.js"
 
 // Default client bindings
-export * from "./api/client.gen.js"
+export * from "./core/client.gen.js"
 
 // Common errors
-export * from "./common/errors/index.js"
+export * from "./session/errors/index.js"
 
-// Connection for library
-export type { CallbackFct } from "./connect.js"
-export { connect, connection } from "./connect.js"
-export type { ConnectOpts } from "./connectOpts.js"
+// Connection for library. `connection` establishes a session and knows nothing
+// of the bindings; `connect` hands the callback a typed `Client` and so lives
+// with them, the same split as the Go SDK's dagger.Connect vs core.NewQuery.
+export { connection } from "./session/connect.js"
+export type { CallbackFct } from "./core/connect.js"
+export { connect } from "./core/connect.js"
+export type { ConnectOpts } from "./session/connectOpts.js"
 
 // Export dagger connection context
-export { Context, BaseClient } from "./common/context.js"
+export { Context, BaseClient } from "./session/context.js"
 
 // Module library
 export * from "./module/decorators.js"

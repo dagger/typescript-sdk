@@ -3,7 +3,7 @@
  *
  * Warning: Do not reproduce in production.
  */
-import { dag, Container } from "../../../../../api/client.gen.js"
+import { dag, Container } from "../../../../../core/client.gen.js"
 import { func, object } from "../../../../decorators.js"
 
 /**

@@ -1,14 +1,14 @@
 import * as opentelemetry from "@opentelemetry/api"
-import { GraphQLClient } from "graphql-request"
 
-import { Client } from "./api/client.gen.js"
-import { Context } from "./common/context.js"
-import { withGQLClient } from "./common/graphql/connect.js"
-import { Connection, globalConnection } from "./common/graphql/connection.js"
 import { ConnectOpts } from "./connectOpts.js"
-import * as telemetry from "./telemetry/telemetry.js"
-
-export type CallbackFct = (client: Client) => Promise<void>
+import { withGQLClient } from "./graphql/connect.js"
+import { globalConnection } from "./graphql/connection.js"
+// Session reaching up into telemetry. Tolerated for now because moving it is a
+// behaviour change, not a move: `connection` owns the tracer's lifetime, and
+// nothing else is positioned to start and stop it around the session. It has to
+// go before telemetry can ship as its own package, or every consumer of a
+// session drags the OpenTelemetry SDK in with it — see design/package-split.md.
+import * as telemetry from "../telemetry/telemetry.js"
 
 /**
  * connection executes the given function using the default global Dagger client.
@@ -50,29 +50,4 @@ export async function connection(
   } finally {
     await telemetry.close()
   }
-}
-
-/**
- * connect runs GraphQL server and initializes a
- * GraphQL client to execute query on it through its callback.
- * This implementation is based on the existing Go SDK.
- */
-export async function connect(
-  cb: CallbackFct,
-  config: ConnectOpts = {},
-): Promise<void> {
-  await withGQLClient(config, async (gqlClient: GraphQLClient) => {
-    const connection = new Connection(gqlClient)
-    const ctx = new Context([], connection)
-    const client = new Client(ctx)
-
-    // Warning shall be throw if versions are not compatible
-    try {
-      await client.version()
-    } catch (e) {
-      console.error("failed to check version compatibility:", e)
-    }
-
-    return await cb(client)
-  })
 }

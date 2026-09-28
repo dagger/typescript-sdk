@@ -11,12 +11,13 @@ dual-package hazard is measured rather than assumed, on npm, bun and deno — se
 proposed package graph against a local verdaccio; the method is described where the
 results are, so it can be rebuilt.
 
-Nothing is implemented yet. Sequencing is at the end; step 1 has no external blast
-radius and can land while the rest is still being argued about.
+**Step 1 has landed** — `library/src` is laid out in layers and the dead subgraph
+is gone. Nothing published has changed. Sequencing is at the end.
 
 ## What is actually tangled
 
-Measured from `library/src`, not guessed. The arrows are the real import edges:
+Measured from `library/src` before the split, not guessed. The paths below are the
+pre-split ones; the arrows are what made the layering obvious:
 
 ```
 telemetry/        → otel only, zero dagger imports              standalone today
@@ -514,12 +515,12 @@ unmet. Today's generated `clients/*` → `file:../dagger` is unaffected because 
 local core package has no dependencies of its own. After the split it would — so
 the move from `file:` to registry ranges is not optional, it is load-bearing.
 
-## Dead code found on the way
+## Dead code found on the way — since deleted
 
-Reachability computed from both real bundle entry points — `src/index.ts` →
-`core.js`, and `src/module/entrypoint/introspection_entrypoint.ts` →
-`introspector.js`. A closed subgraph rooted at the dynamic dispatcher that
-`src/index.ts` stopped exporting is unreachable from both:
+Reachability was computed from both real bundle entry points — `src/index.ts` →
+`core.js`, and the introspector's entry → `introspector.js`. A closed subgraph
+rooted at the dynamic dispatcher that `src/index.ts` stopped exporting was
+unreachable from both, and step 1 removed it:
 
 | File | Lines | Reached by |
 |---|---|---|
@@ -529,20 +530,47 @@ Reachability computed from both real bundle entry points — `src/index.ts` →
 | `module/executor.ts` | 255 | only those three |
 | `module/entrypoint/load.ts` | 373 → ~29 | **344 lines dead** |
 
-`load.ts` exports eight functions and only `load()` is live —
-`introspector/index.ts:4` imports it for `scan()`. The other seven are imported
-only by `invoke.ts`. One 9-line function keeps 344 lines *and* `executor.ts` in the
-introspector bundle.
+`load.ts` exported eight functions and only `load()` was live —
+`introspector/index.ts` imports it for `scan()`. The other seven were imported
+only by `invoke.ts`. One 3-line function was keeping 344 lines *and*
+`executor.ts` in the introspector bundle; it now lives beside its caller as
+`introspector/load.ts`.
 
 Two caveats:
 
 - **`provisioning/` looks orphaned and is not.** It is reached through a dynamic
-  `await import("../../provisioning/index.js")` at `common/graphql/connect.ts:28`.
+  `await import(...)` in `session/graphql/connect.ts`, which a static scan misses.
 - **These files are live upstream.** `sdk/typescript/src/index.ts:22` still does
   `export { entrypoint }` — the dispatcher the embedded runtime uses for pre-v1
   modules. Deleting them here widens the vendor delta `VENDOR.md` tracks, and since
   the embedded runtime stays frozen, that delta does not resolve on a re-vendor. It
   goes away when pre-v1 compat does.
+
+## What step 1 turned up
+
+Two things the layering only became visible once enforced:
+
+**`connect` was in the wrong layer.** It constructs a `Client`, so it cannot sit
+below the bindings. Split: `connection` stays in `session` and only establishes a
+session; `connect` moved to `core/connect.ts`. This is the same seam the Go SDK
+has between `dagger.Connect` and `core.NewQuery`, arrived at independently, which
+is mild evidence the layering is the natural one.
+
+**`session` reaches up into `telemetry`, and that has a cost.** `connection` owns
+the tracer's lifetime — it calls `initialize`, wraps the session in the otel
+context, and `close`s on the way out. Nothing else is positioned to do it.
+
+That edge contradicts a claim made above: if `@dagger.io/session` depends on
+`@dagger.io/telemetry`, then every generated client pulls the OpenTelemetry SDK
+after all, and "a generated client's closure drops the otel SDK" is false. It is
+left in place for now because moving it is a behaviour change rather than a move,
+and step 1 was meant to be neither. `layeringCheck` names the exception rather
+than asserting a rule the tree breaks.
+
+It has to be resolved before step 3 publishes `telemetry` separately. The likely
+shape is inverting the dependency — `connection` takes an optional lifecycle hook
+and the facade wires telemetry into it — so a module keeps tracing and a bare
+client does not pay for it.
 
 ~820 lines that should not be carried into `@dagger.io/module`.
 
@@ -565,12 +593,12 @@ and the pre-v1 tree gets moved for nothing.
 
 *In this repo:*
 
-1. **Cut the seams in place.** Reorganize `library/src` into
-   `session/ core/ module/ telemetry/` as npm workspaces, import direction
-   enforced by a packager `@check` in the style of `moduleBundleCheck` — the repo
-   has no lint config and this is the cheaper mechanism. Drop the dead subgraph.
-   Add the `globalThis` singletons and the duplicate-tree test. One bundle still
-   comes out. *No external blast radius.*
+1. ~~**Cut the seams in place.**~~ **Done.** `library/src` is now
+   `session/ core/ module/ telemetry/`, the dead subgraph is gone, the singletons
+   are `globalThis`-keyed with a duplicate-copy test, and `packager:layering-check`
+   holds the direction. Not yet npm workspaces — the layering is what later steps
+   need, and splitting `package.json` can wait until there is something to publish.
+   One bundle still comes out; nothing published changed.
 2. **Stand up the verdaccio harness** in `.dagger/modules/e2e`. Needed by local
    dev, by the duplicate-tree test, and by the release rehearsal — and it is the
    only way to test step 4 before doing it for real.

@@ -1,7 +1,7 @@
 import Module from "node:module"
 
-import { IntrospectionError } from "../../common/errors/index.js"
-import { load } from "../entrypoint/load.js"
+import { IntrospectionError } from "../../session/errors/index.js"
+import { load } from "./load.js"
 import { convertToPascalCase } from "./case_convertor.js"
 import { DaggerModule } from "./dagger_module/index.js"
 import { AST } from "./typescript_module/index.js"

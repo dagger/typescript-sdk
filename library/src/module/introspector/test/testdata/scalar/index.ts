@@ -1,4 +1,4 @@
-import type { Platform } from "../../../../../api/client.gen.js"
+import type { Platform } from "../../../../../core/client.gen.js"
 import { func, object } from "../../../../decorators.js"
 
 @object()
