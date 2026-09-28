@@ -1,7 +1,7 @@
 import * as fs from "fs"
 import * as path from "path"
 
-import { connection } from "../../session/connect.js"
+import { connection } from "../../connection.js"
 import { scan } from "./index.js"
 import { serializeIntrospection } from "./introspection_json.js"
 import { Register } from "./register.js"
