@@ -19095,644 +19095,6 @@ var init_main = __esm(() => {
   init_analyzeDocument();
 });
 
-// node_modules/node-color-log/index.js
-var require_node_color_log = __commonJS((exports, module) => {
-  var CONFIG = {
-    SYSTEM: {
-      reset: "\x1B[0m",
-      bold: "\x1B[1m",
-      dim: "\x1B[2m",
-      italic: "\x1B[3m",
-      underscore: "\x1B[4m",
-      reverse: "\x1B[7m",
-      strikethrough: "\x1B[9m",
-      backoneline: "\x1B[1A",
-      cleanthisline: "\x1B[K"
-    },
-    FONT: {
-      black: "\x1B[30m",
-      red: "\x1B[31m",
-      green: "\x1B[32m",
-      yellow: "\x1B[33m",
-      blue: "\x1B[34m",
-      magenta: "\x1B[35m",
-      cyan: "\x1B[36m",
-      white: "\x1B[37m"
-    },
-    BACKGROUND: {
-      black: "\x1B[40m",
-      red: "\x1B[41m",
-      green: "\x1B[42m",
-      yellow: "\x1B[43m",
-      blue: "\x1B[44m",
-      magenta: "\x1B[45m",
-      cyan: "\x1B[46m",
-      white: "\x1B[47m"
-    }
-  };
-  var LEVELS = ["success", "debug", "info", "warn", "error", "disable"];
-
-  class Logger {
-    constructor(name) {
-      this.command = "";
-      this.lastCommand = "";
-      this.name = name || "";
-      const level = typeof process !== "undefined" ? process.env.LOGGER : undefined;
-      if (this.isLevelValid(level)) {
-        this.level = level;
-      }
-      this.noColor = false;
-      this._getDate = () => new Date().toISOString();
-      this._customizedConsole = console;
-      this._enableFileAndLine = {
-        enable: false,
-        isShortFile: false
-      };
-    }
-    createNamedLogger(name) {
-      return new Logger(name);
-    }
-    setLevel(level) {
-      if (this.isLevelValid(level)) {
-        this.level = level;
-      } else {
-        throw new Error("Level you are trying to set is invalid");
-      }
-    }
-    setLogStream(newStream) {
-      if (newStream && newStream.writable) {
-        this._customizedConsole = new console.Console(newStream);
-      } else {
-        throw new Error("invalid writable stream object");
-      }
-      return this;
-    }
-    setLevelNoColor() {
-      this.noColor = true;
-    }
-    setLevelColor() {
-      this.noColor = false;
-    }
-    isLevelValid(level) {
-      return LEVELS.includes(level);
-    }
-    isAllowedLevel(level) {
-      return this.level ? LEVELS.indexOf(this.level) <= LEVELS.indexOf(level) : true;
-    }
-    enableFileAndLine(enable, isShortFile = false) {
-      if (typeof enable === "boolean") {
-        this._enableFileAndLine.enable = enable;
-        this._enableFileAndLine.isShortFile = isShortFile;
-      } else {
-        console.error("node-color-log warning: enableFileAndLine should be a boolean value.");
-      }
-    }
-    log(...args) {
-      this.append(...args);
-      if (!this.noColor) {
-        this.command += CONFIG.SYSTEM.reset;
-      }
-      this._print(this.command);
-      this.lastCommand = this.command;
-      this.command = "";
-      return this;
-    }
-    joint() {
-      console.error("node-color-log warning: `joint` is deprecated, please use `append`");
-      this._print(CONFIG.SYSTEM.backoneline + CONFIG.SYSTEM.cleanthisline);
-      this.command = "";
-      this.lastCommand = this.lastCommand.replace(CONFIG.SYSTEM.backoneline, "");
-      this.command += CONFIG.SYSTEM.backoneline;
-      this.command += this.lastCommand;
-      return this;
-    }
-    setDate(callback) {
-      this._getDate = callback;
-    }
-    getPrefix() {
-      let prefix = `${this._getDate()}`;
-      if (this.name) {
-        prefix += ` [${this.name}]`;
-      }
-      if (this._enableFileAndLine.enable) {
-        const fileAndLine = getFileAndLine(this._enableFileAndLine.isShortFile);
-        if (fileAndLine) {
-          prefix += `[${fileAndLine}]`;
-        }
-      }
-      return prefix;
-    }
-    color(ticket) {
-      if (ticket in CONFIG.FONT) {
-        this.command += CONFIG.FONT[ticket];
-      } else {
-        console.error("node-color-log warning: Font color not found! Use the default.");
-      }
-      return this;
-    }
-    bgColor(ticket) {
-      if (ticket in CONFIG.BACKGROUND) {
-        this.command += CONFIG.BACKGROUND[ticket];
-      } else {
-        console.error("node-color-log warning: Background color not found! Use the default.");
-      }
-      return this;
-    }
-    bold() {
-      this.command += CONFIG.SYSTEM.bold;
-      return this;
-    }
-    dim() {
-      this.command += CONFIG.SYSTEM.dim;
-      return this;
-    }
-    underscore() {
-      this.command += CONFIG.SYSTEM.underscore;
-      return this;
-    }
-    strikethrough() {
-      this.command += CONFIG.SYSTEM.strikethrough;
-      return this;
-    }
-    reverse() {
-      this.command += CONFIG.SYSTEM.reverse;
-      return this;
-    }
-    italic() {
-      this.command += CONFIG.SYSTEM.italic;
-      return this;
-    }
-    fontColorLog(ticket, text, setting) {
-      let command = "";
-      if (setting) {
-        command += this.checkSetting(setting);
-      }
-      if (ticket in CONFIG.FONT) {
-        command += CONFIG.FONT[ticket];
-      } else {
-        console.error("node-color-log warning: Font color not found! Use the default.");
-      }
-      command += text;
-      command += CONFIG.SYSTEM.reset;
-      this.lastCommand = command;
-      this._print(command);
-    }
-    bgColorLog(ticket, text, setting) {
-      let command = "";
-      if (setting) {
-        command += this.checkSetting(setting);
-      }
-      if (ticket in CONFIG.BACKGROUND) {
-        command += CONFIG.BACKGROUND[ticket];
-      } else {
-        console.error("node-color-log warning: Background color not found! Use the default.");
-      }
-      command += text;
-      command += CONFIG.SYSTEM.reset;
-      this.lastCommand = command;
-      this._print(command);
-    }
-    colorLog(ticketObj, text, setting) {
-      let command = "";
-      if (setting) {
-        command += this.checkSetting(setting);
-      }
-      if (ticketObj.font !== undefined) {
-        if (ticketObj.font in CONFIG.FONT) {
-          command += CONFIG.FONT[ticketObj.font];
-        } else {
-          console.error("node-color-log warning: Font color not found! Use the default.");
-        }
-      }
-      if (ticketObj.bg !== undefined) {
-        if (ticketObj.bg in CONFIG.BACKGROUND) {
-          command += CONFIG.BACKGROUND[ticketObj.bg];
-        } else {
-          console.error("node-color-log warning: Background color not found! Use the default.");
-        }
-      }
-      command += text;
-      command += CONFIG.SYSTEM.reset;
-      this.lastCommand = command;
-      this._print(command);
-    }
-    error(...args) {
-      if (!this.isAllowedLevel("error"))
-        return;
-      if (this.noColor) {
-        const d = this.getPrefix();
-        this.log(d, " [ERROR] ", ...args);
-      } else {
-        const d = this.getPrefix();
-        this.append(d + " ").bgColor("red").append("[ERROR]").reset().append(" ").color("red").log(...args);
-      }
-    }
-    warn(...args) {
-      if (!this.isAllowedLevel("warn"))
-        return;
-      if (this.noColor) {
-        const d = this.getPrefix();
-        this.log(d, " [WARN] ", ...args);
-      } else {
-        const d = this.getPrefix();
-        this.append(d + " ").bgColor("yellow").color("black").append("[WARN]").reset().append(" ").color("yellow").log(...args);
-      }
-    }
-    info(...args) {
-      if (!this.isAllowedLevel("info"))
-        return;
-      if (this.noColor) {
-        const d = this.getPrefix();
-        this.log(d, " [INFO] ", ...args);
-      } else {
-        const d = this.getPrefix();
-        this.append(d + " ").bgColor("green").color("black").append("[INFO]").reset().append(" ").color("green").log(...args);
-      }
-    }
-    debug(...args) {
-      if (!this.isAllowedLevel("debug"))
-        return;
-      if (this.noColor) {
-        const d = this.getPrefix();
-        this.log(d, " [DEBUG] ", ...args);
-      } else {
-        const d = this.getPrefix();
-        this.append(d + " ").bgColor("cyan").color("black").append("[DEBUG]").reset().append(" ").color("cyan").log(...args);
-      }
-    }
-    success(...args) {
-      if (!this.isAllowedLevel("success"))
-        return;
-      if (this.noColor) {
-        const d = this.getPrefix();
-        this.log(d, " [SUCCESS] ", ...args);
-      } else {
-        const d = this.getPrefix();
-        this.append(d + " ").bgColor("green").color("black").append("[SUCCESS]").reset().append(" ").color("green").log(...args);
-      }
-    }
-    checkSetting(setting) {
-      const validSetting = ["bold", "italic", "dim", "underscore", "reverse", "strikethrough"];
-      let command = "";
-      for (const item in setting) {
-        if (validSetting.indexOf(item) !== -1) {
-          if (setting[item] === true) {
-            command += CONFIG.SYSTEM[item];
-          } else if (setting[item] !== false) {
-            console.error(`node-color-log warning: The value ${item} should be boolean.`);
-          }
-        } else {
-          console.error(`node-color-log warning: ${item} is not valid in setting.`);
-        }
-      }
-      return command;
-    }
-    _print(...args) {
-      this._customizedConsole.error(...args);
-    }
-    append(...args) {
-      for (const idx in args) {
-        const arg = args[idx];
-        if (typeof arg === "string") {
-          this.command += arg;
-        } else {
-          try {
-            this.command += JSON.stringify(arg);
-          } catch {
-            this.command += arg;
-          }
-        }
-        if (args.length > 1 && idx < args.length - 1) {
-          this.command += " ";
-        }
-      }
-      return this;
-    }
-    reset() {
-      this.command += CONFIG.SYSTEM.reset;
-      return this;
-    }
-  }
-  function parseStackFrame(line, isShortFile = false) {
-    if (typeof line !== "string" || line.length === 0) {
-      return "";
-    }
-    let start = line.lastIndexOf("(");
-    let end = line.lastIndexOf(")");
-    let fileAndLine;
-    if (start !== -1 && end !== -1 && start < end) {
-      fileAndLine = line.substring(start + 1, end);
-    } else {
-      const atPrefix = line.indexOf("at ");
-      fileAndLine = atPrefix !== -1 ? line.substring(atPrefix + 3).trim() : line.trim();
-    }
-    const lastColon = fileAndLine.lastIndexOf(":");
-    if (lastColon === -1) {
-      return "";
-    }
-    const secondLastColon = fileAndLine.lastIndexOf(":", lastColon - 1);
-    const isDigits = (s) => s.length > 0 && /^\d+$/.test(s);
-    const lastSeg = fileAndLine.substring(lastColon + 1);
-    const midSeg = secondLastColon === -1 ? "" : fileAndLine.substring(secondLastColon + 1, lastColon);
-    let fileName;
-    let lineNumber;
-    if (secondLastColon !== -1 && isDigits(midSeg) && isDigits(lastSeg)) {
-      fileName = fileAndLine.substring(0, secondLastColon);
-      lineNumber = midSeg;
-    } else if (isDigits(lastSeg)) {
-      fileName = fileAndLine.substring(0, lastColon);
-      lineNumber = lastSeg;
-    } else {
-      return "";
-    }
-    if (isShortFile) {
-      const segments = fileName.split(/[\\/]/);
-      fileName = segments[segments.length - 1];
-    }
-    return `${fileName}:${lineNumber}`;
-  }
-  function getFileAndLine(isShortFile = false) {
-    const e = new Error;
-    const lines = e.stack.split(`
-`);
-    let line = "";
-    for (let i = lines.length - 1;i >= 0; i--) {
-      const currentLine = lines[i];
-      if (currentLine.includes("Logger.") || currentLine.includes("node-color-log/index.js")) {
-        if (i + 1 >= lines.length) {
-          return "";
-        }
-        line = lines[i + 1].trim();
-        break;
-      }
-    }
-    return parseStackFrame(line, isShortFile);
-  }
-  var logger = new Logger;
-  logger._internal = { parseStackFrame };
-  module.exports = logger;
-});
-
-// src/common/utils.ts
-function isDeno() {
-  return typeof globalThis.Deno !== "undefined";
-}
-function isBun() {
-  return typeof globalThis.Bun !== "undefined";
-}
-var import_node_color_log, log = (stack) => import_node_color_log.default.bgColor("red").color("black").log(stack);
-var init_utils = __esm(() => {
-  import_node_color_log = __toESM(require_node_color_log(), 1);
-});
-
-// src/common/errors/DaggerSDKError.ts
-var DaggerSDKError;
-var init_DaggerSDKError = __esm(() => {
-  init_utils();
-  DaggerSDKError = class DaggerSDKError extends Error {
-    cause;
-    constructor(message, options) {
-      super(message);
-      this.cause = options?.cause;
-    }
-    get [Symbol.toStringTag]() {
-      return this.name;
-    }
-    printStackTrace() {
-      log(this.stack);
-    }
-  };
-});
-
-// src/common/errors/errors-codes.ts
-var ERROR_CODES, ERROR_NAMES;
-var init_errors_codes = __esm(() => {
-  ERROR_CODES = {
-    GraphQLRequestError: "D100",
-    UnknownDaggerError: "D101",
-    TooManyNestedObjectsError: "D102",
-    EngineSessionConnectParamsParseError: "D103",
-    EngineSessionConnectionTimeoutError: "D104",
-    EngineSessionError: "D105",
-    InitEngineSessionBinaryError: "D106",
-    DockerImageRefValidationError: "D107",
-    NotAwaitedRequestError: "D108",
-    ExecError: "D109",
-    IntrospectionError: "D110"
-  };
-  ERROR_NAMES = Object.keys(ERROR_CODES).reduce((obj, item) => ({ ...obj, [item]: item }), {});
-});
-
-// src/common/errors/UnknownDaggerError.ts
-var UnknownDaggerError;
-var init_UnknownDaggerError = __esm(() => {
-  init_DaggerSDKError();
-  init_errors_codes();
-  UnknownDaggerError = class UnknownDaggerError extends DaggerSDKError {
-    name = ERROR_NAMES.UnknownDaggerError;
-    code = ERROR_CODES.UnknownDaggerError;
-    constructor(message, options) {
-      super(message, options);
-    }
-  };
-});
-
-// src/common/errors/DockerImageRefValidationError.ts
-var DockerImageRefValidationError;
-var init_DockerImageRefValidationError = __esm(() => {
-  init_DaggerSDKError();
-  init_errors_codes();
-  DockerImageRefValidationError = class DockerImageRefValidationError extends DaggerSDKError {
-    name = ERROR_NAMES.DockerImageRefValidationError;
-    code = ERROR_CODES.DockerImageRefValidationError;
-    ref;
-    constructor(message, options) {
-      super(message, options);
-      this.ref = options?.ref;
-    }
-  };
-});
-
-// src/common/errors/EngineSessionConnectParamsParseError.ts
-var EngineSessionConnectParamsParseError;
-var init_EngineSessionConnectParamsParseError = __esm(() => {
-  init_DaggerSDKError();
-  init_errors_codes();
-  EngineSessionConnectParamsParseError = class EngineSessionConnectParamsParseError extends DaggerSDKError {
-    name = ERROR_NAMES.EngineSessionConnectParamsParseError;
-    code = ERROR_CODES.EngineSessionConnectParamsParseError;
-    parsedLine;
-    constructor(message, options) {
-      super(message, options);
-      this.parsedLine = options.parsedLine;
-    }
-  };
-});
-
-// src/common/errors/ExecError.ts
-var ExecError;
-var init_ExecError = __esm(() => {
-  init_DaggerSDKError();
-  init_errors_codes();
-  ExecError = class ExecError extends DaggerSDKError {
-    name = ERROR_NAMES.ExecError;
-    code = ERROR_CODES.ExecError;
-    cmd;
-    exitCode;
-    stdout;
-    stderr;
-    extensions;
-    constructor(message, options) {
-      super(message, options);
-      this.cmd = options.cmd;
-      this.exitCode = options.exitCode;
-      this.stdout = options.stdout;
-      this.stderr = options.stderr;
-      this.extensions = options.extensions;
-    }
-  };
-});
-
-// src/common/errors/GraphQLRequestError.ts
-var GraphQLRequestError;
-var init_GraphQLRequestError = __esm(() => {
-  init_DaggerSDKError();
-  init_errors_codes();
-  GraphQLRequestError = class GraphQLRequestError extends DaggerSDKError {
-    name = ERROR_NAMES.GraphQLRequestError;
-    code = ERROR_CODES.GraphQLRequestError;
-    requestContext;
-    response;
-    extensions;
-    constructor(message, options) {
-      super(message, options);
-      this.requestContext = options.error.request;
-      this.response = options.error.response;
-      this.extensions = options.error.response.errors?.[0]?.extensions;
-    }
-  };
-});
-
-// src/common/errors/InitEngineSessionBinaryError.ts
-var InitEngineSessionBinaryError;
-var init_InitEngineSessionBinaryError = __esm(() => {
-  init_DaggerSDKError();
-  init_errors_codes();
-  InitEngineSessionBinaryError = class InitEngineSessionBinaryError extends DaggerSDKError {
-    name = ERROR_NAMES.InitEngineSessionBinaryError;
-    code = ERROR_CODES.InitEngineSessionBinaryError;
-    constructor(message, options) {
-      super(message, options);
-    }
-  };
-});
-
-// src/common/errors/TooManyNestedObjectsError.ts
-var TooManyNestedObjectsError;
-var init_TooManyNestedObjectsError = __esm(() => {
-  init_DaggerSDKError();
-  init_errors_codes();
-  TooManyNestedObjectsError = class TooManyNestedObjectsError extends DaggerSDKError {
-    name = ERROR_NAMES.TooManyNestedObjectsError;
-    code = ERROR_CODES.TooManyNestedObjectsError;
-    response;
-    constructor(message, options) {
-      super(message, options);
-      this.response = options.response;
-    }
-  };
-});
-
-// src/common/errors/EngineSessionErrorOptions.ts
-var EngineSessionError;
-var init_EngineSessionErrorOptions = __esm(() => {
-  init_DaggerSDKError();
-  init_errors_codes();
-  EngineSessionError = class EngineSessionError extends DaggerSDKError {
-    name = ERROR_NAMES.EngineSessionError;
-    code = ERROR_CODES.EngineSessionError;
-    constructor(message, options) {
-      super(message, options);
-    }
-  };
-});
-
-// src/common/errors/EngineSessionConnectionTimeoutError.ts
-var EngineSessionConnectionTimeoutError;
-var init_EngineSessionConnectionTimeoutError = __esm(() => {
-  init_DaggerSDKError();
-  init_errors_codes();
-  EngineSessionConnectionTimeoutError = class EngineSessionConnectionTimeoutError extends DaggerSDKError {
-    name = ERROR_NAMES.EngineSessionConnectionTimeoutError;
-    code = ERROR_CODES.EngineSessionConnectionTimeoutError;
-    timeOutDuration;
-    constructor(message, options) {
-      super(message, options);
-      this.timeOutDuration = options.timeOutDuration;
-    }
-  };
-});
-
-// src/common/errors/NotAwaitedRequestError.ts
-var NotAwaitedRequestError;
-var init_NotAwaitedRequestError = __esm(() => {
-  init_DaggerSDKError();
-  init_errors_codes();
-  NotAwaitedRequestError = class NotAwaitedRequestError extends DaggerSDKError {
-    name = ERROR_NAMES.NotAwaitedRequestError;
-    code = ERROR_CODES.NotAwaitedRequestError;
-    constructor(message, options) {
-      super(message, options);
-    }
-  };
-});
-
-// src/common/errors/FunctionNotFound.ts
-var FunctionNotFound;
-var init_FunctionNotFound = __esm(() => {
-  init_DaggerSDKError();
-  init_errors_codes();
-  FunctionNotFound = class FunctionNotFound extends DaggerSDKError {
-    name = ERROR_NAMES.ExecError;
-    code = ERROR_CODES.ExecError;
-    constructor(message, options) {
-      super(message, options);
-    }
-  };
-});
-
-// src/common/errors/IntrospectionError.ts
-var IntrospectionError;
-var init_IntrospectionError = __esm(() => {
-  init_DaggerSDKError();
-  init_errors_codes();
-  IntrospectionError = class IntrospectionError extends DaggerSDKError {
-    name = ERROR_NAMES.IntrospectionError;
-    code = ERROR_CODES.IntrospectionError;
-    constructor(message, options) {
-      super(message, options);
-    }
-  };
-});
-
-// src/common/errors/index.ts
-var init_errors = __esm(() => {
-  init_DaggerSDKError();
-  init_UnknownDaggerError();
-  init_DockerImageRefValidationError();
-  init_EngineSessionConnectParamsParseError();
-  init_ExecError();
-  init_GraphQLRequestError();
-  init_InitEngineSessionBinaryError();
-  init_TooManyNestedObjectsError();
-  init_EngineSessionErrorOptions();
-  init_EngineSessionConnectionTimeoutError();
-  init_NotAwaitedRequestError();
-  init_FunctionNotFound();
-  init_IntrospectionError();
-  init_errors_codes();
-});
-
 // node_modules/data-uri-to-buffer/dist/index.js
 function dataUriToBuffer(uri) {
   if (!/^data:/i.test(uri)) {
@@ -24038,10 +23400,10 @@ var init_fetch_blob = __esm(() => {
 });
 
 // node_modules/fetch-blob/file.js
-var _File, File3, file_default;
+var _File, File2, file_default;
 var init_file = __esm(() => {
   init_fetch_blob();
-  _File = class File2 extends fetch_blob_default {
+  _File = class File extends fetch_blob_default {
     #lastModified = 0;
     #name = "";
     constructor(fileBits, fileName, options = {}) {
@@ -24070,8 +23432,8 @@ var init_file = __esm(() => {
       return !!object && object instanceof fetch_blob_default && /^(File)$/.test(object[Symbol.toStringTag]);
     }
   };
-  File3 = _File;
-  file_default = File3;
+  File2 = _File;
+  file_default = File2;
 });
 
 // node_modules/formdata-polyfill/esm.min.js
@@ -25750,7 +25112,397 @@ var init_src = __esm(() => {
   supportedSchemas = new Set(["data:", "http:", "https:"]);
 });
 
-// src/common/graphql/client.ts
+// node_modules/node-color-log/index.js
+var require_node_color_log = __commonJS((exports, module) => {
+  var CONFIG = {
+    SYSTEM: {
+      reset: "\x1B[0m",
+      bold: "\x1B[1m",
+      dim: "\x1B[2m",
+      italic: "\x1B[3m",
+      underscore: "\x1B[4m",
+      reverse: "\x1B[7m",
+      strikethrough: "\x1B[9m",
+      backoneline: "\x1B[1A",
+      cleanthisline: "\x1B[K"
+    },
+    FONT: {
+      black: "\x1B[30m",
+      red: "\x1B[31m",
+      green: "\x1B[32m",
+      yellow: "\x1B[33m",
+      blue: "\x1B[34m",
+      magenta: "\x1B[35m",
+      cyan: "\x1B[36m",
+      white: "\x1B[37m"
+    },
+    BACKGROUND: {
+      black: "\x1B[40m",
+      red: "\x1B[41m",
+      green: "\x1B[42m",
+      yellow: "\x1B[43m",
+      blue: "\x1B[44m",
+      magenta: "\x1B[45m",
+      cyan: "\x1B[46m",
+      white: "\x1B[47m"
+    }
+  };
+  var LEVELS = ["success", "debug", "info", "warn", "error", "disable"];
+
+  class Logger {
+    constructor(name) {
+      this.command = "";
+      this.lastCommand = "";
+      this.name = name || "";
+      const level = typeof process !== "undefined" ? process.env.LOGGER : undefined;
+      if (this.isLevelValid(level)) {
+        this.level = level;
+      }
+      this.noColor = false;
+      this._getDate = () => new Date().toISOString();
+      this._customizedConsole = console;
+      this._enableFileAndLine = {
+        enable: false,
+        isShortFile: false
+      };
+    }
+    createNamedLogger(name) {
+      return new Logger(name);
+    }
+    setLevel(level) {
+      if (this.isLevelValid(level)) {
+        this.level = level;
+      } else {
+        throw new Error("Level you are trying to set is invalid");
+      }
+    }
+    setLogStream(newStream) {
+      if (newStream && newStream.writable) {
+        this._customizedConsole = new console.Console(newStream);
+      } else {
+        throw new Error("invalid writable stream object");
+      }
+      return this;
+    }
+    setLevelNoColor() {
+      this.noColor = true;
+    }
+    setLevelColor() {
+      this.noColor = false;
+    }
+    isLevelValid(level) {
+      return LEVELS.includes(level);
+    }
+    isAllowedLevel(level) {
+      return this.level ? LEVELS.indexOf(this.level) <= LEVELS.indexOf(level) : true;
+    }
+    enableFileAndLine(enable, isShortFile = false) {
+      if (typeof enable === "boolean") {
+        this._enableFileAndLine.enable = enable;
+        this._enableFileAndLine.isShortFile = isShortFile;
+      } else {
+        console.error("node-color-log warning: enableFileAndLine should be a boolean value.");
+      }
+    }
+    log(...args) {
+      this.append(...args);
+      if (!this.noColor) {
+        this.command += CONFIG.SYSTEM.reset;
+      }
+      this._print(this.command);
+      this.lastCommand = this.command;
+      this.command = "";
+      return this;
+    }
+    joint() {
+      console.error("node-color-log warning: `joint` is deprecated, please use `append`");
+      this._print(CONFIG.SYSTEM.backoneline + CONFIG.SYSTEM.cleanthisline);
+      this.command = "";
+      this.lastCommand = this.lastCommand.replace(CONFIG.SYSTEM.backoneline, "");
+      this.command += CONFIG.SYSTEM.backoneline;
+      this.command += this.lastCommand;
+      return this;
+    }
+    setDate(callback) {
+      this._getDate = callback;
+    }
+    getPrefix() {
+      let prefix = `${this._getDate()}`;
+      if (this.name) {
+        prefix += ` [${this.name}]`;
+      }
+      if (this._enableFileAndLine.enable) {
+        const fileAndLine = getFileAndLine(this._enableFileAndLine.isShortFile);
+        if (fileAndLine) {
+          prefix += `[${fileAndLine}]`;
+        }
+      }
+      return prefix;
+    }
+    color(ticket) {
+      if (ticket in CONFIG.FONT) {
+        this.command += CONFIG.FONT[ticket];
+      } else {
+        console.error("node-color-log warning: Font color not found! Use the default.");
+      }
+      return this;
+    }
+    bgColor(ticket) {
+      if (ticket in CONFIG.BACKGROUND) {
+        this.command += CONFIG.BACKGROUND[ticket];
+      } else {
+        console.error("node-color-log warning: Background color not found! Use the default.");
+      }
+      return this;
+    }
+    bold() {
+      this.command += CONFIG.SYSTEM.bold;
+      return this;
+    }
+    dim() {
+      this.command += CONFIG.SYSTEM.dim;
+      return this;
+    }
+    underscore() {
+      this.command += CONFIG.SYSTEM.underscore;
+      return this;
+    }
+    strikethrough() {
+      this.command += CONFIG.SYSTEM.strikethrough;
+      return this;
+    }
+    reverse() {
+      this.command += CONFIG.SYSTEM.reverse;
+      return this;
+    }
+    italic() {
+      this.command += CONFIG.SYSTEM.italic;
+      return this;
+    }
+    fontColorLog(ticket, text, setting) {
+      let command = "";
+      if (setting) {
+        command += this.checkSetting(setting);
+      }
+      if (ticket in CONFIG.FONT) {
+        command += CONFIG.FONT[ticket];
+      } else {
+        console.error("node-color-log warning: Font color not found! Use the default.");
+      }
+      command += text;
+      command += CONFIG.SYSTEM.reset;
+      this.lastCommand = command;
+      this._print(command);
+    }
+    bgColorLog(ticket, text, setting) {
+      let command = "";
+      if (setting) {
+        command += this.checkSetting(setting);
+      }
+      if (ticket in CONFIG.BACKGROUND) {
+        command += CONFIG.BACKGROUND[ticket];
+      } else {
+        console.error("node-color-log warning: Background color not found! Use the default.");
+      }
+      command += text;
+      command += CONFIG.SYSTEM.reset;
+      this.lastCommand = command;
+      this._print(command);
+    }
+    colorLog(ticketObj, text, setting) {
+      let command = "";
+      if (setting) {
+        command += this.checkSetting(setting);
+      }
+      if (ticketObj.font !== undefined) {
+        if (ticketObj.font in CONFIG.FONT) {
+          command += CONFIG.FONT[ticketObj.font];
+        } else {
+          console.error("node-color-log warning: Font color not found! Use the default.");
+        }
+      }
+      if (ticketObj.bg !== undefined) {
+        if (ticketObj.bg in CONFIG.BACKGROUND) {
+          command += CONFIG.BACKGROUND[ticketObj.bg];
+        } else {
+          console.error("node-color-log warning: Background color not found! Use the default.");
+        }
+      }
+      command += text;
+      command += CONFIG.SYSTEM.reset;
+      this.lastCommand = command;
+      this._print(command);
+    }
+    error(...args) {
+      if (!this.isAllowedLevel("error"))
+        return;
+      if (this.noColor) {
+        const d = this.getPrefix();
+        this.log(d, " [ERROR] ", ...args);
+      } else {
+        const d = this.getPrefix();
+        this.append(d + " ").bgColor("red").append("[ERROR]").reset().append(" ").color("red").log(...args);
+      }
+    }
+    warn(...args) {
+      if (!this.isAllowedLevel("warn"))
+        return;
+      if (this.noColor) {
+        const d = this.getPrefix();
+        this.log(d, " [WARN] ", ...args);
+      } else {
+        const d = this.getPrefix();
+        this.append(d + " ").bgColor("yellow").color("black").append("[WARN]").reset().append(" ").color("yellow").log(...args);
+      }
+    }
+    info(...args) {
+      if (!this.isAllowedLevel("info"))
+        return;
+      if (this.noColor) {
+        const d = this.getPrefix();
+        this.log(d, " [INFO] ", ...args);
+      } else {
+        const d = this.getPrefix();
+        this.append(d + " ").bgColor("green").color("black").append("[INFO]").reset().append(" ").color("green").log(...args);
+      }
+    }
+    debug(...args) {
+      if (!this.isAllowedLevel("debug"))
+        return;
+      if (this.noColor) {
+        const d = this.getPrefix();
+        this.log(d, " [DEBUG] ", ...args);
+      } else {
+        const d = this.getPrefix();
+        this.append(d + " ").bgColor("cyan").color("black").append("[DEBUG]").reset().append(" ").color("cyan").log(...args);
+      }
+    }
+    success(...args) {
+      if (!this.isAllowedLevel("success"))
+        return;
+      if (this.noColor) {
+        const d = this.getPrefix();
+        this.log(d, " [SUCCESS] ", ...args);
+      } else {
+        const d = this.getPrefix();
+        this.append(d + " ").bgColor("green").color("black").append("[SUCCESS]").reset().append(" ").color("green").log(...args);
+      }
+    }
+    checkSetting(setting) {
+      const validSetting = ["bold", "italic", "dim", "underscore", "reverse", "strikethrough"];
+      let command = "";
+      for (const item in setting) {
+        if (validSetting.indexOf(item) !== -1) {
+          if (setting[item] === true) {
+            command += CONFIG.SYSTEM[item];
+          } else if (setting[item] !== false) {
+            console.error(`node-color-log warning: The value ${item} should be boolean.`);
+          }
+        } else {
+          console.error(`node-color-log warning: ${item} is not valid in setting.`);
+        }
+      }
+      return command;
+    }
+    _print(...args) {
+      this._customizedConsole.error(...args);
+    }
+    append(...args) {
+      for (const idx in args) {
+        const arg = args[idx];
+        if (typeof arg === "string") {
+          this.command += arg;
+        } else {
+          try {
+            this.command += JSON.stringify(arg);
+          } catch {
+            this.command += arg;
+          }
+        }
+        if (args.length > 1 && idx < args.length - 1) {
+          this.command += " ";
+        }
+      }
+      return this;
+    }
+    reset() {
+      this.command += CONFIG.SYSTEM.reset;
+      return this;
+    }
+  }
+  function parseStackFrame(line, isShortFile = false) {
+    if (typeof line !== "string" || line.length === 0) {
+      return "";
+    }
+    let start = line.lastIndexOf("(");
+    let end = line.lastIndexOf(")");
+    let fileAndLine;
+    if (start !== -1 && end !== -1 && start < end) {
+      fileAndLine = line.substring(start + 1, end);
+    } else {
+      const atPrefix = line.indexOf("at ");
+      fileAndLine = atPrefix !== -1 ? line.substring(atPrefix + 3).trim() : line.trim();
+    }
+    const lastColon = fileAndLine.lastIndexOf(":");
+    if (lastColon === -1) {
+      return "";
+    }
+    const secondLastColon = fileAndLine.lastIndexOf(":", lastColon - 1);
+    const isDigits = (s2) => s2.length > 0 && /^\d+$/.test(s2);
+    const lastSeg = fileAndLine.substring(lastColon + 1);
+    const midSeg = secondLastColon === -1 ? "" : fileAndLine.substring(secondLastColon + 1, lastColon);
+    let fileName;
+    let lineNumber;
+    if (secondLastColon !== -1 && isDigits(midSeg) && isDigits(lastSeg)) {
+      fileName = fileAndLine.substring(0, secondLastColon);
+      lineNumber = midSeg;
+    } else if (isDigits(lastSeg)) {
+      fileName = fileAndLine.substring(0, lastColon);
+      lineNumber = lastSeg;
+    } else {
+      return "";
+    }
+    if (isShortFile) {
+      const segments = fileName.split(/[\\/]/);
+      fileName = segments[segments.length - 1];
+    }
+    return `${fileName}:${lineNumber}`;
+  }
+  function getFileAndLine(isShortFile = false) {
+    const e2 = new Error;
+    const lines = e2.stack.split(`
+`);
+    let line = "";
+    for (let i2 = lines.length - 1;i2 >= 0; i2--) {
+      const currentLine = lines[i2];
+      if (currentLine.includes("Logger.") || currentLine.includes("node-color-log/index.js")) {
+        if (i2 + 1 >= lines.length) {
+          return "";
+        }
+        line = lines[i2 + 1].trim();
+        break;
+      }
+    }
+    return parseStackFrame(line, isShortFile);
+  }
+  var logger = new Logger;
+  logger._internal = { parseStackFrame };
+  module.exports = logger;
+});
+
+// src/session/utils.ts
+function isDeno() {
+  return typeof globalThis.Deno !== "undefined";
+}
+function isBun() {
+  return typeof globalThis.Bun !== "undefined";
+}
+var import_node_color_log, log = (stack) => import_node_color_log.default.bgColor("red").color("black").log(stack);
+var init_utils = __esm(() => {
+  import_node_color_log = __toESM(require_node_color_log(), 1);
+});
+
+// src/session/graphql/client.ts
 class CustomSetter {
   set(carrier, key, value) {
     carrier.set(key, value);
@@ -38546,7 +38298,255 @@ var init_index_min = __esm(() => {
   });
 });
 
-// src/provisioning/bin.ts
+// src/session/errors/DaggerSDKError.ts
+var DaggerSDKError;
+var init_DaggerSDKError = __esm(() => {
+  init_utils();
+  DaggerSDKError = class DaggerSDKError extends Error {
+    cause;
+    constructor(message, options) {
+      super(message);
+      this.cause = options?.cause;
+    }
+    get [Symbol.toStringTag]() {
+      return this.name;
+    }
+    printStackTrace() {
+      log(this.stack);
+    }
+  };
+});
+
+// src/session/errors/errors-codes.ts
+var ERROR_CODES, ERROR_NAMES;
+var init_errors_codes = __esm(() => {
+  ERROR_CODES = {
+    GraphQLRequestError: "D100",
+    UnknownDaggerError: "D101",
+    TooManyNestedObjectsError: "D102",
+    EngineSessionConnectParamsParseError: "D103",
+    EngineSessionConnectionTimeoutError: "D104",
+    EngineSessionError: "D105",
+    InitEngineSessionBinaryError: "D106",
+    DockerImageRefValidationError: "D107",
+    NotAwaitedRequestError: "D108",
+    ExecError: "D109",
+    IntrospectionError: "D110"
+  };
+  ERROR_NAMES = Object.keys(ERROR_CODES).reduce((obj, item) => ({ ...obj, [item]: item }), {});
+});
+
+// src/session/errors/UnknownDaggerError.ts
+var UnknownDaggerError;
+var init_UnknownDaggerError = __esm(() => {
+  init_DaggerSDKError();
+  init_errors_codes();
+  UnknownDaggerError = class UnknownDaggerError extends DaggerSDKError {
+    name = ERROR_NAMES.UnknownDaggerError;
+    code = ERROR_CODES.UnknownDaggerError;
+    constructor(message, options) {
+      super(message, options);
+    }
+  };
+});
+
+// src/session/errors/DockerImageRefValidationError.ts
+var DockerImageRefValidationError;
+var init_DockerImageRefValidationError = __esm(() => {
+  init_DaggerSDKError();
+  init_errors_codes();
+  DockerImageRefValidationError = class DockerImageRefValidationError extends DaggerSDKError {
+    name = ERROR_NAMES.DockerImageRefValidationError;
+    code = ERROR_CODES.DockerImageRefValidationError;
+    ref;
+    constructor(message, options) {
+      super(message, options);
+      this.ref = options?.ref;
+    }
+  };
+});
+
+// src/session/errors/EngineSessionConnectParamsParseError.ts
+var EngineSessionConnectParamsParseError;
+var init_EngineSessionConnectParamsParseError = __esm(() => {
+  init_DaggerSDKError();
+  init_errors_codes();
+  EngineSessionConnectParamsParseError = class EngineSessionConnectParamsParseError extends DaggerSDKError {
+    name = ERROR_NAMES.EngineSessionConnectParamsParseError;
+    code = ERROR_CODES.EngineSessionConnectParamsParseError;
+    parsedLine;
+    constructor(message, options) {
+      super(message, options);
+      this.parsedLine = options.parsedLine;
+    }
+  };
+});
+
+// src/session/errors/ExecError.ts
+var ExecError;
+var init_ExecError = __esm(() => {
+  init_DaggerSDKError();
+  init_errors_codes();
+  ExecError = class ExecError extends DaggerSDKError {
+    name = ERROR_NAMES.ExecError;
+    code = ERROR_CODES.ExecError;
+    cmd;
+    exitCode;
+    stdout;
+    stderr;
+    extensions;
+    constructor(message, options) {
+      super(message, options);
+      this.cmd = options.cmd;
+      this.exitCode = options.exitCode;
+      this.stdout = options.stdout;
+      this.stderr = options.stderr;
+      this.extensions = options.extensions;
+    }
+  };
+});
+
+// src/session/errors/GraphQLRequestError.ts
+var GraphQLRequestError;
+var init_GraphQLRequestError = __esm(() => {
+  init_DaggerSDKError();
+  init_errors_codes();
+  GraphQLRequestError = class GraphQLRequestError extends DaggerSDKError {
+    name = ERROR_NAMES.GraphQLRequestError;
+    code = ERROR_CODES.GraphQLRequestError;
+    requestContext;
+    response;
+    extensions;
+    constructor(message, options) {
+      super(message, options);
+      this.requestContext = options.error.request;
+      this.response = options.error.response;
+      this.extensions = options.error.response.errors?.[0]?.extensions;
+    }
+  };
+});
+
+// src/session/errors/InitEngineSessionBinaryError.ts
+var InitEngineSessionBinaryError;
+var init_InitEngineSessionBinaryError = __esm(() => {
+  init_DaggerSDKError();
+  init_errors_codes();
+  InitEngineSessionBinaryError = class InitEngineSessionBinaryError extends DaggerSDKError {
+    name = ERROR_NAMES.InitEngineSessionBinaryError;
+    code = ERROR_CODES.InitEngineSessionBinaryError;
+    constructor(message, options) {
+      super(message, options);
+    }
+  };
+});
+
+// src/session/errors/TooManyNestedObjectsError.ts
+var TooManyNestedObjectsError;
+var init_TooManyNestedObjectsError = __esm(() => {
+  init_DaggerSDKError();
+  init_errors_codes();
+  TooManyNestedObjectsError = class TooManyNestedObjectsError extends DaggerSDKError {
+    name = ERROR_NAMES.TooManyNestedObjectsError;
+    code = ERROR_CODES.TooManyNestedObjectsError;
+    response;
+    constructor(message, options) {
+      super(message, options);
+      this.response = options.response;
+    }
+  };
+});
+
+// src/session/errors/EngineSessionErrorOptions.ts
+var EngineSessionError;
+var init_EngineSessionErrorOptions = __esm(() => {
+  init_DaggerSDKError();
+  init_errors_codes();
+  EngineSessionError = class EngineSessionError extends DaggerSDKError {
+    name = ERROR_NAMES.EngineSessionError;
+    code = ERROR_CODES.EngineSessionError;
+    constructor(message, options) {
+      super(message, options);
+    }
+  };
+});
+
+// src/session/errors/EngineSessionConnectionTimeoutError.ts
+var EngineSessionConnectionTimeoutError;
+var init_EngineSessionConnectionTimeoutError = __esm(() => {
+  init_DaggerSDKError();
+  init_errors_codes();
+  EngineSessionConnectionTimeoutError = class EngineSessionConnectionTimeoutError extends DaggerSDKError {
+    name = ERROR_NAMES.EngineSessionConnectionTimeoutError;
+    code = ERROR_CODES.EngineSessionConnectionTimeoutError;
+    timeOutDuration;
+    constructor(message, options) {
+      super(message, options);
+      this.timeOutDuration = options.timeOutDuration;
+    }
+  };
+});
+
+// src/session/errors/NotAwaitedRequestError.ts
+var NotAwaitedRequestError;
+var init_NotAwaitedRequestError = __esm(() => {
+  init_DaggerSDKError();
+  init_errors_codes();
+  NotAwaitedRequestError = class NotAwaitedRequestError extends DaggerSDKError {
+    name = ERROR_NAMES.NotAwaitedRequestError;
+    code = ERROR_CODES.NotAwaitedRequestError;
+    constructor(message, options) {
+      super(message, options);
+    }
+  };
+});
+
+// src/session/errors/FunctionNotFound.ts
+var FunctionNotFound;
+var init_FunctionNotFound = __esm(() => {
+  init_DaggerSDKError();
+  init_errors_codes();
+  FunctionNotFound = class FunctionNotFound extends DaggerSDKError {
+    name = ERROR_NAMES.ExecError;
+    code = ERROR_CODES.ExecError;
+    constructor(message, options) {
+      super(message, options);
+    }
+  };
+});
+
+// src/session/errors/IntrospectionError.ts
+var IntrospectionError;
+var init_IntrospectionError = __esm(() => {
+  init_DaggerSDKError();
+  init_errors_codes();
+  IntrospectionError = class IntrospectionError extends DaggerSDKError {
+    name = ERROR_NAMES.IntrospectionError;
+    code = ERROR_CODES.IntrospectionError;
+    constructor(message, options) {
+      super(message, options);
+    }
+  };
+});
+
+// src/session/errors/index.ts
+var init_errors = __esm(() => {
+  init_DaggerSDKError();
+  init_UnknownDaggerError();
+  init_DockerImageRefValidationError();
+  init_EngineSessionConnectParamsParseError();
+  init_ExecError();
+  init_GraphQLRequestError();
+  init_InitEngineSessionBinaryError();
+  init_TooManyNestedObjectsError();
+  init_EngineSessionErrorOptions();
+  init_EngineSessionConnectionTimeoutError();
+  init_NotAwaitedRequestError();
+  init_FunctionNotFound();
+  init_IntrospectionError();
+  init_errors_codes();
+});
+
+// src/session/provisioning/bin.ts
 import * as crypto2 from "crypto";
 import * as fs3 from "fs";
 import * as os3 from "os";
@@ -38938,10 +38938,10 @@ var init_bin = __esm(() => {
   };
 });
 
-// src/provisioning/default.ts
+// src/session/provisioning/default.ts
 var CLI_VERSION = "1.0.0-beta.11";
 
-// src/provisioning/index.ts
+// src/session/provisioning/index.ts
 var exports_provisioning = {};
 __export(exports_provisioning, {
   withEngineSession: () => withEngineSession
@@ -48288,12 +48288,12 @@ var require_otlp_node_http_configuration = __commonJS((exports) => {
     return async (protocol) => {
       const isInsecure = protocol === "http:";
       const module2 = isInsecure ? import("http") : import("https");
-      const { Agent: Agent2 } = await module2;
+      const { Agent } = await module2;
       if (isInsecure) {
         const { ca, cert, key, ...insecureOptions } = options;
-        return new Agent2(insecureOptions);
+        return new Agent(insecureOptions);
       }
-      return new Agent2(options);
+      return new Agent(options);
     };
   }
   exports.httpAgentFactoryFromOptions = httpAgentFactoryFromOptions;
@@ -56623,13 +56623,13 @@ var require_cjs = __commonJS((exports) => {
     }
   }
 
-  class Container2 extends Base {
+  class Container extends Base {
   }
   function throwIteratorAccessError() {
     throw new RangeError("Iterator access denied!");
   }
 
-  class TreeContainer extends Container2 {
+  class TreeContainer extends Container {
     constructor(t2 = function(t3, e3) {
       if (t3 < e3)
         return -1;
@@ -57921,7 +57921,7 @@ var require_client = __commonJS((exports) => {
 `)) || "no stack trace available";
   }
 
-  class Client2 {
+  class Client {
     constructor(address, credentials, options = {}) {
       var _a, _b;
       options = Object.assign({}, options);
@@ -58265,7 +58265,7 @@ var require_client = __commonJS((exports) => {
       return stream;
     }
   }
-  exports.Client = Client2;
+  exports.Client = Client;
 });
 
 // node_modules/@grpc/grpc-js/build/src/make-client.js
@@ -60862,10 +60862,10 @@ var require_reader_buffer = __commonJS((exports, module) => {
 
 // node_modules/protobufjs/src/rpc/service.js
 var require_service = __commonJS((exports, module) => {
-  module.exports = Service2;
+  module.exports = Service;
   var util = require_minimal();
-  (Service2.prototype = Object.create(util.EventEmitter.prototype)).constructor = Service2;
-  function Service2(rpcImpl, requestDelimited, responseDelimited) {
+  (Service.prototype = Object.create(util.EventEmitter.prototype)).constructor = Service;
+  function Service(rpcImpl, requestDelimited, responseDelimited) {
     if (typeof rpcImpl !== "function")
       throw TypeError("rpcImpl must be a function");
     util.EventEmitter.call(this);
@@ -60873,7 +60873,7 @@ var require_service = __commonJS((exports, module) => {
     this.requestDelimited = Boolean(requestDelimited);
     this.responseDelimited = Boolean(responseDelimited);
   }
-  Service2.prototype.rpcCall = function rpcCall(method, requestCtor, responseCtor, request2, callback) {
+  Service.prototype.rpcCall = function rpcCall(method, requestCtor, responseCtor, request2, callback) {
     if (!request2)
       throw TypeError("request must be specified");
     var self2 = this;
@@ -60914,7 +60914,7 @@ var require_service = __commonJS((exports, module) => {
       return;
     }
   };
-  Service2.prototype.end = function end(endedByRPC) {
+  Service.prototype.end = function end(endedByRPC) {
     if (this.rpcImpl) {
       if (!endedByRPC)
         this.rpcImpl(null, null, null);
@@ -61152,7 +61152,7 @@ var require_namespace = __commonJS((exports, module) => {
   var util = require_util4();
   var OneOf = require_oneof();
   var Type;
-  var Service2;
+  var Service;
   var Enum;
   Namespace.fromJSON = function fromJSON(name, json, depth) {
     depth = util.checkDepth(depth);
@@ -61219,7 +61219,7 @@ var require_namespace = __commonJS((exports, module) => {
     if (nestedJson) {
       for (var names = Object.keys(nestedJson), i3 = 0, nested;i3 < names.length; ++i3) {
         nested = nestedJson[names[i3]];
-        ns2.add((nested.fields !== undefined ? Type.fromJSON : nested.values !== undefined ? Enum.fromJSON : nested.methods !== undefined ? Service2.fromJSON : nested.id !== undefined ? Field.fromJSON : Namespace.fromJSON)(names[i3], nested, depth + 1));
+        ns2.add((nested.fields !== undefined ? Type.fromJSON : nested.values !== undefined ? Enum.fromJSON : nested.methods !== undefined ? Service.fromJSON : nested.id !== undefined ? Field.fromJSON : Namespace.fromJSON)(names[i3], nested, depth + 1));
       }
     }
     return this;
@@ -61233,7 +61233,7 @@ var require_namespace = __commonJS((exports, module) => {
     throw Error("no such enum: " + name);
   };
   Namespace.prototype.add = function add(object) {
-    if (!(object instanceof Field && object.extend !== undefined || object instanceof Type || object instanceof OneOf || object instanceof Enum || object instanceof Service2 || object instanceof Namespace))
+    if (!(object instanceof Field && object.extend !== undefined || object instanceof Type || object instanceof OneOf || object instanceof Enum || object instanceof Service || object instanceof Namespace))
       throw TypeError("object must be a valid nested object");
     if (object.name === "__proto__")
       return this;
@@ -61242,7 +61242,7 @@ var require_namespace = __commonJS((exports, module) => {
     else {
       var prev = this.get(object.name);
       if (prev) {
-        if (prev instanceof Namespace && object instanceof Namespace && !(prev instanceof Type || prev instanceof Service2)) {
+        if (prev instanceof Namespace && object instanceof Namespace && !(prev instanceof Type || prev instanceof Service)) {
           var nested = prev.nestedArray;
           for (var i3 = 0;i3 < nested.length; ++i3)
             object.add(nested[i3]);
@@ -61255,7 +61255,7 @@ var require_namespace = __commonJS((exports, module) => {
       }
     }
     this.nested[object.name] = object;
-    if (!(this instanceof Type || this instanceof Service2 || this instanceof Enum || this instanceof Field)) {
+    if (!(this instanceof Type || this instanceof Service || this instanceof Enum || this instanceof Field)) {
       if (!object._edition) {
         object._edition = object._defaultEdition;
       }
@@ -61406,14 +61406,14 @@ var require_namespace = __commonJS((exports, module) => {
     return found;
   };
   Namespace.prototype.lookupService = function lookupService(path8) {
-    var found = this.lookup(path8, [Service2]);
+    var found = this.lookup(path8, [Service]);
     if (!found)
       throw Error("no such Service '" + path8 + "' in " + this);
     return found;
   };
   Namespace._configure = function(Type_, Service_, Enum_) {
     Type = Type_;
-    Service2 = Service_;
+    Service = Service_;
     Enum = Enum_;
   };
 });
@@ -61537,21 +61537,21 @@ var require_method = __commonJS((exports, module) => {
 
 // node_modules/protobufjs/src/service.js
 var require_service2 = __commonJS((exports, module) => {
-  module.exports = Service2;
+  module.exports = Service;
   var Namespace = require_namespace();
-  ((Service2.prototype = Object.create(Namespace.prototype)).constructor = Service2).className = "Service";
+  ((Service.prototype = Object.create(Namespace.prototype)).constructor = Service).className = "Service";
   var Method = require_method();
   var util = require_util4();
   var rpc = require_rpc();
   var reservedRe = util.patterns.reservedRe;
-  function Service2(name, options) {
+  function Service(name, options) {
     Namespace.call(this, name, options);
     this.methods = {};
     this._methodsArray = null;
   }
-  Service2.fromJSON = function fromJSON(name, json, depth) {
+  Service.fromJSON = function fromJSON(name, json, depth) {
     depth = util.checkDepth(depth);
-    var service = new Service2(name, json.options);
+    var service = new Service(name, json.options);
     if (json.methods)
       for (var names = Object.keys(json.methods), i3 = 0;i3 < names.length; ++i3)
         service.add(Method.fromJSON(names[i3], json.methods[names[i3]]));
@@ -61563,7 +61563,7 @@ var require_service2 = __commonJS((exports, module) => {
     service._defaultEdition = "proto3";
     return service;
   };
-  Service2.prototype.toJSON = function toJSON(toJSONOptions) {
+  Service.prototype.toJSON = function toJSON(toJSONOptions) {
     var inherited = Namespace.prototype.toJSON.call(this, toJSONOptions);
     var keepComments = toJSONOptions ? Boolean(toJSONOptions.keepComments) : false;
     return util.toObject([
@@ -61579,7 +61579,7 @@ var require_service2 = __commonJS((exports, module) => {
       keepComments ? this.comment : undefined
     ]);
   };
-  Object.defineProperty(Service2.prototype, "methodsArray", {
+  Object.defineProperty(Service.prototype, "methodsArray", {
     get: function() {
       return this._methodsArray || (this._methodsArray = util.toArray(this.methods));
     }
@@ -61588,10 +61588,10 @@ var require_service2 = __commonJS((exports, module) => {
     service._methodsArray = null;
     return service;
   }
-  Service2.prototype.get = function get(name) {
+  Service.prototype.get = function get(name) {
     return Object.prototype.hasOwnProperty.call(this.methods, name) ? this.methods[name] : Namespace.prototype.get.call(this, name);
   };
-  Service2.prototype.resolveAll = function resolveAll() {
+  Service.prototype.resolveAll = function resolveAll() {
     if (!this._needsRecursiveResolve)
       return this;
     Namespace.prototype.resolve.call(this);
@@ -61600,7 +61600,7 @@ var require_service2 = __commonJS((exports, module) => {
       methods[i3].resolve();
     return this;
   };
-  Service2.prototype._resolveFeaturesRecursive = function _resolveFeaturesRecursive(edition) {
+  Service.prototype._resolveFeaturesRecursive = function _resolveFeaturesRecursive(edition) {
     if (!this._needsRecursiveFeatureResolution)
       return this;
     edition = this._edition || edition;
@@ -61610,7 +61610,7 @@ var require_service2 = __commonJS((exports, module) => {
     });
     return this;
   };
-  Service2.prototype.add = function add(object) {
+  Service.prototype.add = function add(object) {
     if (this.get(object.name))
       throw Error("duplicate name '" + object.name + "' in " + this);
     if (object instanceof Method) {
@@ -61622,7 +61622,7 @@ var require_service2 = __commonJS((exports, module) => {
     }
     return Namespace.prototype.add.call(this, object);
   };
-  Service2.prototype.remove = function remove(object) {
+  Service.prototype.remove = function remove(object) {
     if (object instanceof Method) {
       if (this.methods[object.name] !== object)
         throw Error(object + " is not a member of " + this);
@@ -61632,7 +61632,7 @@ var require_service2 = __commonJS((exports, module) => {
     }
     return Namespace.prototype.remove.call(this, object);
   };
-  Service2.prototype.create = function create(rpcImpl, requestDelimited, responseDelimited) {
+  Service.prototype.create = function create(rpcImpl, requestDelimited, responseDelimited) {
     var rpcService = new rpc.Service(rpcImpl, requestDelimited, responseDelimited);
     for (var i3 = 0, method;i3 < this.methodsArray.length; ++i3) {
       var methodName = util.lcFirst((method = this._methodsArray[i3]).resolve().name).replace(/[^$\w_]/g, "");
@@ -62098,7 +62098,7 @@ var require_type2 = __commonJS((exports, module) => {
   var OneOf = require_oneof();
   var Field = require_field();
   var MapField = require_mapfield();
-  var Service2 = require_service2();
+  var Service = require_service2();
   var Message = require_message();
   var Reader = require_reader();
   var Writer = require_writer();
@@ -62206,7 +62206,7 @@ var require_type2 = __commonJS((exports, module) => {
     if (json.nested)
       for (names = Object.keys(json.nested), i3 = 0;i3 < names.length; ++i3) {
         var nested = json.nested[names[i3]];
-        type.add((nested.id !== undefined ? Field.fromJSON : nested.fields !== undefined ? Type.fromJSON : nested.values !== undefined ? Enum.fromJSON : nested.methods !== undefined ? Service2.fromJSON : Namespace.fromJSON)(names[i3], nested, depth + 1));
+        type.add((nested.id !== undefined ? Field.fromJSON : nested.fields !== undefined ? Type.fromJSON : nested.values !== undefined ? Enum.fromJSON : nested.methods !== undefined ? Service.fromJSON : Namespace.fromJSON)(names[i3], nested, depth + 1));
       }
     if (json.extensions && json.extensions.length)
       type.extensions = json.extensions;
@@ -63808,7 +63808,7 @@ var require_parse2 = __commonJS((exports, module) => {
   var MapField = require_mapfield();
   var OneOf = require_oneof();
   var Enum = require_enum();
-  var Service2 = require_service2();
+  var Service = require_service2();
   var Method = require_method();
   var ReflectionObject = require_object();
   var types3 = require_types5();
@@ -64404,7 +64404,7 @@ var require_parse2 = __commonJS((exports, module) => {
         throw Error("max depth exceeded");
       if (!nameRe.test(token2 = next()))
         throw illegal(token2, "service name");
-      var service = new Service2(token2);
+      var service = new Service(token2);
       ifBlock(service, function parseService_block(token3) {
         if (parseCommon(service, token3, depth)) {
           return;
@@ -66133,7 +66133,7 @@ var require_descriptor2 = __commonJS((exports, module) => {
   var Field = $protobuf.Field;
   var MapField = $protobuf.MapField;
   var OneOf = $protobuf.OneOf;
-  var Service2 = $protobuf.Service;
+  var Service = $protobuf.Service;
   var Method = $protobuf.Method;
   var patterns = $protobuf.util.patterns;
   var numberRe = patterns.numberRe;
@@ -66162,7 +66162,7 @@ var require_descriptor2 = __commonJS((exports, module) => {
             filePackage.add(Field.fromDescriptor(fileDescriptor.extension[i3], edition));
         if (fileDescriptor.service)
           for (i3 = 0;i3 < fileDescriptor.service.length; ++i3)
-            filePackage.add(Service2.fromDescriptor(fileDescriptor.service[i3], edition));
+            filePackage.add(Service.fromDescriptor(fileDescriptor.service[i3], edition));
         var opts = fromDescriptorOptions(fileDescriptor.options, exports.FileOptions);
         if (opts) {
           var ks2 = Object.keys(opts);
@@ -66190,7 +66190,7 @@ var require_descriptor2 = __commonJS((exports, module) => {
         file.enumType.push(nested.toDescriptor());
       else if (nested instanceof Field)
         file.extension.push(nested.toDescriptor(edition));
-      else if (nested instanceof Service2)
+      else if (nested instanceof Service)
         file.service.push(nested.toDescriptor());
       else if (nested instanceof Namespace)
         Root_toDescriptorRecursive(nested, files2, edition);
@@ -66430,10 +66430,10 @@ var require_descriptor2 = __commonJS((exports, module) => {
     });
   };
   var unnamedServiceIndex = 0;
-  Service2.fromDescriptor = function fromDescriptor(descriptor, edition, nested) {
+  Service.fromDescriptor = function fromDescriptor(descriptor, edition, nested) {
     if (typeof descriptor.length === "number")
       descriptor = exports.ServiceDescriptorProto.decode(descriptor);
-    var service = new Service2(descriptor.name && descriptor.name.length ? descriptor.name : "Service" + unnamedServiceIndex++, fromDescriptorOptions(descriptor.options, exports.ServiceOptions));
+    var service = new Service(descriptor.name && descriptor.name.length ? descriptor.name : "Service" + unnamedServiceIndex++, fromDescriptorOptions(descriptor.options, exports.ServiceOptions));
     if (!nested)
       service._edition = edition;
     if (descriptor.method)
@@ -66441,7 +66441,7 @@ var require_descriptor2 = __commonJS((exports, module) => {
         service.add(Method.fromDescriptor(descriptor.method[i3]));
     return service;
   };
-  Service2.prototype.toDescriptor = function toDescriptor() {
+  Service.prototype.toDescriptor = function toDescriptor() {
     var methods = [];
     for (var i3 = 0;i3 < this.methodsArray.length; ++i3)
       methods.push(this._methodsArray[i3].toDescriptor());
@@ -85053,7 +85053,7 @@ var require_Schema = __commonJS((exports) => {
   var tags = require_tags();
   var sortMapEntriesByKey = (a2, b2) => a2.key < b2.key ? -1 : a2.key > b2.key ? 1 : 0;
 
-  class Schema2 {
+  class Schema {
     constructor({ compat, customTags, merge, resolveKnownTags, schema, sortMapEntries, toStringDefaults }) {
       this.compat = Array.isArray(compat) ? tags.getTags(compat, "compat") : compat ? tags.getTags(null, compat) : null;
       this.name = typeof schema === "string" && schema || "core";
@@ -85066,12 +85066,12 @@ var require_Schema = __commonJS((exports) => {
       this.sortMapEntries = typeof sortMapEntries === "function" ? sortMapEntries : sortMapEntries === true ? sortMapEntriesByKey : null;
     }
     clone() {
-      const copy = Object.create(Schema2.prototype, Object.getOwnPropertyDescriptors(this));
+      const copy = Object.create(Schema.prototype, Object.getOwnPropertyDescriptors(this));
       copy.tags = this.tags.slice();
       return copy;
     }
   }
-  exports.Schema = Schema2;
+  exports.Schema = Schema;
 });
 
 // node_modules/yaml/dist/stringify/stringifyDocument.js
@@ -85161,7 +85161,7 @@ var require_Document = __commonJS((exports) => {
   var identity3 = require_identity();
   var Pair = require_Pair();
   var toJS = require_toJS();
-  var Schema2 = require_Schema();
+  var Schema = require_Schema();
   var stringifyDocument = require_stringifyDocument();
   var anchors = require_anchors();
   var applyReviver = require_applyReviver();
@@ -85349,7 +85349,7 @@ var require_Document = __commonJS((exports) => {
       if (options.schema instanceof Object)
         this.schema = options.schema;
       else if (opt)
-        this.schema = new Schema2.Schema(Object.assign(opt, options));
+        this.schema = new Schema.Schema(Object.assign(opt, options));
       else
         throw new Error(`With a null YAML version, the { schema: Schema } option is required`);
     }
@@ -88910,7 +88910,7 @@ var require_public_api = __commonJS((exports) => {
 var require_dist = __commonJS((exports) => {
   var composer = require_composer();
   var Document = require_Document();
-  var Schema2 = require_Schema();
+  var Schema = require_Schema();
   var errors = require_errors2();
   var Alias = require_Alias();
   var identity3 = require_identity();
@@ -88926,7 +88926,7 @@ var require_dist = __commonJS((exports) => {
   var visit = require_visit();
   exports.Composer = composer.Composer;
   exports.Document = Document.Document;
-  exports.Schema = Schema2.Schema;
+  exports.Schema = Schema.Schema;
   exports.YAMLError = errors.YAMLError;
   exports.YAMLParseError = errors.YAMLParseError;
   exports.YAMLWarning = errors.YAMLWarning;
@@ -100815,14 +100815,219 @@ var require_Reflect = __commonJS(() => {
   })(Reflect2 || (Reflect2 = {}));
 });
 
-// src/module/entrypoint/introspection_entrypoint.ts
+// src/module/introspector/introspection_entrypoint.ts
 import * as fs4 from "fs";
 import * as path9 from "path";
 
-// src/connect.ts
+// src/session/connect.ts
 var opentelemetry3 = __toESM(require_src(), 1);
 
-// src/common/graphql/compute_query.ts
+// src/session/graphql/connect.ts
+init_client();
+async function withGQLClient(connectOpts, cb) {
+  if (process.env["DAGGER_SESSION_PORT"]) {
+    const port = process.env["DAGGER_SESSION_PORT"];
+    if (!process.env["DAGGER_SESSION_TOKEN"]) {
+      throw new Error("DAGGER_SESSION_TOKEN must be set if DAGGER_SESSION_PORT is set");
+    }
+    const token = process.env["DAGGER_SESSION_TOKEN"];
+    return await cb(createGQLClient(Number(port), token));
+  }
+  try {
+    const provisioning = await Promise.resolve().then(() => (init_provisioning(), exports_provisioning));
+    return await provisioning.withEngineSession(connectOpts, cb);
+  } catch (e2) {
+    throw new Error(`failed to execute function with automatic provisioning: ${e2}`, { cause: e2 });
+  }
+}
+
+// src/session/shared.ts
+var SHARED = Symbol.for("@dagger.io/session.shared");
+function shared(key, create) {
+  const slots = globalThis[SHARED] ??= {};
+  if (!(key in slots)) {
+    slots[key] = create();
+  }
+  return slots[key];
+}
+
+// src/session/graphql/connection.ts
+class Connection {
+  _gqlClient;
+  constructor(_gqlClient) {
+    this._gqlClient = _gqlClient;
+  }
+  _served = new Map;
+  resetClient() {
+    this._gqlClient = undefined;
+    this._served.clear();
+  }
+  setGQLClient(gqlClient) {
+    this._gqlClient = gqlClient;
+  }
+  getGQLClient() {
+    if (!this._gqlClient) {
+      throw new Error("GraphQL client is not set");
+    }
+    return this._gqlClient;
+  }
+  ensureServed(key, serve) {
+    let pending = this._served.get(key);
+    if (!pending) {
+      pending = serve();
+      this._served.set(key, pending);
+    }
+    return pending;
+  }
+}
+var globalConnection = shared("connection", () => new Connection);
+
+// src/telemetry/telemetry.ts
+var opentelemetry2 = __toESM(require_src(), 1);
+
+// src/telemetry/init.ts
+var import_core2 = __toESM(require_src3(), 1);
+var import_exporter_trace_otlp_proto = __toESM(require_src9(), 1);
+var import_sdk_node = __toESM(require_src34(), 1);
+var import_sdk_trace_base2 = __toESM(require_src12(), 1);
+
+// src/telemetry/live_processor.ts
+var import_sdk_trace_base = __toESM(require_src12(), 1);
+
+class LiveProcessor extends import_sdk_trace_base.BatchSpanProcessor {
+  onStart(_span, _parentContext) {
+    this.onEnd(_span);
+  }
+}
+
+// src/telemetry/init.ts
+var SERVICE_NAME = "dagger-typescript-sdk";
+function otelConfigured() {
+  return Object.keys(process.env).some((key) => key.startsWith("OTEL_"));
+}
+var NEARLY_IMMEDIATE = 100;
+
+class DaggerOtelConfigurator {
+  is_configured = false;
+  sdk;
+  initialize() {
+    if (this.is_configured) {
+      return;
+    }
+    this.configure();
+    this.is_configured = true;
+  }
+  configure() {
+    if (!otelConfigured()) {
+      return;
+    }
+    if (import_core2.getBooleanFromEnv("OTEL_SDK_DISABLED") ?? true) {
+      return;
+    }
+    this.setupEnv();
+    const exporter = new import_exporter_trace_otlp_proto.OTLPTraceExporter;
+    let processor;
+    if (process.env.OTEL_EXPORTER_OTLP_TRACES_LIVE !== undefined) {
+      processor = new LiveProcessor(exporter, {
+        scheduledDelayMillis: NEARLY_IMMEDIATE
+      });
+    } else {
+      processor = new import_sdk_trace_base2.BatchSpanProcessor(exporter, {
+        scheduledDelayMillis: NEARLY_IMMEDIATE
+      });
+    }
+    this.sdk = new import_sdk_node.NodeSDK({
+      serviceName: SERVICE_NAME,
+      spanProcessors: [processor]
+    });
+    this.sdk.start();
+  }
+  async close() {
+    if (this.sdk) {
+      await this.sdk.shutdown();
+    }
+  }
+  setupEnv() {
+    Object.entries(process.env).forEach(([key, value]) => {
+      if (key.startsWith("OTEL_") && key.endsWith("_ENDPOINT") && value?.startsWith("http://")) {
+        const insecure = key.replace(/_ENDPOINT$/, "_INSECURE");
+        if (process.env[insecure] === undefined) {
+          process.env[insecure] = "true";
+        }
+      }
+    });
+  }
+}
+
+// src/telemetry/telemetry.ts
+var configurator = new DaggerOtelConfigurator;
+function initialize() {
+  configurator.initialize();
+}
+async function close() {
+  await configurator.close();
+}
+function getContext() {
+  const ctx = opentelemetry2.context.active();
+  const spanCtx = opentelemetry2.trace.getSpanContext(ctx);
+  if (spanCtx && opentelemetry2.trace.isSpanContextValid(spanCtx)) {
+    return ctx;
+  }
+  const parentID = process.env.TRACEPARENT;
+  if (parentID) {
+    return opentelemetry2.propagation.extract(ctx, {
+      traceparent: parentID
+    });
+  }
+  return ctx;
+}
+
+// src/session/connect.ts
+async function connection(fct, cfg = {}) {
+  try {
+    initialize();
+    await opentelemetry3.context.with(getContext(), async () => {
+      try {
+        await withGQLClient(cfg, async (gqlClient) => {
+          globalConnection.setGQLClient(gqlClient);
+          await fct();
+        });
+      } finally {
+        globalConnection.resetClient();
+      }
+    });
+  } finally {
+    await close();
+  }
+}
+
+// src/module/introspector/index.ts
+init_errors();
+
+// src/module/introspector/load.ts
+async function load2(files2) {
+  return await Promise.all(files2.map(async (f4) => await import(f4)));
+}
+
+// src/module/introspector/case_convertor.ts
+function convertToPascalCase(input) {
+  if (!input) {
+    return "";
+  }
+  const words = input.split(/(?=[A-Z0-9])|[^a-zA-Z0-9]|(?<=[a-zA-Z])(?=\d)|(?<=\d)(?=[a-zA-Z])/g).filter((word) => word.length > 0);
+  const pascalCase = words.map((word) => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase()).join("");
+  return pascalCase;
+}
+
+// src/module/introspector/dagger_module/argument.ts
+init_errors();
+import ts4 from "typescript";
+
+// src/module/introspector/typescript_module/ast.ts
+import * as path8 from "path";
+import ts3 from "typescript";
+
+// src/session/graphql/compute_query.ts
 init_main();
 init_errors();
 function buildArgs(args) {
@@ -100854,7 +101059,7 @@ function buildArgs(args) {
 }
 async function computeNestedQuery(query, client) {
   const isQueryTree = (value) => value["_ctx"] !== undefined;
-  const isArrayQueryTree = (value) => value.every((v) => v instanceof Object && isQueryTree(v));
+  const isArrayQueryTree = (value) => value.every((v2) => v2 instanceof Object && isQueryTree(v2));
   const computeQueryTree = async (value) => {
     for (const op of value["_ctx"]["_queryTree"]) {
       await computeNestedQuery([op], client);
@@ -100866,28 +101071,28 @@ async function computeNestedQuery(query, client) {
       }
     ]);
   };
-  const queryToExec = query.filter((q) => !!q.args);
-  for (const q of queryToExec) {
-    await Promise.all(Object.entries(q.args).map(async ([key, value]) => {
+  const queryToExec = query.filter((q2) => !!q2.args);
+  for (const q2 of queryToExec) {
+    await Promise.all(Object.entries(q2.args).map(async ([key, value]) => {
       if (value instanceof Object && isQueryTree(value)) {
         const getQueryTree = await computeQueryTree(value);
-        q.args[key] = await compute(getQueryTree, client);
+        q2.args[key] = await compute(getQueryTree, client);
       }
       if (Array.isArray(value) && isArrayQueryTree(value)) {
-        const tmp = q.args[key];
-        for (let i = 0;i < value.length; i++) {
-          const getQueryTree = await computeQueryTree(value[i]);
-          tmp[i] = await compute(getQueryTree, client);
+        const tmp = q2.args[key];
+        for (let i3 = 0;i3 < value.length; i3++) {
+          const getQueryTree = await computeQueryTree(value[i3]);
+          tmp[i3] = await compute(getQueryTree, client);
         }
-        q.args[key] = tmp;
+        q2.args[key] = tmp;
       }
     }));
   }
 }
-function buildQuery(q) {
-  const query = q.reduce((acc, { operation, args, inlineType }, i) => {
-    const qLen = q.length;
-    const isLast = qLen - 1 === i;
+function buildQuery(q2) {
+  const query = q2.reduce((acc, { operation, args, inlineType }, i3) => {
+    const qLen = q2.length;
+    const isLast = qLen - 1 === i3;
     acc += ` ${operation} ${args ? `${buildArgs(args)}` : ""}`;
     if (!isLast) {
       acc += " {";
@@ -100896,8 +101101,8 @@ function buildQuery(q) {
       }
     } else {
       let closes = "";
-      for (let j = i - 1;j >= 0; j--) {
-        if (q[j].inlineType) {
+      for (let j2 = i3 - 1;j2 >= 0; j2--) {
+        if (q2[j2].inlineType) {
           closes += " }";
         }
         closes += " }";
@@ -100908,9 +101113,9 @@ function buildQuery(q) {
   }, "");
   return `{${query} }`;
 }
-async function computeQuery(q, client) {
-  await computeNestedQuery(q, client);
-  const query = buildQuery(q);
+async function computeQuery(q2, client) {
+  await computeNestedQuery(q2, client);
+  const query = buildQuery(q2);
   return await compute(query, client);
 }
 function queryFlatten(response) {
@@ -100932,10 +101137,10 @@ async function compute(query, client) {
     computeQuery2 = await client.request(gql`
       ${query}
     `);
-  } catch (e) {
-    if (e instanceof ClientError) {
-      const msg = e.response.errors?.[0]?.message ?? `API Error`;
-      const ext = e.response.errors?.[0]?.extensions;
+  } catch (e2) {
+    if (e2 instanceof ClientError) {
+      const msg = e2.response.errors?.[0]?.message ?? `API Error`;
+      const ext = e2.response.errors?.[0]?.extensions;
       if (ext?._type === "EXEC_ERROR") {
         throw new ExecError(msg, {
           cmd: ext.cmd ?? [],
@@ -100946,52 +101151,21 @@ async function compute(query, client) {
         });
       }
       throw new GraphQLRequestError(msg, {
-        error: e,
-        cause: e
+        error: e2,
+        cause: e2
       });
     }
-    if (e.errno === "ECONNREFUSED") {
-      throw new NotAwaitedRequestError("Encountered an error while requesting data via graphql through a synchronous call. Make sure the function called is awaited.", { cause: e });
+    if (e2.errno === "ECONNREFUSED") {
+      throw new NotAwaitedRequestError("Encountered an error while requesting data via graphql through a synchronous call. Make sure the function called is awaited.", { cause: e2 });
     }
     throw new UnknownDaggerError("Encountered an unknown error while requesting data via graphql", {
-      cause: e
+      cause: e2
     });
   }
   return queryFlatten(computeQuery2);
 }
 
-// src/common/graphql/connection.ts
-class Connection {
-  _gqlClient;
-  constructor(_gqlClient) {
-    this._gqlClient = _gqlClient;
-  }
-  _served = new Map;
-  resetClient() {
-    this._gqlClient = undefined;
-    this._served.clear();
-  }
-  setGQLClient(gqlClient) {
-    this._gqlClient = gqlClient;
-  }
-  getGQLClient() {
-    if (!this._gqlClient) {
-      throw new Error("GraphQL client is not set");
-    }
-    return this._gqlClient;
-  }
-  ensureServed(key, serve) {
-    let pending = this._served.get(key);
-    if (!pending) {
-      pending = serve();
-      this._served.set(key, pending);
-    }
-    return pending;
-  }
-}
-var globalConnection = new Connection;
-
-// src/common/context.ts
+// src/session/context.ts
 class Context {
   _queryTree;
   _connection;
@@ -101034,7 +101208,7 @@ class BaseClient {
   }
 }
 
-// src/api/client.gen.ts
+// src/core/client.gen.ts
 function AgentMessageDeliveryNameToValue(name) {
   switch (name) {
     case "QUEUED":
@@ -101079,18 +101253,6 @@ function AgentStateNameToValue(name) {
       return "STOPPED" /* Stopped */;
     case "WAITING_INPUT":
       return "WAITING_INPUT" /* WaitingInput */;
-    default:
-      return name;
-  }
-}
-function ArtifactDimensionKindNameToValue(name) {
-  switch (name) {
-    case "COLLECTION":
-      return "COLLECTION" /* Collection */;
-    case "MODULE":
-      return "MODULE" /* Module */;
-    case "TYPE":
-      return "TYPE" /* Type */;
     default:
       return name;
   }
@@ -101225,12 +101387,6 @@ function ImageMediaTypesValueToName(value) {
 }
 function LLMContentBlockKindNameToValue(name) {
   switch (name) {
-    case "AUDIO":
-      return "AUDIO" /* Audio */;
-    case "DOCUMENT":
-      return "DOCUMENT" /* Document */;
-    case "IMAGE":
-      return "IMAGE" /* Image */;
     case "TEXT":
       return "TEXT" /* Text */;
     case "THINKING":
@@ -101452,7 +101608,7 @@ class Address extends BaseClient {
   };
   file = (opts) => {
     const ctx = this._ctx.select("file", { ...opts });
-    return new File(ctx);
+    return new File3(ctx);
   };
   gitRef = () => {
     const ctx = this._ctx.select("gitRef");
@@ -101654,19 +101810,15 @@ class AgentMessage extends BaseClient {
   };
 }
 
-class Artifact extends BaseClient {
+class AgentMiddleware extends BaseClient {
   _id = undefined;
   _description = undefined;
-  _loadError = undefined;
-  _moduleName = undefined;
-  _uri = undefined;
-  constructor(ctx, _id, _description, _loadError, _moduleName, _uri) {
+  _name = undefined;
+  constructor(ctx, _id, _description, _name) {
     super(ctx);
     this._id = _id;
     this._description = _description;
-    this._loadError = _loadError;
-    this._moduleName = _moduleName;
-    this._uri = _uri;
+    this._name = _name;
   }
   id = async () => {
     if (this._id) {
@@ -101675,11 +101827,6 @@ class Artifact extends BaseClient {
     const ctx = this._ctx.select("id");
     const response = await ctx.execute();
     return response;
-  };
-  arguments_ = async () => {
-    const ctx = this._ctx.select("arguments").select("id");
-    const response = await ctx.execute();
-    return response.map((r) => new FunctionArg(ctx.copy().selectNode(r.id, "FunctionArg")));
   };
   description = async () => {
     if (this._description) {
@@ -101688,129 +101835,6 @@ class Artifact extends BaseClient {
     const ctx = this._ctx.select("description");
     const response = await ctx.execute();
     return response;
-  };
-  dimensionKeys = async () => {
-    const ctx = this._ctx.select("dimensionKeys").select("id");
-    const response = await ctx.execute();
-    return response.map((r) => new ArtifactDimensionKey(ctx.copy().selectNode(r.id, "ArtifactDimensionKey")));
-  };
-  directives = async () => {
-    const ctx = this._ctx.select("directives");
-    const response = await ctx.execute();
-    return response;
-  };
-  loadError = async () => {
-    if (this._loadError) {
-      return this._loadError;
-    }
-    const ctx = this._ctx.select("loadError");
-    const response = await ctx.execute();
-    return response;
-  };
-  moduleName = async () => {
-    if (this._moduleName) {
-      return this._moduleName;
-    }
-    const ctx = this._ctx.select("moduleName");
-    const response = await ctx.execute();
-    return response;
-  };
-  path = async () => {
-    const ctx = this._ctx.select("path");
-    const response = await ctx.execute();
-    return response;
-  };
-  uri = async (opts) => {
-    if (this._uri) {
-      return this._uri;
-    }
-    const ctx = this._ctx.select("uri", { ...opts });
-    const response = await ctx.execute();
-    return response;
-  };
-  value = (opts) => {
-    const ctx = this._ctx.select("value", { ...opts });
-    return new _NodeClient(ctx);
-  };
-}
-
-class ArtifactDimension extends BaseClient {
-  _id = undefined;
-  _collectionType = undefined;
-  _identifier = undefined;
-  _itemType = undefined;
-  _keyDescription = undefined;
-  _keyName = undefined;
-  _kind = undefined;
-  _name = undefined;
-  _qualifiedName = undefined;
-  constructor(ctx, _id, _collectionType, _identifier, _itemType, _keyDescription, _keyName, _kind, _name, _qualifiedName) {
-    super(ctx);
-    this._id = _id;
-    this._collectionType = _collectionType;
-    this._identifier = _identifier;
-    this._itemType = _itemType;
-    this._keyDescription = _keyDescription;
-    this._keyName = _keyName;
-    this._kind = _kind;
-    this._name = _name;
-    this._qualifiedName = _qualifiedName;
-  }
-  id = async () => {
-    if (this._id) {
-      return this._id;
-    }
-    const ctx = this._ctx.select("id");
-    const response = await ctx.execute();
-    return response;
-  };
-  collectionType = async () => {
-    if (this._collectionType) {
-      return this._collectionType;
-    }
-    const ctx = this._ctx.select("collectionType");
-    const response = await ctx.execute();
-    return response;
-  };
-  identifier = async () => {
-    if (this._identifier) {
-      return this._identifier;
-    }
-    const ctx = this._ctx.select("identifier");
-    const response = await ctx.execute();
-    return response;
-  };
-  itemType = async () => {
-    if (this._itemType) {
-      return this._itemType;
-    }
-    const ctx = this._ctx.select("itemType");
-    const response = await ctx.execute();
-    return response;
-  };
-  keyDescription = async () => {
-    if (this._keyDescription) {
-      return this._keyDescription;
-    }
-    const ctx = this._ctx.select("keyDescription");
-    const response = await ctx.execute();
-    return response;
-  };
-  keyName = async () => {
-    if (this._keyName) {
-      return this._keyName;
-    }
-    const ctx = this._ctx.select("keyName");
-    const response = await ctx.execute();
-    return response;
-  };
-  kind = async () => {
-    if (this._kind) {
-      return this._kind;
-    }
-    const ctx = this._ctx.select("kind");
-    const response = await ctx.execute();
-    return ArtifactDimensionKindNameToValue(response);
   };
   name = async () => {
     if (this._name) {
@@ -101820,114 +101844,18 @@ class ArtifactDimension extends BaseClient {
     const response = await ctx.execute();
     return response;
   };
-  qualifiedName = async () => {
-    if (this._qualifiedName) {
-      return this._qualifiedName;
-    }
-    const ctx = this._ctx.select("qualifiedName");
+  originalModule = () => {
+    const ctx = this._ctx.select("originalModule");
+    return new Module_(ctx);
+  };
+  path = async () => {
+    const ctx = this._ctx.select("path");
     const response = await ctx.execute();
     return response;
   };
 }
 
-class ArtifactDimensionKey extends BaseClient {
-  _id = undefined;
-  _dimension = undefined;
-  _key = undefined;
-  constructor(ctx, _id, _dimension, _key) {
-    super(ctx);
-    this._id = _id;
-    this._dimension = _dimension;
-    this._key = _key;
-  }
-  id = async () => {
-    if (this._id) {
-      return this._id;
-    }
-    const ctx = this._ctx.select("id");
-    const response = await ctx.execute();
-    return response;
-  };
-  dimension = async () => {
-    if (this._dimension) {
-      return this._dimension;
-    }
-    const ctx = this._ctx.select("dimension");
-    const response = await ctx.execute();
-    return response;
-  };
-  key = async () => {
-    if (this._key) {
-      return this._key;
-    }
-    const ctx = this._ctx.select("key");
-    const response = await ctx.execute();
-    return response;
-  };
-}
-
-class ArtifactPath extends BaseClient {
-  _id = undefined;
-  _description = undefined;
-  _loadError = undefined;
-  _moduleName = undefined;
-  _uri = undefined;
-  constructor(ctx, _id, _description, _loadError, _moduleName, _uri) {
-    super(ctx);
-    this._id = _id;
-    this._description = _description;
-    this._loadError = _loadError;
-    this._moduleName = _moduleName;
-    this._uri = _uri;
-  }
-  id = async () => {
-    if (this._id) {
-      return this._id;
-    }
-    const ctx = this._ctx.select("id");
-    const response = await ctx.execute();
-    return response;
-  };
-  description = async () => {
-    if (this._description) {
-      return this._description;
-    }
-    const ctx = this._ctx.select("description");
-    const response = await ctx.execute();
-    return response;
-  };
-  dimensions = async () => {
-    const ctx = this._ctx.select("dimensions");
-    const response = await ctx.execute();
-    return response;
-  };
-  loadError = async () => {
-    if (this._loadError) {
-      return this._loadError;
-    }
-    const ctx = this._ctx.select("loadError");
-    const response = await ctx.execute();
-    return response;
-  };
-  moduleName = async () => {
-    if (this._moduleName) {
-      return this._moduleName;
-    }
-    const ctx = this._ctx.select("moduleName");
-    const response = await ctx.execute();
-    return response;
-  };
-  uri = async () => {
-    if (this._uri) {
-      return this._uri;
-    }
-    const ctx = this._ctx.select("uri");
-    const response = await ctx.execute();
-    return response;
-  };
-}
-
-class ArtifactResult extends BaseClient {
+class AgentMiddlewareGroup extends BaseClient {
   _id = undefined;
   constructor(ctx, _id) {
     super(ctx);
@@ -101941,172 +101869,14 @@ class ArtifactResult extends BaseClient {
     const response = await ctx.execute();
     return response;
   };
-  artifact = () => {
-    const ctx = this._ctx.select("artifact");
-    return new Artifact(ctx);
+  compose = (opts) => {
+    const ctx = this._ctx.select("compose", { ...opts });
+    return new LLM(ctx);
   };
-  error = async () => {
-    const ctx = this._ctx.select("error").select("id");
+  list = async () => {
+    const ctx = this._ctx.select("list").select("id");
     const response = await ctx.execute();
-    if (response === null) {
-      return null;
-    }
-    return new Error2(ctx.copy().selectNode(response, "Error"));
-  };
-  value = async () => {
-    const ctx = this._ctx.select("value").select("id");
-    const response = await ctx.execute();
-    if (response === null) {
-      return null;
-    }
-    return new _NodeClient(ctx.copy().selectNode(response, "Node"));
-  };
-}
-
-class Artifacts extends BaseClient {
-  _id = undefined;
-  _uri = undefined;
-  constructor(ctx, _id, _uri) {
-    super(ctx);
-    this._id = _id;
-    this._uri = _uri;
-  }
-  id = async () => {
-    if (this._id) {
-      return this._id;
-    }
-    const ctx = this._ctx.select("id");
-    const response = await ctx.execute();
-    return response;
-  };
-  asChangesets = async () => {
-    const ctx = this._ctx.select("asChangesets").select("id");
-    const response = await ctx.execute();
-    return response.map((r) => new Changeset(ctx.copy().selectNode(r.id, "Changeset")));
-  };
-  asChecks = async () => {
-    const ctx = this._ctx.select("asChecks").select("id");
-    const response = await ctx.execute();
-    return response.map((r) => new Check(ctx.copy().selectNode(r.id, "Check")));
-  };
-  asExpertise = async () => {
-    const ctx = this._ctx.select("asExpertise").select("id");
-    const response = await ctx.execute();
-    return response.map((r) => new Expertise(ctx.copy().selectNode(r.id, "Expertise")));
-  };
-  asGenerators = async () => {
-    const ctx = this._ctx.select("asGenerators").select("id");
-    const response = await ctx.execute();
-    return response.map((r) => new Generator(ctx.copy().selectNode(r.id, "Generator")));
-  };
-  asServices = async () => {
-    const ctx = this._ctx.select("asServices").select("id");
-    const response = await ctx.execute();
-    return response.map((r) => new Service(ctx.copy().selectNode(r.id, "Service")));
-  };
-  dimensionDefinitions = async () => {
-    const ctx = this._ctx.select("dimensionDefinitions").select("id");
-    const response = await ctx.execute();
-    return response.map((r) => new ArtifactDimension(ctx.copy().selectNode(r.id, "ArtifactDimension")));
-  };
-  dimensionItems = async (dimension) => {
-    const ctx = this._ctx.select("dimensionItems", { dimension }).select("id");
-    const response = await ctx.execute();
-    return response.map((r) => new Artifact(ctx.copy().selectNode(r.id, "Artifact")));
-  };
-  dimensionKeys = async (dimension) => {
-    const ctx = this._ctx.select("dimensionKeys", { dimension });
-    const response = await ctx.execute();
-    return response;
-  };
-  dimensions = async () => {
-    const ctx = this._ctx.select("dimensions");
-    const response = await ctx.execute();
-    return response;
-  };
-  filterDimensionKeys = (dimension, keys) => {
-    const ctx = this._ctx.select("filterDimensionKeys", { dimension, keys });
-    return new Artifacts(ctx);
-  };
-  filterDimensions = (dimensions) => {
-    const ctx = this._ctx.select("filterDimensions", { dimensions });
-    return new Artifacts(ctx);
-  };
-  filterDirectives = (directives, opts) => {
-    const ctx = this._ctx.select("filterDirectives", { directives, ...opts });
-    return new Artifacts(ctx);
-  };
-  filterParentDirectives = (directives, opts) => {
-    const ctx = this._ctx.select("filterParentDirectives", { directives, ...opts });
-    return new Artifacts(ctx);
-  };
-  filterParentTypes = (types, opts) => {
-    const ctx = this._ctx.select("filterParentTypes", { types, ...opts });
-    return new Artifacts(ctx);
-  };
-  filterPath = (path) => {
-    const ctx = this._ctx.select("filterPath", { path });
-    return new Artifacts(ctx);
-  };
-  filterPathPattern = (pattern) => {
-    const ctx = this._ctx.select("filterPathPattern", { pattern });
-    return new Artifacts(ctx);
-  };
-  filterTypes = (types, opts) => {
-    const ctx = this._ctx.select("filterTypes", { types, ...opts });
-    return new Artifacts(ctx);
-  };
-  filterUri = (uri) => {
-    const ctx = this._ctx.select("filterUri", { uri });
-    return new Artifacts(ctx);
-  };
-  items = async () => {
-    const ctx = this._ctx.select("items").select("id");
-    const response = await ctx.execute();
-    return response.map((r) => new Artifact(ctx.copy().selectNode(r.id, "Artifact")));
-  };
-  modules = async () => {
-    const ctx = this._ctx.select("modules").select("id");
-    const response = await ctx.execute();
-    return response.map((r) => new Module_(ctx.copy().selectNode(r.id, "Module")));
-  };
-  one = () => {
-    const ctx = this._ctx.select("one");
-    return new Artifact(ctx);
-  };
-  pathDefinitions = async (opts) => {
-    const ctx = this._ctx.select("pathDefinitions", { ...opts }).select("id");
-    const response = await ctx.execute();
-    return response.map((r) => new ArtifactPath(ctx.copy().selectNode(r.id, "ArtifactPath")));
-  };
-  types = async () => {
-    const ctx = this._ctx.select("types").select("id");
-    const response = await ctx.execute();
-    return response.map((r) => new TypeDef(ctx.copy().selectNode(r.id, "TypeDef")));
-  };
-  uri = async () => {
-    if (this._uri) {
-      return this._uri;
-    }
-    const ctx = this._ctx.select("uri");
-    const response = await ctx.execute();
-    return response;
-  };
-  values = async (opts) => {
-    const ctx = this._ctx.select("values", { ...opts }).select("id");
-    const response = await ctx.execute();
-    return response.map((r) => new ArtifactResult(ctx.copy().selectNode(r.id, "ArtifactResult")));
-  };
-  withArtifacts = (artifacts) => {
-    const ctx = this._ctx.select("withArtifacts", { artifacts });
-    return new Artifacts(ctx);
-  };
-  withoutUri = (uri) => {
-    const ctx = this._ctx.select("withoutUri", { uri });
-    return new Artifacts(ctx);
-  };
-  with = (arg) => {
-    return arg(this);
+    return response.map((r2) => new AgentMiddleware(ctx.copy().selectNode(r2.id, "AgentMiddleware")));
   };
 }
 
@@ -102157,7 +101927,7 @@ class Changeset extends BaseClient {
   };
   asPatch = () => {
     const ctx = this._ctx.select("asPatch");
-    return new File(ctx);
+    return new File3(ctx);
   };
   before = () => {
     const ctx = this._ctx.select("before");
@@ -102166,13 +101936,13 @@ class Changeset extends BaseClient {
   diffStats = async () => {
     const ctx = this._ctx.select("diffStats").select("id");
     const response = await ctx.execute();
-    return response.map((r) => new DiffStat(ctx.copy().selectNode(r.id, "DiffStat")));
+    return response.map((r2) => new DiffStat(ctx.copy().selectNode(r2.id, "DiffStat")));
   };
-  export = async (path) => {
+  export = async (path8) => {
     if (this._export) {
       return this._export;
     }
-    const ctx = this._ctx.select("export", { path });
+    const ctx = this._ctx.select("export", { path: path8 });
     const response = await ctx.execute();
     return response;
   };
@@ -102228,13 +101998,21 @@ class Changeset extends BaseClient {
 
 class Check extends BaseClient {
   _id = undefined;
-  _assertion = undefined;
-  _pass = undefined;
-  constructor(ctx, _id, _assertion, _pass) {
+  _checkType = undefined;
+  _completed = undefined;
+  _description = undefined;
+  _name = undefined;
+  _passed = undefined;
+  _resultEmoji = undefined;
+  constructor(ctx, _id, _checkType, _completed, _description, _name, _passed, _resultEmoji) {
     super(ctx);
     this._id = _id;
-    this._assertion = _assertion;
-    this._pass = _pass;
+    this._checkType = _checkType;
+    this._completed = _completed;
+    this._description = _description;
+    this._name = _name;
+    this._passed = _passed;
+    this._resultEmoji = _resultEmoji;
   }
   id = async () => {
     if (this._id) {
@@ -102244,11 +102022,27 @@ class Check extends BaseClient {
     const response = await ctx.execute();
     return response;
   };
-  assertion = async () => {
-    if (this._assertion) {
-      return this._assertion;
+  checkType = async () => {
+    if (this._checkType) {
+      return this._checkType;
     }
-    const ctx = this._ctx.select("assertion");
+    const ctx = this._ctx.select("checkType");
+    const response = await ctx.execute();
+    return response;
+  };
+  completed = async () => {
+    if (this._completed) {
+      return this._completed;
+    }
+    const ctx = this._ctx.select("completed");
+    const response = await ctx.execute();
+    return response;
+  };
+  description = async () => {
+    if (this._description) {
+      return this._description;
+    }
+    const ctx = this._ctx.select("description");
     const response = await ctx.execute();
     return response;
   };
@@ -102260,25 +102054,74 @@ class Check extends BaseClient {
     }
     return new Error2(ctx.copy().selectNode(response, "Error"));
   };
-  pass = async () => {
-    if (this._pass) {
-      return this._pass;
+  name = async () => {
+    if (this._name) {
+      return this._name;
     }
-    const ctx = this._ctx.select("pass");
+    const ctx = this._ctx.select("name");
     const response = await ctx.execute();
     return response;
   };
-  report = async () => {
-    const ctx = this._ctx.select("report").select("id");
-    const response = await ctx.execute();
-    if (response === null) {
-      return null;
-    }
-    return new Directory(ctx.copy().selectNode(response, "Directory"));
+  originalModule = () => {
+    const ctx = this._ctx.select("originalModule");
+    return new Module_(ctx);
   };
-  sync = () => {
-    const ctx = this._ctx.select("sync");
+  passed = async () => {
+    if (this._passed) {
+      return this._passed;
+    }
+    const ctx = this._ctx.select("passed");
+    const response = await ctx.execute();
+    return response;
+  };
+  path = async () => {
+    const ctx = this._ctx.select("path");
+    const response = await ctx.execute();
+    return response;
+  };
+  resultEmoji = async () => {
+    if (this._resultEmoji) {
+      return this._resultEmoji;
+    }
+    const ctx = this._ctx.select("resultEmoji");
+    const response = await ctx.execute();
+    return response;
+  };
+  run = () => {
+    const ctx = this._ctx.select("run");
     return new Check(ctx);
+  };
+  with = (arg) => {
+    return arg(this);
+  };
+}
+
+class CheckGroup extends BaseClient {
+  _id = undefined;
+  constructor(ctx, _id) {
+    super(ctx);
+    this._id = _id;
+  }
+  id = async () => {
+    if (this._id) {
+      return this._id;
+    }
+    const ctx = this._ctx.select("id");
+    const response = await ctx.execute();
+    return response;
+  };
+  list = async () => {
+    const ctx = this._ctx.select("list").select("id");
+    const response = await ctx.execute();
+    return response.map((r2) => new Check(ctx.copy().selectNode(r2.id, "Check")));
+  };
+  report = () => {
+    const ctx = this._ctx.select("report");
+    return new File3(ctx);
+  };
+  run = (opts) => {
+    const ctx = this._ctx.select("run", { ...opts });
+    return new CheckGroup(ctx);
   };
   with = (arg) => {
     return arg(this);
@@ -102305,93 +102148,6 @@ class Cloud extends BaseClient {
       return this._traceURL;
     }
     const ctx = this._ctx.select("traceURL");
-    const response = await ctx.execute();
-    return response;
-  };
-}
-class CollectionTypeDef extends BaseClient {
-  _id = undefined;
-  constructor(ctx, _id) {
-    super(ctx);
-    this._id = _id;
-  }
-  id = async () => {
-    if (this._id) {
-      return this._id;
-    }
-    const ctx = this._ctx.select("id");
-    const response = await ctx.execute();
-    return response;
-  };
-  batchType = async () => {
-    const ctx = this._ctx.select("batchType").select("id");
-    const response = await ctx.execute();
-    if (response === null) {
-      return null;
-    }
-    return new TypeDef(ctx.copy().selectNode(response, "TypeDef"));
-  };
-  keyType = () => {
-    const ctx = this._ctx.select("keyType");
-    return new TypeDef(ctx);
-  };
-  valueType = () => {
-    const ctx = this._ctx.select("valueType");
-    return new TypeDef(ctx);
-  };
-}
-
-class Command extends BaseClient {
-  _id = undefined;
-  _insecureRootCapabilities = undefined;
-  _privilegedNesting = undefined;
-  _workdir = undefined;
-  constructor(ctx, _id, _insecureRootCapabilities, _privilegedNesting, _workdir) {
-    super(ctx);
-    this._id = _id;
-    this._insecureRootCapabilities = _insecureRootCapabilities;
-    this._privilegedNesting = _privilegedNesting;
-    this._workdir = _workdir;
-  }
-  id = async () => {
-    if (this._id) {
-      return this._id;
-    }
-    const ctx = this._ctx.select("id");
-    const response = await ctx.execute();
-    return response;
-  };
-  args = async () => {
-    const ctx = this._ctx.select("args");
-    const response = await ctx.execute();
-    return response;
-  };
-  env = async () => {
-    const ctx = this._ctx.select("env").select("id");
-    const response = await ctx.execute();
-    return response.map((r) => new EnvVariable(ctx.copy().selectNode(r.id, "EnvVariable")));
-  };
-  insecureRootCapabilities = async () => {
-    if (this._insecureRootCapabilities) {
-      return this._insecureRootCapabilities;
-    }
-    const ctx = this._ctx.select("insecureRootCapabilities");
-    const response = await ctx.execute();
-    return response;
-  };
-  privilegedNesting = async () => {
-    if (this._privilegedNesting) {
-      return this._privilegedNesting;
-    }
-    const ctx = this._ctx.select("privilegedNesting");
-    const response = await ctx.execute();
-    return response;
-  };
-  workdir = async () => {
-    if (this._workdir) {
-      return this._workdir;
-    }
-    const ctx = this._ctx.select("workdir");
     const response = await ctx.execute();
     return response;
   };
@@ -102453,7 +102209,7 @@ class Container extends BaseClient {
       mediaTypes: { is_enum: true, value_to_name: ImageMediaTypesValueToName }
     };
     const ctx = this._ctx.select("asTarball", { ...opts, __metadata: metadata });
-    return new File(ctx);
+    return new File3(ctx);
   };
   combinedOutput = async () => {
     if (this._combinedOutput) {
@@ -102468,8 +102224,8 @@ class Container extends BaseClient {
     const response = await ctx.execute();
     return response;
   };
-  directory = (path, opts) => {
-    const ctx = this._ctx.select("directory", { path, ...opts });
+  directory = (path8, opts) => {
+    const ctx = this._ctx.select("directory", { path: path8, ...opts });
     return new Directory(ctx);
   };
   dockerHealthcheck = async () => {
@@ -102496,16 +102252,16 @@ class Container extends BaseClient {
   envVariables = async () => {
     const ctx = this._ctx.select("envVariables").select("id");
     const response = await ctx.execute();
-    return response.map((r) => new EnvVariable(ctx.copy().selectNode(r.id, "EnvVariable")));
+    return response.map((r2) => new EnvVariable(ctx.copy().selectNode(r2.id, "EnvVariable")));
   };
-  exists = async (path, opts) => {
+  exists = async (path8, opts) => {
     if (this._exists) {
       return this._exists;
     }
     const metadata = {
       expectedType: { is_enum: true, value_to_name: ExistsTypeValueToName }
     };
-    const ctx = this._ctx.select("exists", { path, ...opts, __metadata: metadata });
+    const ctx = this._ctx.select("exists", { path: path8, ...opts, __metadata: metadata });
     const response = await ctx.execute();
     return response;
   };
@@ -102525,7 +102281,7 @@ class Container extends BaseClient {
     const ctx = this._ctx.select("experimentalWithGPU", { devices });
     return new Container(ctx);
   };
-  export = async (path, opts) => {
+  export = async (path8, opts) => {
     if (this._export) {
       return this._export;
     }
@@ -102533,7 +102289,7 @@ class Container extends BaseClient {
       forcedCompression: { is_enum: true, value_to_name: ImageLayerCompressionValueToName },
       mediaTypes: { is_enum: true, value_to_name: ImageMediaTypesValueToName }
     };
-    const ctx = this._ctx.select("export", { path, ...opts, __metadata: metadata });
+    const ctx = this._ctx.select("export", { path: path8, ...opts, __metadata: metadata });
     const response = await ctx.execute();
     return response;
   };
@@ -102551,11 +102307,11 @@ class Container extends BaseClient {
   exposedPorts = async () => {
     const ctx = this._ctx.select("exposedPorts").select("id");
     const response = await ctx.execute();
-    return response.map((r) => new Port(ctx.copy().selectNode(r.id, "Port")));
+    return response.map((r2) => new Port(ctx.copy().selectNode(r2.id, "Port")));
   };
-  file = (path, opts) => {
-    const ctx = this._ctx.select("file", { path, ...opts });
-    return new File(ctx);
+  file = (path8, opts) => {
+    const ctx = this._ctx.select("file", { path: path8, ...opts });
+    return new File3(ctx);
   };
   from = (address, opts) => {
     const metadata = {
@@ -102587,7 +102343,7 @@ class Container extends BaseClient {
   labels = async () => {
     const ctx = this._ctx.select("labels").select("id");
     const response = await ctx.execute();
-    return response.map((r) => new Label(ctx.copy().selectNode(r.id, "Label")));
+    return response.map((r2) => new Label(ctx.copy().selectNode(r2.id, "Label")));
   };
   layer = (id, opts) => {
     const metadata = {
@@ -102595,7 +102351,7 @@ class Container extends BaseClient {
       mediaTypes: { is_enum: true, value_to_name: ImageMediaTypesValueToName }
     };
     const ctx = this._ctx.select("layer", { id, ...opts, __metadata: metadata });
-    return new File(ctx);
+    return new File3(ctx);
   };
   manifest = (opts) => {
     const metadata = {
@@ -102603,7 +102359,7 @@ class Container extends BaseClient {
       mediaTypes: { is_enum: true, value_to_name: ImageMediaTypesValueToName }
     };
     const ctx = this._ctx.select("manifest", { ...opts, __metadata: metadata });
-    return new File(ctx);
+    return new File3(ctx);
   };
   mounts = async () => {
     const ctx = this._ctx.select("mounts");
@@ -102635,12 +102391,8 @@ class Container extends BaseClient {
     const ctx = this._ctx.select("rootfs");
     return new Directory(ctx);
   };
-  shell = (opts) => {
-    const ctx = this._ctx.select("shell", { ...opts });
-    return new Command(ctx);
-  };
-  stat = async (path, opts) => {
-    const ctx = this._ctx.select("stat", { path, ...opts }).select("id");
+  stat = async (path8, opts) => {
+    const ctx = this._ctx.select("stat", { path: path8, ...opts }).select("id");
     const response = await ctx.execute();
     if (response === null) {
       return null;
@@ -102699,8 +102451,8 @@ class Container extends BaseClient {
     const ctx = this._ctx.select("withDefaultTerminalCmd", { args, ...opts });
     return new Container(ctx);
   };
-  withDirectory = (path, source, opts) => {
-    const ctx = this._ctx.select("withDirectory", { path, source, ...opts });
+  withDirectory = (path8, source, opts) => {
+    const ctx = this._ctx.select("withDirectory", { path: path8, source, ...opts });
     return new Container(ctx);
   };
   withDockerHealthcheck = (args, opts) => {
@@ -102737,51 +102489,47 @@ class Container extends BaseClient {
     const ctx = this._ctx.select("withExposedPort", { port, ...opts, __metadata: metadata });
     return new Container(ctx);
   };
-  withFile = (path, source, opts) => {
-    const ctx = this._ctx.select("withFile", { path, source, ...opts });
+  withFile = (path8, source, opts) => {
+    const ctx = this._ctx.select("withFile", { path: path8, source, ...opts });
     return new Container(ctx);
   };
-  withFiles = (path, sources, opts) => {
-    const ctx = this._ctx.select("withFiles", { path, sources, ...opts });
-    return new Container(ctx);
-  };
-  withGPU = () => {
-    const ctx = this._ctx.select("withGPU");
+  withFiles = (path8, sources, opts) => {
+    const ctx = this._ctx.select("withFiles", { path: path8, sources, ...opts });
     return new Container(ctx);
   };
   withLabel = (name, value) => {
     const ctx = this._ctx.select("withLabel", { name, value });
     return new Container(ctx);
   };
-  withMountedCache = (path, cache, opts) => {
+  withMountedCache = (path8, cache, opts) => {
     const metadata = {
       sharing: { is_enum: true, value_to_name: CacheSharingModeValueToName }
     };
-    const ctx = this._ctx.select("withMountedCache", { path, cache, ...opts, __metadata: metadata });
+    const ctx = this._ctx.select("withMountedCache", { path: path8, cache, ...opts, __metadata: metadata });
     return new Container(ctx);
   };
-  withMountedDirectory = (path, source, opts) => {
-    const ctx = this._ctx.select("withMountedDirectory", { path, source, ...opts });
+  withMountedDirectory = (path8, source, opts) => {
+    const ctx = this._ctx.select("withMountedDirectory", { path: path8, source, ...opts });
     return new Container(ctx);
   };
-  withMountedFile = (path, source, opts) => {
-    const ctx = this._ctx.select("withMountedFile", { path, source, ...opts });
+  withMountedFile = (path8, source, opts) => {
+    const ctx = this._ctx.select("withMountedFile", { path: path8, source, ...opts });
     return new Container(ctx);
   };
-  withMountedSecret = (path, source, opts) => {
-    const ctx = this._ctx.select("withMountedSecret", { path, source, ...opts });
+  withMountedSecret = (path8, source, opts) => {
+    const ctx = this._ctx.select("withMountedSecret", { path: path8, source, ...opts });
     return new Container(ctx);
   };
-  withMountedTemp = (path, opts) => {
-    const ctx = this._ctx.select("withMountedTemp", { path, ...opts });
+  withMountedTemp = (path8, opts) => {
+    const ctx = this._ctx.select("withMountedTemp", { path: path8, ...opts });
     return new Container(ctx);
   };
-  withMountedVolume = (path, volume, opts) => {
-    const ctx = this._ctx.select("withMountedVolume", { path, volume, ...opts });
+  withMountedVolume = (path8, volume, opts) => {
+    const ctx = this._ctx.select("withMountedVolume", { path: path8, volume, ...opts });
     return new Container(ctx);
   };
-  withNewFile = (path, contents, opts) => {
-    const ctx = this._ctx.select("withNewFile", { path, contents, ...opts });
+  withNewFile = (path8, contents, opts) => {
+    const ctx = this._ctx.select("withNewFile", { path: path8, contents, ...opts });
     return new Container(ctx);
   };
   withRegistryAuth = (address, username, secret) => {
@@ -102792,10 +102540,6 @@ class Container extends BaseClient {
     const ctx = this._ctx.select("withRootfs", { directory });
     return new Container(ctx);
   };
-  withRun = (command, opts) => {
-    const ctx = this._ctx.select("withRun", { command, ...opts });
-    return new Container(ctx);
-  };
   withSecretVariable = (name, secret) => {
     const ctx = this._ctx.select("withSecretVariable", { name, secret });
     return new Container(ctx);
@@ -102804,16 +102548,12 @@ class Container extends BaseClient {
     const ctx = this._ctx.select("withServiceBinding", { alias, service });
     return new Container(ctx);
   };
-  withShell = (interactive, opts) => {
-    const ctx = this._ctx.select("withShell", { interactive, ...opts });
-    return new Container(ctx);
-  };
   withSymlink = (target, linkName, opts) => {
     const ctx = this._ctx.select("withSymlink", { target, linkName, ...opts });
     return new Container(ctx);
   };
-  withUnixSocket = (path, source, opts) => {
-    const ctx = this._ctx.select("withUnixSocket", { path, source, ...opts });
+  withUnixSocket = (path8, source, opts) => {
+    const ctx = this._ctx.select("withUnixSocket", { path: path8, source, ...opts });
     return new Container(ctx);
   };
   withUser = (name) => {
@@ -102824,8 +102564,8 @@ class Container extends BaseClient {
     const ctx = this._ctx.select("withVolatileVariable", { name, value });
     return new Container(ctx);
   };
-  withWorkdir = (path, opts) => {
-    const ctx = this._ctx.select("withWorkdir", { path, ...opts });
+  withWorkdir = (path8, opts) => {
+    const ctx = this._ctx.select("withWorkdir", { path: path8, ...opts });
     return new Container(ctx);
   };
   withoutAnnotation = (name) => {
@@ -102836,8 +102576,8 @@ class Container extends BaseClient {
     const ctx = this._ctx.select("withoutDefaultArgs");
     return new Container(ctx);
   };
-  withoutDirectory = (path, opts) => {
-    const ctx = this._ctx.select("withoutDirectory", { path, ...opts });
+  withoutDirectory = (path8, opts) => {
+    const ctx = this._ctx.select("withoutDirectory", { path: path8, ...opts });
     return new Container(ctx);
   };
   withoutDockerHealthcheck = () => {
@@ -102859,8 +102599,8 @@ class Container extends BaseClient {
     const ctx = this._ctx.select("withoutExposedPort", { port, ...opts, __metadata: metadata });
     return new Container(ctx);
   };
-  withoutFile = (path, opts) => {
-    const ctx = this._ctx.select("withoutFile", { path, ...opts });
+  withoutFile = (path8, opts) => {
+    const ctx = this._ctx.select("withoutFile", { path: path8, ...opts });
     return new Container(ctx);
   };
   withoutFiles = (paths, opts) => {
@@ -102871,8 +102611,8 @@ class Container extends BaseClient {
     const ctx = this._ctx.select("withoutLabel", { name });
     return new Container(ctx);
   };
-  withoutMount = (path, opts) => {
-    const ctx = this._ctx.select("withoutMount", { path, ...opts });
+  withoutMount = (path8, opts) => {
+    const ctx = this._ctx.select("withoutMount", { path: path8, ...opts });
     return new Container(ctx);
   };
   withoutRegistryAuth = (address) => {
@@ -102883,8 +102623,8 @@ class Container extends BaseClient {
     const ctx = this._ctx.select("withoutSecretVariable", { name });
     return new Container(ctx);
   };
-  withoutUnixSocket = (path, opts) => {
-    const ctx = this._ctx.select("withoutUnixSocket", { path, ...opts });
+  withoutUnixSocket = (path8, opts) => {
+    const ctx = this._ctx.select("withoutUnixSocket", { path: path8, ...opts });
     return new Container(ctx);
   };
   withoutUser = () => {
@@ -102931,11 +102671,15 @@ class CurrentModule extends BaseClient {
   dependencies = async () => {
     const ctx = this._ctx.select("dependencies").select("id");
     const response = await ctx.execute();
-    return response.map((r) => new Module_(ctx.copy().selectNode(r.id, "Module")));
+    return response.map((r2) => new Module_(ctx.copy().selectNode(r2.id, "Module")));
   };
   generatedContextDirectory = () => {
     const ctx = this._ctx.select("generatedContextDirectory");
     return new Directory(ctx);
+  };
+  generators = (opts) => {
+    const ctx = this._ctx.select("generators", { ...opts });
+    return new GeneratorGroup(ctx);
   };
   name = async () => {
     if (this._name) {
@@ -102949,13 +102693,13 @@ class CurrentModule extends BaseClient {
     const ctx = this._ctx.select("source");
     return new Directory(ctx);
   };
-  workdir = (path, opts) => {
-    const ctx = this._ctx.select("workdir", { path, ...opts });
+  workdir = (path8, opts) => {
+    const ctx = this._ctx.select("workdir", { path: path8, ...opts });
     return new Directory(ctx);
   };
-  workdirFile = (path) => {
-    const ctx = this._ctx.select("workdirFile", { path });
-    return new File(ctx);
+  workdirFile = (path8) => {
+    const ctx = this._ctx.select("workdirFile", { path: path8 });
+    return new File3(ctx);
   };
 }
 
@@ -103071,8 +102815,8 @@ class Directory extends BaseClient {
     const ctx = this._ctx.select("changes", { from });
     return new Changeset(ctx);
   };
-  chown = (path, owner) => {
-    const ctx = this._ctx.select("chown", { path, owner });
+  chown = (path8, owner) => {
+    const ctx = this._ctx.select("chown", { path: path8, owner });
     return new Directory(ctx);
   };
   diff = (other) => {
@@ -103087,8 +102831,8 @@ class Directory extends BaseClient {
     const response = await ctx.execute();
     return response;
   };
-  directory = (path) => {
-    const ctx = this._ctx.select("directory", { path });
+  directory = (path8) => {
+    const ctx = this._ctx.select("directory", { path: path8 });
     return new Directory(ctx);
   };
   dockerBuild = (opts) => {
@@ -103100,28 +102844,28 @@ class Directory extends BaseClient {
     const response = await ctx.execute();
     return response;
   };
-  exists = async (path, opts) => {
+  exists = async (path8, opts) => {
     if (this._exists) {
       return this._exists;
     }
     const metadata = {
       expectedType: { is_enum: true, value_to_name: ExistsTypeValueToName }
     };
-    const ctx = this._ctx.select("exists", { path, ...opts, __metadata: metadata });
+    const ctx = this._ctx.select("exists", { path: path8, ...opts, __metadata: metadata });
     const response = await ctx.execute();
     return response;
   };
-  export = async (path, opts) => {
+  export = async (path8, opts) => {
     if (this._export) {
       return this._export;
     }
-    const ctx = this._ctx.select("export", { path, ...opts });
+    const ctx = this._ctx.select("export", { path: path8, ...opts });
     const response = await ctx.execute();
     return response;
   };
-  file = (path) => {
-    const ctx = this._ctx.select("file", { path });
-    return new File(ctx);
+  file = (path8) => {
+    const ctx = this._ctx.select("file", { path: path8 });
+    return new File3(ctx);
   };
   filter = (opts) => {
     const ctx = this._ctx.select("filter", { ...opts });
@@ -103151,10 +102895,10 @@ class Directory extends BaseClient {
   search = async (opts) => {
     const ctx = this._ctx.select("search", { ...opts }).select("id");
     const response = await ctx.execute();
-    return response.map((r) => new SearchResult(ctx.copy().selectNode(r.id, "SearchResult")));
+    return response.map((r2) => new SearchResult(ctx.copy().selectNode(r2.id, "SearchResult")));
   };
-  stat = async (path, opts) => {
-    const ctx = this._ctx.select("stat", { path, ...opts }).select("id");
+  stat = async (path8, opts) => {
+    const ctx = this._ctx.select("stat", { path: path8, ...opts }).select("id");
     const response = await ctx.execute();
     if (response === null) {
       return null;
@@ -103174,28 +102918,28 @@ class Directory extends BaseClient {
     const ctx = this._ctx.select("withChanges", { changes });
     return new Directory(ctx);
   };
-  withDirectory = (path, source, opts) => {
-    const ctx = this._ctx.select("withDirectory", { path, source, ...opts });
+  withDirectory = (path8, source, opts) => {
+    const ctx = this._ctx.select("withDirectory", { path: path8, source, ...opts });
     return new Directory(ctx);
   };
   withError = (err) => {
     const ctx = this._ctx.select("withError", { err });
     return new Directory(ctx);
   };
-  withFile = (path, source, opts) => {
-    const ctx = this._ctx.select("withFile", { path, source, ...opts });
+  withFile = (path8, source, opts) => {
+    const ctx = this._ctx.select("withFile", { path: path8, source, ...opts });
     return new Directory(ctx);
   };
-  withFiles = (path, sources, opts) => {
-    const ctx = this._ctx.select("withFiles", { path, sources, ...opts });
+  withFiles = (path8, sources, opts) => {
+    const ctx = this._ctx.select("withFiles", { path: path8, sources, ...opts });
     return new Directory(ctx);
   };
-  withNewDirectory = (path, opts) => {
-    const ctx = this._ctx.select("withNewDirectory", { path, ...opts });
+  withNewDirectory = (path8, opts) => {
+    const ctx = this._ctx.select("withNewDirectory", { path: path8, ...opts });
     return new Directory(ctx);
   };
-  withNewFile = (path, contents, opts) => {
-    const ctx = this._ctx.select("withNewFile", { path, contents, ...opts });
+  withNewFile = (path8, contents, opts) => {
+    const ctx = this._ctx.select("withNewFile", { path: path8, contents, ...opts });
     return new Directory(ctx);
   };
   withPatch = (patch, opts) => {
@@ -103220,12 +102964,12 @@ class Directory extends BaseClient {
     const ctx = this._ctx.select("withTimestamps", { timestamp });
     return new Directory(ctx);
   };
-  withoutDirectory = (path) => {
-    const ctx = this._ctx.select("withoutDirectory", { path });
+  withoutDirectory = (path8) => {
+    const ctx = this._ctx.select("withoutDirectory", { path: path8 });
     return new Directory(ctx);
   };
-  withoutFile = (path) => {
-    const ctx = this._ctx.select("withoutFile", { path });
+  withoutFile = (path8) => {
+    const ctx = this._ctx.select("withoutFile", { path: path8 });
     return new Directory(ctx);
   };
   withoutFiles = (paths) => {
@@ -103461,7 +103205,7 @@ class EngineCacheEntrySet extends BaseClient {
   entries = async () => {
     const ctx = this._ctx.select("entries").select("id");
     const response = await ctx.execute();
-    return response.map((r) => new EngineCacheEntry(ctx.copy().selectNode(r.id, "EngineCacheEntry")));
+    return response.map((r2) => new EngineCacheEntry(ctx.copy().selectNode(r2.id, "EngineCacheEntry")));
   };
   entryCount = async () => {
     if (this._entryCount) {
@@ -103504,7 +103248,7 @@ class EnumTypeDef extends BaseClient {
   members = async () => {
     const ctx = this._ctx.select("members").select("id");
     const response = await ctx.execute();
-    return response.map((r) => new EnumValueTypeDef(ctx.copy().selectNode(r.id, "EnumValueTypeDef")));
+    return response.map((r2) => new EnumValueTypeDef(ctx.copy().selectNode(r2.id, "EnumValueTypeDef")));
   };
   name = async () => {
     if (this._name) {
@@ -103533,7 +103277,7 @@ class EnumTypeDef extends BaseClient {
   values = async () => {
     const ctx = this._ctx.select("values").select("id");
     const response = await ctx.execute();
-    return response.map((r) => new EnumValueTypeDef(ctx.copy().selectNode(r.id, "EnumValueTypeDef")));
+    return response.map((r2) => new EnumValueTypeDef(ctx.copy().selectNode(r2.id, "EnumValueTypeDef")));
   };
 }
 
@@ -103621,7 +103365,7 @@ class EnvFile extends BaseClient {
   };
   asFile = () => {
     const ctx = this._ctx.select("asFile");
-    return new File(ctx);
+    return new File3(ctx);
   };
   exists = async (name) => {
     if (this._exists) {
@@ -103646,7 +103390,7 @@ class EnvFile extends BaseClient {
   variables = async (opts) => {
     const ctx = this._ctx.select("variables", { ...opts }).select("id");
     const response = await ctx.execute();
-    return response.map((r) => new EnvVariable(ctx.copy().selectNode(r.id, "EnvVariable")));
+    return response.map((r2) => new EnvVariable(ctx.copy().selectNode(r2.id, "EnvVariable")));
   };
   withVariable = (name, value) => {
     const ctx = this._ctx.select("withVariable", { name, value });
@@ -103724,7 +103468,7 @@ class Error2 extends BaseClient {
   values = async () => {
     const ctx = this._ctx.select("values").select("id");
     const response = await ctx.execute();
-    return response.map((r) => new ErrorValue(ctx.copy().selectNode(r.id, "ErrorValue")));
+    return response.map((r2) => new ErrorValue(ctx.copy().selectNode(r2.id, "ErrorValue")));
   };
   withValue = (name, value) => {
     const ctx = this._ctx.select("withValue", { name, value });
@@ -103766,51 +103510,6 @@ class ErrorValue extends BaseClient {
       return this._value;
     }
     const ctx = this._ctx.select("value");
-    const response = await ctx.execute();
-    return response;
-  };
-}
-
-class Expertise extends BaseClient {
-  _id = undefined;
-  _description = undefined;
-  _name = undefined;
-  constructor(ctx, _id, _description, _name) {
-    super(ctx);
-    this._id = _id;
-    this._description = _description;
-    this._name = _name;
-  }
-  id = async () => {
-    if (this._id) {
-      return this._id;
-    }
-    const ctx = this._ctx.select("id");
-    const response = await ctx.execute();
-    return response;
-  };
-  description = async () => {
-    if (this._description) {
-      return this._description;
-    }
-    const ctx = this._ctx.select("description");
-    const response = await ctx.execute();
-    return response;
-  };
-  name = async () => {
-    if (this._name) {
-      return this._name;
-    }
-    const ctx = this._ctx.select("name");
-    const response = await ctx.execute();
-    return response;
-  };
-  originalModule = () => {
-    const ctx = this._ctx.select("originalModule");
-    return new Module_(ctx);
-  };
-  path = async () => {
-    const ctx = this._ctx.select("path");
     const response = await ctx.execute();
     return response;
   };
@@ -103873,7 +103572,7 @@ class FieldTypeDef extends BaseClient {
   };
 }
 
-class File extends BaseClient {
+class File3 extends BaseClient {
   _id = undefined;
   _contents = undefined;
   _digest = undefined;
@@ -103913,7 +103612,7 @@ class File extends BaseClient {
   };
   chown = (owner) => {
     const ctx = this._ctx.select("chown", { owner });
-    return new File(ctx);
+    return new File3(ctx);
   };
   contents = async (opts) => {
     if (this._contents) {
@@ -103931,11 +103630,11 @@ class File extends BaseClient {
     const response = await ctx.execute();
     return response;
   };
-  export = async (path, opts) => {
+  export = async (path8, opts) => {
     if (this._export) {
       return this._export;
     }
-    const ctx = this._ctx.select("export", { path, ...opts });
+    const ctx = this._ctx.select("export", { path: path8, ...opts });
     const response = await ctx.execute();
     return response;
   };
@@ -103950,7 +103649,7 @@ class File extends BaseClient {
   search = async (pattern, opts) => {
     const ctx = this._ctx.select("search", { pattern, ...opts }).select("id");
     const response = await ctx.execute();
-    return response.map((r) => new SearchResult(ctx.copy().selectNode(r.id, "SearchResult")));
+    return response.map((r2) => new SearchResult(ctx.copy().selectNode(r2.id, "SearchResult")));
   };
   size = async () => {
     if (this._size) {
@@ -103971,19 +103670,19 @@ class File extends BaseClient {
   sync = async () => {
     const ctx = this._ctx.select("sync");
     const response = await ctx.execute();
-    return new File(ctx.copy().selectNode(response, "File"));
+    return new File3(ctx.copy().selectNode(response, "File"));
   };
   withName = (name) => {
     const ctx = this._ctx.select("withName", { name });
-    return new File(ctx);
+    return new File3(ctx);
   };
   withReplaced = (search, replacement, opts) => {
     const ctx = this._ctx.select("withReplaced", { search, replacement, ...opts });
-    return new File(ctx);
+    return new File3(ctx);
   };
   withTimestamps = (timestamp) => {
     const ctx = this._ctx.select("withTimestamps", { timestamp });
-    return new File(ctx);
+    return new File3(ctx);
   };
   with = (arg) => {
     return arg(this);
@@ -104015,7 +103714,7 @@ class Function_ extends BaseClient {
   args = async () => {
     const ctx = this._ctx.select("args").select("id");
     const response = await ctx.execute();
-    return response.map((r) => new FunctionArg(ctx.copy().selectNode(r.id, "FunctionArg")));
+    return response.map((r2) => new FunctionArg(ctx.copy().selectNode(r2.id, "FunctionArg")));
   };
   deprecated = async () => {
     if (this._deprecated) {
@@ -104225,7 +103924,7 @@ class FunctionCall extends BaseClient {
   inputArgs = async () => {
     const ctx = this._ctx.select("inputArgs").select("id");
     const response = await ctx.execute();
-    return response.map((r) => new FunctionCallArgValue(ctx.copy().selectNode(r.id, "FunctionCallArgValue")));
+    return response.map((r2) => new FunctionCallArgValue(ctx.copy().selectNode(r2.id, "FunctionCallArgValue")));
   };
   name = async () => {
     if (this._name) {
@@ -104346,9 +104045,17 @@ class GeneratedCode extends BaseClient {
 
 class Generator extends BaseClient {
   _id = undefined;
-  constructor(ctx, _id) {
+  _completed = undefined;
+  _description = undefined;
+  _isEmpty = undefined;
+  _name = undefined;
+  constructor(ctx, _id, _completed, _description, _isEmpty, _name) {
     super(ctx);
     this._id = _id;
+    this._completed = _completed;
+    this._description = _description;
+    this._isEmpty = _isEmpty;
+    this._name = _name;
   }
   id = async () => {
     if (this._id) {
@@ -104358,17 +104065,115 @@ class Generator extends BaseClient {
     const response = await ctx.execute();
     return response;
   };
-  changeset = () => {
-    const ctx = this._ctx.select("changeset");
+  changes = () => {
+    const ctx = this._ctx.select("changes");
     return new Changeset(ctx);
   };
-  stale = () => {
-    const ctx = this._ctx.select("stale");
-    return new Check(ctx);
+  completed = async () => {
+    if (this._completed) {
+      return this._completed;
+    }
+    const ctx = this._ctx.select("completed");
+    const response = await ctx.execute();
+    return response;
   };
-  sync = () => {
-    const ctx = this._ctx.select("sync");
+  description = async () => {
+    if (this._description) {
+      return this._description;
+    }
+    const ctx = this._ctx.select("description");
+    const response = await ctx.execute();
+    return response;
+  };
+  isEmpty = async () => {
+    if (this._isEmpty) {
+      return this._isEmpty;
+    }
+    const ctx = this._ctx.select("isEmpty");
+    const response = await ctx.execute();
+    return response;
+  };
+  name = async () => {
+    if (this._name) {
+      return this._name;
+    }
+    const ctx = this._ctx.select("name");
+    const response = await ctx.execute();
+    return response;
+  };
+  originalModule = async () => {
+    const ctx = this._ctx.select("originalModule").select("id");
+    const response = await ctx.execute();
+    if (response === null) {
+      return null;
+    }
+    return new Module_(ctx.copy().selectNode(response, "Module"));
+  };
+  path = async () => {
+    const ctx = this._ctx.select("path");
+    const response = await ctx.execute();
+    return response;
+  };
+  run = () => {
+    const ctx = this._ctx.select("run");
     return new Generator(ctx);
+  };
+  with = (arg) => {
+    return arg(this);
+  };
+}
+
+class GeneratorGroup extends BaseClient {
+  _id = undefined;
+  _isEmpty = undefined;
+  constructor(ctx, _id, _isEmpty) {
+    super(ctx);
+    this._id = _id;
+    this._isEmpty = _isEmpty;
+  }
+  id = async () => {
+    if (this._id) {
+      return this._id;
+    }
+    const ctx = this._ctx.select("id");
+    const response = await ctx.execute();
+    return response;
+  };
+  changes = (opts) => {
+    const metadata = {
+      onConflict: { is_enum: true, value_to_name: ChangesetsMergeConflictValueToName }
+    };
+    const ctx = this._ctx.select("changes", { ...opts, __metadata: metadata });
+    return new Changeset(ctx);
+  };
+  isEmpty = async () => {
+    if (this._isEmpty) {
+      return this._isEmpty;
+    }
+    const ctx = this._ctx.select("isEmpty");
+    const response = await ctx.execute();
+    return response;
+  };
+  list = async () => {
+    const ctx = this._ctx.select("list").select("id");
+    const response = await ctx.execute();
+    return response.map((r2) => new Generator(ctx.copy().selectNode(r2.id, "Generator")));
+  };
+  loadFailures = async () => {
+    const ctx = this._ctx.select("loadFailures");
+    const response = await ctx.execute();
+    return response;
+  };
+  run = () => {
+    const ctx = this._ctx.select("run");
+    return new GeneratorGroup(ctx);
+  };
+  workspace = (opts) => {
+    const metadata = {
+      onConflict: { is_enum: true, value_to_name: ChangesetsMergeConflictValueToName }
+    };
+    const ctx = this._ctx.select("workspace", { ...opts, __metadata: metadata });
+    return new Workspace(ctx);
   };
   with = (arg) => {
     return arg(this);
@@ -104395,7 +104200,7 @@ class GitBundle extends BaseClient {
   };
   asFile = () => {
     const ctx = this._ctx.select("asFile");
-    return new File(ctx);
+    return new File3(ctx);
   };
   objectFormat = async () => {
     if (this._objectFormat) {
@@ -104413,7 +104218,7 @@ class GitBundle extends BaseClient {
   refs = async () => {
     const ctx = this._ctx.select("refs").select("id");
     const response = await ctx.execute();
-    return response.map((r) => new GitBundleRef(ctx.copy().selectNode(r.id, "GitBundleRef")));
+    return response.map((r2) => new GitBundleRef(ctx.copy().selectNode(r2.id, "GitBundleRef")));
   };
   validate = () => {
     const ctx = this._ctx.select("validate");
@@ -104732,7 +104537,7 @@ class GitRef extends BaseClient {
   log = async (opts) => {
     const ctx = this._ctx.select("log", { ...opts }).select("id");
     const response = await ctx.execute();
-    return response.map((r) => new GitCommit(ctx.copy().selectNode(r.id, "GitCommit")));
+    return response.map((r2) => new GitCommit(ctx.copy().selectNode(r2.id, "GitCommit")));
   };
   name = async () => {
     if (this._name) {
@@ -104958,13 +104763,13 @@ class Host extends BaseClient {
     const ctx = this._ctx.select("containerImage", { name });
     return new Container(ctx);
   };
-  directory = (path, opts) => {
-    const ctx = this._ctx.select("directory", { path, ...opts });
+  directory = (path8, opts) => {
+    const ctx = this._ctx.select("directory", { path: path8, ...opts });
     return new Directory(ctx);
   };
-  file = (path, opts) => {
-    const ctx = this._ctx.select("file", { path, ...opts });
-    return new File(ctx);
+  file = (path8, opts) => {
+    const ctx = this._ctx.select("file", { path: path8, ...opts });
+    return new File3(ctx);
   };
   findUp = async (name, opts) => {
     if (this._findUp) {
@@ -104982,8 +104787,8 @@ class Host extends BaseClient {
     const ctx = this._ctx.select("tunnel", { service, ...opts });
     return new Service(ctx);
   };
-  unixSocket = (path) => {
-    const ctx = this._ctx.select("unixSocket", { path });
+  unixSocket = (path8) => {
+    const ctx = this._ctx.select("unixSocket", { path: path8 });
     return new Socket(ctx);
   };
 }
@@ -105007,7 +104812,7 @@ class InputTypeDef extends BaseClient {
   fields = async () => {
     const ctx = this._ctx.select("fields").select("id");
     const response = await ctx.execute();
-    return response.map((r) => new FieldTypeDef(ctx.copy().selectNode(r.id, "FieldTypeDef")));
+    return response.map((r2) => new FieldTypeDef(ctx.copy().selectNode(r2.id, "FieldTypeDef")));
   };
   name = async () => {
     if (this._name) {
@@ -105050,7 +104855,7 @@ class InterfaceTypeDef extends BaseClient {
   functions = async () => {
     const ctx = this._ctx.select("functions").select("id");
     const response = await ctx.execute();
-    return response.map((r) => new Function_(ctx.copy().selectNode(r.id, "Function")));
+    return response.map((r2) => new Function_(ctx.copy().selectNode(r2.id, "Function")));
   };
   name = async () => {
     if (this._name) {
@@ -105103,7 +104908,7 @@ class JSONValue extends BaseClient {
   asArray = async () => {
     const ctx = this._ctx.select("asArray").select("id");
     const response = await ctx.execute();
-    return response.map((r) => new JSONValue(ctx.copy().selectNode(r.id, "JSONValue")));
+    return response.map((r2) => new JSONValue(ctx.copy().selectNode(r2.id, "JSONValue")));
   };
   asBoolean = async () => {
     if (this._asBoolean) {
@@ -105137,8 +104942,8 @@ class JSONValue extends BaseClient {
     const response = await ctx.execute();
     return response;
   };
-  field = (path) => {
-    const ctx = this._ctx.select("field", { path });
+  field = (path8) => {
+    const ctx = this._ctx.select("field", { path: path8 });
     return new JSONValue(ctx);
   };
   fields = async () => {
@@ -105162,8 +104967,8 @@ class JSONValue extends BaseClient {
     const ctx = this._ctx.select("withContents", { contents });
     return new JSONValue(ctx);
   };
-  withField = (path, value) => {
-    const ctx = this._ctx.select("withField", { path, value });
+  withField = (path8, value) => {
+    const ctx = this._ctx.select("withField", { path: path8, value });
     return new JSONValue(ctx);
   };
   with = (arg) => {
@@ -105178,13 +104983,15 @@ class LLM extends BaseClient {
   _hasPending = undefined;
   _lastReply = undefined;
   _model = undefined;
+  _portableID = undefined;
   _provider = undefined;
   _reasoningEffort = undefined;
+  _replay = undefined;
   _spawn = undefined;
   _sync = undefined;
   _tools = undefined;
   _transcript = undefined;
-  constructor(ctx, _id, _contextTokens, _contextWindow, _hasPending, _lastReply, _model, _provider, _reasoningEffort, _spawn, _sync, _tools, _transcript) {
+  constructor(ctx, _id, _contextTokens, _contextWindow, _hasPending, _lastReply, _model, _portableID, _provider, _reasoningEffort, _replay, _spawn, _sync, _tools, _transcript) {
     super(ctx);
     this._id = _id;
     this._contextTokens = _contextTokens;
@@ -105192,8 +104999,10 @@ class LLM extends BaseClient {
     this._hasPending = _hasPending;
     this._lastReply = _lastReply;
     this._model = _model;
+    this._portableID = _portableID;
     this._provider = _provider;
     this._reasoningEffort = _reasoningEffort;
+    this._replay = _replay;
     this._spawn = _spawn;
     this._sync = _sync;
     this._tools = _tools;
@@ -105210,10 +105019,6 @@ class LLM extends BaseClient {
   agent = (handle, name) => {
     const ctx = this._ctx.select("agent", { handle, name });
     return new Agent(ctx);
-  };
-  compose = (expertise) => {
-    const ctx = this._ctx.select("compose", { expertise });
-    return new LLM(ctx);
   };
   contextTokens = async () => {
     if (this._contextTokens) {
@@ -105258,13 +105063,21 @@ class LLM extends BaseClient {
   messages = async () => {
     const ctx = this._ctx.select("messages").select("id");
     const response = await ctx.execute();
-    return response.map((r) => new LLMMessage(ctx.copy().selectNode(r.id, "LLMMessage")));
+    return response.map((r2) => new LLMMessage(ctx.copy().selectNode(r2.id, "LLMMessage")));
   };
   model = async () => {
     if (this._model) {
       return this._model;
     }
     const ctx = this._ctx.select("model");
+    const response = await ctx.execute();
+    return response;
+  };
+  portableID = async () => {
+    if (this._portableID) {
+      return this._portableID;
+    }
+    const ctx = this._ctx.select("portableID");
     const response = await ctx.execute();
     return response;
   };
@@ -105284,14 +105097,15 @@ class LLM extends BaseClient {
     const response = await ctx.execute();
     return response;
   };
-  recompose = (expertise) => {
-    const ctx = this._ctx.select("recompose", { expertise });
-    return new LLM(ctx);
+  replay = async () => {
+    const ctx = this._ctx.select("replay");
+    const response = await ctx.execute();
+    return new LLM(ctx.copy().selectNode(response, "LLM"));
   };
   skills = async () => {
     const ctx = this._ctx.select("skills").select("id");
     const response = await ctx.execute();
-    return response.map((r) => new LLMSkill(ctx.copy().selectNode(r.id, "LLMSkill")));
+    return response.map((r2) => new LLMSkill(ctx.copy().selectNode(r2.id, "LLMSkill")));
   };
   spawn = async (opts) => {
     if (this._spawn) {
@@ -105333,14 +105147,6 @@ class LLM extends BaseClient {
     const response = await ctx.execute();
     return response;
   };
-  withContent = (content, opts) => {
-    const ctx = this._ctx.select("withContent", { content, ...opts });
-    return new LLM(ctx);
-  };
-  withContentFile = (file, opts) => {
-    const ctx = this._ctx.select("withContentFile", { file, ...opts });
-    return new LLM(ctx);
-  };
   withMCPServer = (name, service) => {
     const ctx = this._ctx.select("withMCPServer", { name, service });
     return new LLM(ctx);
@@ -105377,8 +105183,8 @@ class LLM extends BaseClient {
     const ctx = this._ctx.select("withSystemPrompt", { prompt });
     return new LLM(ctx);
   };
-  withToolResult = (callId, content, errored, opts) => {
-    const ctx = this._ctx.select("withToolResult", { callId, content, errored, ...opts });
+  withToolResult = (callId, content, errored) => {
+    const ctx = this._ctx.select("withToolResult", { callId, content, errored });
     return new LLM(ctx);
   };
   withTools = (object, opts) => {
@@ -105414,22 +105220,18 @@ class LLMContentBlock extends BaseClient {
   _id = undefined;
   _arguments = undefined;
   _callId = undefined;
-  _data = undefined;
   _errored = undefined;
   _kind = undefined;
-  _mimeType = undefined;
   _signature = undefined;
   _text = undefined;
   _toolName = undefined;
-  constructor(ctx, _id, _arguments, _callId, _data, _errored, _kind, _mimeType, _signature, _text, _toolName) {
+  constructor(ctx, _id, _arguments, _callId, _errored, _kind, _signature, _text, _toolName) {
     super(ctx);
     this._id = _id;
     this._arguments = _arguments;
     this._callId = _callId;
-    this._data = _data;
     this._errored = _errored;
     this._kind = _kind;
-    this._mimeType = _mimeType;
     this._signature = _signature;
     this._text = _text;
     this._toolName = _toolName;
@@ -105458,19 +105260,6 @@ class LLMContentBlock extends BaseClient {
     const response = await ctx.execute();
     return response;
   };
-  content = async () => {
-    const ctx = this._ctx.select("content").select("id");
-    const response = await ctx.execute();
-    return response.map((r) => new LLMContentBlock(ctx.copy().selectNode(r.id, "LLMContentBlock")));
-  };
-  data = async () => {
-    if (this._data) {
-      return this._data;
-    }
-    const ctx = this._ctx.select("data");
-    const response = await ctx.execute();
-    return response;
-  };
   errored = async () => {
     if (this._errored) {
       return this._errored;
@@ -105486,14 +105275,6 @@ class LLMContentBlock extends BaseClient {
     const ctx = this._ctx.select("kind");
     const response = await ctx.execute();
     return LLMContentBlockKindNameToValue(response);
-  };
-  mimeType = async () => {
-    if (this._mimeType) {
-      return this._mimeType;
-    }
-    const ctx = this._ctx.select("mimeType");
-    const response = await ctx.execute();
-    return response;
   };
   signature = async () => {
     if (this._signature) {
@@ -105540,7 +105321,7 @@ class LLMMessage extends BaseClient {
   content = async () => {
     const ctx = this._ctx.select("content").select("id");
     const response = await ctx.execute();
-    return response.map((r) => new LLMContentBlock(ctx.copy().selectNode(r.id, "LLMContentBlock")));
+    return response.map((r2) => new LLMContentBlock(ctx.copy().selectNode(r2.id, "LLMContentBlock")));
   };
   origin = async () => {
     const ctx = this._ctx.select("origin").select("id");
@@ -105800,18 +105581,18 @@ class Module_ extends BaseClient {
     const response = await ctx.execute();
     return response;
   };
-  contextSource = async () => {
-    const ctx = this._ctx.select("contextSource").select("id");
-    const response = await ctx.execute();
-    if (response === null) {
-      return null;
-    }
-    return new ModuleSource(ctx.copy().selectNode(response, "ModuleSource"));
+  check = (name) => {
+    const ctx = this._ctx.select("check", { name });
+    return new Check(ctx);
+  };
+  checks = (opts) => {
+    const ctx = this._ctx.select("checks", { ...opts });
+    return new CheckGroup(ctx);
   };
   dependencies = async () => {
     const ctx = this._ctx.select("dependencies").select("id");
     const response = await ctx.execute();
-    return response.map((r) => new Module_(ctx.copy().selectNode(r.id, "Module")));
+    return response.map((r2) => new Module_(ctx.copy().selectNode(r2.id, "Module")));
   };
   description = async () => {
     if (this._description) {
@@ -105824,20 +105605,28 @@ class Module_ extends BaseClient {
   enums = async () => {
     const ctx = this._ctx.select("enums").select("id");
     const response = await ctx.execute();
-    return response.map((r) => new TypeDef(ctx.copy().selectNode(r.id, "TypeDef")));
+    return response.map((r2) => new TypeDef(ctx.copy().selectNode(r2.id, "TypeDef")));
   };
   generatedContextDirectory = () => {
     const ctx = this._ctx.select("generatedContextDirectory");
     return new Directory(ctx);
   };
+  generator = (name) => {
+    const ctx = this._ctx.select("generator", { name });
+    return new Generator(ctx);
+  };
+  generators = (opts) => {
+    const ctx = this._ctx.select("generators", { ...opts });
+    return new GeneratorGroup(ctx);
+  };
   interfaces = async () => {
     const ctx = this._ctx.select("interfaces").select("id");
     const response = await ctx.execute();
-    return response.map((r) => new TypeDef(ctx.copy().selectNode(r.id, "TypeDef")));
+    return response.map((r2) => new TypeDef(ctx.copy().selectNode(r2.id, "TypeDef")));
   };
   introspectionSchemaJSON = () => {
     const ctx = this._ctx.select("introspectionSchemaJSON");
-    return new File(ctx);
+    return new File3(ctx);
   };
   name = async () => {
     if (this._name) {
@@ -105850,7 +105639,7 @@ class Module_ extends BaseClient {
   objects = async () => {
     const ctx = this._ctx.select("objects").select("id");
     const response = await ctx.execute();
-    return response.map((r) => new TypeDef(ctx.copy().selectNode(r.id, "TypeDef")));
+    return response.map((r2) => new TypeDef(ctx.copy().selectNode(r2.id, "TypeDef")));
   };
   runtime = async () => {
     const ctx = this._ctx.select("runtime").select("id");
@@ -105874,6 +105663,10 @@ class Module_ extends BaseClient {
     }
     const ctx = this._ctx.select("serve", { ...opts });
     await ctx.execute();
+  };
+  services = (opts) => {
+    const ctx = this._ctx.select("services", { ...opts });
+    return new UpGroup(ctx);
   };
   source = async () => {
     const ctx = this._ctx.select("source").select("id");
@@ -106021,7 +105814,7 @@ class ModuleSource extends BaseClient {
   };
   clientSchemaIntrospectionJSON = () => {
     const ctx = this._ctx.select("clientSchemaIntrospectionJSON");
-    return new File(ctx);
+    return new File3(ctx);
   };
   cloneRef = async () => {
     if (this._cloneRef) {
@@ -106042,7 +105835,7 @@ class ModuleSource extends BaseClient {
   configClients = async () => {
     const ctx = this._ctx.select("configClients").select("id");
     const response = await ctx.execute();
-    return response.map((r) => new ModuleConfigClient(ctx.copy().selectNode(r.id, "ModuleConfigClient")));
+    return response.map((r2) => new ModuleConfigClient(ctx.copy().selectNode(r2.id, "ModuleConfigClient")));
   };
   configExists = async () => {
     if (this._configExists) {
@@ -106059,7 +105852,7 @@ class ModuleSource extends BaseClient {
   dependencies = async () => {
     const ctx = this._ctx.select("dependencies").select("id");
     const response = await ctx.execute();
-    return response.map((r) => new ModuleSource(ctx.copy().selectNode(r.id, "ModuleSource")));
+    return response.map((r2) => new ModuleSource(ctx.copy().selectNode(r2.id, "ModuleSource")));
   };
   digest = async () => {
     if (this._digest) {
@@ -106069,8 +105862,8 @@ class ModuleSource extends BaseClient {
     const response = await ctx.execute();
     return response;
   };
-  directory = (path) => {
-    const ctx = this._ctx.select("directory", { path });
+  directory = (path8) => {
+    const ctx = this._ctx.select("directory", { path: path8 });
     return new Directory(ctx);
   };
   engineVersion = async () => {
@@ -106111,7 +105904,7 @@ class ModuleSource extends BaseClient {
   };
   introspectionSchemaJSON = () => {
     const ctx = this._ctx.select("introspectionSchemaJSON");
-    return new File(ctx);
+    return new File3(ctx);
   };
   kind = async () => {
     if (this._kind) {
@@ -106201,7 +105994,7 @@ class ModuleSource extends BaseClient {
   toolchains = async () => {
     const ctx = this._ctx.select("toolchains").select("id");
     const response = await ctx.execute();
-    return response.map((r) => new ModuleSource(ctx.copy().selectNode(r.id, "ModuleSource")));
+    return response.map((r2) => new ModuleSource(ctx.copy().selectNode(r2.id, "ModuleSource")));
   };
   updatedConfigDirectory = () => {
     const ctx = this._ctx.select("updatedConfigDirectory");
@@ -106251,8 +106044,8 @@ class ModuleSource extends BaseClient {
     const ctx = this._ctx.select("withSDK", { source });
     return new ModuleSource(ctx);
   };
-  withSourceSubpath = (path) => {
-    const ctx = this._ctx.select("withSourceSubpath", { path });
+  withSourceSubpath = (path8) => {
+    const ctx = this._ctx.select("withSourceSubpath", { path: path8 });
     return new ModuleSource(ctx);
   };
   withToolchains = (toolchains) => {
@@ -106279,8 +106072,8 @@ class ModuleSource extends BaseClient {
     const ctx = this._ctx.select("withoutBlueprint");
     return new ModuleSource(ctx);
   };
-  withoutClient = (path) => {
-    const ctx = this._ctx.select("withoutClient", { path });
+  withoutClient = (path8) => {
+    const ctx = this._ctx.select("withoutClient", { path: path8 });
     return new ModuleSource(ctx);
   };
   withoutDependencies = (dependencies) => {
@@ -106365,12 +106158,12 @@ class ObjectTypeDef extends BaseClient {
   fields = async () => {
     const ctx = this._ctx.select("fields").select("id");
     const response = await ctx.execute();
-    return response.map((r) => new FieldTypeDef(ctx.copy().selectNode(r.id, "FieldTypeDef")));
+    return response.map((r2) => new FieldTypeDef(ctx.copy().selectNode(r2.id, "FieldTypeDef")));
   };
   functions = async () => {
     const ctx = this._ctx.select("functions").select("id");
     const response = await ctx.execute();
-    return response.map((r) => new Function_(ctx.copy().selectNode(r.id, "Function")));
+    return response.map((r2) => new Function_(ctx.copy().selectNode(r2.id, "Function")));
   };
   name = async () => {
     if (this._name) {
@@ -106459,15 +106252,13 @@ class Client extends BaseClient {
   _currentTimestamp = undefined;
   _defaultPlatform = undefined;
   _serveModule = undefined;
-  _setSessionTitle = undefined;
   _version = undefined;
-  constructor(ctx, _id, _currentTimestamp, _defaultPlatform, _serveModule, _setSessionTitle, _version) {
+  constructor(ctx, _id, _currentTimestamp, _defaultPlatform, _serveModule, _version) {
     super(ctx);
     this._id = _id;
     this._currentTimestamp = _currentTimestamp;
     this._defaultPlatform = _defaultPlatform;
     this._serveModule = _serveModule;
-    this._setSessionTitle = _setSessionTitle;
     this._version = _version;
   }
   getGQLClient() {
@@ -106484,7 +106275,7 @@ class Client extends BaseClient {
   };
   blob = (name, contents, opts) => {
     const ctx = this._ctx.select("blob", { name, contents, ...opts });
-    return new File(ctx);
+    return new File3(ctx);
   };
   cacheVolume = (key, opts) => {
     const metadata = {
@@ -106525,7 +106316,7 @@ class Client extends BaseClient {
   currentTypeDefs = async (opts) => {
     const ctx = this._ctx.select("currentTypeDefs", { ...opts }).select("id");
     const response = await ctx.execute();
-    return response.map((r) => new TypeDef(ctx.copy().selectNode(r.id, "TypeDef")));
+    return response.map((r2) => new TypeDef(ctx.copy().selectNode(r2.id, "TypeDef")));
   };
   currentWorkspace = () => {
     const ctx = this._ctx.select("currentWorkspace");
@@ -106558,7 +106349,7 @@ class Client extends BaseClient {
   };
   file = (name, contents, opts) => {
     const ctx = this._ctx.select("file", { name, contents, ...opts });
-    return new File(ctx);
+    return new File3(ctx);
   };
   function_ = (name, returnType) => {
     const ctx = this._ctx.select("function", { name, returnType });
@@ -106578,7 +106369,7 @@ class Client extends BaseClient {
   };
   http = (url, opts) => {
     const ctx = this._ctx.select("http", { url, ...opts });
-    return new File(ctx);
+    return new File3(ctx);
   };
   json = () => {
     const ctx = this._ctx.select("json");
@@ -106622,10 +106413,6 @@ class Client extends BaseClient {
   setSecret = (name, plaintext) => {
     const ctx = this._ctx.select("setSecret", { name, plaintext });
     return new Secret(ctx);
-  };
-  setSessionTitle = async (title) => {
-    const ctx = this._ctx.select("setSessionTitle", { title });
-    await ctx.execute();
   };
   sourceMap = (filename, line, column) => {
     const ctx = this._ctx.select("sourceMap", { filename, line, column });
@@ -106817,7 +106604,7 @@ class SearchResult extends BaseClient {
   submatches = async () => {
     const ctx = this._ctx.select("submatches").select("id");
     const response = await ctx.execute();
-    return response.map((r) => new SearchSubmatch(ctx.copy().selectNode(r.id, "SearchSubmatch")));
+    return response.map((r2) => new SearchSubmatch(ctx.copy().selectNode(r2.id, "SearchSubmatch")));
   };
 }
 
@@ -106955,10 +106742,10 @@ class Service extends BaseClient {
     const response = await ctx.execute();
     return response;
   };
-  ports = async (opts) => {
-    const ctx = this._ctx.select("ports", { ...opts }).select("id");
+  ports = async () => {
+    const ctx = this._ctx.select("ports").select("id");
     const response = await ctx.execute();
-    return response.map((r) => new Port(ctx.copy().selectNode(r.id, "Port")));
+    return response.map((r2) => new Port(ctx.copy().selectNode(r2.id, "Port")));
   };
   start = async () => {
     const ctx = this._ctx.select("start");
@@ -107132,6 +106919,79 @@ class Stat extends BaseClient {
     return response;
   };
 }
+class TerminalGroup extends BaseClient {
+  _id = undefined;
+  constructor(ctx, _id) {
+    super(ctx);
+    this._id = _id;
+  }
+  id = async () => {
+    if (this._id) {
+      return this._id;
+    }
+    const ctx = this._ctx.select("id");
+    const response = await ctx.execute();
+    return response;
+  };
+  list = async () => {
+    const ctx = this._ctx.select("list").select("id");
+    const response = await ctx.execute();
+    return response.map((r2) => new TerminalTarget(ctx.copy().selectNode(r2.id, "TerminalTarget")));
+  };
+  run = () => {
+    const ctx = this._ctx.select("run");
+    return new TerminalGroup(ctx);
+  };
+  with = (arg) => {
+    return arg(this);
+  };
+}
+
+class TerminalTarget extends BaseClient {
+  _id = undefined;
+  _description = undefined;
+  _name = undefined;
+  constructor(ctx, _id, _description, _name) {
+    super(ctx);
+    this._id = _id;
+    this._description = _description;
+    this._name = _name;
+  }
+  id = async () => {
+    if (this._id) {
+      return this._id;
+    }
+    const ctx = this._ctx.select("id");
+    const response = await ctx.execute();
+    return response;
+  };
+  description = async () => {
+    if (this._description) {
+      return this._description;
+    }
+    const ctx = this._ctx.select("description");
+    const response = await ctx.execute();
+    return response;
+  };
+  name = async () => {
+    if (this._name) {
+      return this._name;
+    }
+    const ctx = this._ctx.select("name");
+    const response = await ctx.execute();
+    return response;
+  };
+  originalModule = () => {
+    const ctx = this._ctx.select("originalModule");
+    return new Module_(ctx);
+  };
+  path = async () => {
+    const ctx = this._ctx.select("path");
+    const response = await ctx.execute();
+    return response;
+  };
+}
+
 class TypeDef extends BaseClient {
   _id = undefined;
   _kind = undefined;
@@ -107151,14 +107011,6 @@ class TypeDef extends BaseClient {
     const ctx = this._ctx.select("id");
     const response = await ctx.execute();
     return response;
-  };
-  asCollection = async () => {
-    const ctx = this._ctx.select("asCollection").select("id");
-    const response = await ctx.execute();
-    if (response === null) {
-      return null;
-    }
-    return new CollectionTypeDef(ctx.copy().selectNode(response, "CollectionTypeDef"));
   };
   asEnum = async () => {
     const ctx = this._ctx.select("asEnum").select("id");
@@ -107232,22 +107084,6 @@ class TypeDef extends BaseClient {
     const response = await ctx.execute();
     return response;
   };
-  withCollection = () => {
-    const ctx = this._ctx.select("withCollection");
-    return new TypeDef(ctx);
-  };
-  withCollectionDelta = (name) => {
-    const ctx = this._ctx.select("withCollectionDelta", { name });
-    return new TypeDef(ctx);
-  };
-  withCollectionGet = (name) => {
-    const ctx = this._ctx.select("withCollectionGet", { name });
-    return new TypeDef(ctx);
-  };
-  withCollectionKeys = (name) => {
-    const ctx = this._ctx.select("withCollectionKeys", { name });
-    return new TypeDef(ctx);
-  };
   withConstructor = (function_) => {
     const ctx = this._ctx.select("withConstructor", {
       function: function_
@@ -107308,6 +107144,86 @@ class TypeDef extends BaseClient {
   };
 }
 
+class Up extends BaseClient {
+  _id = undefined;
+  _description = undefined;
+  _name = undefined;
+  constructor(ctx, _id, _description, _name) {
+    super(ctx);
+    this._id = _id;
+    this._description = _description;
+    this._name = _name;
+  }
+  id = async () => {
+    if (this._id) {
+      return this._id;
+    }
+    const ctx = this._ctx.select("id");
+    const response = await ctx.execute();
+    return response;
+  };
+  description = async () => {
+    if (this._description) {
+      return this._description;
+    }
+    const ctx = this._ctx.select("description");
+    const response = await ctx.execute();
+    return response;
+  };
+  name = async () => {
+    if (this._name) {
+      return this._name;
+    }
+    const ctx = this._ctx.select("name");
+    const response = await ctx.execute();
+    return response;
+  };
+  originalModule = () => {
+    const ctx = this._ctx.select("originalModule");
+    return new Module_(ctx);
+  };
+  path = async () => {
+    const ctx = this._ctx.select("path");
+    const response = await ctx.execute();
+    return response;
+  };
+  run = () => {
+    const ctx = this._ctx.select("run");
+    return new Up(ctx);
+  };
+  with = (arg) => {
+    return arg(this);
+  };
+}
+
+class UpGroup extends BaseClient {
+  _id = undefined;
+  constructor(ctx, _id) {
+    super(ctx);
+    this._id = _id;
+  }
+  id = async () => {
+    if (this._id) {
+      return this._id;
+    }
+    const ctx = this._ctx.select("id");
+    const response = await ctx.execute();
+    return response;
+  };
+  list = async () => {
+    const ctx = this._ctx.select("list").select("id");
+    const response = await ctx.execute();
+    return response.map((r2) => new Up(ctx.copy().selectNode(r2.id, "Up")));
+  };
+  run = () => {
+    const ctx = this._ctx.select("run");
+    return new UpGroup(ctx);
+  };
+  with = (arg) => {
+    return arg(this);
+  };
+}
+
 class Volume extends BaseClient {
   _id = undefined;
   constructor(ctx, _id) {
@@ -107362,18 +107278,22 @@ class Workspace extends BaseClient {
     const response = await ctx.execute();
     return response;
   };
-  artifacts = (opts) => {
-    const ctx = this._ctx.select("artifacts", { ...opts });
-    return new Artifacts(ctx);
+  agents = (opts) => {
+    const ctx = this._ctx.select("agents", { ...opts });
+    return new AgentMiddlewareGroup(ctx);
   };
   changes = (opts) => {
     const ctx = this._ctx.select("changes", { ...opts });
     return new Changeset(ctx);
   };
+  checks = (opts) => {
+    const ctx = this._ctx.select("checks", { ...opts });
+    return new CheckGroup(ctx);
+  };
   compareCommitsFrom = async (source, opts) => {
     const ctx = this._ctx.select("compareCommitsFrom", { source, ...opts }).select("id");
     const response = await ctx.execute();
-    return response.map((r) => new WorkspaceCommitPick(ctx.copy().selectNode(r.id, "WorkspaceCommitPick")));
+    return response.map((r2) => new WorkspaceCommitPick(ctx.copy().selectNode(r2.id, "WorkspaceCommitPick")));
   };
   configFile = async () => {
     if (this._configFile) {
@@ -107407,8 +107327,8 @@ class Workspace extends BaseClient {
     const response = await ctx.execute();
     return response;
   };
-  directory = (path, opts) => {
-    const ctx = this._ctx.select("directory", { path, ...opts });
+  directory = (path8, opts) => {
+    const ctx = this._ctx.select("directory", { path: path8, ...opts });
     return new Directory(ctx);
   };
   entrypoint = async () => {
@@ -107431,9 +107351,9 @@ class Workspace extends BaseClient {
     const ctx = this._ctx.select("export", { ...opts });
     await ctx.execute();
   };
-  file = (path) => {
-    const ctx = this._ctx.select("file", { path });
-    return new File(ctx);
+  file = (path8) => {
+    const ctx = this._ctx.select("file", { path: path8 });
+    return new File3(ctx);
   };
   findRoots = async (opts) => {
     const ctx = this._ctx.select("findRoots", { ...opts });
@@ -107447,6 +107367,10 @@ class Workspace extends BaseClient {
     const ctx = this._ctx.select("findUp", { name, ...opts });
     const response = await ctx.execute();
     return response;
+  };
+  generators = (opts) => {
+    const ctx = this._ctx.select("generators", { ...opts });
+    return new GeneratorGroup(ctx);
   };
   git = () => {
     const ctx = this._ctx.select("git");
@@ -107469,18 +107393,14 @@ class Workspace extends BaseClient {
     const ctx = this._ctx.select("module", { name });
     return new WorkspaceModule(ctx);
   };
-  moduleSource = (path) => {
-    const ctx = this._ctx.select("moduleSource", { path });
+  moduleSource = (path8) => {
+    const ctx = this._ctx.select("moduleSource", { path: path8 });
     return new ModuleSource(ctx);
   };
   modules = async () => {
     const ctx = this._ctx.select("modules").select("id");
     const response = await ctx.execute();
-    return response.map((r) => new WorkspaceModule(ctx.copy().selectNode(r.id, "WorkspaceModule")));
-  };
-  resolve = (value) => {
-    const ctx = this._ctx.select("resolve", { value });
-    return new Address(ctx);
+    return response.map((r2) => new WorkspaceModule(ctx.copy().selectNode(r2.id, "WorkspaceModule")));
   };
   sdk = (name) => {
     const ctx = this._ctx.select("sdk", { name });
@@ -107489,16 +107409,24 @@ class Workspace extends BaseClient {
   sdks = async () => {
     const ctx = this._ctx.select("sdks").select("id");
     const response = await ctx.execute();
-    return response.map((r) => new WorkspaceSDK(ctx.copy().selectNode(r.id, "WorkspaceSDK")));
+    return response.map((r2) => new WorkspaceSDK(ctx.copy().selectNode(r2.id, "WorkspaceSDK")));
   };
   search = async (opts) => {
     const ctx = this._ctx.select("search", { ...opts }).select("id");
     const response = await ctx.execute();
-    return response.map((r) => new SearchResult(ctx.copy().selectNode(r.id, "SearchResult")));
+    return response.map((r2) => new SearchResult(ctx.copy().selectNode(r2.id, "SearchResult")));
+  };
+  services = (opts) => {
+    const ctx = this._ctx.select("services", { ...opts });
+    return new UpGroup(ctx);
   };
   snapshot = () => {
     const ctx = this._ctx.select("snapshot");
     return new Workspace(ctx);
+  };
+  terminals = (opts) => {
+    const ctx = this._ctx.select("terminals", { ...opts });
+    return new TerminalGroup(ctx);
   };
   withChanges = (changes) => {
     const ctx = this._ctx.select("withChanges", { changes });
@@ -107535,16 +107463,16 @@ class Workspace extends BaseClient {
     const ctx = this._ctx.select("withConfigValue", { key, value, ...opts });
     return new Workspace(ctx);
   };
-  withDirectory = (path, source) => {
-    const ctx = this._ctx.select("withDirectory", { path, source });
+  withDirectory = (path8, source) => {
+    const ctx = this._ctx.select("withDirectory", { path: path8, source });
     return new Workspace(ctx);
   };
   withEntrypoint = (name) => {
     const ctx = this._ctx.select("withEntrypoint", { name });
     return new Workspace(ctx);
   };
-  withFile = (path, source, opts) => {
-    const ctx = this._ctx.select("withFile", { path, source, ...opts });
+  withFile = (path8, source, opts) => {
+    const ctx = this._ctx.select("withFile", { path: path8, source, ...opts });
     return new Workspace(ctx);
   };
   withInitModule = (sdk, opts) => {
@@ -107559,20 +107487,20 @@ class Workspace extends BaseClient {
     const ctx = this._ctx.select("withModule", { ref, ...opts });
     return new Workspace(ctx);
   };
-  withMountedDirectory = (path, source) => {
-    const ctx = this._ctx.select("withMountedDirectory", { path, source });
+  withMountedDirectory = (path8, source) => {
+    const ctx = this._ctx.select("withMountedDirectory", { path: path8, source });
     return new Workspace(ctx);
   };
-  withMountedFile = (path, source) => {
-    const ctx = this._ctx.select("withMountedFile", { path, source });
+  withMountedFile = (path8, source) => {
+    const ctx = this._ctx.select("withMountedFile", { path: path8, source });
     return new Workspace(ctx);
   };
-  withNewDirectory = (path, source) => {
-    const ctx = this._ctx.select("withNewDirectory", { path, source });
+  withNewDirectory = (path8, source) => {
+    const ctx = this._ctx.select("withNewDirectory", { path: path8, source });
     return new Workspace(ctx);
   };
-  withNewFile = (path, contents, opts) => {
-    const ctx = this._ctx.select("withNewFile", { path, contents, ...opts });
+  withNewFile = (path8, contents, opts) => {
+    const ctx = this._ctx.select("withNewFile", { path: path8, contents, ...opts });
     return new Workspace(ctx);
   };
   withReset = (commit, opts) => {
@@ -107595,8 +107523,8 @@ class Workspace extends BaseClient {
     const ctx = this._ctx.select("withUpdatedModules", { ...opts });
     return new Workspace(ctx);
   };
-  withWorkdir = (path) => {
-    const ctx = this._ctx.select("withWorkdir", { path });
+  withWorkdir = (path8) => {
+    const ctx = this._ctx.select("withWorkdir", { path: path8 });
     return new Workspace(ctx);
   };
   withoutClient = (module_, opts) => {
@@ -107614,24 +107542,24 @@ class Workspace extends BaseClient {
     const ctx = this._ctx.select("withoutConfigValue", { key, ...opts });
     return new Workspace(ctx);
   };
-  withoutDirectory = (path) => {
-    const ctx = this._ctx.select("withoutDirectory", { path });
+  withoutDirectory = (path8) => {
+    const ctx = this._ctx.select("withoutDirectory", { path: path8 });
     return new Workspace(ctx);
   };
   withoutEntrypoint = () => {
     const ctx = this._ctx.select("withoutEntrypoint");
     return new Workspace(ctx);
   };
-  withoutFile = (path) => {
-    const ctx = this._ctx.select("withoutFile", { path });
+  withoutFile = (path8) => {
+    const ctx = this._ctx.select("withoutFile", { path: path8 });
     return new Workspace(ctx);
   };
   withoutModule = (name, opts) => {
     const ctx = this._ctx.select("withoutModule", { name, ...opts });
     return new Workspace(ctx);
   };
-  withoutMount = (path) => {
-    const ctx = this._ctx.select("withoutMount", { path });
+  withoutMount = (path8) => {
+    const ctx = this._ctx.select("withoutMount", { path: path8 });
     return new Workspace(ctx);
   };
   withoutSDK = (name, opts) => {
@@ -107752,7 +107680,7 @@ class WorkspaceMigration extends BaseClient {
   steps = async () => {
     const ctx = this._ctx.select("steps").select("id");
     const response = await ctx.execute();
-    return response.map((r) => new WorkspaceMigrationStep(ctx.copy().selectNode(r.id, "WorkspaceMigrationStep")));
+    return response.map((r2) => new WorkspaceMigrationStep(ctx.copy().selectNode(r2.id, "WorkspaceMigrationStep")));
   };
 }
 
@@ -107845,7 +107773,7 @@ class WorkspaceModule extends BaseClient {
   settings = async () => {
     const ctx = this._ctx.select("settings").select("id");
     const response = await ctx.execute();
-    return response.map((r) => new WorkspaceModuleSetting(ctx.copy().selectNode(r.id, "WorkspaceModuleSetting")));
+    return response.map((r2) => new WorkspaceModuleSetting(ctx.copy().selectNode(r2.id, "WorkspaceModuleSetting")));
   };
   source = async () => {
     if (this._source) {
@@ -107964,16 +107892,12 @@ class WorkspaceSDK extends BaseClient {
   clients = async () => {
     const ctx = this._ctx.select("clients").select("id");
     const response = await ctx.execute();
-    return response.map((r) => new WorkspaceModule(ctx.copy().selectNode(r.id, "WorkspaceModule")));
-  };
-  generate = () => {
-    const ctx = this._ctx.select("generate");
-    return new Changeset(ctx);
+    return response.map((r2) => new WorkspaceModule(ctx.copy().selectNode(r2.id, "WorkspaceModule")));
   };
   modules = async () => {
     const ctx = this._ctx.select("modules").select("id");
     const response = await ctx.execute();
-    return response.map((r) => new WorkspaceModule(ctx.copy().selectNode(r.id, "WorkspaceModule")));
+    return response.map((r2) => new WorkspaceModule(ctx.copy().selectNode(r2.id, "WorkspaceModule")));
   };
   name = async () => {
     if (this._name) {
@@ -107994,154 +107918,7 @@ class WorkspaceSDK extends BaseClient {
 }
 var dag = new Client;
 
-// src/common/graphql/connect.ts
-init_client();
-async function withGQLClient(connectOpts, cb) {
-  if (process.env["DAGGER_SESSION_PORT"]) {
-    const port = process.env["DAGGER_SESSION_PORT"];
-    if (!process.env["DAGGER_SESSION_TOKEN"]) {
-      throw new Error("DAGGER_SESSION_TOKEN must be set if DAGGER_SESSION_PORT is set");
-    }
-    const token = process.env["DAGGER_SESSION_TOKEN"];
-    return await cb(createGQLClient(Number(port), token));
-  }
-  try {
-    const provisioning = await Promise.resolve().then(() => (init_provisioning(), exports_provisioning));
-    return await provisioning.withEngineSession(connectOpts, cb);
-  } catch (e2) {
-    throw new Error(`failed to execute function with automatic provisioning: ${e2}`, { cause: e2 });
-  }
-}
-
-// src/telemetry/telemetry.ts
-var opentelemetry2 = __toESM(require_src(), 1);
-
-// src/telemetry/init.ts
-var import_core2 = __toESM(require_src3(), 1);
-var import_exporter_trace_otlp_proto = __toESM(require_src9(), 1);
-var import_sdk_node = __toESM(require_src34(), 1);
-var import_sdk_trace_base2 = __toESM(require_src12(), 1);
-
-// src/telemetry/live_processor.ts
-var import_sdk_trace_base = __toESM(require_src12(), 1);
-
-class LiveProcessor extends import_sdk_trace_base.BatchSpanProcessor {
-  onStart(_span, _parentContext) {
-    this.onEnd(_span);
-  }
-}
-
-// src/telemetry/init.ts
-var SERVICE_NAME = "dagger-typescript-sdk";
-function otelConfigured() {
-  return Object.keys(process.env).some((key) => key.startsWith("OTEL_"));
-}
-var NEARLY_IMMEDIATE = 100;
-
-class DaggerOtelConfigurator {
-  is_configured = false;
-  sdk;
-  initialize() {
-    if (this.is_configured) {
-      return;
-    }
-    this.configure();
-    this.is_configured = true;
-  }
-  configure() {
-    if (!otelConfigured()) {
-      return;
-    }
-    if (import_core2.getBooleanFromEnv("OTEL_SDK_DISABLED") ?? true) {
-      return;
-    }
-    this.setupEnv();
-    const exporter = new import_exporter_trace_otlp_proto.OTLPTraceExporter;
-    let processor;
-    if (process.env.OTEL_EXPORTER_OTLP_TRACES_LIVE !== undefined) {
-      processor = new LiveProcessor(exporter, {
-        scheduledDelayMillis: NEARLY_IMMEDIATE
-      });
-    } else {
-      processor = new import_sdk_trace_base2.BatchSpanProcessor(exporter, {
-        scheduledDelayMillis: NEARLY_IMMEDIATE
-      });
-    }
-    this.sdk = new import_sdk_node.NodeSDK({
-      serviceName: SERVICE_NAME,
-      spanProcessors: [processor]
-    });
-    this.sdk.start();
-  }
-  async close() {
-    if (this.sdk) {
-      await this.sdk.shutdown();
-    }
-  }
-  setupEnv() {
-    Object.entries(process.env).forEach(([key, value]) => {
-      if (key.startsWith("OTEL_") && key.endsWith("_ENDPOINT") && value?.startsWith("http://")) {
-        const insecure = key.replace(/_ENDPOINT$/, "_INSECURE");
-        if (process.env[insecure] === undefined) {
-          process.env[insecure] = "true";
-        }
-      }
-    });
-  }
-}
-
-// src/telemetry/telemetry.ts
-var configurator = new DaggerOtelConfigurator;
-function initialize() {
-  configurator.initialize();
-}
-async function close() {
-  await configurator.close();
-}
-function getContext() {
-  const ctx = opentelemetry2.context.active();
-  const spanCtx = opentelemetry2.trace.getSpanContext(ctx);
-  if (spanCtx && opentelemetry2.trace.isSpanContextValid(spanCtx)) {
-    return ctx;
-  }
-  const parentID = process.env.TRACEPARENT;
-  if (parentID) {
-    return opentelemetry2.propagation.extract(ctx, {
-      traceparent: parentID
-    });
-  }
-  return ctx;
-}
-
-// src/connect.ts
-async function connection(fct, cfg = {}) {
-  try {
-    initialize();
-    await opentelemetry3.context.with(getContext(), async () => {
-      try {
-        await withGQLClient(cfg, async (gqlClient) => {
-          globalConnection.setGQLClient(gqlClient);
-          await fct();
-        });
-      } finally {
-        globalConnection.resetClient();
-      }
-    });
-  } finally {
-    await close();
-  }
-}
-
-// src/module/introspector/index.ts
-init_errors();
-
-// src/module/introspector/dagger_module/argument.ts
-init_errors();
-import ts4 from "typescript";
-
 // src/module/introspector/typescript_module/ast.ts
-import * as path8 from "path";
-import ts3 from "typescript";
 init_errors();
 
 // src/module/introspector/typescript_module/declarations.ts
@@ -108159,25 +107936,6 @@ var isDeclarationOf = {
 // src/module/introspector/typescript_module/ast.ts
 var CLIENT_GEN_FILE = "client.gen.ts";
 var GENERATED_CLIENT_SUFFIX = ".gen.ts";
-function sdkPathAliases(generatedClientFiles) {
-  const [firstClientFile] = generatedClientFiles;
-  if (firstClientFile === undefined) {
-    return;
-  }
-  const sdkDir = path8.dirname(firstClientFile);
-  const aliases = {
-    "@dagger.io/dagger": [path8.join(sdkDir, "index.ts")],
-    "@dagger.io/dagger/telemetry": [path8.join(sdkDir, "telemetry.ts")]
-  };
-  for (const file of generatedClientFiles) {
-    const name = path8.basename(file, GENERATED_CLIENT_SUFFIX);
-    if (name === "client" || name === "loader") {
-      continue;
-    }
-    aliases[`@dagger.io/${name}`] = [file];
-  }
-  return aliases;
-}
 
 class AST {
   files;
@@ -108193,8 +107951,7 @@ class AST {
     const program = ts3.createProgram(files2, {
       experimentalDecorators: true,
       moduleResolution: ts3.ModuleResolutionKind.Node10,
-      target: ts3.ScriptTarget.ES2022,
-      paths: sdkPathAliases(this.generatedClientFiles)
+      target: ts3.ScriptTarget.ES2022
     });
     this.checker = program.getTypeChecker();
     this.sourceFiles = program.getSourceFiles().filter((file) => !file.isDeclarationFile);
@@ -108625,12 +108382,7 @@ function resolveTypeDef(typeDef, reference) {
 // src/module/registry.ts
 init_errors();
 var import_reflect_metadata = __toESM(require_Reflect(), 1);
-
 class Registry {
-  collection = () => this.object();
-  keys = () => () => {};
-  delta = () => () => {};
-  get = () => () => {};
   object = () => {
     return (constructor) => {
       Reflect.defineMetadata(constructor.name, { class_: constructor }, this);
@@ -108688,14 +108440,10 @@ class Registry {
     return await r2[method](...Object.values(inputs));
   }
 }
-var registry = new Registry;
+var registry = shared("registry", () => new Registry);
 
 // src/module/decorators.ts
 var object = registry.object;
-var collection = registry.collection;
-var keys = registry.keys;
-var get = registry.get;
-var delta = registry.delta;
 var func = registry.func;
 var check = registry.check;
 var generate = registry.generate;
@@ -108707,10 +108455,6 @@ var argument = registry.argument;
 
 // src/module/introspector/dagger_module/decorator.ts
 var OBJECT_DECORATOR = object.name;
-var COLLECTION_DECORATOR = collection.name;
-var KEYS_DECORATOR = keys.name;
-var GET_DECORATOR = get.name;
-var DELTA_DECORATOR = delta.name;
 var FUNCTION_DECORATOR = func.name;
 var CHECK_DECORATOR = check.name;
 var GENERATOR_DECORATOR = generate.name;
@@ -109026,7 +108770,6 @@ class DaggerFunction extends Locatable {
   isGenerator = false;
   isUp = false;
   isAgent = false;
-  isCollectionGet = false;
   signature;
   symbol;
   constructor(node, ast2) {
@@ -109036,7 +108779,6 @@ class DaggerFunction extends Locatable {
     this.symbol = this.ast.getSymbolOrThrow(node.name);
     this.signature = this.ast.getSignatureFromFunctionOrThrow(node);
     this.name = this.node.name.getText();
-    this.isCollectionGet = this.ast.isNodeDecoratedWith(this.node, GET_DECORATOR);
     const { description, deprecated } = this.ast.getSymbolDoc(this.symbol);
     this.description = description;
     this.deprecated = deprecated;
@@ -109256,8 +108998,8 @@ class DaggerInterface extends Locatable {
 }
 
 // src/module/introspector/dagger_module/object.ts
-import ts8 from "typescript";
 init_errors();
+import ts8 from "typescript";
 
 // src/module/introspector/dagger_module/property.ts
 init_errors();
@@ -109269,8 +109011,6 @@ class DaggerProperty extends Locatable {
   deprecated;
   alias;
   isExposed;
-  isCollectionKeys;
-  isCollectionDelta;
   symbol;
   _typeRef;
   type;
@@ -109283,9 +109023,7 @@ class DaggerProperty extends Locatable {
     }
     this.symbol = this.ast.getSymbolOrThrow(this.node.name);
     this.name = this.node.name.getText();
-    this.isCollectionKeys = this.ast.isNodeDecoratedWith(this.node, KEYS_DECORATOR);
-    this.isCollectionDelta = this.ast.isNodeDecoratedWith(this.node, DELTA_DECORATOR);
-    this.isExposed = this.isCollectionKeys || this.isCollectionDelta || this.ast.isNodeDecoratedWith(this.node, FUNCTION_DECORATOR) || this.ast.isNodeDecoratedWith(this.node, FIELD_DECORATOR);
+    this.isExposed = this.ast.isNodeDecoratedWith(this.node, FUNCTION_DECORATOR) || this.ast.isNodeDecoratedWith(this.node, FIELD_DECORATOR);
     const { description, deprecated } = this.ast.getSymbolDoc(this.symbol);
     this.description = description;
     this.deprecated = deprecated;
@@ -109345,7 +109083,6 @@ class DaggerProperty extends Locatable {
 class DaggerObject extends Locatable {
   node;
   ast;
-  isCollection;
   name;
   description;
   deprecated;
@@ -109366,8 +109103,7 @@ class DaggerObject extends Locatable {
       throw new IntrospectionError(`could not resolve name of class at ${AST.getNodePosition(node)}.`);
     }
     this.name = this.node.name.getText();
-    this.isCollection = this.ast.isNodeDecoratedWith(node, COLLECTION_DECORATOR);
-    if (!this.isCollection && !this.ast.isNodeDecoratedWith(node, OBJECT_DECORATOR)) {
+    if (!this.ast.isNodeDecoratedWith(node, OBJECT_DECORATOR)) {
       throw new IntrospectionError(`class ${this.name} at ${AST.getNodePosition(node)} is used by the module but not exposed with a dagger decorator.`);
     }
     const modifiers = ts8.getCombinedModifierFlags(this.node);
@@ -109390,41 +109126,11 @@ class DaggerObject extends Locatable {
         this._constructor = new DaggerConstructor(member, this.ast);
         continue;
       }
-      if (ts8.isMethodDeclaration(member) && (this.ast.isNodeDecoratedWith(member, FUNCTION_DECORATOR) || this.ast.isNodeDecoratedWith(member, GET_DECORATOR))) {
+      if (ts8.isMethodDeclaration(member) && this.ast.isNodeDecoratedWith(member, FUNCTION_DECORATOR)) {
         const daggerFunction = new DaggerFunction(member, this.ast);
         this.methods[daggerFunction.alias ?? daggerFunction.name] = daggerFunction;
         continue;
       }
-    }
-    if (this.isCollection) {
-      this.validateCollection();
-    }
-  }
-  validateCollection() {
-    const position = AST.getNodePosition(this.node);
-    const keys2 = Object.values(this.properties).filter((p2) => p2.isCollectionKeys);
-    if (keys2.length === 0) {
-      throw new IntrospectionError(`collection ${this.name} at ${position} requires a field decorated with ${KEYS_DECORATOR}().`);
-    }
-    if (keys2.length > 1) {
-      throw new IntrospectionError(`collection ${this.name} at ${position} has multiple ${KEYS_DECORATOR}() fields: ${keys2.map((k2) => k2.name).join(", ")}.`);
-    }
-    if (keys2[0].type && keys2[0].type.kind !== "LIST_KIND" /* ListKind */) {
-      throw new IntrospectionError(`${KEYS_DECORATOR}() field ${keys2[0].name} at ${position} must be a list.`);
-    }
-    const getters = Object.values(this.methods).filter((m3) => m3.isCollectionGet);
-    if (getters.length === 0) {
-      throw new IntrospectionError(`collection ${this.name} at ${position} requires a method decorated with ${GET_DECORATOR}().`);
-    }
-    if (getters.length > 1) {
-      throw new IntrospectionError(`collection ${this.name} at ${position} has multiple ${GET_DECORATOR}() methods: ${getters.map((g2) => g2.name).join(", ")}.`);
-    }
-    if (Object.keys(getters[0].arguments).length !== 1) {
-      throw new IntrospectionError(`${GET_DECORATOR}() method ${getters[0].name} at ${position} must take exactly one argument.`);
-    }
-    const deltas = Object.values(this.properties).filter((p2) => p2.isCollectionDelta);
-    if (deltas.length > 1) {
-      throw new IntrospectionError(`collection ${this.name} at ${position} has multiple ${DELTA_DECORATOR}() fields: ${deltas.map((d) => d.name).join(", ")}.`);
     }
   }
   getLocation() {
@@ -109644,7 +109350,7 @@ class DaggerModule {
           };
           continue;
         }
-        if (this.ast.isNodeDecoratedWith(classRef.node, OBJECT_DECORATOR) || this.ast.isNodeDecoratedWith(classRef.node, COLLECTION_DECORATOR)) {
+        if (this.ast.isNodeDecoratedWith(classRef.node, OBJECT_DECORATOR)) {
           const daggerObject = new DaggerObject(classRef.node, this.ast);
           this.objects[daggerObject.name] = daggerObject;
           this.references[daggerObject.name] = {
@@ -109762,7 +109468,7 @@ class DaggerModule {
       if (convertedDecl.node.name && convertedDecl.node.name.getText() === this.name) {
         return [convertedDecl];
       }
-      if (this.ast.isNodeDecoratedWith(classDecl.node, OBJECT_DECORATOR) || this.ast.isNodeDecoratedWith(classDecl.node, COLLECTION_DECORATOR)) {
+      if (this.ast.isNodeDecoratedWith(classDecl.node, OBJECT_DECORATOR)) {
         allClasses.push(convertedDecl);
       }
     }
@@ -109797,21 +109503,6 @@ class DaggerModule {
     };
   }
 }
-// src/module/entrypoint/load.ts
-async function load2(files2) {
-  return await Promise.all(files2.map(async (f4) => await import(f4)));
-}
-
-// src/module/introspector/case_convertor.ts
-function convertToPascalCase(input) {
-  if (!input) {
-    return "";
-  }
-  const words = input.split(/(?=[A-Z0-9])|[^a-zA-Z0-9]|(?<=[a-zA-Z])(?=\d)|(?<=\d)(?=[a-zA-Z])/g).filter((word) => word.length > 0);
-  const pascalCase = words.map((word) => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase()).join("");
-  return pascalCase;
-}
-
 // src/module/introspector/index.ts
 async function scan(files2, moduleName = "", loadModule = true, generatedClientFiles = []) {
   if (files2.length === 0) {
@@ -109848,11 +109539,7 @@ function serializeIntrospection(module2, opts = {}) {
   const localTypeNames = collectLocalTypeNames(module2);
   const types3 = [];
   for (const object3 of Object.values(module2.objects)) {
-    if (object3.isCollection) {
-      types3.push(...introspectCollection(object3, moduleName, localTypeNames));
-    } else {
-      types3.push(introspectObject(object3, moduleName, localTypeNames));
-    }
+    types3.push(introspectObject(object3, moduleName, localTypeNames));
   }
   for (const iface of Object.values(module2.interfaces)) {
     types3.push(introspectInterface(iface, moduleName, localTypeNames));
@@ -109916,77 +109603,6 @@ function introspectObject(object3, moduleName, local) {
     interfaces: [],
     fields
   };
-}
-function introspectCollection(object3, moduleName, local) {
-  const properties = Object.values(object3.properties);
-  const methods = Object.values(object3.methods);
-  const keys2 = properties.find((p2) => p2.isCollectionKeys) ?? properties.find((p2) => p2.isExposed && toLowerCamel(p2.alias ?? p2.name) === "keys");
-  const get2 = methods.find((m3) => m3.isCollectionGet) ?? methods.find((m3) => toLowerCamel(m3.alias ?? m3.name) === "get");
-  if (!keys2 || !get2) {
-    throw new Error(`collection "${object3.name}" requires a stored keys field and a get method`);
-  }
-  const lookup = introspectMethod(get2, moduleName, local);
-  if (lookup.args.length !== 1) {
-    throw new Error(`collection "${object3.name}" get method requires one argument`);
-  }
-  lookup.name = "get";
-  lookup.args[0].name = "key";
-  const name = introspectTypeName(object3.name, moduleName);
-  const keyList = introspectProperty(keys2, moduleName, local);
-  keyList.name = "keys";
-  const objectRef = (name2) => ({
-    kind: TypeKind.NonNull,
-    ofType: { kind: TypeKind.Object, name: name2 }
-  });
-  const collection2 = {
-    kind: TypeKind.Object,
-    name,
-    description: trim(object3.description),
-    interfaces: [],
-    fields: [
-      keyList,
-      {
-        name: "list",
-        description: "",
-        args: [],
-        type: {
-          kind: TypeKind.NonNull,
-          ofType: { kind: TypeKind.List, ofType: lookup.type }
-        }
-      },
-      lookup,
-      {
-        name: "subset",
-        description: "",
-        type: objectRef(name),
-        args: [{ name: "keys", description: "", type: keyList.type }]
-      },
-      nodeIDField(name)
-    ]
-  };
-  const batchMethods = methods.filter((method) => method !== get2);
-  if (batchMethods.length === 0) {
-    return [collection2];
-  }
-  const batchName = name + "_Batch";
-  collection2.fields.push({
-    name: "batch",
-    description: "",
-    args: [],
-    type: objectRef(batchName)
-  });
-  return [
-    collection2,
-    {
-      kind: TypeKind.Object,
-      name: batchName,
-      interfaces: [],
-      fields: [
-        ...batchMethods.map((method) => introspectMethod(method, moduleName, local)),
-        nodeIDField(batchName)
-      ]
-    }
-  ];
 }
 function introspectInterface(iface, moduleName, local) {
   const name = introspectTypeName(iface.name, moduleName);
@@ -110314,131 +109930,7 @@ function trim(s4) {
   return (s4 ?? "").trim();
 }
 
-// src/module/introspector/typedef_json.ts
-function serializeModule(module2) {
-  return {
-    name: module2.name,
-    description: module2.description,
-    objects: mapValues(module2.objects, serializeObject),
-    enums: mapValues(module2.enums, serializeEnum),
-    interfaces: mapValues(module2.interfaces, serializeInterface)
-  };
-}
-function serializeObject(obj) {
-  const isExported = obj.isExported;
-  const isDefaultExport = obj.isDefaultExport;
-  const ctor = obj._constructor;
-  return {
-    name: obj.name,
-    kind: obj.kind(),
-    isCollection: obj.isCollection === true,
-    isExported: isExported !== false,
-    isDefaultExport: isDefaultExport === true,
-    description: obj.description,
-    deprecated: obj.deprecated,
-    location: obj.getLocation(),
-    constructor: ctor ? {
-      name: ctor.name,
-      arguments: Object.values(ctor.arguments).map(serializeArgument)
-    } : undefined,
-    methods: mapValues(obj.methods, serializeFunction),
-    properties: mapValues(obj.properties, serializeProperty)
-  };
-}
-function serializeFunction(fn) {
-  const f4 = fn;
-  return {
-    name: f4.name,
-    alias: f4.alias,
-    cache: f4.cache,
-    description: f4.description,
-    deprecated: f4.deprecated,
-    isCheck: f4.isCheck === true,
-    isGenerator: f4.isGenerator === true,
-    isUp: f4.isUp === true,
-    isAgent: f4.isAgent === true,
-    isCollectionGet: f4.isCollectionGet === true,
-    location: f4.getLocation(),
-    returnType: f4.returnType ? serializeType(f4.returnType) : undefined,
-    arguments: Object.values(f4.arguments).map(serializeArgument)
-  };
-}
-function serializeArgument(arg) {
-  return {
-    name: arg.name,
-    description: arg.description,
-    deprecated: arg.deprecated,
-    type: arg.type ? serializeType(arg.type) : undefined,
-    isVariadic: arg.isVariadic === true,
-    isNullable: arg.isNullable === true,
-    isOptional: arg.isOptional === true,
-    defaultValue: arg.defaultValue,
-    defaultPath: arg.defaultPath,
-    defaultAddress: arg.defaultAddress,
-    ignore: arg.ignore,
-    location: arg.getLocation()
-  };
-}
-function serializeProperty(prop) {
-  return {
-    name: prop.name,
-    alias: prop.alias,
-    description: prop.description,
-    deprecated: prop.deprecated,
-    isExposed: prop.isExposed === true,
-    isCollectionKeys: prop.isCollectionKeys === true,
-    isCollectionDelta: prop.isCollectionDelta === true,
-    type: prop.type ? serializeType(prop.type) : undefined,
-    location: prop.getLocation()
-  };
-}
-function serializeEnum(enum_) {
-  return {
-    name: enum_.name,
-    description: enum_.description,
-    location: enum_.getLocation(),
-    values: mapValues(enum_.values, (v2) => ({
-      name: v2.name,
-      value: v2.value,
-      description: v2.description,
-      deprecated: v2.deprecated,
-      location: v2.getLocation()
-    }))
-  };
-}
-function serializeInterface(iface) {
-  return {
-    name: iface.name,
-    description: iface.description,
-    location: iface.getLocation(),
-    functions: mapValues(iface.functions, serializeFunction)
-  };
-}
-function serializeType(t2) {
-  switch (t2.kind) {
-    case "LIST_KIND" /* ListKind */:
-      return {
-        kind: t2.kind,
-        typeDef: serializeType(t2.typeDef)
-      };
-    case "OBJECT_KIND" /* ObjectKind */:
-    case "ENUM_KIND" /* EnumKind */:
-    case "INTERFACE_KIND" /* InterfaceKind */:
-    case "SCALAR_KIND" /* ScalarKind */:
-      return { kind: t2.kind, name: t2.name };
-    default:
-      return { kind: t2.kind };
-  }
-}
-function mapValues(obj, fn) {
-  const out = {};
-  for (const [k2, v2] of Object.entries(obj)) {
-    out[k2] = fn(v2);
-  }
-  return out;
-}
-
-// src/module/entrypoint/register.ts
+// src/module/introspector/register.ts
 class Register {
   module;
   constructor(module2) {
@@ -110456,14 +109948,8 @@ class Register {
         deprecated: object3.deprecated
       };
       let typeDef = dag.typeDef().withObject(object3.name, objectOpts);
-      if (object3.isCollection) {
-        typeDef = typeDef.withCollection();
-      }
       Object.values(object3.methods).forEach((method) => {
         typeDef = typeDef.withFunction(this.addFunction(method));
-        if (method.isCollectionGet) {
-          typeDef = typeDef.withCollectionGet(method.alias ?? method.name);
-        }
       });
       Object.values(object3.properties).forEach((field2) => {
         if (field2.isExposed) {
@@ -110473,12 +109959,6 @@ class Register {
             deprecated: field2.deprecated
           };
           typeDef = typeDef.withField(field2.alias ?? field2.name, addTypeDef(field2.type), fieldOpts);
-          if (field2.isCollectionKeys) {
-            typeDef = typeDef.withCollectionKeys(field2.alias ?? field2.name);
-          }
-          if (field2.isCollectionDelta) {
-            typeDef = typeDef.withCollectionDelta(field2.alias ?? field2.name);
-          }
         }
       });
       if (object3._constructor) {
@@ -110633,7 +110113,127 @@ function isPrimitiveType(type) {
   return type.kind === "BOOLEAN_KIND" /* BooleanKind */ || type.kind === "INTEGER_KIND" /* IntegerKind */ || type.kind === "STRING_KIND" /* StringKind */ || type.kind === "FLOAT_KIND" /* FloatKind */ || type.kind === "ENUM_KIND" /* EnumKind */;
 }
 
-// src/module/entrypoint/introspection_entrypoint.ts
+// src/module/introspector/typedef_json.ts
+function serializeModule(module2) {
+  return {
+    name: module2.name,
+    description: module2.description,
+    objects: mapValues(module2.objects, serializeObject),
+    enums: mapValues(module2.enums, serializeEnum),
+    interfaces: mapValues(module2.interfaces, serializeInterface)
+  };
+}
+function serializeObject(obj) {
+  const isExported = obj.isExported;
+  const isDefaultExport = obj.isDefaultExport;
+  const ctor = obj._constructor;
+  return {
+    name: obj.name,
+    kind: obj.kind(),
+    isExported: isExported !== false,
+    isDefaultExport: isDefaultExport === true,
+    description: obj.description,
+    deprecated: obj.deprecated,
+    location: obj.getLocation(),
+    constructor: ctor ? {
+      name: ctor.name,
+      arguments: Object.values(ctor.arguments).map(serializeArgument)
+    } : undefined,
+    methods: mapValues(obj.methods, serializeFunction),
+    properties: mapValues(obj.properties, serializeProperty)
+  };
+}
+function serializeFunction(fn) {
+  const f4 = fn;
+  return {
+    name: f4.name,
+    alias: f4.alias,
+    cache: f4.cache,
+    description: f4.description,
+    deprecated: f4.deprecated,
+    isCheck: f4.isCheck === true,
+    isGenerator: f4.isGenerator === true,
+    isUp: f4.isUp === true,
+    isAgent: f4.isAgent === true,
+    location: f4.getLocation(),
+    returnType: f4.returnType ? serializeType(f4.returnType) : undefined,
+    arguments: Object.values(f4.arguments).map(serializeArgument)
+  };
+}
+function serializeArgument(arg) {
+  return {
+    name: arg.name,
+    description: arg.description,
+    deprecated: arg.deprecated,
+    type: arg.type ? serializeType(arg.type) : undefined,
+    isVariadic: arg.isVariadic === true,
+    isNullable: arg.isNullable === true,
+    isOptional: arg.isOptional === true,
+    defaultValue: arg.defaultValue,
+    defaultPath: arg.defaultPath,
+    defaultAddress: arg.defaultAddress,
+    ignore: arg.ignore,
+    location: arg.getLocation()
+  };
+}
+function serializeProperty(prop) {
+  return {
+    name: prop.name,
+    alias: prop.alias,
+    description: prop.description,
+    deprecated: prop.deprecated,
+    isExposed: prop.isExposed === true,
+    type: prop.type ? serializeType(prop.type) : undefined,
+    location: prop.getLocation()
+  };
+}
+function serializeEnum(enum_) {
+  return {
+    name: enum_.name,
+    description: enum_.description,
+    location: enum_.getLocation(),
+    values: mapValues(enum_.values, (v2) => ({
+      name: v2.name,
+      value: v2.value,
+      description: v2.description,
+      deprecated: v2.deprecated,
+      location: v2.getLocation()
+    }))
+  };
+}
+function serializeInterface(iface) {
+  return {
+    name: iface.name,
+    description: iface.description,
+    location: iface.getLocation(),
+    functions: mapValues(iface.functions, serializeFunction)
+  };
+}
+function serializeType(t2) {
+  switch (t2.kind) {
+    case "LIST_KIND" /* ListKind */:
+      return {
+        kind: t2.kind,
+        typeDef: serializeType(t2.typeDef)
+      };
+    case "OBJECT_KIND" /* ObjectKind */:
+    case "ENUM_KIND" /* EnumKind */:
+    case "INTERFACE_KIND" /* InterfaceKind */:
+    case "SCALAR_KIND" /* ScalarKind */:
+      return { kind: t2.kind, name: t2.name };
+    default:
+      return { kind: t2.kind };
+  }
+}
+function mapValues(obj, fn) {
+  const out = {};
+  for (const [k2, v2] of Object.entries(obj)) {
+    out[k2] = fn(v2);
+  }
+  return out;
+}
+
+// src/module/introspector/introspection_entrypoint.ts
 async function introspection(files2, moduleName, generatedClientFiles) {
   return await scan(files2, moduleName, false, generatedClientFiles);
 }
