@@ -16,6 +16,18 @@ else does proxy, so a check can still install an ordinary dependency.
 """
 type LocalRegistry {
   """
+  Which registry this is.
+
+  Two values with different names are two services, because dagger keys a service
+  on its definition and the name reaches that definition below. Without it every
+  check would publish into one registry and collide: republishing a version is
+  refused, so a second check reusing 1.0.0 fails on a conflict rather than on
+  anything it meant to test. It also means checks can share version numbers, which
+  is what lets the negative control build a tree identical to the positive one.
+  """
+  let name: String!
+
+  """
   The alias a container binds the registry to, and so the hostname it is reached
   by. Its port is verdaccio's own default.
   """
@@ -56,6 +68,7 @@ type LocalRegistry {
     container
       .from("verdaccio/verdaccio:6")
       .withNewFile("/verdaccio/conf/config.yaml", config)
+      .withEnvVariable("REGISTRY_INSTANCE", name)
       .withExposedPort(4873)
       .asService(useEntrypoint: true)
   }
@@ -103,6 +116,22 @@ type LocalRegistry {
       .withExec(["npm", "publish"])
       .withWorkdir("/work")
   }
+
+  """
+  Publish several packages into one chain, in order.
+  """
+  let withPublishedAll(from: Container!, pkgs: [PublishedPackage!]!): Container! {
+    pkgs.reduce(from) { chain, pkg => withPublished(chain, pkg.dir, pkg.id) }
+  }
+}
+
+"""
+One package staged for publishing: its contents, and a name for the directory it
+is packed from.
+"""
+type PublishedPackage {
+  let dir: Directory!
+  let id: String!
 }
 
 """
@@ -132,8 +161,9 @@ type RegistryChecks {
   TypeScript source the way this package does.
   """
   publishInstallCheck(ws: Workspace!): Void @check {
-    let out = LocalRegistry
-      .withPublished(LocalRegistry.client, corePackage(ws, "1.0.0"), "core")
+    let reg = LocalRegistry(name: "publish-install")
+    let out = reg
+      .withPublished(reg.client, corePackage(ws, "1.0.0"), "core")
       # Packing the tarball leaves npm holding the contents it just read. The
       # point of the next two steps is that the *registry* can answer them.
       .withExec(["npm", "cache", "clean", "--force"])
@@ -182,6 +212,187 @@ type RegistryChecks {
     )
 
     null
+  }
+
+  """
+  Two copies of the library in one tree should still share one registry.
+
+  This is the guarantee the whole split rests on, and the only place it actually
+  lives. `registry` and `globalConnection` are singletons; once this is several
+  packages, a resolver can install two copies of the one holding them, each
+  evaluating its own. The decorator would write into one registry and the
+  dispatcher read another, and the error a user sees is "my @object class isn't
+  found" — nothing pointing at node_modules. `Symbol.for`-keyed slots on
+  globalThis are what contain it, because they are a language feature rather than
+  a resolver behaviour.
+
+  The tree is built by the resolver rather than by hand, which is the point: two
+  intermediary packages pin different exact versions of the library, npm hoists
+  one and nests the other, and the check asserts both that the duplicate really
+  happened and that the two copies still agree. A dedupe would make this pass for
+  no reason, so the count is asserted too.
+  """
+  duplicateTreeCheck(ws: Workspace!): Void @check {
+    let out = duplicateTree(
+      ws,
+      "duplicate-tree",
+      corePackage(ws, "1.0.0"),
+      corePackage(ws, "2.0.0"),
+    )
+
+    Asserts.stringContains(
+      out,
+      "copies 2",
+      "the tree should hold exactly two copies of the library, or this check " +
+        "proves nothing. Got: " + out,
+    )
+    Asserts.stringContains(
+      out,
+      "shared true",
+      "two copies of the library should share one registry — the copy that " +
+        "registered a class and the copy that looked it up disagreed. Got: " + out,
+    )
+
+    null
+  }
+
+  """
+  And the containment is what makes that work — the negative control.
+
+  Without it the check above could be passing for a reason that has nothing to do
+  with `shared`: `reflect-metadata` is bundled into each copy and patches a
+  global, so it is not obvious from reading that the *instance* is what keys the
+  metadata. The same tree with the globalThis slot patched out of the bundle has
+  to fail, or the positive result means nothing.
+
+  Patched by rewriting the built bundle, which is exactly as brittle as it sounds
+  — so the rewrite asserts it matched something before the tree is built on it.
+  """
+  duplicateTreeWithoutContainmentCheck(ws: Workspace!): Void @check {
+    let out = duplicateTree(
+      ws,
+      "no-containment",
+      withoutContainment(corePackage(ws, "1.0.0")),
+      withoutContainment(corePackage(ws, "2.0.0")),
+    )
+
+    Asserts.stringContains(
+      out,
+      "copies 2",
+      "the negative control needs the same duplicated tree. Got: " + out,
+    )
+    Asserts.stringContains(
+      out,
+      "shared false",
+      "with the globalThis slot patched out, the two copies should each get " +
+        "their own registry and the lookup should fail. It did not, so the " +
+        "positive check proves less than it appears to. Got: " + out,
+    )
+
+    null
+  }
+
+  """
+  Build the duplicated tree and report what happened: how many copies of the
+  library the resolver installed, and whether the two agreed.
+
+  Both copies run the same code and differ only in version — the hazard is two
+  *copies*, not two implementations.
+  """
+  let duplicateTree(
+    ws: Workspace!,
+    registryName: String!,
+    coreA: Directory!,
+    coreB: Directory!,
+  ): String! {
+    let reg = LocalRegistry(name: registryName)
+
+    reg
+      .withPublishedAll(reg.client, [
+        PublishedPackage(dir: coreA, id: "core-a"),
+        PublishedPackage(dir: coreB, id: "core-b"),
+        PublishedPackage(dir: probePackage("probe-writer", "1.0.0", writerSource), id: "writer"),
+        PublishedPackage(dir: probePackage("probe-reader", "2.0.0", readerSource), id: "reader"),
+      ])
+      .withExec(["npm", "cache", "clean", "--force"])
+      .withNewFile("/work/package.json", "{ \"type\": \"module\" }\n")
+      .withExec(["npm", "install", "probe-writer@1.0.0", "probe-reader@1.0.0", "tsx@4.22.4"])
+      .withNewFile("/work/app.ts", appSource)
+      .withExec([
+        "sh", "-c",
+        "echo \"copies $(find node_modules -path '*@dagger.io/dagger/package.json' | wc -l | tr -d ' ')\"; " +
+          "npx tsx /work/app.ts",
+      ])
+      .stdout
+  }
+
+  """
+  The same package with step 1's globalThis containment removed, back to the
+  module-scope singleton it replaced.
+
+  The grep is the guard: a sed that stops matching would silently leave the
+  bundle intact and turn the negative control into a second copy of the positive
+  one.
+  """
+  let withoutContainment(pkg: Directory!): Directory! {
+    container
+      .from("alpine:3.21")
+      .withDirectory("/pkg", pkg)
+      .withExec([
+        "sed", "-i",
+        "s/shared(\"registry\", () => new Registry)/new Registry/",
+        "/pkg/core.js",
+      ])
+      .withExec(["grep", "-q", "var registry = new Registry", "/pkg/core.js"])
+      .directory("/pkg")
+  }
+
+  """
+  A package that depends on one exact version of the library and does one thing
+  with it. Two of these, pinned to different versions, are what make npm produce
+  a duplicate.
+  """
+  let probePackage(name: String!, coreVersion: String!, source: String!): Directory! {
+    directory
+      .withNewFile("index.ts", source)
+      .withNewFile(
+        "package.json",
+        "{\n" +
+          "  \"name\": \"" + name + "\",\n" +
+          "  \"version\": \"1.0.0\",\n" +
+          "  \"type\": \"module\",\n" +
+          "  \"main\": \"./index.ts\",\n" +
+          "  \"dependencies\": { \"@dagger.io/dagger\": \"" + coreVersion + "\" }\n" +
+          "}\n",
+      )
+  }
+
+  """
+  Registers a class, through the decorator a user's module would use. Called
+  rather than applied as `@object()`, so the probe needs no decorator support from
+  whatever runs it.
+  """
+  let writerSource: String! {
+    "import { object } from \"@dagger.io/dagger\"\n" +
+      "export class SharedProbe {}\n" +
+      "object()(SharedProbe)\n"
+  }
+
+  """
+  Looks the class up, the way a dispatcher would.
+  """
+  let readerSource: String! {
+    "import { getRegisteredClass } from \"@dagger.io/dagger\"\n" +
+      "export const found = () => getRegisteredClass(\"SharedProbe\") !== undefined\n"
+  }
+
+  """
+  The app over both: import order matters, so the writer runs first.
+  """
+  let appSource: String! {
+    "import \"probe-writer\"\n" +
+      "import { found } from \"probe-reader\"\n" +
+      "console.log(\"shared \" + found())\n"
   }
 
   """

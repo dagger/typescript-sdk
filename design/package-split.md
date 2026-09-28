@@ -559,6 +559,24 @@ and **run it on all three runtimes** — that is the only place the guarantee
 actually lives. It belongs in the e2e suite alongside the verdaccio harness from
 step 2 of the sequencing, which is where a duplicated tree can be built on demand.
 
+**That test now exists for node**, in `e2e:registry`. Two intermediary packages pin
+different exact versions of the library, npm hoists one and nests the other, and
+the app imports both: the writer's copy registers a class through `object()`, the
+reader's copy looks it up through `getRegisteredClass`. `copies 2`, `shared true`.
+The tree is built by the resolver rather than by hand, and the copy count is
+asserted, because a dedupe would make it pass for nothing.
+
+It comes with a negative control, which is what makes the positive result mean
+anything: the same tree with `shared("registry", …)` patched out of the built bundle
+gives `copies 2`, `shared false`. `reflect-metadata` is bundled into each copy and
+patches a global, so that the *instance* is what keys the metadata is not something
+to take on trust.
+
+bun and deno are still missing, and the deno arm is not just a third container: our
+packages are published seconds before they are installed, so it runs straight into
+the `minimumDependencyAge` floor above — which makes it the regression test for
+that fix as well as for this one.
+
 **Verdict on the runtimes question: no blocker.** Nothing about bun or deno makes
 the split unworkable. What changes is which mitigation carries the weight, and that
 the `session` API's stability matters more than any of the tooling.
@@ -677,9 +695,11 @@ and the pre-v1 tree gets moved for nothing.
    dev, by the duplicate-tree test, and by the release rehearsal — and it is the
    only way to test step 4 before doing it for real. *Started:* `e2e:registry`
    runs verdaccio as a service, publishes the package a scope carries today into
-   it, and installs it from there — which is what turned up the shape constraint
-   above. Still missing is the duplicate-tree test on all three runtimes, which is
-   the guarantee "What to do" asks for and the reason the harness was wanted.
+   it, installs it from there — which is what turned up the shape constraint above
+   — and holds the duplicate-tree guarantee with a negative control, on node.
+   Missing: the same guarantee on bun and deno, and with it the
+   `minimumDependencyAge` fix that deno needs before it can install a package
+   published a minute ago.
 3. **Publish `session`, `module`, `telemetry`.** Nothing consumes them yet, so a
    mistake here costs a version bump and nothing else.
 
