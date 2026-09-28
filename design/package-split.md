@@ -114,6 +114,35 @@ library declares `graphql@^17.0.1`. bun and yarn install it anyway, which is why
 nothing has noticed. It has to be resolved before anything here is published under
 a real manifest — every consumer on npm would hit `ERESOLVE` on install.
 
+### These packages cannot ship TypeScript source
+
+The package a scope carries today has `main: ./index.ts`, and that works only
+because nothing resolves it *as* a package: the engine mounts `sdk/` into
+`node_modules` and runs the entrypoint through tsx, and a generated entrypoint
+installs its own tsx (`dangTsxVersion`, `entrypoint_dang.go`). Publish the same
+shape and install it, and plain node refuses at the entry:
+
+```
+Error [ERR_UNSUPPORTED_NODE_MODULES_TYPE_STRIPPING]: Stripping types is currently
+unsupported for files under node_modules, for
+"file:///work/node_modules/@dagger.io/dagger/index.ts"
+```
+
+Not read from node's docs — published to the step 2 harness and imported, under
+both runners: `tsx loaded object`, `node refused`. Both halves are asserted in
+`e2e:registry:publish-install-check`, the refusal by the path it names rather than
+by its wording.
+
+A module never meets this, because the SDK owns the runtime it runs in. A
+**client-only scope** does: there the user runs their own node and
+`@dagger.io/core` sits in their manifest like any other dependency. So `core`,
+`session` and the facade have to ship compiled JavaScript with declarations beside
+it — the shape `library/package.json` already describes (`main: dist/src/index.js`,
+`files: ["dist/"]`) and that nothing in this repo currently builds. Adding that
+build is part of step 3 rather than a detail of it, and it also lands on the
+dagger/dagger pipeline that generates `core`: generating the bindings is not
+enough, it has to compile them.
+
 ## Who publishes what
 
 The split line is not "who wrote the code". It is **what the version number
@@ -646,7 +675,11 @@ and the pre-v1 tree gets moved for nothing.
    One bundle still comes out; nothing published changed.
 2. **Stand up the verdaccio harness** in `.dagger/modules/e2e`. Needed by local
    dev, by the duplicate-tree test, and by the release rehearsal — and it is the
-   only way to test step 4 before doing it for real.
+   only way to test step 4 before doing it for real. *Started:* `e2e:registry`
+   runs verdaccio as a service, publishes the package a scope carries today into
+   it, and installs it from there — which is what turned up the shape constraint
+   above. Still missing is the duplicate-tree test on all three runtimes, which is
+   the guarantee "What to do" asks for and the reason the harness was wanted.
 3. **Publish `session`, `module`, `telemetry`.** Nothing consumes them yet, so a
    mistake here costs a version bump and nothing else.
 
