@@ -332,6 +332,27 @@ sharper than I first wrote. `client.gen.ts` re-exports `BaseClient` and so does
 So the facade needs an explicit disambiguation block, and a test that imports every
 name it claims to re-export. The silent-namespace case is the dangerous one.
 
+**It is the only collision**, which makes that block one line rather than an audit.
+Enumerated with the TypeScript checker rather than by reading: `getExportsOfModule`
+over each package's entry points, then the intersection.
+
+| Package | Exports | Contributes a colliding name |
+|---|---|---|
+| `session` | 19 | `BaseClient` |
+| `core` | 363 | `BaseClient` |
+| `module` | 17 | — |
+| `telemetry` | 1 | — |
+
+The same pass measures the other half — what a bare `export *` would *add*, since
+today's `src/index.ts` is an explicit list and not a star over the layers. Eight
+names are exported by a layer and withheld by the facade: `Args`, `ArgumentOptions`,
+`Class`, `FunctionOptions`, `State`, `Registry` and `registry` from `module`, and
+`ServeSpec` from `session`. Seven are types or a class and cost nothing either way.
+The one that matters is `registry`, the mutable singleton instance — the facade
+exports `getRegisteredClass` instead, and that is what keeps a user from writing
+into it. `entrypoint`, the omission the code comments talk about, is no longer on
+the list: step 1 deleted it.
+
 **Legacy embedded modules** — `sdk/typescript` in dagger/dagger, mounted by the
 engine as `node_modules/@dagger.io/dagger`. It does **not** consume the split, and
 that is a requirement rather than a convenience: it **must** stay frozen on the
@@ -628,9 +649,9 @@ real SDK. Still open:
 
 - **Install-size numbers.** "Roughly half the weight is otel" is an estimate from
   the dependency list, not a measured `node_modules`.
-- **That the facade re-export preserves every current export.** The `BaseClient`
-  collision is confirmed; whether it is the *only* one is not. `src/index.ts` also
-  deliberately omits `entrypoint`, and that omission list may be longer.
+- **That the facade, once written, re-exports what it claims.** The surface is now
+  enumerated — one collision, eight withheld names — but that is the *source* tree
+  measured by the checker. No facade package exists yet to test against.
 - **Why bun served a stale packument.** Observed against verdaccio; whether it
   reproduces against real npm, or is an etag/304 interaction with the local
   registry, is not separated. The harness now invalidates caches on publish, so it
