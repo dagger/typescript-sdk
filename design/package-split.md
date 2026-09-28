@@ -11,9 +11,11 @@ dual-package hazard is measured rather than assumed, on npm, bun and deno — se
 proposed package graph against a local verdaccio; the method is described where the
 results are, so it can be rebuilt.
 
-**Step 1 has landed** — `library/src` is laid out in layers and the dead subgraph
-is gone, with the whole check suite green on the pinned engine. Nothing published
-has changed. Sequencing is at the end.
+**Steps 1 and 2 have landed** — `library/src` is laid out in layers, the dead
+subgraph is gone, and `e2e:registry` runs a real registry so the package graph can
+be tested by installing it rather than by reasoning about it. Several claims below
+moved from argued to measured as a result, and one of them changed. Nothing
+published has changed. Sequencing is at the end.
 
 ## What is actually tangled
 
@@ -120,7 +122,14 @@ The package a scope carries today has `main: ./index.ts`, and that works only
 because nothing resolves it *as* a package: the engine mounts `sdk/` into
 `node_modules` and runs the entrypoint through tsx, and a generated entrypoint
 installs its own tsx (`dangTsxVersion`, `entrypoint_dang.go`). Publish the same
-shape and install it, and plain node refuses at the entry:
+shape, install it, and **two of the three runtimes refuse it** at the entry:
+
+| Runtime | Loading the package as published |
+|---|---|
+| node | **refused** — `ERR_UNSUPPORTED_NODE_MODULES_TYPE_STRIPPING` |
+| node + tsx | ok |
+| bun | ok |
+| deno | **refused** — the same error code, through its own resolver |
 
 ```
 Error [ERR_UNSUPPORTED_NODE_MODULES_TYPE_STRIPPING]: Stripping types is currently
@@ -128,14 +137,16 @@ unsupported for files under node_modules, for
 "file:///work/node_modules/@dagger.io/dagger/index.ts"
 ```
 
-Not read from node's docs — published to the step 2 harness and imported, under
-both runners: `tsx loaded object`, `node refused`. Both halves are asserted in
-`e2e:registry:publish-install-check`, the refusal by the path it names rather than
-by its wording.
+Not read from anybody's docs — published to the step 2 harness and imported under
+each of them. All four outcomes are asserted in
+`e2e:registry:publish-install-check`, the refusals by the path they name rather
+than by their wording. deno matching node here was the surprise: it makes this a
+property of the ecosystem rather than a node quirk to work around.
 
-A module never meets this, because the SDK owns the runtime it runs in. A
-**client-only scope** does: there the user runs their own node and
-`@dagger.io/core` sits in their manifest like any other dependency. So `core`,
+A module never meets it, whichever runtime it targets — node goes through tsx, and
+deno resolves `@dagger.io/dagger` through `deno.json` to a path, where the rule does
+not apply. A **client-only scope** does: there the user runs their own node or deno
+and `@dagger.io/core` sits in their manifest like any other dependency. So `core`,
 `session` and the facade have to ship compiled JavaScript with declarations beside
 it — the shape `library/package.json` already describes (`main: dist/src/index.js`,
 `files: ["dist/"]`) and that nothing in this repo currently builds. Adding that
@@ -559,23 +570,25 @@ and **run it on all three runtimes** — that is the only place the guarantee
 actually lives. It belongs in the e2e suite alongside the verdaccio harness from
 step 2 of the sequencing, which is where a duplicated tree can be built on demand.
 
-**That test now exists for node**, in `e2e:registry`. Two intermediary packages pin
-different exact versions of the library, npm hoists one and nests the other, and
-the app imports both: the writer's copy registers a class through `object()`, the
-reader's copy looks it up through `getRegisteredClass`. `copies 2`, `shared true`.
-The tree is built by the resolver rather than by hand, and the copy count is
-asserted, because a dedupe would make it pass for nothing.
+**That test now exists, on all three runtimes**, in `e2e:registry`. Two intermediary
+packages pin different exact versions of the library, each runtime's own installer
+hoists one and nests the other, and the app imports both: the writer's copy
+registers a class through `object()`, the reader's copy looks it up through
+`getRegisteredClass`. The tree is built by the resolver rather than by hand, and the
+copy count is asserted, because a dedupe would make it pass for nothing.
 
-It comes with a negative control, which is what makes the positive result mean
-anything: the same tree with `shared("registry", …)` patched out of the built bundle
-gives `copies 2`, `shared false`. `reflect-metadata` is bundled into each copy and
-patches a global, so that the *instance* is what keys the metadata is not something
-to take on trust.
+Each runtime asserts the *contrast*, not one outcome — on its own `shared true` says
+very little, and a runtime that deduped two identical files would report agreement
+for reasons having nothing to do with `shared`. Six trees:
 
-bun and deno are still missing, and the deno arm is not just a third container: our
-packages are published seconds before they are installed, so it runs straight into
-the `minimumDependencyAge` floor above — which makes it the regression test for
-that fix as well as for this one.
+| | as shipped | `shared("registry", …)` patched out |
+|---|---|---|
+| node | `copies 2`, `shared true` | `copies 2`, `shared false` |
+| bun | `copies 2`, `shared true` | `copies 2`, `shared false` |
+| deno | `copies 2`, `shared true` | `copies 2`, `shared false` |
+
+All three duplicate, all three share with the containment and split without it. That
+is the guarantee, and it is now a check rather than a claim.
 
 **Verdict on the runtimes question: no blocker.** Nothing about bun or deno makes
 the split unworkable. What changes is which mitigation carries the weight, and that
@@ -696,10 +709,10 @@ and the pre-v1 tree gets moved for nothing.
    only way to test step 4 before doing it for real. *Started:* `e2e:registry`
    runs verdaccio as a service, publishes the package a scope carries today into
    it, installs it from there — which is what turned up the shape constraint above
-   — and holds the duplicate-tree guarantee with a negative control, on node.
-   Missing: the same guarantee on bun and deno, and with it the
-   `minimumDependencyAge` fix that deno needs before it can install a package
-   published a minute ago.
+   — holds the duplicate-tree guarantee with a negative control on each of node,
+   bun and deno, and pins deno's dependency-age floor together with the key that
+   clears it. What is left is the release rehearsal itself, which needs something
+   published to rehearse.
 3. **Publish `session`, `module`, `telemetry`.** Nothing consumes them yet, so a
    mistake here costs a version bump and nothing else.
 
