@@ -12,7 +12,8 @@ proposed package graph against a local verdaccio; the method is described where 
 results are, so it can be rebuilt.
 
 **Step 1 has landed** — `library/src` is laid out in layers and the dead subgraph
-is gone. Nothing published has changed. Sequencing is at the end.
+is gone, with the whole check suite green on the pinned engine. Nothing published
+has changed. Sequencing is at the end.
 
 ## What is actually tangled
 
@@ -53,7 +54,7 @@ ownership, local development, and singletons — not the import graph.
 
 | Package | Contents | External deps |
 |---|---|---|
-| `@dagger.io/session` | `Context`, `BaseClient`, `Connection`, `computeQuery`, errors, `ConnectOpts`, `connect`/`connection`, **provisioning** | `graphql-request`, `graphql`, `node-fetch`, `@opentelemetry/api`, `adm-zip`, `tar`, `execa`, `env-paths` |
+| `@dagger.io/session` | `Context`, `BaseClient`, `Connection`, `computeQuery`, errors, `ConnectOpts`, `connect`/`connection`, **provisioning** | `graphql-request`, `graphql`, `node-fetch`, `@opentelemetry/api`, `adm-zip`, `tar`, `execa`, `env-paths`, `node-color-log` |
 | `@dagger.io/core` | generated core bindings + `dag` | `@dagger.io/session` |
 | `@dagger.io/module` | decorators, registry | `@dagger.io/core`, `reflect-metadata` |
 | `@dagger.io/telemetry` | otel wiring | the otel SDK |
@@ -88,7 +89,30 @@ the otel SDK. It also drops six dependencies declared today and imported nowhere
 `@opentelemetry/exporter-jaeger`, `@opentelemetry/sdk-metrics`,
 `@opentelemetry/semantic-conventions`. The reverse drift exists too: `telemetry/`
 imports `@opentelemetry/exporter-trace-otlp-proto` and `sdk-trace-base`, neither
-declared. Splitting forces honest manifests, which is how you find both kinds.
+declared, and `session/utils.ts` imports `node-color-log`, which the table above
+now lists. Splitting forces honest manifests, which is how you find both kinds.
+
+**What that is worth, measured.** Each closure installed on its own with
+`npm install --omit=dev` (npm 11.6.2, macOS arm64), sizes from `du -sk`:
+
+| Closure | Installed | Packages |
+|---|---|---|
+| today's manifest — what every generated client gets | **161 MB** | 160 |
+| `session` (and `core`, which adds nothing of its own) | **29 MB** | 45 |
+| `telemetry` | 96 MB | 74 |
+| `module` (`reflect-metadata` alone) | 0.3 MB | 1 |
+| `typescript`, for reference | 24 MB | 1 |
+
+So a generated client goes from 161 MB to 29 MB — **5.5× smaller, and 115 fewer
+packages**. The estimate this replaces said "roughly half the weight is otel"; it
+is closer to 60%, and the otel closure alone is over three times the size of
+everything a client actually needs.
+
+**npm refuses today's manifest.** The measurement needed `--legacy-peer-deps` to
+run at all: `graphql-request@7.4.0` declares `peer graphql@"14 - 16"` and the
+library declares `graphql@^17.0.1`. bun and yarn install it anyway, which is why
+nothing has noticed. It has to be resolved before anything here is published under
+a real manifest — every consumer on npm would hit `ERESOLVE` on install.
 
 ## Who publishes what
 
@@ -647,8 +671,11 @@ deno 2.9.2 and Node 24.11.1, over a local verdaccio — with model packages
 (`@dpt/session`, `@dpt/core`, `@dpt/module`, a facade over both) rather than the
 real SDK. Still open:
 
-- **Install-size numbers.** "Roughly half the weight is otel" is an estimate from
-  the dependency list, not a measured `node_modules`.
+- **That `@dagger.io/core` really has no external dependency.** `core/connect.ts`
+  imports `GraphQLClient` from `graphql-request` for one parameter annotation, so
+  as written the package needs it. `import type` would remove it from both the
+  runtime closure and the emitted `.d.ts` — one word, not yet done, and the
+  manifest in the table above assumes it.
 - **That the facade, once written, re-exports what it claims.** The surface is now
   enumerated — one collision, eight withheld names — but that is the *source* tree
   measured by the checker. No facade package exists yet to test against.
