@@ -110,11 +110,18 @@ packages**. The estimate this replaces said "roughly half the weight is otel"; i
 is closer to 60%, and the otel closure alone is over three times the size of
 everything a client actually needs.
 
-**npm refuses today's manifest.** The measurement needed `--legacy-peer-deps` to
-run at all: `graphql-request@7.4.0` declares `peer graphql@"14 - 16"` and the
-library declares `graphql@^17.0.1`. bun and yarn install it anyway, which is why
-nothing has noticed. It has to be resolved before anything here is published under
-a real manifest — every consumer on npm would hit `ERESOLVE` on install.
+**npm refused today's manifest — fixed.** The measurement needed
+`--legacy-peer-deps` to run at all: `graphql-request@7.4.0` declares
+`peer graphql@"14 - 16"` and the library declared `graphql@^17.0.1`. bun and yarn
+install that tree without a word, which is why it went unnoticed; npm is the only
+one of the three that enforces peers on install, and every consumer of a published
+`session` would have hit `ERESOLVE` on the first one.
+
+There is no `graphql-request@8` to move to, and the library's own use of `graphql`
+is two `import type`s, so the range only ever had to satisfy the runtime
+dependency: it is now `^16.14.2`. `bundle/core.js` got 182 KB smaller as a side
+effect. `packager:manifest-installs-check` resolves the production closure with
+real npm so the next such bump fails here rather than at a user.
 
 ### These packages cannot ship TypeScript source
 

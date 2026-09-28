@@ -148,6 +148,35 @@ type Packager {
   }
 
   """
+  The library's manifest must resolve with npm, not only with bun.
+
+  npm is the only one of the three installers that enforces `peerDependencies` at
+  install time, so it is the only one that would have noticed
+  `graphql-request@7.4.0` peering on `graphql "14 - 16"` while this manifest asked
+  for `^17.0.1`. It did not notice, for as long as nobody ran npm over it: bun and
+  yarn install that tree without a word, and both lockfiles here recorded it
+  happily. A consumer on npm would have hit `ERESOLVE` on the first install.
+
+  Nothing here is published yet, which is exactly why this check exists — it
+  stands in for the consumer who will be. Production dependencies only: that is
+  the closure a published package hands over, and the dev tools are bun's problem.
+
+  `--dry-run` because resolution is the whole question; ERESOLVE happens before
+  anything is downloaded.
+  """
+  manifestInstallsCheck(ws: Workspace!): Void @check {
+    container
+      .from("node:24-alpine")
+      .withoutEntrypoint
+      .withFile("/lib/package.json", ws.file("/" + libraryPath + "/package.json"))
+      .withWorkdir("/lib")
+      .withExec(["npm", "install", "--omit=dev", "--no-audit", "--no-fund", "--dry-run"])
+      .sync
+
+    null
+  }
+
+  """
   Every source file under `layer` that imports from any of `forbidden`,
   formatted as a line naming both ends of the edge.
   """
