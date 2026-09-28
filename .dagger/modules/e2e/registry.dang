@@ -83,22 +83,6 @@ type LocalRegistry {
   }
 
   """
-  A client container with npm pointed at the registry.
-
-  Node rather than bun, because npm is what publishes, and because the install
-  side of these checks should use the resolver users have by default.
-  """
-  let client: Container! {
-    container
-      .from("node:24-alpine")
-      .withoutEntrypoint
-      .withServiceBinding(alias, service)
-      .withNewFile("/root/.npmrc", npmrc)
-      .withExec(["mkdir", "-p", "/work"])
-      .withWorkdir("/work")
-  }
-
-  """
   Publish a package directory, and hand back the container to keep building on.
 
   Chained rather than called side by side: publishing is a side effect on the
@@ -167,21 +151,11 @@ type RegistryChecks {
   two of the three runtimes say so rather than one.
   """
   publishInstallCheck(ws: Workspace!): Void @check {
-    let reg = LocalRegistry(name: "publish-install")
-
-    let published = reg
-      .withPublished(reg.client, corePackage(ws, "1.0.0"), "core")
-      # Packing the tarball leaves npm holding the contents it just read. The point
-      # of the next step is that the *registry* can answer it.
-      .withExec(["npm", "cache", "clean", "--force"])
-      .withExec(["npm", "view", "@dagger.io/dagger@1.0.0", "version"])
-      .stdout
-
-    # One container per runtime, so their stdout is concatenated rather than
-    # accumulated: Container.stdout is the last exec's output, not the chain's.
-    let out = loadProbe(reg, "node", published) +
-      loadProbe(reg, "bun", published) +
-      loadProbe(reg, "deno", published)
+    # One chain per runtime — each publishing into its own registry, each reading
+    # its own stdout, and the three concatenated. Container.stdout is the last
+    # exec's output rather than the chain's, so there is no single container to
+    # read all of this from anyway.
+    let out = loadProbe(ws, "node") + loadProbe(ws, "bun") + loadProbe(ws, "deno")
 
     Asserts.stringContains(
       out,
@@ -242,18 +216,8 @@ type RegistryChecks {
   the situation does.
   """
   denoDependencyAgeCheck(ws: Workspace!): Void @check {
-    let reg = LocalRegistry(name: "deno-dependency-age")
-    let published = reg
-      .withPublishedAll(reg.client, [
-        PublishedPackage(dir: bundleEntryPackage(ws, "1.0.0"), id: "core"),
-        PublishedPackage(dir: probePackage("probe-writer", "1.0.0", writerSource), id: "writer"),
-        PublishedPackage(dir: probePackage("probe-reader", "1.0.0", readerSource), id: "reader"),
-      ])
-      .withExec(["sh", "-c", "echo published"])
-      .stdout
-
-    let exempt = denoInstall(reg, published, true)
-    let enforced = denoInstall(reg, published, false)
+    let exempt = denoInstall(ws, "age-exempt", true)
+    let enforced = denoInstall(ws, "age-enforced", false)
 
     Asserts.stringContains(
       exempt,
@@ -282,8 +246,15 @@ type RegistryChecks {
   Run `deno install` against the registry, with or without the age exemption, and
   report which way it went.
   """
-  let denoInstall(reg: LocalRegistry!, published: String!, exempt: Boolean!): String! {
-    runtimeClient(reg, "deno", published)
+  let denoInstall(ws: Workspace!, registryName: String!, exempt: Boolean!): String! {
+    let reg = LocalRegistry(name: registryName)
+
+    reg
+      .withPublishedAll(runtimeClient(reg, "deno"), [
+        PublishedPackage(dir: bundleEntryPackage(ws, "1.0.0"), id: "core"),
+        PublishedPackage(dir: probePackage("probe-writer", "1.0.0", writerSource), id: "writer"),
+        PublishedPackage(dir: probePackage("probe-reader", "1.0.0", readerSource), id: "reader"),
+      ])
       .withNewFile("/work/package.json", appManifest)
       .withNewFile("/work/deno.json", denoConfigWith(exempt: exempt))
       .withExec(["sh", "-c", "deno install 2>&1 && echo 'install ok' || echo 'install refused'"])
@@ -296,8 +267,15 @@ type RegistryChecks {
 
   node gets two lines because it has two answers: bare node, and node through tsx.
   """
-  let loadProbe(reg: LocalRegistry!, runtime: String!, published: String!): String! {
-    runtimeClient(reg, runtime, published)
+  let loadProbe(ws: Workspace!, runtime: String!): String! {
+    let reg = LocalRegistry(name: "publish-install-" + runtime)
+
+    reg
+      .withPublished(runtimeClient(reg, runtime), corePackage(ws, "1.0.0"), "core")
+      # Packing the tarball leaves npm holding the contents it just read. The point
+      # of the next step is that the *registry* can answer it.
+      .withExec(["npm", "cache", "clean", "--force"])
+      .withExec(["npm", "view", "@dagger.io/dagger@1.0.0", "version"])
       .withNewFile("/work/package.json", probeManifest)
       .withNewFile("/work/deno.json", denoConfig)
       .withNewFile("/work/probe.ts", probeSource)
@@ -467,21 +445,20 @@ type RegistryChecks {
   ): String! {
     let reg = LocalRegistry(name: registryName)
 
-    # Publishing is npm's job whatever installs afterwards, and it happens in its
-    # own container — so its completion is threaded into the runtime's container as
-    # a value. A shared service binding is not an ordering: without the value the
-    # install would be free to resolve before the publish ran.
-    let published = reg
-      .withPublishedAll(reg.client, [
+    # Publish and install in one chain, in the runtime's own container. Splitting
+    # them across two containers looks tidier and is wrong: verdaccio keeps what it
+    # is given in its own filesystem, a service lives only as long as something is
+    # holding it, and the second container gets a registry that has forgotten
+    # everything — `GET /probe-writer - 404`, seen only under the nested engine
+    # where the two containers did not overlap. One chain has one client, and it
+    # holds the service from the publish to the assertion.
+    reg
+      .withPublishedAll(runtimeClient(reg, runtime), [
         PublishedPackage(dir: coreA, id: "core-a"),
         PublishedPackage(dir: coreB, id: "core-b"),
         PublishedPackage(dir: probePackage("probe-writer", "1.0.0", writerSource), id: "writer"),
         PublishedPackage(dir: probePackage("probe-reader", "2.0.0", readerSource), id: "reader"),
       ])
-      .withExec(["sh", "-c", "echo published"])
-      .stdout
-
-    runtimeClient(reg, runtime, published)
       .withNewFile("/work/package.json", appManifest)
       .withNewFile("/work/app.js", appSource)
       .withNewFile("/work/deno.json", denoConfig)
@@ -495,16 +472,19 @@ type RegistryChecks {
   }
 
   """
-  A container for one runtime, bound to the registry and ordered after the publish.
+  A container for one runtime, bound to the registry, with npm available.
 
-  `published` is the publish chain's output, taken as a value purely so this
-  container depends on it.
+  npm is added to the bun and deno images rather than publishing from a separate
+  node container: publishing has to happen in the same chain that installs (see
+  duplicateTree), so whatever runs the install has to be able to publish too. It is
+  only ever the publisher — each runtime still installs with its own resolver,
+  which is the thing under test.
   """
-  let runtimeClient(reg: LocalRegistry!, runtime: String!, published: String!): Container! {
+  let runtimeClient(reg: LocalRegistry!, runtime: String!): Container! {
     let base = if (runtime == "bun") {
-      container.from("oven/bun:1-alpine")
+      container.from("oven/bun:1-alpine").withExec(["apk", "add", "--no-cache", "nodejs", "npm"])
     } else if (runtime == "deno") {
-      container.from("denoland/deno:alpine")
+      container.from("denoland/deno:alpine").withExec(["apk", "add", "--no-cache", "nodejs", "npm"])
     } else {
       container.from("node:24-alpine")
     }
@@ -516,7 +496,6 @@ type RegistryChecks {
       # images do not agree on what it is.
       .withEnvVariable("HOME", "/root")
       .withNewFile("/root/.npmrc", reg.npmrc)
-      .withEnvVariable("PUBLISHED", published)
       .withExec(["mkdir", "-p", "/work"])
       .withWorkdir("/work")
   }
