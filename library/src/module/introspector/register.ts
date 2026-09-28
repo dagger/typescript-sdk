@@ -11,7 +11,7 @@ import {
   SourceMap,
   FunctionCachePolicy,
   FunctionWithCachePolicyOpts,
-} from "../../api/client.gen.js"
+} from "../../core/client.gen.js"
 import {
   DaggerArguments as Arguments,
   DaggerConstructor as Constructor,
@@ -19,8 +19,8 @@ import {
   DaggerModule,
   Locatable,
   DaggerArgument,
-} from "../introspector/dagger_module/index.js"
-import { DaggerInterfaceFunction } from "../introspector/dagger_module/interfaceFunction.js"
+} from "./dagger_module/index.js"
+import { DaggerInterfaceFunction } from "./dagger_module/interfaceFunction.js"
 import {
   EnumTypeDef,
   InterfaceTypeDef,
@@ -28,7 +28,7 @@ import {
   ObjectTypeDef,
   ScalarTypeDef,
   TypeDef as ScannerTypeDef,
-} from "../introspector/typedef.js"
+} from "./typedef.js"
 
 export class Register {
   constructor(private readonly module: DaggerModule) {}

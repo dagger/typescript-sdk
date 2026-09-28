@@ -1,4 +1,4 @@
-import { TypeDefKind } from "../../../api/client.gen.js"
+import { TypeDefKind } from "../../../core/client.gen.js"
 import { TypeDef } from "../typedef.js"
 
 export type References = { [name: string]: TypeDef<TypeDefKind> }

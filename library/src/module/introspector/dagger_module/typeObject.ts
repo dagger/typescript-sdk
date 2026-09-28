@@ -1,6 +1,6 @@
 import ts from "typescript"
 
-import { IntrospectionError } from "../../../common/errors/index.js"
+import { IntrospectionError } from "../../../session/errors/index.js"
 import { AST, Location } from "../typescript_module/index.js"
 import { Locatable } from "./locatable.js"
 import { DaggerObjectBase } from "./objectBase.js"

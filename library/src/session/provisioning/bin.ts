@@ -17,8 +17,8 @@ import {
   EngineSessionConnectParamsParseError,
   EngineSessionError,
   InitEngineSessionBinaryError,
-} from "../common/errors/index.js"
-import { createGQLClient } from "../common/graphql/client.js"
+} from "../errors/index.js"
+import { createGQLClient } from "../graphql/client.js"
 import { ConnectOpts, EngineConn, ConnectParams } from "./engineconn.js"
 
 let OVERRIDE_CLI_URL: string = ""

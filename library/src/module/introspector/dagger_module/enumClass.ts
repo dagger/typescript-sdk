@@ -1,6 +1,6 @@
 import ts from "typescript"
 
-import { IntrospectionError } from "../../../common/errors/index.js"
+import { IntrospectionError } from "../../../session/errors/index.js"
 import { AST } from "../typescript_module/index.js"
 import { DaggerEnumBase, DaggerEnumBaseValue } from "./enumBase.js"
 import { Locatable } from "./locatable.js"

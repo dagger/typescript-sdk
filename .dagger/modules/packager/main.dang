@@ -15,9 +15,9 @@ type Packager {
   """
   Directory holding the library's own generated bindings, relative to
   libraryPath. Matches the layout of the library source they are compiled with,
-  where the runtime they import sits at ../common/context.js.
+  where the runtime they import sits at ../session/context.js.
   """
-  let bindingsPath: String! = "src/api"
+  let bindingsPath: String! = "src/core"
 
   """
   Regenerate the TypeScript library's own bindings (client.gen.ts) from the
@@ -75,7 +75,7 @@ type Packager {
       # than `bun build --compile`d as the engine does: a compiled binary is
       # ~100MB and per-platform, where this is a few MB of portable JS.
       .withExec([
-        "bun", "build", "src/module/entrypoint/introspection_entrypoint.ts",
+        "bun", "build", "src/module/introspector/introspection_entrypoint.ts",
         "--external=typescript", "--target=node", "--outfile", "/out/introspector.js",
       ])
       # The scanner reads the user's code through the TypeScript compiler API,
@@ -142,6 +142,55 @@ type Packager {
         "loads this bundle on every call and does not need a compiler to " +
         "dispatch. Something re-exported from library/src/index.ts reaches the " +
         "introspector — see library/VENDOR.md."
+    }
+
+    null
+  }
+
+  """
+  Every source file under `layer` that imports from any of `forbidden`,
+  formatted as a line naming both ends of the edge.
+  """
+  let crossedLayerBoundaries(src: Directory!, layer: String!, forbidden: [String!]!): [String!]! {
+    forbidden.reduce([]) { found, other =>
+      found + src.glob(layer + "/**/*.ts")
+        .filter { path => src.file(path).contents.contains("/" + other + "/") }
+        .map { path => "  " + path + " imports " + other }
+    }
+  }
+
+  """
+  The library's layers do not import upward.
+
+  The layering is session <- core <- module, which is the shape the package split
+  needs: @dagger.io/core depends on @dagger.io/session, @dagger.io/module on
+  @dagger.io/core. While it is all still one package nothing but this check stops
+  an upward import being added — and the moment one is, the split stops being a
+  packaging change and becomes a refactor again. See design/package-split.md.
+
+  Checked on the source rather than the bundle: the bundle is one file with the
+  layering flattened out of it, so by the time an upward import shows up there it
+  is unattributable.
+
+  `session` is *not* checked against `telemetry`. It reaches up today —
+  `connection` owns the tracer's lifetime — and that edge has to go before
+  telemetry can ship separately, since otherwise every consumer of a session
+  drags the OpenTelemetry SDK in with it. Asserting a rule the tree breaks would
+  mean starting this check red, so the exception is named here instead.
+  """
+  layeringCheck(ws: Workspace!): Void @check {
+    let src = ws.directory("/" + libraryPath + "/src")
+
+    let violations =
+      crossedLayerBoundaries(src, "session", ["core", "module"]) +
+      crossedLayerBoundaries(src, "core", ["module", "telemetry"]) +
+      crossedLayerBoundaries(src, "module", ["telemetry"]) +
+      crossedLayerBoundaries(src, "telemetry", ["session", "core", "module"])
+
+    if (violations.length > 0) {
+      raise "library/src crosses a layer boundary:\n" +
+        violations.join("\n") +
+        "\n\nLayering is session <- core <- module. See design/package-split.md."
     }
 
     null

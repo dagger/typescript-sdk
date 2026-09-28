@@ -4,7 +4,8 @@
 // @emitDecoratorMetadata
 import "reflect-metadata"
 
-import { UnknownDaggerError } from "../common/errors/index.js"
+import { UnknownDaggerError } from "../session/errors/index.js"
+import { shared } from "../session/shared.js"
 
 export type Class = { new (...args: any[]): any }
 
@@ -277,7 +278,7 @@ export class Registry {
 /**
  * The default registry used in any module.
  */
-export const registry = new Registry()
+export const registry = shared("registry", () => new Registry())
 
 /**
  * Retrieve a class registered via the `@object()` decorator by its name.

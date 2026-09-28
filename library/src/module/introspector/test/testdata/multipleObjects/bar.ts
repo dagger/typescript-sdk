@@ -1,7 +1,7 @@
 /**
  * Should be ignored
  */
-import { dag } from "../../../../../api/client.gen.js"
+import { dag } from "../../../../../core/client.gen.js"
 import { func, object } from "../../../../decorators.js"
 
 /**

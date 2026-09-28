@@ -1,4 +1,4 @@
-import { TypeDefKind } from "../../api/client.gen.js"
+import { TypeDefKind } from "../../core/client.gen.js"
 import { DaggerArgument } from "./dagger_module/argument.js"
 import { DaggerConstructor } from "./dagger_module/constructor.js"
 import { DaggerEnumBase } from "./dagger_module/enumBase.js"
@@ -24,7 +24,7 @@ import {
 // `DaggerModule` and emits an introspection-shaped JSON of the module's own
 // types, in the exact shape the engine schema tool (`dag.Schema().Merge`) and
 // the client-bindings generator consume. It mirrors `Register`
-// (`../entrypoint/register.ts`) — the source of truth for how each TypeScript
+// (`./register.ts`) — the source of truth for how each TypeScript
 // construct becomes an engine TypeDef — so the merged schema matches what the
 // engine builds from the same source, enabling self calls in the generated
 // bindings without a runtime codegen pass.

@@ -10,7 +10,7 @@ inherited by futures objects and common types.
  {{- if IsBundle }}
 import { Context, BaseClient } from "./core.js"
 {{- else }}
-import { Context, BaseClient } from "../common/context.js"
+import { Context, BaseClient } from "../session/context.js"
 {{- end }}
 
 /**
@@ -20,6 +20,6 @@ export type float = number
 
 // BaseClient is re-exported so consumers that previously did
 // `import { BaseClient } from "./client.gen.js"` keep working; the class
-// itself lives in the common SDK runtime (see ../common/context.ts).
+// itself lives in the session runtime (see ../session/context.ts).
 export { BaseClient }
 {{- end }}

@@ -1,4 +1,4 @@
-import { TypeDefKind } from "../../api/client.gen.js"
+import { TypeDefKind } from "../../core/client.gen.js"
 import { DaggerArgument } from "./dagger_module/argument.js"
 import {
   DaggerEnumBase,
