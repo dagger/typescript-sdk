@@ -1,8 +1,8 @@
 import Module from "node:module"
 import ts from "typescript"
 
-import { TypeDefKind } from "../../../api/client.gen.js"
-import { IntrospectionError } from "../../../common/errors/index.js"
+import { TypeDefKind } from "../../../core/client.gen.js"
+import { IntrospectionError } from "../../../session/errors/index.js"
 import { AST, ResolvedNodeWithSymbol } from "../typescript_module/index.js"
 import { ENUM_DECORATOR, OBJECT_DECORATOR } from "./decorator.js"
 import { DaggerEnum } from "./enum.js"

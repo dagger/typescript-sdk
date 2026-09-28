@@ -872,7 +872,7 @@ type ClientImport struct {
 // runtime by relative source path.
 func (funcs typescriptTemplateFuncs) clientRuntimeImport() string {
 	if funcs.cfg.ModuleConfig == nil {
-		return "../common/context.js"
+		return "../session/context.js"
 	}
 	return "@dagger.io/dagger"
 }

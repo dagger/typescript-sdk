@@ -5,7 +5,7 @@ import {
   File,
   LLM,
   Service,
-} from "../../../../../api/client.gen.js"
+} from "../../../../../core/client.gen.js"
 import {
   agent,
   argument,

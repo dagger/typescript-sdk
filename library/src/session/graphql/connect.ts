@@ -1,6 +1,6 @@
 import { GraphQLClient } from "graphql-request"
 
-import { ConnectOpts } from "../../connectOpts.js"
+import { ConnectOpts } from "../connectOpts.js"
 import { createGQLClient } from "./client.js"
 
 /**
@@ -25,7 +25,7 @@ export async function withGQLClient<T>(
   }
 
   try {
-    const provisioning = await import("../../provisioning/index.js")
+    const provisioning = await import("../provisioning/index.js")
 
     return await provisioning.withEngineSession(connectOpts, cb)
   } catch (e) {

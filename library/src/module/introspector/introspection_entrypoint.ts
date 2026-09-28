@@ -1,11 +1,11 @@
 import * as fs from "fs"
 import * as path from "path"
 
-import { connection } from "../../connect.js"
-import { scan } from "../introspector/index.js"
-import { serializeIntrospection } from "../introspector/introspection_json.js"
-import { serializeModule } from "../introspector/typedef_json.js"
+import { connection } from "../../connection.js"
+import { scan } from "./index.js"
+import { serializeIntrospection } from "./introspection_json.js"
 import { Register } from "./register.js"
+import { serializeModule } from "./typedef_json.js"
 
 async function introspection(
   files: string[],

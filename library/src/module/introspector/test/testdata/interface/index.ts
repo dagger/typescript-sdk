@@ -1,5 +1,5 @@
 import { func, object } from "../../../../decorators.js"
-import { Container, dag } from "./../../../../../api/client.gen.js"
+import { Container, dag } from "./../../../../../core/client.gen.js"
 
 /**
  * Example of iface

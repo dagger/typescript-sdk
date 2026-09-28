@@ -1,4 +1,4 @@
-import { Directory } from "../../../../../api/client.gen.js"
+import { Directory } from "../../../../../core/client.gen.js"
 import { func, object, argument } from "../../../../decorators.js"
 
 @object()
