@@ -80331,7 +80331,7 @@ var require_node_color_log = __commonJS((exports, module) => {
   module.exports = logger;
 });
 
-// src/common/utils.ts
+// src/session/utils.ts
 function isDeno() {
   return typeof globalThis.Deno !== "undefined";
 }
@@ -80343,7 +80343,7 @@ var init_utils = __esm(() => {
   import_node_color_log = __toESM(require_node_color_log(), 1);
 });
 
-// src/common/errors/DaggerSDKError.ts
+// src/session/errors/DaggerSDKError.ts
 var DaggerSDKError;
 var init_DaggerSDKError = __esm(() => {
   init_utils();
@@ -80362,7 +80362,7 @@ var init_DaggerSDKError = __esm(() => {
   };
 });
 
-// src/common/errors/errors-codes.ts
+// src/session/errors/errors-codes.ts
 var ERROR_CODES, ERROR_NAMES;
 var init_errors_codes = __esm(() => {
   ERROR_CODES = {
@@ -80381,7 +80381,7 @@ var init_errors_codes = __esm(() => {
   ERROR_NAMES = Object.keys(ERROR_CODES).reduce((obj, item) => ({ ...obj, [item]: item }), {});
 });
 
-// src/common/errors/UnknownDaggerError.ts
+// src/session/errors/UnknownDaggerError.ts
 var UnknownDaggerError;
 var init_UnknownDaggerError = __esm(() => {
   init_DaggerSDKError();
@@ -80395,7 +80395,7 @@ var init_UnknownDaggerError = __esm(() => {
   };
 });
 
-// src/common/errors/DockerImageRefValidationError.ts
+// src/session/errors/DockerImageRefValidationError.ts
 var DockerImageRefValidationError;
 var init_DockerImageRefValidationError = __esm(() => {
   init_DaggerSDKError();
@@ -80411,7 +80411,7 @@ var init_DockerImageRefValidationError = __esm(() => {
   };
 });
 
-// src/common/errors/EngineSessionConnectParamsParseError.ts
+// src/session/errors/EngineSessionConnectParamsParseError.ts
 var EngineSessionConnectParamsParseError;
 var init_EngineSessionConnectParamsParseError = __esm(() => {
   init_DaggerSDKError();
@@ -80427,7 +80427,7 @@ var init_EngineSessionConnectParamsParseError = __esm(() => {
   };
 });
 
-// src/common/errors/ExecError.ts
+// src/session/errors/ExecError.ts
 var ExecError;
 var init_ExecError = __esm(() => {
   init_DaggerSDKError();
@@ -80451,7 +80451,7 @@ var init_ExecError = __esm(() => {
   };
 });
 
-// src/common/errors/GraphQLRequestError.ts
+// src/session/errors/GraphQLRequestError.ts
 var GraphQLRequestError;
 var init_GraphQLRequestError = __esm(() => {
   init_DaggerSDKError();
@@ -80471,7 +80471,7 @@ var init_GraphQLRequestError = __esm(() => {
   };
 });
 
-// src/common/errors/InitEngineSessionBinaryError.ts
+// src/session/errors/InitEngineSessionBinaryError.ts
 var InitEngineSessionBinaryError;
 var init_InitEngineSessionBinaryError = __esm(() => {
   init_DaggerSDKError();
@@ -80485,7 +80485,7 @@ var init_InitEngineSessionBinaryError = __esm(() => {
   };
 });
 
-// src/common/errors/TooManyNestedObjectsError.ts
+// src/session/errors/TooManyNestedObjectsError.ts
 var TooManyNestedObjectsError;
 var init_TooManyNestedObjectsError = __esm(() => {
   init_DaggerSDKError();
@@ -80501,7 +80501,7 @@ var init_TooManyNestedObjectsError = __esm(() => {
   };
 });
 
-// src/common/errors/EngineSessionErrorOptions.ts
+// src/session/errors/EngineSessionErrorOptions.ts
 var EngineSessionError;
 var init_EngineSessionErrorOptions = __esm(() => {
   init_DaggerSDKError();
@@ -80515,7 +80515,7 @@ var init_EngineSessionErrorOptions = __esm(() => {
   };
 });
 
-// src/common/errors/EngineSessionConnectionTimeoutError.ts
+// src/session/errors/EngineSessionConnectionTimeoutError.ts
 var EngineSessionConnectionTimeoutError;
 var init_EngineSessionConnectionTimeoutError = __esm(() => {
   init_DaggerSDKError();
@@ -80531,7 +80531,7 @@ var init_EngineSessionConnectionTimeoutError = __esm(() => {
   };
 });
 
-// src/common/errors/NotAwaitedRequestError.ts
+// src/session/errors/NotAwaitedRequestError.ts
 var NotAwaitedRequestError;
 var init_NotAwaitedRequestError = __esm(() => {
   init_DaggerSDKError();
@@ -80545,7 +80545,7 @@ var init_NotAwaitedRequestError = __esm(() => {
   };
 });
 
-// src/common/errors/FunctionNotFound.ts
+// src/session/errors/FunctionNotFound.ts
 var FunctionNotFound;
 var init_FunctionNotFound = __esm(() => {
   init_DaggerSDKError();
@@ -80559,7 +80559,7 @@ var init_FunctionNotFound = __esm(() => {
   };
 });
 
-// src/common/errors/IntrospectionError.ts
+// src/session/errors/IntrospectionError.ts
 var IntrospectionError;
 var init_IntrospectionError = __esm(() => {
   init_DaggerSDKError();
@@ -80573,7 +80573,7 @@ var init_IntrospectionError = __esm(() => {
   };
 });
 
-// src/common/errors/index.ts
+// src/session/errors/index.ts
 var init_errors = __esm(() => {
   init_DaggerSDKError();
   init_UnknownDaggerError();
@@ -86608,7 +86608,7 @@ var init_src = __esm(() => {
   supportedSchemas = new Set(["data:", "http:", "https:"]);
 });
 
-// src/common/graphql/client.ts
+// src/session/graphql/client.ts
 class CustomSetter {
   set(carrier, key, value) {
     carrier.set(key, value);
@@ -99404,7 +99404,7 @@ var init_index_min = __esm(() => {
   });
 });
 
-// src/provisioning/bin.ts
+// src/session/provisioning/bin.ts
 import * as crypto2 from "crypto";
 import * as fs3 from "fs";
 import * as os3 from "os";
@@ -99796,10 +99796,10 @@ var init_bin = __esm(() => {
   };
 });
 
-// src/provisioning/default.ts
+// src/session/provisioning/default.ts
 var CLI_VERSION = "1.0.0-beta.11";
 
-// src/provisioning/index.ts
+// src/session/provisioning/index.ts
 var exports_provisioning = {};
 __export(exports_provisioning, {
   withEngineSession: () => withEngineSession
@@ -100953,7 +100953,7 @@ function getContext() {
   }
   return ctx;
 }
-// src/common/graphql/compute_query.ts
+// src/session/graphql/compute_query.ts
 init_main();
 init_errors();
 function buildArgs(args) {
@@ -101091,7 +101091,17 @@ async function compute(query, client) {
   return queryFlatten(computeQuery2);
 }
 
-// src/common/graphql/connection.ts
+// src/session/shared.ts
+var SHARED = Symbol.for("@dagger.io/session.shared");
+function shared(key, create) {
+  const slots = globalThis[SHARED] ??= {};
+  if (!(key in slots)) {
+    slots[key] = create();
+  }
+  return slots[key];
+}
+
+// src/session/graphql/connection.ts
 class Connection {
   _gqlClient;
   constructor(_gqlClient) {
@@ -101120,9 +101130,9 @@ class Connection {
     return pending;
   }
 }
-var globalConnection = new Connection;
+var globalConnection = shared("connection", () => new Connection);
 
-// src/common/context.ts
+// src/session/context.ts
 class Context {
   _queryTree;
   _connection;
@@ -101165,7 +101175,7 @@ class BaseClient {
   }
 }
 
-// src/api/client.gen.ts
+// src/core/client.gen.ts
 var AgentMessageDelivery;
 ((AgentMessageDelivery2) => {
   AgentMessageDelivery2["Queued"] = "QUEUED";
@@ -108431,10 +108441,10 @@ var dag = new Client;
 // src/index.ts
 init_errors();
 
-// src/connect.ts
+// src/session/connect.ts
 var opentelemetry4 = __toESM(require_src(), 1);
 
-// src/common/graphql/connect.ts
+// src/session/graphql/connect.ts
 init_client();
 async function withGQLClient(connectOpts, cb) {
   if (process.env["DAGGER_SESSION_PORT"]) {
@@ -108453,7 +108463,7 @@ async function withGQLClient(connectOpts, cb) {
   }
 }
 
-// src/connect.ts
+// src/session/connect.ts
 async function connection(fct, cfg = {}) {
   try {
     initialize();
@@ -108471,6 +108481,7 @@ async function connection(fct, cfg = {}) {
     await close();
   }
 }
+// src/core/connect.ts
 async function connect(cb, config = {}) {
   await withGQLClient(config, async (gqlClient) => {
     const connection2 = new Connection(gqlClient);
@@ -108487,7 +108498,6 @@ async function connect(cb, config = {}) {
 // src/module/registry.ts
 init_errors();
 var import_reflect_metadata = __toESM(require_Reflect(), 1);
-
 class Registry {
   object = () => {
     return (constructor) => {
@@ -108546,7 +108556,7 @@ class Registry {
     return await r2[method](...Object.values(inputs));
   }
 }
-var registry = new Registry;
+var registry = shared("registry", () => new Registry);
 function getRegisteredClass(name) {
   const meta = Reflect.getMetadata(name, registry);
   return meta?.class_;
