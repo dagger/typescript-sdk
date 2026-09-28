@@ -239,7 +239,7 @@ type TypescriptSdk {
       # The same targets feed the module's runtime dependencies and its clients/
       # directory — the per-module client files its own source imports and any
       # caller outside it installs.
-      let targets = clientTargets(clients)
+      let targets = clientTargets(ws, clients)
       # Before the schema is read: a target that is not a dependency yet is not
       # in the schema the bindings are generated from.
       #
@@ -300,7 +300,7 @@ type TypescriptSdk {
     } else {
       # A client-only scope: clients/<module> packages under the scope, with the
       # scope's own clients/dagger beside them, wired through its package.json.
-      withoutLegacyWorkspaceCore(clientScope(ws, scope, clientTargets(clients)), configDir(ws))
+      withoutLegacyWorkspaceCore(clientScope(ws, scope, clientTargets(ws, clients)), configDir(ws))
     }
   }
 
@@ -867,7 +867,7 @@ type TypescriptSdk {
 
   Engine-free: the schemas arrive as data, so this is a plain container exec.
   """
-  let generateModuleBindings(schemaJSON: String!, moduleName: String!, targets: [ClientTarget!]!): Directory! {
+  let generateModuleBindings(schemaJSON: String!, moduleName: String!, targets: [ClientTarget!]!, repoURL: String!): Directory! {
     let base = codegenBuilder.withNewFile("/schema.json", schemaJSON)
     let withTargets = if (targets.length == 0) { base } else { stageTargets(base, targets) }
 
@@ -887,8 +887,49 @@ type TypescriptSdk {
         "--introspection-json-path", "/schema.json",
         "--module-name", moduleName,
         "--output", "/out",
+        "--workspace-repo-url", repoURL,
       ] + clientMetaArgs + layoutArgs)
       .directory("/out")
+  }
+
+  """
+  The Git repository the workspace itself was loaded from, or "" for a local one.
+
+  Dagger Cloud runs checks against a workspace loaded by address
+  (`github.com/org/repo@<sha>`), and the engine then loads the workspace's own
+  modules as Git sources and stamps their source maps with URLs carrying that
+  commit. Codegen drops those and keeps the module-relative filename, so a
+  generated file reads the same whichever way the workspace was loaded — which
+  is what a committed-output check needs.
+
+  Read off any module the workspace can load at `path`; every module in a
+  workspace shares its repository, so one answer serves them all. A path with no
+  module, or a workspace that is not Git-backed, has nothing to strip.
+  """
+  let workspaceRepoURL(ws: Workspace!, path: String!): String! {
+    {
+      let source = ws.moduleSource("/" + path)
+      if (source.kind == ModuleSourceKind.GIT_SOURCE) { source.htmlRepoURL } else { "" }
+    } rescue ""
+  }
+
+  """
+  The same, for a scope that may not be a module itself.
+
+  A client-only scope has no module at its own path, so the repository is read
+  off the first target that is one. Targets outside the workspace answer "" and
+  are skipped — and they are the ones whose URLs must survive anyway.
+  """
+  let scopeRepoURL(ws: Workspace!, scope: String!, targets: [ClientTarget!]!): String! {
+    let own = workspaceRepoURL(ws, scope)
+    if (own != "") {
+      own
+    } else {
+      let seed: String! = ""
+      targets.reduce(seed) { found, target =>
+        if (found != "") { found } else { workspaceRepoURL(ws, target.path) }
+      }
+    }
   }
 
   """
@@ -922,20 +963,32 @@ type TypescriptSdk {
   Project the engine-resolved client targets into the pieces both generators
   read, in one pass rather than a round-trip per field per module.
   """
-  let clientTargets(clients: [ModuleSource!]!): [ClientTarget!]! {
+  let clientTargets(ws: Workspace!, clients: [ModuleSource!]!): [ClientTarget!]! {
     clients
       .{{ moduleOriginalName, kind, pin, asString, sourceRootSubpath, clientSchemaIntrospectionJSON.{{ contents }} }}
       .map { module =>
+        let local = if (JSON.encode(module.kind) != "\"GIT_SOURCE\"") {
+          true
+        } else {
+          # A Git workspace loads its own modules as Git sources, and one the
+          # workspace resolves back to the same source belongs to it. Serving
+          # such a target by ref would pin the generated client to the commit it
+          # was generated at; by path it renders the same either way.
+          {
+            ws.moduleSource("/" + module.sourceRootSubpath).asString == module.asString
+          } rescue false
+        }
+
         ClientTarget(
           name: module.moduleOriginalName,
           schemaJSON: module.clientSchemaIntrospectionJSON.contents,
-          kindJSON: JSON.encode(module.kind),
-          isLocal: JSON.encode(module.kind) != "\"GIT_SOURCE\"",
+          kindJSON: if (local) { JSON.encode(ModuleSourceKind.LOCAL_SOURCE) } else { JSON.encode(module.kind) },
+          isLocal: local,
           # Local kinds serve by resolving this against the workspace; git
           # kinds ignore it and serve from ref+pin instead.
           path: module.sourceRootSubpath,
-          ref: module.asString,
-          pin: module.pin,
+          ref: if (local) { "" } else { module.asString },
+          pin: if (local) { "" } else { module.pin },
           isSelf: false,
         )
       }
@@ -1171,8 +1224,9 @@ type TypescriptSdk {
     runtime: Runtime!,
     packageManager: String!,
     targets: [ClientTarget!]!,
+    repoURL: String!,
   ): Directory! {
-    let bindings = generateModuleBindings(schemaJSON, moduleName, targets)
+    let bindings = generateModuleBindings(schemaJSON, moduleName, targets, repoURL)
     # The embedded layout's sdk/ carries the client files and the loader flat
     # beside client.gen.ts: sdk/ is the one directory the builtin runtime mounts
     # into node_modules, and it cannot be told to mount anything else.
@@ -1333,6 +1387,7 @@ type TypescriptSdk {
       rt,
       pkgManager,
       targets,
+      workspaceRepoURL(ws, scope),
     )
   }
 
@@ -1583,7 +1638,12 @@ type TypescriptSdk {
       # No self client recorded, so the first pass's clients are the whole set.
       generated
     } else {
-      let bindings = generateModuleBindings(staged.moduleSource("/" + scope).introspectionSchemaJSON.contents, name, targets)
+      let bindings = generateModuleBindings(
+        staged.moduleSource("/" + scope).introspectionSchemaJSON.contents,
+        name,
+        targets,
+        workspaceRepoURL(staged, scope),
+      )
       let clientNames = bindingAliasModules(bindings)
       let aliasModules = clientNames.filter { m => m != name } + [name]
 
@@ -1619,7 +1679,7 @@ type TypescriptSdk {
   could not load before a run loads with the run's changes applied.
   """
   let selfClientTarget(ws: Workspace!, scope: String!, name: String!): [ClientTarget!]! {
-    let selfSource = ws.moduleSource("/" + scope).{{ kind, clientSchemaIntrospectionJSON.{{ contents }} }} rescue {
+    let selfSource = ws.moduleSource("/" + scope).{{ clientSchemaIntrospectionJSON.{{ contents }} }} rescue {
       err: Error => null
     }
 
@@ -1633,10 +1693,15 @@ type TypescriptSdk {
       #
       # Never a dependency, though — a module does not depend on itself, and the
       # engine already serves it into its own session.
+      #
+      # Local by construction rather than by asking: a Git workspace — Dagger
+      # Cloud's checkout of a commit — loads its own modules as Git sources, and
+      # serving this one by that ref would pin the generated client to the commit
+      # it was generated at, so no committed client could ever match.
       [ClientTarget(
         name: name,
         schemaJSON: selfSource.clientSchemaIntrospectionJSON.contents,
-        kindJSON: JSON.encode(selfSource.kind),
+        kindJSON: JSON.encode(ModuleSourceKind.LOCAL_SOURCE),
         isLocal: true,
         path: scope,
         ref: "",
@@ -1720,13 +1785,14 @@ type TypescriptSdk {
   loader. Each target contributes its client-facing schema (core plus that one
   module); codegen merges them so the core API is emitted once.
   """
-  let generateClientBindings(targets: [ClientTarget!]!): Directory! {
+  let generateClientBindings(targets: [ClientTarget!]!, repoURL: String!): Directory! {
     stageTargets(codegenBuilder, targets)
       .withExec([
         "codegen", "client",
         "--client-meta-path", "/meta.json",
         "--packaged-clients",
         "--output", "/out",
+        "--workspace-repo-url", repoURL,
       ])
       .directory("/out")
   }
@@ -1809,7 +1875,7 @@ type TypescriptSdk {
       let cleared = if (existingDir(ws, dir).entries.length == 0) { ws } else { ws.withoutDirectory("/" + dir) }
       withScopeClientDeps(withoutLegacyScopeClients(prunedClientPackages(cleared, base, []), base), base, [])
     } else {
-      let generated = clientDirectory(generateClientBindings(targets))
+      let generated = clientDirectory(generateClientBindings(targets, scopeRepoURL(ws, base, targets)))
       let modules = packagedClientNames(generated)
       # What earlier layouts left behind moves under clients/ with the
       # regeneration: packages directly in the scope (the marker scan) and the

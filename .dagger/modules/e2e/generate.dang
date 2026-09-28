@@ -762,4 +762,83 @@ type GenerateChecks {
 
     null
   }
+
+  """
+  A module generated on a Git workspace should come out the same as on a local
+  checkout.
+
+  Dagger Cloud runs a repository's checks by loading it as an address
+  (`github.com/org/repo@<sha>`), and the engine loads such a workspace's own
+  modules as Git sources. Left alone, the module's own client serves itself by
+  that commit-pinned ref and its source-map comments become commit URLs — output
+  carrying the very commit being generated, which no committed file can match,
+  so a generated-files check can never pass in CI. Local generation never sees
+  it, which is why this repository is its own fixture at a fixed commit: a
+  Directory-backed repo (`asGit`) still loads as a DIR_SOURCE, so a real remote
+  is the only way to get a Git workspace.
+  """
+  generatesOnGitWorkspaceCheck: Void @check {
+    let ws = git("https://github.com/dagger/typescript-sdk").ref(gitCommit).asWorkspace
+    let path = fixtures.depLibModule
+
+    Asserts.assert(
+      ws.moduleSource("/" + path).kind == ModuleSourceKind.GIT_SOURCE,
+      "expected a Git workspace to load its own module as a Git source",
+    )
+
+    let bindings = ws
+      .withChanges(Gen.module(ws, path, "gendep"))
+      .directory("/" + path)
+      .file("sdk/gendep.gen.ts")
+      .contents
+
+    Asserts.stringContains(
+      bindings,
+      "serveModule(\"/" + path + "\")",
+      "a Git workspace's own module should be served by workspace path, not by its commit-pinned ref",
+    )
+    Asserts.stringNotContains(
+      bindings,
+      gitCommit,
+      "generated bindings should not carry the commit they were generated at",
+    )
+
+    null
+  }
+
+  """
+  The same for a client-only scope, which has no module of its own to read the
+  repository off — the one configuration where the module check above passes and
+  the output still carries the commit.
+  """
+  generatesClientOnGitWorkspaceCheck: Void @check {
+    let ws = git("https://github.com/dagger/typescript-sdk").ref(gitCommit).asWorkspace
+    let scope = fixtures.clientOutput
+    let target = fixtures.clientModule
+
+    let client = ws
+      .withChanges(Gen.scope(ws, scope, "", isModule: false, clients: [ws.moduleSource("/" + target)]))
+      .directory("/" + scope + "/clients")
+      .file("client-app/client-app.gen.ts")
+      .contents
+
+    Asserts.stringContains(
+      client,
+      "serveModule(\"/" + target + "\")",
+      "a client bound to a same-repository module should serve it by workspace path",
+    )
+    Asserts.stringNotContains(
+      client,
+      gitCommit,
+      "a generated client should not carry the commit it was generated at",
+    )
+
+    null
+  }
+
+  """
+  The commit of this repository the Git-workspace checks load. Only the fixture
+  tree at that commit is read; the SDK under test is the local one.
+  """
+  let gitCommit: String! = "249ba5a1d704a55034139e72005e445df7672150"
 }

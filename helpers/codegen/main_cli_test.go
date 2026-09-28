@@ -45,6 +45,21 @@ func moduleSchema(name string) string {
 }`
 }
 
+// locatedModuleSchema is moduleSchema with the source location the engine
+// stamps alongside the module name: the module-relative filename plus the
+// browser URL it derives for a Git source.
+func locatedModuleSchema(name, url string) string {
+	located := `"directives": [{"name": "sourceMap", "args": [` +
+		`{"name": "module", "value": "\"` + name + `\""},` +
+		`{"name": "filename", "value": "\"src/index.ts\""},` +
+		`{"name": "line", "value": "73"},` +
+		`{"name": "column", "value": "3"},` +
+		`{"name": "url", "value": "\"` + url + `\""}` +
+		`]}]`
+	bare := `"directives": [{"name": "sourceMap", "args": [{"name": "module", "value": "\"` + name + `\""}]}]`
+	return strings.ReplaceAll(moduleSchema(name), bare, located)
+}
+
 func writeFile(t *testing.T, dir, name, contents string) string {
 	t.Helper()
 	path := filepath.Join(dir, name)
@@ -235,6 +250,69 @@ func TestRunClientServesEveryTarget(t *testing.T) {
 	payments, err := os.ReadFile(filepath.Join(out, "payments.gen.ts"))
 	require.NoError(t, err)
 	require.Contains(t, string(payments), `await __dag.serveModule("github.com/acme/payments@main", { refPin: "deadbeef" })`)
+}
+
+// TestRunClientDropsWorkspaceSourceMapURLs covers a workspace loaded by address,
+// which is how Dagger Cloud runs checks: the engine loads the workspace's own
+// modules as Git sources and stamps their source maps with URLs carrying the
+// commit under generation, so emitting one would make every generated file
+// differ from the same tree generated on disk and no committed output could
+// match. A module from another repository keeps its URL — that one is pinned to
+// the dependency's own version, which does not move per commit — including a
+// repository whose name merely extends the workspace's.
+func TestRunClientDropsWorkspaceSourceMapURLs(t *testing.T) {
+	const commit = "d5fd9309bc53fe1f580a1faffacd73ef3d8c27e4"
+
+	dir := t.TempDir()
+	out := filepath.Join(dir, "out")
+	meta := writeFile(t, dir, "meta.json", `{
+	  "modules": [
+	    {
+	      "name": "app",
+	      "kind": "LOCAL_SOURCE",
+	      "path": ".",
+	      "schemaPath": "`+writeFile(t, dir, "app.json",
+		locatedModuleSchema("app", "https://github.com/acme/app/tree/"+commit+"/src/index.ts#L73"))+`"
+	    },
+	    {
+	      "name": "payments",
+	      "kind": "GIT_SOURCE",
+	      "ref": "github.com/acme/payments@main",
+	      "pin": "deadbeef",
+	      "schemaPath": "`+writeFile(t, dir, "payments.json",
+		locatedModuleSchema("payments", "https://github.com/acme/payments/tree/deadbeef/src/index.ts#L73"))+`"
+	    },
+	    {
+	      "name": "docs",
+	      "kind": "GIT_SOURCE",
+	      "ref": "github.com/acme/app-docs@main",
+	      "pin": "cafebabe",
+	      "schemaPath": "`+writeFile(t, dir, "docs.json",
+		locatedModuleSchema("docs", "https://github.com/acme/app-docs/tree/cafebabe/src/index.ts#L73"))+`"
+	    }
+	  ]
+	}`)
+
+	err := run([]string{
+		"client",
+		"--client-meta-path", meta,
+		"--output", out,
+		"--workspace-repo-url", "https://github.com/acme/app",
+	})
+	require.NoError(t, err)
+
+	app, err := os.ReadFile(filepath.Join(out, "app.gen.ts"))
+	require.NoError(t, err)
+	require.Contains(t, string(app), "src/index.ts:73:3")
+	require.NotContains(t, string(app), commit)
+
+	payments, err := os.ReadFile(filepath.Join(out, "payments.gen.ts"))
+	require.NoError(t, err)
+	require.Contains(t, string(payments), "https://github.com/acme/payments/tree/deadbeef/src/index.ts#L73")
+
+	docs, err := os.ReadFile(filepath.Join(out, "docs.gen.ts"))
+	require.NoError(t, err)
+	require.Contains(t, string(docs), "https://github.com/acme/app-docs/tree/cafebabe/src/index.ts#L73")
 }
 
 // TestRunClientRejectsUnservableModule guards the fail-closed check: a kind with
