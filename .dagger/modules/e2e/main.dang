@@ -47,4 +47,11 @@ type E2e {
   client: ClientChecks! {
     ClientChecks
   }
+
+  """
+  Checks that install the library from a registry rather than copying it.
+  """
+  registry: RegistryChecks! {
+    RegistryChecks
+  }
 }
