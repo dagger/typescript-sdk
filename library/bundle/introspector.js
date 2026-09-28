@@ -98172,7 +98172,7 @@ var require_Reflect = __commonJS(() => {
 import * as fs4 from "fs";
 import * as path9 from "path";
 
-// src/session/connect.ts
+// src/connection.ts
 var opentelemetry3 = __toESM(require_src(), 1);
 
 // src/session/graphql/connect.ts
@@ -98234,6 +98234,18 @@ class Connection {
   }
 }
 var globalConnection = shared("connection", () => new Connection);
+
+// src/session/connect.ts
+async function withSession(fct, cfg = {}) {
+  try {
+    await withGQLClient(cfg, async (gqlClient) => {
+      globalConnection.setGQLClient(gqlClient);
+      await fct();
+    });
+  } finally {
+    globalConnection.resetClient();
+  }
+}
 
 // src/telemetry/telemetry.ts
 var opentelemetry2 = __toESM(require_src(), 1);
@@ -98335,19 +98347,12 @@ function getContext() {
   return ctx;
 }
 
-// src/session/connect.ts
+// src/connection.ts
 async function connection(fct, cfg = {}) {
   try {
     initialize();
     await opentelemetry3.context.with(getContext(), async () => {
-      try {
-        await withGQLClient(cfg, async (gqlClient) => {
-          globalConnection.setGQLClient(gqlClient);
-          await fct();
-        });
-      } finally {
-        globalConnection.resetClient();
-      }
+      await withSession(fct, cfg);
     });
   } finally {
     await close();

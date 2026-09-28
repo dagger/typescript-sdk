@@ -106098,7 +106098,7 @@ var dag = new Client;
 // src/index.ts
 init_errors();
 
-// src/session/connect.ts
+// src/connection.ts
 var opentelemetry4 = __toESM(require_src(), 1);
 
 // src/session/graphql/connect.ts
@@ -106121,18 +106121,23 @@ async function withGQLClient(connectOpts, cb) {
 }
 
 // src/session/connect.ts
+async function withSession(fct, cfg = {}) {
+  try {
+    await withGQLClient(cfg, async (gqlClient) => {
+      globalConnection.setGQLClient(gqlClient);
+      await fct();
+    });
+  } finally {
+    globalConnection.resetClient();
+  }
+}
+
+// src/connection.ts
 async function connection(fct, cfg = {}) {
   try {
     initialize();
     await opentelemetry4.context.with(getContext(), async () => {
-      try {
-        await withGQLClient(cfg, async (gqlClient) => {
-          globalConnection.setGQLClient(gqlClient);
-          await fct();
-        });
-      } finally {
-        globalConnection.resetClient();
-      }
+      await withSession(fct, cfg);
     });
   } finally {
     await close();

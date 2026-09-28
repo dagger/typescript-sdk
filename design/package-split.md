@@ -668,21 +668,38 @@ session; `connect` moved to `core/connect.ts`. This is the same seam the Go SDK
 has between `dagger.Connect` and `core.NewQuery`, arrived at independently, which
 is mild evidence the layering is the natural one.
 
-**`session` reaches up into `telemetry`, and that has a cost.** `connection` owns
-the tracer's lifetime — it calls `initialize`, wraps the session in the otel
-context, and `close`s on the way out. Nothing else is positioned to do it.
+**`session` reached up into `telemetry`** — `connection` owns the tracer's
+lifetime, calling `initialize`, wrapping the session in the otel context and
+`close`ing on the way out. Step 1 left that edge in place and had `layeringCheck`
+name it as an exception, because moving it was a behaviour change rather than a
+move. It contradicted a claim made above: with it, `@dagger.io/session` depends on
+`@dagger.io/telemetry`, every generated client pulls the OpenTelemetry SDK, and "a
+generated client's closure drops the otel SDK" is false.
 
-That edge contradicts a claim made above: if `@dagger.io/session` depends on
-`@dagger.io/telemetry`, then every generated client pulls the OpenTelemetry SDK
-after all, and "a generated client's closure drops the otel SDK" is false. It is
-left in place for now because moving it is a behaviour change rather than a move,
-and step 1 was meant to be neither. `layeringCheck` names the exception rather
-than asserting a rule the tree breaks.
+**Since fixed, and it was not a lifecycle hook.** A hook would have been a
+three-method interface for one caller. `connection` is not a session feature at
+all — it is a *composition* of a session and a tracer, so it belongs to neither
+layer and now sits beside `index.ts` as `src/connection.ts`, which is facade code
+and the only package that will carry it. What is left in `session` is
+`withSession(fct, cfg)`: establish a session, point the global client at it, tear
+it down. No tracing, no bindings.
 
-It has to be resolved before step 3 publishes `telemetry` separately. The likely
-shape is inverting the dependency — `connection` takes an optional lifecycle hook
-and the facade wires telemetry into it — so a module keeps tracing and a bare
-client does not pay for it.
+Measured, by bundling each entry on its own:
+
+| Entry | Bundled | References to the otel SDK |
+|---|---|---|
+| `session/connect.ts` before | 3,785 KB | 46 |
+| `session/connect.ts` after (`withSession`) | **1,296 KB** | **0** |
+| `connection.ts` (facade) | 3,785 KB | 46 |
+
+So the otel SDK is ~2.4 MB of bundled JavaScript — two thirds of what a session
+closure used to carry — and the claim above is now true rather than aspirational.
+Nothing published changed: the facade still exports `connection` with the same
+signature, and the composition is byte-for-byte the same calls in the same order.
+
+`layeringCheck` asserts the rule instead of naming the exception: no layer may
+reach `telemetry`. Files directly under `src/` are unchecked, because that is the
+facade and the facade is defined as the thing allowed to depend on everything.
 
 ~820 lines that should not be carried into `@dagger.io/module`.
 

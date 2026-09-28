@@ -201,17 +201,21 @@ type Packager {
   layering flattened out of it, so by the time an upward import shows up there it
   is unattributable.
 
-  `session` is *not* checked against `telemetry`. It reaches up today —
-  `connection` owns the tracer's lifetime — and that edge has to go before
-  telemetry can ship separately, since otherwise every consumer of a session
-  drags the OpenTelemetry SDK in with it. Asserting a rule the tree breaks would
-  mean starting this check red, so the exception is named here instead.
+  No layer may reach `telemetry`, which is the rule that keeps the OpenTelemetry
+  SDK out of a generated client's closure — roughly 96 MB of the 161 MB one
+  installs today. `connection` needs both a session and the tracer's lifetime, so
+  it is not in a layer at all: it sits beside `index.ts` as the composition it is,
+  and the facade is the only package that will carry it.
+
+  Files directly under `src/` are unchecked for that reason. They are the facade,
+  and the facade is allowed to depend on everything — it is defined as the thing
+  that does.
   """
   layeringCheck(ws: Workspace!): Void @check {
     let src = ws.directory("/" + libraryPath + "/src")
 
     let violations =
-      crossedLayerBoundaries(src, "session", ["core", "module"]) +
+      crossedLayerBoundaries(src, "session", ["core", "module", "telemetry"]) +
       crossedLayerBoundaries(src, "core", ["module", "telemetry"]) +
       crossedLayerBoundaries(src, "module", ["telemetry"]) +
       crossedLayerBoundaries(src, "telemetry", ["session", "core", "module"])
