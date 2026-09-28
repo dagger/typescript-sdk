@@ -225,6 +225,72 @@ type RegistryChecks {
   }
 
   """
+  deno will not install a package published a minute ago, and the exemption is what
+  lets it through.
+
+  From 2.9 deno enforces a 24-hour floor on dependency age by default, so a
+  generated deno module that pins `@dagger.io/core@<engine version>` breaks for a
+  day after every engine release — see "Releasing" in design/package-split.md. The
+  fix is a `deno.json` key, and this is the check that the key is doing the work:
+  the same install with and without it, refused and accepted.
+
+  It matters here before it matters to users. Nothing generated installs
+  `@dagger.io/dagger` from a registry yet — a deno module resolves it through
+  `imports` to a path — so the floor is not reachable through
+  `helpers/config-updater` today. It is reachable through this harness, which is
+  where the release path gets rehearsed, and where the assertion can exist before
+  the situation does.
+  """
+  denoDependencyAgeCheck(ws: Workspace!): Void @check {
+    let reg = LocalRegistry(name: "deno-dependency-age")
+    let published = reg
+      .withPublishedAll(reg.client, [
+        PublishedPackage(dir: bundleEntryPackage(ws, "1.0.0"), id: "core"),
+        PublishedPackage(dir: probePackage("probe-writer", "1.0.0", writerSource), id: "writer"),
+        PublishedPackage(dir: probePackage("probe-reader", "1.0.0", readerSource), id: "reader"),
+      ])
+      .withExec(["sh", "-c", "echo published"])
+      .stdout
+
+    let exempt = denoInstall(reg, published, true)
+    let enforced = denoInstall(reg, published, false)
+
+    Asserts.stringContains(
+      exempt,
+      "install ok",
+      "with the scope exempted, deno should install packages published seconds " +
+        "ago. Got: " + exempt,
+    )
+    Asserts.stringContains(
+      enforced,
+      "install refused",
+      "without the exemption deno should refuse them; if it has stopped, the " +
+        "release path no longer needs the key. Got: " + enforced,
+    )
+    # The reason, not just the refusal: without this the check would also pass on
+    # an unreachable registry or a typo in a package name.
+    Asserts.stringContains(
+      enforced,
+      "minimum dependency date",
+      "deno should refuse on the age floor specifically. Got: " + enforced,
+    )
+
+    null
+  }
+
+  """
+  Run `deno install` against the registry, with or without the age exemption, and
+  report which way it went.
+  """
+  let denoInstall(reg: LocalRegistry!, published: String!, exempt: Boolean!): String! {
+    runtimeClient(reg, "deno", published)
+      .withNewFile("/work/package.json", appManifest)
+      .withNewFile("/work/deno.json", denoConfigWith(exempt: exempt))
+      .withExec(["sh", "-c", "deno install 2>&1 && echo 'install ok' || echo 'install refused'"])
+      .stdout
+  }
+
+  """
   Install the published package under one runtime and report which of its loaders
   can import it.
 
@@ -510,13 +576,22 @@ type RegistryChecks {
   nothing for the copy count to find.
 
   `minimumDependencyAge.exclude` because these packages were published seconds ago
-  and deno's floor is 24 hours by default from 2.9. That is the same exemption
-  design/package-split.md says a generated deno module needs, for the same reason.
+  and deno's floor is 24 hours by default from 2.9. Without it `deno install`
+  refuses them outright, which denoDependencyAgeCheck asserts rather than assumes.
   """
   let denoConfig: String! {
+    denoConfigWith(exempt: true)
+  }
+
+  let denoConfigWith(exempt: Boolean!): String! {
+    let exemption = if (exempt) {
+      ",\n  \"minimumDependencyAge\": { \"exclude\": [\"npm:@dagger.io/*\", \"npm:probe-*\"] }"
+    } else {
+      ""
+    }
+
     "{\n" +
-      "  \"nodeModulesDir\": \"auto\",\n" +
-      "  \"minimumDependencyAge\": { \"exclude\": [\"npm:@dagger.io/*\", \"npm:probe-*\"] }\n" +
+      "  \"nodeModulesDir\": \"auto\"" + exemption + "\n" +
       "}\n"
   }
 
