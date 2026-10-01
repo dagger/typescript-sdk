@@ -16,16 +16,22 @@ else does proxy, so a check can still install an ordinary dependency.
 """
 type LocalRegistry {
   """
-  Which registry this is.
+  Everything this registry will be given, one package per subdirectory.
 
-  Two values with different names are two services, because dagger keys a service
-  on its definition and the name reaches that definition below. Without it every
-  check would publish into one registry and collide: republishing a version is
-  refused, so a second check reusing 1.0.0 fails on a conflict rather than on
-  anything it meant to test. It also means checks can share version numbers, which
-  is what lets the negative control build a tree identical to the positive one.
+  It is both what gets published and what the storage volume is keyed on, and that
+  single fact does the isolating. Checks that publish different packages get
+  different volumes and so different services, with no one naming them; checks that
+  publish byte-identical packages share one, which is why the three runtime arms of
+  a check cost one registry rather than three. It also lets two checks use the same
+  version numbers, which is what makes the duplicate-tree control a tree identical
+  to the positive case apart from the patch.
+
+  Sharing means "already published" is ordinary rather than exceptional — within a
+  run, between concurrent arms, and across runs, since the volume outlives one.
+  `publish.sh` treats it that way, and decides by asking the registry rather than
+  by matching an error string.
   """
-  let name: String!
+  let content: Directory!
 
   """
   The alias a container binds the registry to, and so the hostname it is reached
@@ -68,7 +74,26 @@ type LocalRegistry {
     container
       .from("verdaccio/verdaccio:6")
       .withNewFile("/verdaccio/conf/config.yaml", config)
-      .withEnvVariable("REGISTRY_INSTANCE", name)
+      # Storage on a volume rather than in the container, because the engine is
+      # free to restart a service and verdaccio keeps what it was given on disk. A
+      # restart with container-local storage comes back empty and every install
+      # 404s on a package that was definitely published — seen only inside
+      # engine-e2e's playground, where memory pressure makes restarts likely, and
+      # seen there twice.
+      #
+      # Keyed by the digest of what will be published: a restart recovers exactly
+      # the same content, and changed packages get a different volume rather than
+      # a stale answer. That is what makes tolerating a republish conflict below
+      # safe rather than a way to test last week's bytes.
+      #
+      # owner, because the image runs verdaccio as uid 10001 and a mounted volume
+      # arrives owned by root: without it verdaccio starts, serves 404s and logs
+      # `EACCES: permission denied, mkdir /verdaccio/storage/npm`.
+      .withMountedCache(
+        "/verdaccio/storage",
+        cacheVolume("verdaccio-" + content.digest),
+        owner: "10001:10001",
+      )
       .withExposedPort(4873)
       .asService(useEntrypoint: true)
   }
@@ -95,9 +120,10 @@ type LocalRegistry {
     let staged = "/publish/" + id
 
     from
+      .withFile("/publish.sh", currentModule.source.file("publish.sh"))
       .withDirectory(staged, pkg)
       .withWorkdir(staged)
-      .withExec(["npm", "publish"])
+      .withExec(["sh", "/publish.sh"])
       .withWorkdir("/work")
   }
 
@@ -216,8 +242,8 @@ type RegistryChecks {
   the situation does.
   """
   denoDependencyAgeCheck(ws: Workspace!): Void @check {
-    let exempt = denoInstall(ws, "age-exempt", true)
-    let enforced = denoInstall(ws, "age-enforced", false)
+    let exempt = denoInstall(ws, true)
+    let enforced = denoInstall(ws, false)
 
     Asserts.stringContains(
       exempt,
@@ -246,15 +272,16 @@ type RegistryChecks {
   Run `deno install` against the registry, with or without the age exemption, and
   report which way it went.
   """
-  let denoInstall(ws: Workspace!, registryName: String!, exempt: Boolean!): String! {
-    let reg = LocalRegistry(name: registryName)
+  let denoInstall(ws: Workspace!, exempt: Boolean!): String! {
+    let pkgs = [
+      PublishedPackage(dir: bundleEntryPackage(ws, "1.0.0"), id: "core"),
+      PublishedPackage(dir: probePackage("probe-writer", "1.0.0", writerSource), id: "writer"),
+      PublishedPackage(dir: probePackage("probe-reader", "1.0.0", readerSource), id: "reader"),
+    ]
+    let reg = LocalRegistry(content: staged(pkgs))
 
     reg
-      .withPublishedAll(runtimeClient(reg, "deno"), [
-        PublishedPackage(dir: bundleEntryPackage(ws, "1.0.0"), id: "core"),
-        PublishedPackage(dir: probePackage("probe-writer", "1.0.0", writerSource), id: "writer"),
-        PublishedPackage(dir: probePackage("probe-reader", "1.0.0", readerSource), id: "reader"),
-      ])
+      .withPublishedAll(runtimeClient(reg, "deno"), pkgs)
       .withNewFile("/work/package.json", appManifest)
       .withNewFile("/work/deno.json", denoConfigWith(exempt: exempt))
       .withExec(["sh", "-c", "deno install 2>&1 && echo 'install ok' || echo 'install refused'"])
@@ -298,10 +325,13 @@ type RegistryChecks {
   Publish the compiled package and import it under one runtime.
   """
   let compiledLoadProbe(ws: Workspace!, runtime: String!): String! {
-    let reg = LocalRegistry(name: "compiled-" + runtime)
+    let pkgs = [
+      PublishedPackage(dir: packager.publishable(ws, version: "1.0.0"), id: "core"),
+    ]
+    let reg = LocalRegistry(content: staged(pkgs))
 
     reg
-      .withPublished(runtimeClient(reg, runtime), packager.publishable(ws, version: "1.0.0"), "core")
+      .withPublishedAll(runtimeClient(reg, runtime), pkgs)
       .withExec(["npm", "cache", "clean", "--force"])
       .withNewFile("/work/package.json", probeManifest(withTsx: false))
       .withNewFile("/work/deno.json", denoConfig)
@@ -314,16 +344,29 @@ type RegistryChecks {
   }
 
   """
+  Everything a check publishes, as one directory — one package per subdirectory,
+  named by its id.
+
+  Built before the registry rather than inside it, because the registry is keyed on
+  it. The same list then drives the publishing, so the key and the packages cannot
+  come apart.
+  """
+  let staged(pkgs: [PublishedPackage!]!): Directory! {
+    pkgs.reduce(directory) { tree, pkg => tree.withDirectory(pkg.id, pkg.dir) }
+  }
+
+  """
   Install the published package under one runtime and report which of its loaders
   can import it.
 
   node gets two lines because it has two answers: bare node, and node through tsx.
   """
   let loadProbe(ws: Workspace!, runtime: String!): String! {
-    let reg = LocalRegistry(name: "publish-install-" + runtime)
+    let pkgs = [PublishedPackage(dir: corePackage(ws, "1.0.0"), id: "core")]
+    let reg = LocalRegistry(content: staged(pkgs))
 
     reg
-      .withPublished(runtimeClient(reg, runtime), corePackage(ws, "1.0.0"), "core")
+      .withPublishedAll(runtimeClient(reg, runtime), pkgs)
       # Packing the tarball leaves npm holding the contents it just read. The point
       # of the next step is that the *registry* can answer it.
       .withExec(["npm", "cache", "clean", "--force"])
@@ -436,14 +479,12 @@ type RegistryChecks {
   let assertContainment(ws: Workspace!, runtime: String!): Void {
     let contained = duplicateTree(
       ws,
-      "contained-" + runtime,
       runtime,
       bundleEntryPackage(ws, "1.0.0"),
       bundleEntryPackage(ws, "2.0.0"),
     )
     let uncontained = duplicateTree(
       ws,
-      "uncontained-" + runtime,
       runtime,
       withoutContainment(bundleEntryPackage(ws, "1.0.0")),
       withoutContainment(bundleEntryPackage(ws, "2.0.0")),
@@ -495,27 +536,25 @@ type RegistryChecks {
   """
   let duplicateTree(
     ws: Workspace!,
-    registryName: String!,
     runtime: String!,
     coreA: Directory!,
     coreB: Directory!,
   ): String! {
-    let reg = LocalRegistry(name: registryName)
+    let pkgs = [
+      PublishedPackage(dir: coreA, id: "core-a"),
+      PublishedPackage(dir: coreB, id: "core-b"),
+      PublishedPackage(dir: probePackage("probe-writer", "1.0.0", writerSource), id: "writer"),
+      PublishedPackage(dir: probePackage("probe-reader", "2.0.0", readerSource), id: "reader"),
+    ]
+    let reg = LocalRegistry(content: staged(pkgs))
 
-    # Publish and install in one chain, in the runtime's own container. Splitting
-    # them across two containers looks tidier and is wrong: verdaccio keeps what it
-    # is given in its own filesystem, a service lives only as long as something is
-    # holding it, and the second container gets a registry that has forgotten
-    # everything — `GET /probe-writer - 404`, seen only under the nested engine
-    # where the two containers did not overlap. One chain has one client, and it
-    # holds the service from the publish to the assertion.
+    # Publish and install in one chain, in the runtime's own container. Across two
+    # containers the second one can get a registry that has forgotten everything,
+    # because a service lives only as long as something holds it. One chain holds
+    # it from the publish to the assertion. The storage volume is the other half of
+    # that — see `service`.
     reg
-      .withPublishedAll(runtimeClient(reg, runtime), [
-        PublishedPackage(dir: coreA, id: "core-a"),
-        PublishedPackage(dir: coreB, id: "core-b"),
-        PublishedPackage(dir: probePackage("probe-writer", "1.0.0", writerSource), id: "writer"),
-        PublishedPackage(dir: probePackage("probe-reader", "2.0.0", readerSource), id: "reader"),
-      ])
+      .withPublishedAll(runtimeClient(reg, runtime), pkgs)
       .withNewFile("/work/package.json", appManifest)
       .withNewFile("/work/app.js", appSource)
       .withNewFile("/work/deno.json", denoConfig)
