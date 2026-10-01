@@ -86,29 +86,45 @@ failure when a standalone script is missing it.
 never changes.
 
 A generated client's closure drops the introspector, the TypeScript compiler and
-the otel SDK. It also drops six dependencies declared today and imported nowhere:
-`@grpc/grpc-js`, `@lifeomic/axios-fetch`, `graphql-tag`,
-`@opentelemetry/exporter-jaeger`, `@opentelemetry/sdk-metrics`,
-`@opentelemetry/semantic-conventions`. The reverse drift exists too: `telemetry/`
-imports `@opentelemetry/exporter-trace-otlp-proto` and `sdk-trace-base`, neither
-declared, and `session/utils.ts` imports `node-color-log`, which the table above
-now lists. Splitting forces honest manifests, which is how you find both kinds.
+the otel SDK. **Splitting forces honest manifests**, and that turned out to be worth
+something on its own — enough that it is done, ahead of the split, rather than
+described.
 
-**What that is worth, measured.** Each closure installed on its own with
+Computed rather than read, by `packager:manifest-is-honest-check`: it walks the
+compiled package's imports and compares them against its declared dependencies.
+Both directions were wrong. Seven dependencies were declared and imported nowhere —
+`@grpc/grpc-js`, `@lifeomic/axios-fetch`, `graphql-tag`,
+`@opentelemetry/exporter-jaeger`, `@opentelemetry/exporter-trace-otlp-http`,
+`@opentelemetry/sdk-metrics`, `@opentelemetry/semantic-conventions` (the earlier
+hand-counted list missed `exporter-trace-otlp-http`). Two were imported and not
+declared: `telemetry/` uses `@opentelemetry/exporter-trace-otlp-proto` and
+`sdk-trace-base`, resolving today only because `sdk-node` happens to pull them.
+`session/utils.ts` imports `node-color-log`, which the table above now lists.
+
+The compiled package is what makes that computable: `import type` is erased by then,
+so a type-only import is correctly not counted as a dependency — the bundle, which
+inlines its whole closure and imports nothing, could never have been audited this
+way. One declared dependency is legitimately not imported and is allowed by name:
+`graphql`, which satisfies `graphql-request`'s peer range.
+
+**What all of it is worth, measured.** Each closure installed on its own with
 `npm install --omit=dev` (npm 11.6.2, macOS arm64), sizes from `du -sk`:
 
 | Closure | Installed | Packages |
 |---|---|---|
-| today's manifest — what every generated client gets | **161 MB** | 160 |
+| the manifest as it was — what every generated client got | 161 MB | 160 |
+| the honest manifest, now | **114 MB** | 119 |
 | `session` (and `core`, which adds nothing of its own) | **29 MB** | 45 |
 | `telemetry` | 96 MB | 74 |
 | `module` (`reflect-metadata` alone) | 0.3 MB | 1 |
 | `typescript`, for reference | 24 MB | 1 |
 
-So a generated client goes from 161 MB to 29 MB — **5.5× smaller, and 115 fewer
-packages**. The estimate this replaces said "roughly half the weight is otel"; it
-is closer to 60%, and the otel closure alone is over three times the size of
-everything a client actually needs.
+Fixing the manifest took off 44 MB and 41 packages before anything was split, and
+`bundle/core.js` did not change by a byte — which is the proof that the seven really
+were imported nowhere. The split then takes a generated client from 114 MB to 29 MB.
+The estimate all this replaces said "roughly half the weight is otel"; it is closer
+to 60%, and the otel closure alone is over three times the size of everything a
+client actually needs.
 
 **npm refused today's manifest — fixed.** The measurement needed
 `--legacy-peer-deps` to run at all: `graphql-request@7.4.0` declares
