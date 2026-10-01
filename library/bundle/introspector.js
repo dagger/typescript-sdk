@@ -109256,8 +109256,8 @@ class DaggerInterface extends Locatable {
 }
 
 // src/module/introspector/dagger_module/object.ts
-init_errors();
 import ts8 from "typescript";
+init_errors();
 
 // src/module/introspector/dagger_module/property.ts
 init_errors();
@@ -109395,6 +109395,36 @@ class DaggerObject extends Locatable {
         this.methods[daggerFunction.alias ?? daggerFunction.name] = daggerFunction;
         continue;
       }
+    }
+    if (this.isCollection) {
+      this.validateCollection();
+    }
+  }
+  validateCollection() {
+    const position = AST.getNodePosition(this.node);
+    const keys2 = Object.values(this.properties).filter((p2) => p2.isCollectionKeys);
+    if (keys2.length === 0) {
+      throw new IntrospectionError(`collection ${this.name} at ${position} requires a field decorated with ${KEYS_DECORATOR}().`);
+    }
+    if (keys2.length > 1) {
+      throw new IntrospectionError(`collection ${this.name} at ${position} has multiple ${KEYS_DECORATOR}() fields: ${keys2.map((k2) => k2.name).join(", ")}.`);
+    }
+    if (keys2[0].type && keys2[0].type.kind !== "LIST_KIND" /* ListKind */) {
+      throw new IntrospectionError(`${KEYS_DECORATOR}() field ${keys2[0].name} at ${position} must be a list.`);
+    }
+    const getters = Object.values(this.methods).filter((m3) => m3.isCollectionGet);
+    if (getters.length === 0) {
+      throw new IntrospectionError(`collection ${this.name} at ${position} requires a method decorated with ${GET_DECORATOR}().`);
+    }
+    if (getters.length > 1) {
+      throw new IntrospectionError(`collection ${this.name} at ${position} has multiple ${GET_DECORATOR}() methods: ${getters.map((g2) => g2.name).join(", ")}.`);
+    }
+    if (Object.keys(getters[0].arguments).length !== 1) {
+      throw new IntrospectionError(`${GET_DECORATOR}() method ${getters[0].name} at ${position} must take exactly one argument.`);
+    }
+    const deltas = Object.values(this.properties).filter((p2) => p2.isCollectionDelta);
+    if (deltas.length > 1) {
+      throw new IntrospectionError(`collection ${this.name} at ${position} has multiple ${DELTA_DECORATOR}() fields: ${deltas.map((d) => d.name).join(", ")}.`);
     }
   }
   getLocation() {
