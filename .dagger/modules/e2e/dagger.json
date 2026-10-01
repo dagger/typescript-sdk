@@ -8,6 +8,10 @@
     {
       "name": "typescript-sdk",
       "source": "../../../"
+    },
+    {
+      "name": "packager",
+      "source": "../packager"
     }
   ]
 }

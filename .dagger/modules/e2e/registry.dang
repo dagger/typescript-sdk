@@ -262,6 +262,58 @@ type RegistryChecks {
   }
 
   """
+  The compiled package loads on all three runtimes, including the two that refuse
+  the source one.
+
+  This is the other half of publishInstallCheck, and the pair is the argument for
+  what step 3 has to publish. Same probe, same registry, same three runtimes — the
+  only difference is that `packager:publishable` compiled the library to JavaScript
+  first, so there is no TypeScript left under node_modules for node or deno to
+  refuse. No tsx anywhere.
+
+  It also exercises the manifest for real, which the bundled shape cannot: the
+  compiled package has the library's actual dependencies rather than a 4 MB bundle
+  with everything inlined, so this is the first check where `graphql-request`,
+  `execa`, `tar` and the rest are resolved and loaded by a consumer.
+  """
+  compiledPackageCheck(ws: Workspace!): Void @check {
+    let out = compiledLoadProbe(ws, "node") +
+      compiledLoadProbe(ws, "bun") +
+      compiledLoadProbe(ws, "deno")
+
+    ["node", "bun", "deno"].each { runtime =>
+      Asserts.stringContains(
+        out,
+        runtime + " loaded object",
+        "the compiled package should load under " + runtime +
+          " with no loader in the way — that is the whole reason for compiling " +
+          "it. Got: " + out,
+      )
+    }
+
+    null
+  }
+
+  """
+  Publish the compiled package and import it under one runtime.
+  """
+  let compiledLoadProbe(ws: Workspace!, runtime: String!): String! {
+    let reg = LocalRegistry(name: "compiled-" + runtime)
+
+    reg
+      .withPublished(runtimeClient(reg, runtime), packager.publishable(ws, version: "1.0.0"), "core")
+      .withExec(["npm", "cache", "clean", "--force"])
+      .withNewFile("/work/package.json", probeManifest(withTsx: false))
+      .withNewFile("/work/deno.json", denoConfig)
+      # .js, not .ts: the point is that nothing needs a TypeScript loader any more,
+      # and a .ts probe would put one back for node.
+      .withNewFile(compiledProbe, probeSource)
+      .withExec(installArgs(runtime))
+      .withExec(["sh", "-c", probeLine(runtime, interpreter(runtime), compiledProbe)])
+      .stdout
+  }
+
+  """
   Install the published package under one runtime and report which of its loaders
   can import it.
 
@@ -278,7 +330,7 @@ type RegistryChecks {
       .withExec(["npm", "view", "@dagger.io/dagger@1.0.0", "version"])
       .withNewFile("/work/package.json", probeManifest)
       .withNewFile("/work/deno.json", denoConfig)
-      .withNewFile("/work/probe.ts", probeSource)
+      .withNewFile(sourceProbe, probeSource)
       .withExec(installArgs(runtime))
       .withExec(["sh", "-c", probeScript(runtime)])
       .stdout
@@ -291,19 +343,19 @@ type RegistryChecks {
   """
   let probeScript(runtime: String!): String! {
     if (runtime == "bun") {
-      probeLine("bun", "bun")
+      probeLine("bun", interpreter("bun"), sourceProbe)
     } else if (runtime == "deno") {
-      probeLine("deno", "deno run --allow-all")
+      probeLine("deno", interpreter("deno"), sourceProbe)
     } else {
       "ls node_modules/@dagger.io/dagger; " +
-        probeLine("node", "node") + "; " +
-        probeLine("tsx", "npx tsx")
+        probeLine("node", interpreter("node"), sourceProbe) + "; " +
+        probeLine("tsx", "npx tsx", sourceProbe)
     }
   }
 
-  let probeLine(name: String!, runner: String!): String! {
+  let probeLine(name: String!, runner: String!, file: String!): String! {
     "echo -n '" + name + " '; " + runner +
-      " /work/probe.ts 2>&1 || echo '" + name + " refused'"
+      " " + file + " 2>&1 || echo '" + name + " refused'"
   }
 
   """
@@ -315,14 +367,19 @@ type RegistryChecks {
   runtime ever looks at the package, which would leave the refusals passing for a
   reason that has nothing to do with it.
   """
-  let probeManifest: String! {
+  let probeManifest(withTsx: Boolean! = true): String! {
+    let tsx = if (withTsx) {
+      ",\n    \"tsx\": \"4.22.4\""
+    } else {
+      ""
+    }
+
     "{\n" +
       "  \"name\": \"load-probe\",\n" +
       "  \"version\": \"1.0.0\",\n" +
       "  \"type\": \"module\",\n" +
       "  \"dependencies\": {\n" +
-      "    \"@dagger.io/dagger\": \"1.0.0\",\n" +
-      "    \"tsx\": \"4.22.4\"\n" +
+      "    \"@dagger.io/dagger\": \"1.0.0\"" + tsx + "\n" +
       "  }\n" +
       "}\n"
   }
@@ -515,18 +572,31 @@ type RegistryChecks {
   }
 
   """
-  How each runtime runs the app. Plain JavaScript, so no loader is involved and
-  what differs between the three is only the resolver.
+  Each runtime's bare interpreter. deno needs its permissions opened because the
+  library reads the environment and opens sockets.
   """
-  let runCommand(runtime: String!): String! {
+  let interpreter(runtime: String!): String! {
     if (runtime == "bun") {
-      "bun /work/app.js"
+      "bun"
     } else if (runtime == "deno") {
-      "deno run --allow-all /work/app.js"
+      "deno run --allow-all"
     } else {
-      "node /work/app.js"
+      "node"
     }
   }
+
+  """
+  How each runtime runs the duplicate-tree app. Plain JavaScript, so no loader is
+  involved and what differs between the three is only the resolver.
+  """
+  let runCommand(runtime: String!): String! {
+    interpreter(runtime) + " /work/app.js"
+  }
+
+  """Where each probe source is written."""
+  let sourceProbe: String! = "/work/probe.ts"
+
+  let compiledProbe: String! = "/work/probe.js"
 
   """
   The app's manifest. The probes are dependencies rather than `install` arguments so
