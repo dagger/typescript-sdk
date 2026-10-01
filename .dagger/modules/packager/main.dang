@@ -192,6 +192,33 @@ type Packager {
   }
 
   """
+  The published manifest declares what the published code imports, and nothing
+  else.
+
+  Both directions are bugs the split would ship, and both exist in the tree this
+  check was written against. A dependency imported but not declared resolves today
+  only because something else happens to pull it in — fine until that something
+  changes its own dependencies, or until a consumer uses a resolver that does not
+  hoist. A dependency declared but never imported is weight every consumer
+  installs for nothing, and the install-size numbers in design/package-split.md are
+  the argument for caring.
+
+  Run over `publishable`, so the input is compiled JavaScript. That is what makes
+  the comparison meaningful: `import type` is erased by then, and a type-only
+  import is not a runtime dependency. It is also why this cannot be done against
+  the bundle, which inlines its whole closure and imports nothing.
+  """
+  manifestIsHonestCheck(ws: Workspace!): Void @check {
+    bun
+      .withDirectory("/pkg", publishable(ws))
+      .withFile("/audit.cjs", currentModule.source.file("audit-imports.cjs"))
+      .withExec(["node", "/audit.cjs", "/pkg"])
+      .sync
+
+    null
+  }
+
+  """
   The library's manifest must resolve with npm, not only with bun.
 
   npm is the only one of the three installers that enforces `peerDependencies` at
