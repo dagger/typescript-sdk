@@ -77,6 +77,10 @@ type EngineE2e {
   lost; the only stable name left is the shared one. The trade is that the
   volume is no longer per-engine-commit, so it is shared with anything else
   running an engine-dev on the host.
+
+  Every `dagger` exec in the playground passes `disableDaggerInDagger`.
+  Without it the CLI joins the outer session and talks to the outer engine,
+  not the pinned one.
   """
   let playground(ws: Workspace!): Container! {
     let engineCommit = self.engineCommit(ws)
@@ -187,7 +191,7 @@ type EngineE2e {
         "--name", "sdk-deno",
         "--path", denoPath,
         "--runtime", "deno",
-      ])
+      ], disableDaggerInDagger: true)
       .withExec(["test", "-f", denoPath + "/deno.json"])
       .withExec(["test", "!", "-e", denoPath + "/package.json"])
       .sync
