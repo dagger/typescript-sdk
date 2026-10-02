@@ -51,6 +51,8 @@ either a new upstream change (fine) or a delta being dropped (not fine).
 | `package.json` | `version`, `author`, `license`, package metadata | **Tracks upstream.** Nothing here is published, so a local value is a delta that buys nothing and costs an import. Leave them alone. |
 | `bun.lock` | Added (not upstream) | `yarn.lock` is a yarn v1 file that does not pin everything bun resolves; without `bun.lock` a rebuild days later drifts. Both are load-bearing — see `libraryBundle`'s doc comment. |
 | `.mocharc.json` | Added (not upstream) | Runs the vendored introspector suite against `src/`. |
+| `src/module/introspector/typescript_module/ast.ts` | `sdkPathAliases` feeds `paths` to `ts.createProgram` | Upstream scans a module from inside its own installed tree, where node_modules and a tsconfig already say what `@dagger.io/dagger` is. This SDK scans it in a bare container that has neither, and an unresolved SDK import does not fail the scan — the error type it yields still *prints* the written name, so the scan half-works and falls over only on signatures a name cannot carry (dagger/typescript-sdk#69). |
+| `src/module/introspector/test/scan.spec.ts`, `test/testdata/sdkAlias/` | `sdkAlias` fixture and the case driving it | Guards the row above: the only fixture laid out as a module's source *beside* its generated SDK rather than as a flat directory, which is the layout the aliases exist for. |
 | `bundle/` | Built here, committed | Not upstream at all. Produced by `packager:library-bundle`. |
 
 ## What has to move with upstream

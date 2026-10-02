@@ -1,0 +1,167 @@
+{
+  "name": "SdkAlias",
+  "objects": {
+    "SdkAlias": {
+      "name": "SdkAlias",
+      "description": "",
+      "constructor": {
+        "arguments": {
+          "source": {
+            "name": "source",
+            "description": "",
+            "type": {
+              "kind": "OBJECT_KIND",
+              "name": "Directory"
+            },
+            "isVariadic": false,
+            "isNullable": false,
+            "isOptional": false
+          },
+          "token": {
+            "name": "token",
+            "description": "",
+            "type": {
+              "kind": "OBJECT_KIND",
+              "name": "Secret"
+            },
+            "isVariadic": false,
+            "isNullable": false,
+            "isOptional": false
+          }
+        }
+      },
+      "methods": {
+        "required": {
+          "name": "required",
+          "description": "",
+          "arguments": {
+            "dir": {
+              "name": "dir",
+              "description": "",
+              "type": {
+                "kind": "OBJECT_KIND",
+                "name": "Directory"
+              },
+              "isVariadic": false,
+              "isNullable": false,
+              "isOptional": false
+            }
+          },
+          "returnType": {
+            "kind": "OBJECT_KIND",
+            "name": "Directory"
+          }
+        },
+        "optional": {
+          "name": "optional",
+          "description": "",
+          "arguments": {
+            "dir": {
+              "name": "dir",
+              "description": "",
+              "type": {
+                "kind": "OBJECT_KIND",
+                "name": "Directory"
+              },
+              "isVariadic": false,
+              "isNullable": false,
+              "isOptional": true
+            }
+          },
+          "returnType": {
+            "kind": "LIST_KIND",
+            "typeDef": {
+              "kind": "STRING_KIND"
+            }
+          }
+        },
+        "optionalList": {
+          "name": "optionalList",
+          "description": "",
+          "arguments": {
+            "dirs": {
+              "name": "dirs",
+              "description": "",
+              "type": {
+                "kind": "LIST_KIND",
+                "typeDef": {
+                  "kind": "OBJECT_KIND",
+                  "name": "Directory"
+                }
+              },
+              "isVariadic": false,
+              "isNullable": false,
+              "isOptional": true
+            }
+          },
+          "returnType": {
+            "kind": "INTEGER_KIND"
+          }
+        },
+        "unionWithUndefined": {
+          "name": "unionWithUndefined",
+          "description": "",
+          "arguments": {
+            "token": {
+              "name": "token",
+              "description": "",
+              "type": {
+                "kind": "OBJECT_KIND",
+                "name": "Secret"
+              },
+              "isVariadic": false,
+              "isNullable": false,
+              "isOptional": false
+            }
+          },
+          "returnType": {
+            "kind": "STRING_KIND"
+          }
+        },
+        "dependency": {
+          "name": "dependency",
+          "description": "",
+          "arguments": {
+            "dep": {
+              "name": "dep",
+              "description": "",
+              "type": {
+                "kind": "OBJECT_KIND",
+                "name": "Dep"
+              },
+              "isVariadic": false,
+              "isNullable": false,
+              "isOptional": false
+            }
+          },
+          "returnType": {
+            "kind": "OBJECT_KIND",
+            "name": "Dep"
+          }
+        }
+      },
+      "properties": {
+        "source": {
+          "name": "source",
+          "description": "",
+          "type": {
+            "kind": "OBJECT_KIND",
+            "name": "Directory"
+          },
+          "isExposed": false
+        },
+        "token": {
+          "name": "token",
+          "description": "",
+          "type": {
+            "kind": "OBJECT_KIND",
+            "name": "Secret"
+          },
+          "isExposed": false
+        }
+      }
+    }
+  },
+  "enums": {},
+  "interfaces": {}
+}
