@@ -108159,6 +108159,25 @@ var isDeclarationOf = {
 // src/module/introspector/typescript_module/ast.ts
 var CLIENT_GEN_FILE = "client.gen.ts";
 var GENERATED_CLIENT_SUFFIX = ".gen.ts";
+function sdkPathAliases(generatedClientFiles) {
+  const [firstClientFile] = generatedClientFiles;
+  if (firstClientFile === undefined) {
+    return;
+  }
+  const sdkDir = path8.dirname(firstClientFile);
+  const aliases = {
+    "@dagger.io/dagger": [path8.join(sdkDir, "index.ts")],
+    "@dagger.io/dagger/telemetry": [path8.join(sdkDir, "telemetry.ts")]
+  };
+  for (const file of generatedClientFiles) {
+    const name = path8.basename(file, GENERATED_CLIENT_SUFFIX);
+    if (name === "client" || name === "loader") {
+      continue;
+    }
+    aliases[`@dagger.io/${name}`] = [file];
+  }
+  return aliases;
+}
 
 class AST {
   files;
@@ -108174,7 +108193,8 @@ class AST {
     const program = ts3.createProgram(files2, {
       experimentalDecorators: true,
       moduleResolution: ts3.ModuleResolutionKind.Node10,
-      target: ts3.ScriptTarget.ES2022
+      target: ts3.ScriptTarget.ES2022,
+      paths: sdkPathAliases(this.generatedClientFiles)
     });
     this.checker = program.getTypeChecker();
     this.sourceFiles = program.getSourceFiles().filter((file) => !file.isDeclarationFile);

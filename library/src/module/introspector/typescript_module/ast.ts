@@ -18,6 +18,55 @@ export const CLIENT_GEN_FILE = "client.gen.ts"
 // when resolving type references like a dependency-contributed enum.
 export const GENERATED_CLIENT_SUFFIX = ".gen.ts"
 
+/**
+ * Rebuild the `@dagger.io/*` path aliases the module's tsconfig declares, from
+ * the generated files handed to the scan.
+ *
+ * The scan runs over a bare tree — the module's source beside its generated
+ * SDK, with no node_modules and no tsconfig — so nothing on its own tells the
+ * compiler what `@dagger.io/dagger` is. An unresolved import does not fail the
+ * scan: every type imported from it becomes the error type, which has the flags
+ * of `any` but still *prints* as the name that was written. A bare `Directory`
+ * therefore limps through on its name alone, while anything that makes the
+ * checker build a new type from it — `Secret | undefined`, an optional
+ * `dir?: Directory` — loses the name and leaves the scan resolving `any`.
+ *
+ * An alias whose target does not exist is skipped by the compiler, so a layout
+ * that resolves the library some other way (a module container's node_modules)
+ * is unaffected.
+ */
+function sdkPathAliases(
+  generatedClientFiles: Set<string>,
+): ts.MapLike<string[]> | undefined {
+  const [firstClientFile] = generatedClientFiles
+  if (firstClientFile === undefined) {
+    return undefined
+  }
+
+  // Every generated file is staged flat in the SDK directory, beside the
+  // library's own index.ts and telemetry.ts.
+  const sdkDir = path.dirname(firstClientFile)
+  const aliases: ts.MapLike<string[]> = {
+    "@dagger.io/dagger": [path.join(sdkDir, "index.ts")],
+    "@dagger.io/dagger/telemetry": [path.join(sdkDir, "telemetry.ts")],
+  }
+
+  for (const file of generatedClientFiles) {
+    const name = path.basename(file, GENERATED_CLIENT_SUFFIX)
+
+    // `client.gen.ts` is reached through the library barrel and `loader.gen.ts`
+    // is runtime plumbing: neither is a module client, so neither is aliased.
+    // Mirrors `bindingAliasModules` in typescript-sdk.dang.
+    if (name === "client" || name === "loader") {
+      continue
+    }
+
+    aliases[`@dagger.io/${name}`] = [file]
+  }
+
+  return aliases
+}
+
 export type ResolvedNodeWithSymbol<T extends keyof DeclarationsMap> = {
   type: T
   node: DeclarationsMap[T]
@@ -53,6 +102,7 @@ export class AST {
       experimentalDecorators: true,
       moduleResolution: ts.ModuleResolutionKind.Node10,
       target: ts.ScriptTarget.ES2022,
+      paths: sdkPathAliases(this.generatedClientFiles),
     })
     this.checker = program.getTypeChecker()
     this.sourceFiles = program

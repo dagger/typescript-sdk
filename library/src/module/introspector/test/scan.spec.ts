@@ -158,6 +158,47 @@ ${jsonResult}
     })
   }
 
+  // Driven directly rather than through the loop above, which scans a flat
+  // directory of sources: this fixture is a module's source *beside* its
+  // generated SDK, the shape generation actually scans. There is no
+  // node_modules and no tsconfig there, so every `@dagger.io/*` specifier
+  // resolves only because the scan rebuilds the aliases itself — and an
+  // unresolved one degrades into a type that prints as what the user wrote
+  // rather than failing outright, so a flat fixture would never notice.
+  it("Should resolve @dagger.io specifiers against the generated SDK - sdkAlias", async function () {
+    this.timeout(60000)
+
+    const directory = `${rootDirectory}/sdkAlias`
+    const generatedClientFiles = [
+      `${directory}/sdk/client.gen.ts`,
+      `${directory}/sdk/dep.gen.ts`,
+    ]
+
+    try {
+      const result = await scan(
+        [`${directory}/src/index.ts`, ...generatedClientFiles],
+        "sdkAlias",
+        false,
+        generatedClientFiles,
+      )
+      const jsonResult = JSON.stringify(result, null, 2)
+      const expected = fs.readFileSync(`${directory}/expected.json`, "utf-8")
+
+      assert.deepStrictEqual(
+        JSON.parse(jsonResult),
+        JSON.parse(expected),
+        `
+Expected:
+${expected}
+Got:
+${jsonResult}
+        `,
+      )
+    } catch (e) {
+      assert.fail(e as Error)
+    }
+  })
+
   describe("Should throw error on invalid module", function () {
     it("Should throw an error when no files are provided", async function () {
       this.timeout(60000)
