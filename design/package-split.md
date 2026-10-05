@@ -57,7 +57,7 @@ ownership, local development, and singletons — not the import graph.
 | Package | Contents | External deps |
 |---|---|---|
 | `@dagger.io/session` | `Context`, `BaseClient`, `Connection`, `computeQuery`, errors, `ConnectOpts`, `connect`/`connection`, **provisioning** | `graphql-request`, `graphql`, `node-fetch`, `@opentelemetry/api`, `adm-zip`, `tar`, `execa`, `env-paths`, `node-color-log` |
-| `@dagger.io/core` | generated core bindings + `dag` | `@dagger.io/session` |
+| `@dagger.io/core` | generated core bindings + `dag` | `@dagger.io/session` — and nothing else, now that `core/connect.ts` no longer annotates a callback parameter with `graphql-request`'s `GraphQLClient`. The annotation restated a type `withGQLClient` already declares, so dropping it took the import with it; `core/` references `graphql-request` nowhere. |
 | `@dagger.io/module` | decorators, registry | `@dagger.io/core`, `reflect-metadata` |
 | `@dagger.io/telemetry` | otel wiring | the otel SDK |
 | `@dagger.io/dagger` | **facade.** re-exports all four | the four above |
@@ -777,11 +777,6 @@ deno 2.9.2 and Node 24.11.1, over a local verdaccio — with model packages
 (`@dpt/session`, `@dpt/core`, `@dpt/module`, a facade over both) rather than the
 real SDK. Still open:
 
-- **That `@dagger.io/core` really has no external dependency.** `core/connect.ts`
-  imports `GraphQLClient` from `graphql-request` for one parameter annotation, so
-  as written the package needs it. `import type` would remove it from both the
-  runtime closure and the emitted `.d.ts` — one word, not yet done, and the
-  manifest in the table above assumes it.
 - **That the facade, once written, re-exports what it claims.** The surface is now
   enumerated — one collision, eight withheld names — but that is the *source* tree
   measured by the checker. No facade package exists yet to test against.

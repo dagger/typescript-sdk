@@ -1,5 +1,3 @@
-import { GraphQLClient } from "graphql-request"
-
 import { Context } from "../session/context.js"
 import { ConnectOpts } from "../session/connectOpts.js"
 import { withGQLClient } from "../session/graphql/connect.js"
@@ -17,7 +15,7 @@ export async function connect(
   cb: CallbackFct,
   config: ConnectOpts = {},
 ): Promise<void> {
-  await withGQLClient(config, async (gqlClient: GraphQLClient) => {
+  await withGQLClient(config, async (gqlClient) => {
     const connection = new Connection(gqlClient)
     const ctx = new Context([], connection)
     const client = new Client(ctx)
