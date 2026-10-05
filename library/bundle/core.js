@@ -108793,6 +108793,10 @@ init_errors();
 var import_reflect_metadata = __toESM(require_Reflect(), 1);
 
 class Registry {
+  collection = () => this.object();
+  keys = () => () => {};
+  delta = () => () => {};
+  get = () => () => {};
   object = () => {
     return (constructor) => {
       Reflect.defineMetadata(constructor.name, { class_: constructor }, this);
@@ -108858,6 +108862,10 @@ function getRegisteredClass(name) {
 
 // src/module/decorators.ts
 var object = registry.object;
+var collection = registry.collection;
+var keys = registry.keys;
+var get = registry.get;
+var delta = registry.delta;
 var func = registry.func;
 var check = registry.check;
 var generate = registry.generate;
@@ -108869,15 +108877,19 @@ var argument = registry.argument;
 export {
   up,
   object,
+  keys,
   getTracer,
   getRegisteredClass,
+  get,
   generate,
   func,
   field,
   enumType,
+  delta,
   dag,
   connection,
   connect,
+  collection,
   check,
   argument,
   agent,

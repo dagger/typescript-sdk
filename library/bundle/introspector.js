@@ -108627,6 +108627,10 @@ init_errors();
 var import_reflect_metadata = __toESM(require_Reflect(), 1);
 
 class Registry {
+  collection = () => this.object();
+  keys = () => () => {};
+  delta = () => () => {};
+  get = () => () => {};
   object = () => {
     return (constructor) => {
       Reflect.defineMetadata(constructor.name, { class_: constructor }, this);
@@ -108688,6 +108692,10 @@ var registry = new Registry;
 
 // src/module/decorators.ts
 var object = registry.object;
+var collection = registry.collection;
+var keys = registry.keys;
+var get = registry.get;
+var delta = registry.delta;
 var func = registry.func;
 var check = registry.check;
 var generate = registry.generate;
@@ -108699,6 +108707,10 @@ var argument = registry.argument;
 
 // src/module/introspector/dagger_module/decorator.ts
 var OBJECT_DECORATOR = object.name;
+var COLLECTION_DECORATOR = collection.name;
+var KEYS_DECORATOR = keys.name;
+var GET_DECORATOR = get.name;
+var DELTA_DECORATOR = delta.name;
 var FUNCTION_DECORATOR = func.name;
 var CHECK_DECORATOR = check.name;
 var GENERATOR_DECORATOR = generate.name;
@@ -109014,6 +109026,7 @@ class DaggerFunction extends Locatable {
   isGenerator = false;
   isUp = false;
   isAgent = false;
+  isCollectionGet = false;
   signature;
   symbol;
   constructor(node, ast2) {
@@ -109023,6 +109036,7 @@ class DaggerFunction extends Locatable {
     this.symbol = this.ast.getSymbolOrThrow(node.name);
     this.signature = this.ast.getSignatureFromFunctionOrThrow(node);
     this.name = this.node.name.getText();
+    this.isCollectionGet = this.ast.isNodeDecoratedWith(this.node, GET_DECORATOR);
     const { description, deprecated } = this.ast.getSymbolDoc(this.symbol);
     this.description = description;
     this.deprecated = deprecated;
@@ -109242,8 +109256,8 @@ class DaggerInterface extends Locatable {
 }
 
 // src/module/introspector/dagger_module/object.ts
-init_errors();
 import ts8 from "typescript";
+init_errors();
 
 // src/module/introspector/dagger_module/property.ts
 init_errors();
@@ -109255,6 +109269,8 @@ class DaggerProperty extends Locatable {
   deprecated;
   alias;
   isExposed;
+  isCollectionKeys;
+  isCollectionDelta;
   symbol;
   _typeRef;
   type;
@@ -109267,7 +109283,9 @@ class DaggerProperty extends Locatable {
     }
     this.symbol = this.ast.getSymbolOrThrow(this.node.name);
     this.name = this.node.name.getText();
-    this.isExposed = this.ast.isNodeDecoratedWith(this.node, FUNCTION_DECORATOR) || this.ast.isNodeDecoratedWith(this.node, FIELD_DECORATOR);
+    this.isCollectionKeys = this.ast.isNodeDecoratedWith(this.node, KEYS_DECORATOR);
+    this.isCollectionDelta = this.ast.isNodeDecoratedWith(this.node, DELTA_DECORATOR);
+    this.isExposed = this.isCollectionKeys || this.isCollectionDelta || this.ast.isNodeDecoratedWith(this.node, FUNCTION_DECORATOR) || this.ast.isNodeDecoratedWith(this.node, FIELD_DECORATOR);
     const { description, deprecated } = this.ast.getSymbolDoc(this.symbol);
     this.description = description;
     this.deprecated = deprecated;
@@ -109327,6 +109345,7 @@ class DaggerProperty extends Locatable {
 class DaggerObject extends Locatable {
   node;
   ast;
+  isCollection;
   name;
   description;
   deprecated;
@@ -109347,7 +109366,8 @@ class DaggerObject extends Locatable {
       throw new IntrospectionError(`could not resolve name of class at ${AST.getNodePosition(node)}.`);
     }
     this.name = this.node.name.getText();
-    if (!this.ast.isNodeDecoratedWith(node, OBJECT_DECORATOR)) {
+    this.isCollection = this.ast.isNodeDecoratedWith(node, COLLECTION_DECORATOR);
+    if (!this.isCollection && !this.ast.isNodeDecoratedWith(node, OBJECT_DECORATOR)) {
       throw new IntrospectionError(`class ${this.name} at ${AST.getNodePosition(node)} is used by the module but not exposed with a dagger decorator.`);
     }
     const modifiers = ts8.getCombinedModifierFlags(this.node);
@@ -109370,11 +109390,41 @@ class DaggerObject extends Locatable {
         this._constructor = new DaggerConstructor(member, this.ast);
         continue;
       }
-      if (ts8.isMethodDeclaration(member) && this.ast.isNodeDecoratedWith(member, FUNCTION_DECORATOR)) {
+      if (ts8.isMethodDeclaration(member) && (this.ast.isNodeDecoratedWith(member, FUNCTION_DECORATOR) || this.ast.isNodeDecoratedWith(member, GET_DECORATOR))) {
         const daggerFunction = new DaggerFunction(member, this.ast);
         this.methods[daggerFunction.alias ?? daggerFunction.name] = daggerFunction;
         continue;
       }
+    }
+    if (this.isCollection) {
+      this.validateCollection();
+    }
+  }
+  validateCollection() {
+    const position = AST.getNodePosition(this.node);
+    const keys2 = Object.values(this.properties).filter((p2) => p2.isCollectionKeys);
+    if (keys2.length === 0) {
+      throw new IntrospectionError(`collection ${this.name} at ${position} requires a field decorated with ${KEYS_DECORATOR}().`);
+    }
+    if (keys2.length > 1) {
+      throw new IntrospectionError(`collection ${this.name} at ${position} has multiple ${KEYS_DECORATOR}() fields: ${keys2.map((k2) => k2.name).join(", ")}.`);
+    }
+    if (keys2[0].type && keys2[0].type.kind !== "LIST_KIND" /* ListKind */) {
+      throw new IntrospectionError(`${KEYS_DECORATOR}() field ${keys2[0].name} at ${position} must be a list.`);
+    }
+    const getters = Object.values(this.methods).filter((m3) => m3.isCollectionGet);
+    if (getters.length === 0) {
+      throw new IntrospectionError(`collection ${this.name} at ${position} requires a method decorated with ${GET_DECORATOR}().`);
+    }
+    if (getters.length > 1) {
+      throw new IntrospectionError(`collection ${this.name} at ${position} has multiple ${GET_DECORATOR}() methods: ${getters.map((g2) => g2.name).join(", ")}.`);
+    }
+    if (Object.keys(getters[0].arguments).length !== 1) {
+      throw new IntrospectionError(`${GET_DECORATOR}() method ${getters[0].name} at ${position} must take exactly one argument.`);
+    }
+    const deltas = Object.values(this.properties).filter((p2) => p2.isCollectionDelta);
+    if (deltas.length > 1) {
+      throw new IntrospectionError(`collection ${this.name} at ${position} has multiple ${DELTA_DECORATOR}() fields: ${deltas.map((d) => d.name).join(", ")}.`);
     }
   }
   getLocation() {
@@ -109594,7 +109644,7 @@ class DaggerModule {
           };
           continue;
         }
-        if (this.ast.isNodeDecoratedWith(classRef.node, OBJECT_DECORATOR)) {
+        if (this.ast.isNodeDecoratedWith(classRef.node, OBJECT_DECORATOR) || this.ast.isNodeDecoratedWith(classRef.node, COLLECTION_DECORATOR)) {
           const daggerObject = new DaggerObject(classRef.node, this.ast);
           this.objects[daggerObject.name] = daggerObject;
           this.references[daggerObject.name] = {
@@ -109712,7 +109762,7 @@ class DaggerModule {
       if (convertedDecl.node.name && convertedDecl.node.name.getText() === this.name) {
         return [convertedDecl];
       }
-      if (this.ast.isNodeDecoratedWith(classDecl.node, OBJECT_DECORATOR)) {
+      if (this.ast.isNodeDecoratedWith(classDecl.node, OBJECT_DECORATOR) || this.ast.isNodeDecoratedWith(classDecl.node, COLLECTION_DECORATOR)) {
         allClasses.push(convertedDecl);
       }
     }
@@ -109798,7 +109848,11 @@ function serializeIntrospection(module2, opts = {}) {
   const localTypeNames = collectLocalTypeNames(module2);
   const types3 = [];
   for (const object3 of Object.values(module2.objects)) {
-    types3.push(introspectObject(object3, moduleName, localTypeNames));
+    if (object3.isCollection) {
+      types3.push(...introspectCollection(object3, moduleName, localTypeNames));
+    } else {
+      types3.push(introspectObject(object3, moduleName, localTypeNames));
+    }
   }
   for (const iface of Object.values(module2.interfaces)) {
     types3.push(introspectInterface(iface, moduleName, localTypeNames));
@@ -109862,6 +109916,77 @@ function introspectObject(object3, moduleName, local) {
     interfaces: [],
     fields
   };
+}
+function introspectCollection(object3, moduleName, local) {
+  const properties = Object.values(object3.properties);
+  const methods = Object.values(object3.methods);
+  const keys2 = properties.find((p2) => p2.isCollectionKeys) ?? properties.find((p2) => p2.isExposed && toLowerCamel(p2.alias ?? p2.name) === "keys");
+  const get2 = methods.find((m3) => m3.isCollectionGet) ?? methods.find((m3) => toLowerCamel(m3.alias ?? m3.name) === "get");
+  if (!keys2 || !get2) {
+    throw new Error(`collection "${object3.name}" requires a stored keys field and a get method`);
+  }
+  const lookup = introspectMethod(get2, moduleName, local);
+  if (lookup.args.length !== 1) {
+    throw new Error(`collection "${object3.name}" get method requires one argument`);
+  }
+  lookup.name = "get";
+  lookup.args[0].name = "key";
+  const name = introspectTypeName(object3.name, moduleName);
+  const keyList = introspectProperty(keys2, moduleName, local);
+  keyList.name = "keys";
+  const objectRef = (name2) => ({
+    kind: TypeKind.NonNull,
+    ofType: { kind: TypeKind.Object, name: name2 }
+  });
+  const collection2 = {
+    kind: TypeKind.Object,
+    name,
+    description: trim(object3.description),
+    interfaces: [],
+    fields: [
+      keyList,
+      {
+        name: "list",
+        description: "",
+        args: [],
+        type: {
+          kind: TypeKind.NonNull,
+          ofType: { kind: TypeKind.List, ofType: lookup.type }
+        }
+      },
+      lookup,
+      {
+        name: "subset",
+        description: "",
+        type: objectRef(name),
+        args: [{ name: "keys", description: "", type: keyList.type }]
+      },
+      nodeIDField(name)
+    ]
+  };
+  const batchMethods = methods.filter((method) => method !== get2);
+  if (batchMethods.length === 0) {
+    return [collection2];
+  }
+  const batchName = name + "_Batch";
+  collection2.fields.push({
+    name: "batch",
+    description: "",
+    args: [],
+    type: objectRef(batchName)
+  });
+  return [
+    collection2,
+    {
+      kind: TypeKind.Object,
+      name: batchName,
+      interfaces: [],
+      fields: [
+        ...batchMethods.map((method) => introspectMethod(method, moduleName, local)),
+        nodeIDField(batchName)
+      ]
+    }
+  ];
 }
 function introspectInterface(iface, moduleName, local) {
   const name = introspectTypeName(iface.name, moduleName);
@@ -110206,6 +110331,7 @@ function serializeObject(obj) {
   return {
     name: obj.name,
     kind: obj.kind(),
+    isCollection: obj.isCollection === true,
     isExported: isExported !== false,
     isDefaultExport: isDefaultExport === true,
     description: obj.description,
@@ -110231,6 +110357,7 @@ function serializeFunction(fn) {
     isGenerator: f4.isGenerator === true,
     isUp: f4.isUp === true,
     isAgent: f4.isAgent === true,
+    isCollectionGet: f4.isCollectionGet === true,
     location: f4.getLocation(),
     returnType: f4.returnType ? serializeType(f4.returnType) : undefined,
     arguments: Object.values(f4.arguments).map(serializeArgument)
@@ -110259,6 +110386,8 @@ function serializeProperty(prop) {
     description: prop.description,
     deprecated: prop.deprecated,
     isExposed: prop.isExposed === true,
+    isCollectionKeys: prop.isCollectionKeys === true,
+    isCollectionDelta: prop.isCollectionDelta === true,
     type: prop.type ? serializeType(prop.type) : undefined,
     location: prop.getLocation()
   };
@@ -110327,8 +110456,14 @@ class Register {
         deprecated: object3.deprecated
       };
       let typeDef = dag.typeDef().withObject(object3.name, objectOpts);
+      if (object3.isCollection) {
+        typeDef = typeDef.withCollection();
+      }
       Object.values(object3.methods).forEach((method) => {
         typeDef = typeDef.withFunction(this.addFunction(method));
+        if (method.isCollectionGet) {
+          typeDef = typeDef.withCollectionGet(method.alias ?? method.name);
+        }
       });
       Object.values(object3.properties).forEach((field2) => {
         if (field2.isExposed) {
@@ -110338,6 +110473,12 @@ class Register {
             deprecated: field2.deprecated
           };
           typeDef = typeDef.withField(field2.alias ?? field2.name, addTypeDef(field2.type), fieldOpts);
+          if (field2.isCollectionKeys) {
+            typeDef = typeDef.withCollectionKeys(field2.alias ?? field2.name);
+          }
+          if (field2.isCollectionDelta) {
+            typeDef = typeDef.withCollectionDelta(field2.alias ?? field2.name);
+          }
         }
       });
       if (object3._constructor) {

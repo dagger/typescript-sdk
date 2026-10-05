@@ -1,9 +1,17 @@
 import ts from "typescript"
 
+import { TypeDefKind } from "../../../api/client.gen.js"
 import { IntrospectionError } from "../../../common/errors/index.js"
 import { AST, Location } from "../typescript_module/index.js"
 import { DaggerConstructor } from "./constructor.js"
-import { FUNCTION_DECORATOR, OBJECT_DECORATOR } from "./decorator.js"
+import {
+  COLLECTION_DECORATOR,
+  DELTA_DECORATOR,
+  FUNCTION_DECORATOR,
+  GET_DECORATOR,
+  KEYS_DECORATOR,
+  OBJECT_DECORATOR,
+} from "./decorator.js"
 import { DaggerFunction, DaggerFunctions } from "./function.js"
 import { Locatable } from "./locatable.js"
 import { DaggerObjectBase } from "./objectBase.js"
@@ -24,6 +32,7 @@ import { References } from "./reference.js"
  * ```
  */
 export class DaggerObject extends Locatable implements DaggerObjectBase {
+  public isCollection: boolean
   public name: string
   public description: string
   public deprecated?: string
@@ -52,7 +61,11 @@ export class DaggerObject extends Locatable implements DaggerObjectBase {
     }
     this.name = this.node.name.getText()
 
-    if (!this.ast.isNodeDecoratedWith(node, OBJECT_DECORATOR)) {
+    this.isCollection = this.ast.isNodeDecoratedWith(node, COLLECTION_DECORATOR)
+    if (
+      !this.isCollection &&
+      !this.ast.isNodeDecoratedWith(node, OBJECT_DECORATOR)
+    ) {
       throw new IntrospectionError(
         `class ${this.name} at ${AST.getNodePosition(node)} is used by the module but not exposed with a dagger decorator.`,
       )
@@ -91,7 +104,8 @@ export class DaggerObject extends Locatable implements DaggerObjectBase {
 
       if (
         ts.isMethodDeclaration(member) &&
-        this.ast.isNodeDecoratedWith(member, FUNCTION_DECORATOR)
+        (this.ast.isNodeDecoratedWith(member, FUNCTION_DECORATOR) ||
+          this.ast.isNodeDecoratedWith(member, GET_DECORATOR))
       ) {
         const daggerFunction = new DaggerFunction(member, this.ast)
         this.methods[daggerFunction.alias ?? daggerFunction.name] =
@@ -99,6 +113,68 @@ export class DaggerObject extends Locatable implements DaggerObjectBase {
 
         continue
       }
+    }
+
+    if (this.isCollection) {
+      this.validateCollection()
+    }
+  }
+
+  /**
+   * Reject a collection the engine would reject anyway.
+   *
+   * It validates the same shape when the typedefs reach it, but by then the
+   * failure is a GraphQL error carrying no source position — the author gets a
+   * response dump instead of the member they got wrong.
+   *
+   * A keys field whose type is still a reference is left to the engine: the
+   * list check cannot run before the reference resolves, and guessing here
+   * would reject the valid `@keys() names: Names` behind `type Names = string[]`.
+   */
+  private validateCollection(): void {
+    const position = AST.getNodePosition(this.node)
+
+    const keys = Object.values(this.properties).filter((p) => p.isCollectionKeys)
+    if (keys.length === 0) {
+      throw new IntrospectionError(
+        `collection ${this.name} at ${position} requires a field decorated with ${KEYS_DECORATOR}().`,
+      )
+    }
+    if (keys.length > 1) {
+      throw new IntrospectionError(
+        `collection ${this.name} at ${position} has multiple ${KEYS_DECORATOR}() fields: ${keys.map((k) => k.name).join(", ")}.`,
+      )
+    }
+    if (keys[0].type && keys[0].type.kind !== TypeDefKind.ListKind) {
+      throw new IntrospectionError(
+        `${KEYS_DECORATOR}() field ${keys[0].name} at ${position} must be a list.`,
+      )
+    }
+
+    const getters = Object.values(this.methods).filter((m) => m.isCollectionGet)
+    if (getters.length === 0) {
+      throw new IntrospectionError(
+        `collection ${this.name} at ${position} requires a method decorated with ${GET_DECORATOR}().`,
+      )
+    }
+    if (getters.length > 1) {
+      throw new IntrospectionError(
+        `collection ${this.name} at ${position} has multiple ${GET_DECORATOR}() methods: ${getters.map((g) => g.name).join(", ")}.`,
+      )
+    }
+    if (Object.keys(getters[0].arguments).length !== 1) {
+      throw new IntrospectionError(
+        `${GET_DECORATOR}() method ${getters[0].name} at ${position} must take exactly one argument.`,
+      )
+    }
+
+    const deltas = Object.values(this.properties).filter(
+      (p) => p.isCollectionDelta,
+    )
+    if (deltas.length > 1) {
+      throw new IntrospectionError(
+        `collection ${this.name} at ${position} has multiple ${DELTA_DECORATOR}() fields: ${deltas.map((d) => d.name).join(", ")}.`,
+      )
     }
   }
 
