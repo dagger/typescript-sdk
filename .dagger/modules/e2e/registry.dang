@@ -18,18 +18,18 @@ type LocalRegistry {
   """
   Everything this registry will be given, one package per subdirectory.
 
-  It is both what gets published and what the storage volume is keyed on, and that
-  single fact does the isolating. Checks that publish different packages get
-  different volumes and so different services, with no one naming them; checks that
-  publish byte-identical packages share one, which is why the three runtime arms of
-  a check cost one registry rather than three. It also lets two checks use the same
-  version numbers, which is what makes the duplicate-tree control a tree identical
-  to the positive case apart from the patch.
+  It is what the storage volume is keyed on, so a version already present under a
+  given key was published from the same bytes. That is what makes the volume safe to
+  outlive a run, and it is why `publish.sh` can treat "already published" as
+  ordinary rather than exceptional.
 
-  Sharing means "already published" is ordinary rather than exceptional — within a
-  run, between concurrent arms, and across runs, since the volume outlives one.
-  `publish.sh` treats it that way, and decides by asking the registry rather than
-  by matching an error string.
+  It also carries a label that nothing publishes, naming the consumer. Content alone
+  is not enough to key on: byte-identical package sets would share one volume and
+  one service, and the three runtime arms of a check publish exactly that — three
+  concurrent `npm publish` of one version into one verdaccio, interleaving writes to
+  the same tarball. One arm wins and the others get
+  `IntegrityCheckFailed extracting tarball`, which is how this was found. Two
+  consumers are two registries even when they serve the same bytes.
   """
   let content: Directory!
 
@@ -242,8 +242,8 @@ type RegistryChecks {
   the situation does.
   """
   denoDependencyAgeCheck(ws: Workspace!): Void @check {
-    let exempt = denoInstall(ws, true)
-    let enforced = denoInstall(ws, false)
+    let exempt = denoInstall(ws, "age-exempt", true)
+    let enforced = denoInstall(ws, "age-enforced", false)
 
     Asserts.stringContains(
       exempt,
@@ -272,13 +272,13 @@ type RegistryChecks {
   Run `deno install` against the registry, with or without the age exemption, and
   report which way it went.
   """
-  let denoInstall(ws: Workspace!, exempt: Boolean!): String! {
+  let denoInstall(ws: Workspace!, label: String!, exempt: Boolean!): String! {
     let pkgs = [
       PublishedPackage(dir: bundleEntryPackage(ws, "1.0.0"), id: "core"),
       PublishedPackage(dir: probePackage("probe-writer", "1.0.0", writerSource), id: "writer"),
       PublishedPackage(dir: probePackage("probe-reader", "1.0.0", readerSource), id: "reader"),
     ]
-    let reg = LocalRegistry(content: staged(pkgs))
+    let reg = LocalRegistry(content: staged(label, pkgs))
 
     reg
       .withPublishedAll(runtimeClient(reg, "deno"), pkgs)
@@ -328,7 +328,7 @@ type RegistryChecks {
     let pkgs = [
       PublishedPackage(dir: packager.publishable(ws, version: "1.0.0"), id: "core"),
     ]
-    let reg = LocalRegistry(content: staged(pkgs))
+    let reg = LocalRegistry(content: staged("compiled-" + runtime, pkgs))
 
     reg
       .withPublishedAll(runtimeClient(reg, runtime), pkgs)
@@ -351,8 +351,12 @@ type RegistryChecks {
   it. The same list then drives the publishing, so the key and the packages cannot
   come apart.
   """
-  let staged(pkgs: [PublishedPackage!]!): Directory! {
-    pkgs.reduce(directory) { tree, pkg => tree.withDirectory(pkg.id, pkg.dir) }
+  let staged(label: String!, pkgs: [PublishedPackage!]!): Directory! {
+    # The label sits at the top level, where publishing never looks — only the
+    # per-package subdirectories are published. It exists to reach the digest.
+    pkgs
+      .reduce(directory) { tree, pkg => tree.withDirectory(pkg.id, pkg.dir) }
+      .withNewFile("consumer", label + "\n")
   }
 
   """
@@ -363,7 +367,7 @@ type RegistryChecks {
   """
   let loadProbe(ws: Workspace!, runtime: String!): String! {
     let pkgs = [PublishedPackage(dir: corePackage(ws, "1.0.0"), id: "core")]
-    let reg = LocalRegistry(content: staged(pkgs))
+    let reg = LocalRegistry(content: staged("source-" + runtime, pkgs))
 
     reg
       .withPublishedAll(runtimeClient(reg, runtime), pkgs)
@@ -479,12 +483,14 @@ type RegistryChecks {
   let assertContainment(ws: Workspace!, runtime: String!): Void {
     let contained = duplicateTree(
       ws,
+      "contained-" + runtime,
       runtime,
       bundleEntryPackage(ws, "1.0.0"),
       bundleEntryPackage(ws, "2.0.0"),
     )
     let uncontained = duplicateTree(
       ws,
+      "uncontained-" + runtime,
       runtime,
       withoutContainment(bundleEntryPackage(ws, "1.0.0")),
       withoutContainment(bundleEntryPackage(ws, "2.0.0")),
@@ -536,6 +542,7 @@ type RegistryChecks {
   """
   let duplicateTree(
     ws: Workspace!,
+    label: String!,
     runtime: String!,
     coreA: Directory!,
     coreB: Directory!,
@@ -546,7 +553,7 @@ type RegistryChecks {
       PublishedPackage(dir: probePackage("probe-writer", "1.0.0", writerSource), id: "writer"),
       PublishedPackage(dir: probePackage("probe-reader", "2.0.0", readerSource), id: "reader"),
     ]
-    let reg = LocalRegistry(content: staged(pkgs))
+    let reg = LocalRegistry(content: staged(label, pkgs))
 
     # Publish and install in one chain, in the runtime's own container. Across two
     # containers the second one can get a registry that has forgotten everything,
