@@ -1,4 +1,4 @@
-import { NetworkProtocol } from "../../../../../api/client.gen.js"
+import { NetworkProtocol } from "../../../../../core/client.gen.js"
 import { func, object } from "../../../../decorators.js"
 
 @object()

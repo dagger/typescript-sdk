@@ -15,9 +15,9 @@ type Packager {
   """
   Directory holding the library's own generated bindings, relative to
   libraryPath. Matches the layout of the library source they are compiled with,
-  where the runtime they import sits at ../common/context.js.
+  where the runtime they import sits at ../session/context.js.
   """
-  let bindingsPath: String! = "src/api"
+  let bindingsPath: String! = "src/core"
 
   """
   Regenerate the TypeScript library's own bindings (client.gen.ts) from the
@@ -75,7 +75,7 @@ type Packager {
       # than `bun build --compile`d as the engine does: a compiled binary is
       # ~100MB and per-platform, where this is a few MB of portable JS.
       .withExec([
-        "bun", "build", "src/module/entrypoint/introspection_entrypoint.ts",
+        "bun", "build", "src/module/introspector/introspection_entrypoint.ts",
         "--external=typescript", "--target=node", "--outfile", "/out/introspector.js",
       ])
       # The scanner reads the user's code through the TypeScript compiler API,
@@ -103,6 +103,50 @@ type Packager {
   toolchain in every user's `dagger generate`.
   """
   let bundlePath: String! = "bundle"
+
+  """
+  The library compiled to JavaScript and ready to `npm publish`.
+
+  This is the shape `library/package.json` has always described — `main:
+  dist/src/index.js`, `files: ["dist/"]` — and that nothing built, because nothing
+  here is published yet. It has to exist before anything can be:
+  `e2e:registry:publish-install-check` establishes that node and deno both refuse
+  to load TypeScript from under node_modules, so the source tree a scope carries
+  today cannot be what gets published. See design/package-split.md.
+
+  Not committed and not a `@generate` function. The bundle is committed because
+  module generation reads it; this is only ever read by a publish, so building it
+  on demand keeps 1.8 MB of derived files out of the tree.
+
+  The introspector is dropped before the compile. It is generation-time, no
+  published entry point reaches it, and it is the only thing in here that imports
+  the TypeScript compiler — which is what lets the manifest below drop
+  `typescript`, a 24 MB dependency a consumer would otherwise install to run code
+  that never calls it. Same reasoning as `moduleBundleCheck`, one layer out.
+  """
+  publishable(ws: Workspace!, version: String! = "0.0.0"): Directory! {
+    let built = bun
+      .withDirectory("/src", ws.directory("/" + libraryPath))
+      .withWorkdir("/src")
+      .withoutDirectory("/src/src/module/introspector")
+      .withExec(["bun", "install", "--frozen-lockfile"])
+      .withExec(["bun", "x", "tsc"])
+      .withEnvVariable("PUBLISH_VERSION", version)
+      # Derived from the vendored manifest rather than written out here, so the
+      # dependency list cannot drift from the one the bundle is built against.
+      # devDependencies and resolutions go because a consumer installs neither.
+      .withExec(["node", "-e",
+        "const p = require('/src/package.json');" +
+        "delete p.dependencies.typescript;" +
+        "delete p.devDependencies;" +
+        "delete p.resolutions;" +
+        "p.version = process.env.PUBLISH_VERSION;" +
+        "require('fs').writeFileSync('/manifest.json', JSON.stringify(p, null, 2) + '\\n')"])
+
+    directory
+      .withDirectory("dist", built.directory("/src/dist"))
+      .withFile("package.json", built.file("/manifest.json"))
+  }
 
   """
   Bun toolchain the bundle is built with, pinned to the version and digest the
@@ -142,6 +186,115 @@ type Packager {
         "loads this bundle on every call and does not need a compiler to " +
         "dispatch. Something re-exported from library/src/index.ts reaches the " +
         "introspector — see library/VENDOR.md."
+    }
+
+    null
+  }
+
+  """
+  The published manifest declares what the published code imports, and nothing
+  else.
+
+  Both directions are bugs the split would ship, and both exist in the tree this
+  check was written against. A dependency imported but not declared resolves today
+  only because something else happens to pull it in — fine until that something
+  changes its own dependencies, or until a consumer uses a resolver that does not
+  hoist. A dependency declared but never imported is weight every consumer
+  installs for nothing, and the install-size numbers in design/package-split.md are
+  the argument for caring.
+
+  Run over `publishable`, so the input is compiled JavaScript. That is what makes
+  the comparison meaningful: `import type` is erased by then, and a type-only
+  import is not a runtime dependency. It is also why this cannot be done against
+  the bundle, which inlines its whole closure and imports nothing.
+  """
+  manifestIsHonestCheck(ws: Workspace!): Void @check {
+    bun
+      .withDirectory("/pkg", publishable(ws))
+      .withFile("/audit.cjs", currentModule.source.file("audit-imports.cjs"))
+      .withExec(["node", "/audit.cjs", "/pkg"])
+      .sync
+
+    null
+  }
+
+  """
+  The library's manifest must resolve with npm, not only with bun.
+
+  npm is the only one of the three installers that enforces `peerDependencies` at
+  install time, so it is the only one that would have noticed
+  `graphql-request@7.4.0` peering on `graphql "14 - 16"` while this manifest asked
+  for `^17.0.1`. It did not notice, for as long as nobody ran npm over it: bun and
+  yarn install that tree without a word, and both lockfiles here recorded it
+  happily. A consumer on npm would have hit `ERESOLVE` on the first install.
+
+  Nothing here is published yet, which is exactly why this check exists — it
+  stands in for the consumer who will be. Production dependencies only: that is
+  the closure a published package hands over, and the dev tools are bun's problem.
+
+  `--dry-run` because resolution is the whole question; ERESOLVE happens before
+  anything is downloaded.
+  """
+  manifestInstallsCheck(ws: Workspace!): Void @check {
+    container
+      .from("node:24-alpine")
+      .withoutEntrypoint
+      .withFile("/lib/package.json", ws.file("/" + libraryPath + "/package.json"))
+      .withWorkdir("/lib")
+      .withExec(["npm", "install", "--omit=dev", "--no-audit", "--no-fund", "--dry-run"])
+      .sync
+
+    null
+  }
+
+  """
+  Every source file under `layer` that imports from any of `forbidden`,
+  formatted as a line naming both ends of the edge.
+  """
+  let crossedLayerBoundaries(src: Directory!, layer: String!, forbidden: [String!]!): [String!]! {
+    forbidden.reduce([]) { found, other =>
+      found + src.glob(layer + "/**/*.ts")
+        .filter { path => src.file(path).contents.contains("/" + other + "/") }
+        .map { path => "  " + path + " imports " + other }
+    }
+  }
+
+  """
+  The library's layers do not import upward.
+
+  The layering is session <- core <- module, which is the shape the package split
+  needs: @dagger.io/core depends on @dagger.io/session, @dagger.io/module on
+  @dagger.io/core. While it is all still one package nothing but this check stops
+  an upward import being added — and the moment one is, the split stops being a
+  packaging change and becomes a refactor again. See design/package-split.md.
+
+  Checked on the source rather than the bundle: the bundle is one file with the
+  layering flattened out of it, so by the time an upward import shows up there it
+  is unattributable.
+
+  No layer may reach `telemetry`, which is the rule that keeps the OpenTelemetry
+  SDK out of a generated client's closure — roughly 96 MB of the 161 MB one
+  installs today. `connection` needs both a session and the tracer's lifetime, so
+  it is not in a layer at all: it sits beside `index.ts` as the composition it is,
+  and the facade is the only package that will carry it.
+
+  Files directly under `src/` are unchecked for that reason. They are the facade,
+  and the facade is allowed to depend on everything — it is defined as the thing
+  that does.
+  """
+  layeringCheck(ws: Workspace!): Void @check {
+    let src = ws.directory("/" + libraryPath + "/src")
+
+    let violations =
+      crossedLayerBoundaries(src, "session", ["core", "module", "telemetry"]) +
+      crossedLayerBoundaries(src, "core", ["module", "telemetry"]) +
+      crossedLayerBoundaries(src, "module", ["telemetry"]) +
+      crossedLayerBoundaries(src, "telemetry", ["session", "core", "module"])
+
+    if (violations.length > 0) {
+      raise "library/src crosses a layer boundary:\n" +
+        violations.join("\n") +
+        "\n\nLayering is session <- core <- module. See design/package-split.md."
     }
 
     null

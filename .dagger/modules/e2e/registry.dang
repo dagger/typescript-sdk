@@ -1,0 +1,841 @@
+"""
+A local npm registry, for the checks that need a package *installed* rather than
+copied into place.
+
+Everything else in this repo puts `@dagger.io/dagger` where a module can see it
+by copying a directory — which is what the SDK does today, and what
+design/package-split.md is about ending. Copying answers none of the questions a
+real dependency raises: whether the manifest resolves at all, whether two
+versions of one package can land in one tree, whether a version published a
+minute ago is installable yet. Those need a registry, so this runs one.
+
+Our own scope does not proxy. `@dagger.io/dagger` is a real name on npmjs, and
+verdaccio merges an uplink's versions with the locally published ones — so a
+proxied scope could answer a resolution from the wrong place, quietly. Everything
+else does proxy, so a check can still install an ordinary dependency.
+"""
+type LocalRegistry {
+  """
+  Everything this registry will be given, one package per subdirectory.
+
+  It is what the storage volume is keyed on, so a version already present under a
+  given key was published from the same bytes. That is what makes the volume safe to
+  outlive a run, and it is why `publish.sh` can treat "already published" as
+  ordinary rather than exceptional.
+
+  It also carries a label that nothing publishes, naming the consumer. Content alone
+  is not enough to key on: byte-identical package sets would share one volume and
+  one service, and the three runtime arms of a check publish exactly that — three
+  concurrent `npm publish` of one version into one verdaccio, interleaving writes to
+  the same tarball. One arm wins and the others get
+  `IntegrityCheckFailed extracting tarball`, which is how this was found. Two
+  consumers are two registries even when they serve the same bytes.
+  """
+  let content: Directory!
+
+  """
+  The alias a container binds the registry to, and so the hostname it is reached
+  by. Its port is verdaccio's own default.
+  """
+  let alias: String! = "registry"
+
+  let url: String! = "http://" + alias + ":4873"
+
+  """
+  verdaccio's configuration, replacing the image's.
+
+  Anonymous publish — `$all` rather than `$authenticated` — because a token would
+  be minted, used and discarded inside a single session, which tests the harness
+  and nothing else. npm still refuses to publish with no credential configured at
+  all, which is what the dummy `_authToken` below is for.
+  """
+  let config: String! {
+    "listen: 0.0.0.0:4873\n" +
+      "storage: /verdaccio/storage\n" +
+      "max_body_size: 100mb\n" +
+      "uplinks:\n" +
+      "  npmjs:\n" +
+      "    url: https://registry.npmjs.org/\n" +
+      "    cache: true\n" +
+      "packages:\n" +
+      "  '@dagger.io/*':\n" +
+      "    access: $all\n" +
+      "    publish: $all\n" +
+      "    unpublish: $all\n" +
+      "  '**':\n" +
+      "    access: $all\n" +
+      "    publish: $all\n" +
+      "    unpublish: $all\n" +
+      "    proxy: npmjs\n" +
+      "log: { type: stdout, format: pretty, level: warn }\n"
+  }
+
+  let service: Service! {
+    container
+      .from("verdaccio/verdaccio:6")
+      .withNewFile("/verdaccio/conf/config.yaml", config)
+      # Storage on a volume rather than in the container, because the engine is
+      # free to restart a service and verdaccio keeps what it was given on disk. A
+      # restart with container-local storage comes back empty and every install
+      # 404s on a package that was definitely published — seen only inside
+      # engine-e2e's playground, where memory pressure makes restarts likely, and
+      # seen there twice.
+      #
+      # Keyed by the digest of what will be published: a restart recovers exactly
+      # the same content, and changed packages get a different volume rather than
+      # a stale answer. That is what makes tolerating a republish conflict below
+      # safe rather than a way to test last week's bytes.
+      #
+      # owner, because the image runs verdaccio as uid 10001 and a mounted volume
+      # arrives owned by root: without it verdaccio starts, serves 404s and logs
+      # `EACCES: permission denied, mkdir /verdaccio/storage/npm`.
+      .withMountedCache(
+        "/verdaccio/storage",
+        cacheVolume("verdaccio-" + content.digest),
+        owner: "10001:10001",
+      )
+      .withExposedPort(4873)
+      .asService(useEntrypoint: true)
+  }
+
+  """
+  npm's configuration: every resolution through the registry, and a credential it
+  never checks.
+  """
+  let npmrc: String! {
+    "registry=" + url + "/\n" +
+      "//" + alias + ":4873/:_authToken=e2e\n"
+  }
+
+  """
+  Publish a package directory, and hand back the container to keep building on.
+
+  Chained rather than called side by side: publishing is a side effect on the
+  service, and two containers that only share a service binding have no ordering
+  between them — an install could be resolved before the publish it needs ran.
+  `id` only has to be unique within one chain; it names the directory the tarball
+  is packed from.
+  """
+  let withPublished(from: Container!, pkg: Directory!, id: String!): Container! {
+    let staged = "/publish/" + id
+
+    from
+      .withFile("/publish.sh", currentModule.source.file("publish.sh"))
+      .withDirectory(staged, pkg)
+      .withWorkdir(staged)
+      .withExec(["sh", "/publish.sh"])
+      .withWorkdir("/work")
+  }
+
+  """
+  Publish several packages into one chain, in order.
+  """
+  let withPublishedAll(from: Container!, pkgs: [PublishedPackage!]!): Container! {
+    pkgs.reduce(from) { chain, pkg => withPublished(chain, pkg.dir, pkg.id) }
+  }
+}
+
+"""
+One package staged for publishing: its contents, and a name for the directory it
+is packed from.
+"""
+type PublishedPackage {
+  let dir: Directory!
+  let id: String!
+}
+
+"""
+Checks that the library is a package, not just a directory.
+
+These are the only checks in this repo that install `@dagger.io/dagger` the way a
+user's own project would. See design/package-split.md — step 2 of its sequencing.
+"""
+type RegistryChecks {
+  """
+  The package every generated module carries today should publish, resolve from a
+  cold client, install, and load.
+
+  This is the shape the SDK writes into a scope as `clients/dagger`: the bundle
+  plus the hand-written wrappers, a manifest, and no dependencies of its own. If
+  it cannot make the round trip then neither can whatever the split replaces it
+  with, and the rest of the sequencing has nothing to stand on.
+
+  Which runtimes can then load it is the constraint that matters, and it is not
+  the one you would guess. The entry is `index.ts`, and **node and deno both
+  refuse** to strip types from a file under node_modules —
+  `ERR_UNSUPPORTED_NODE_MODULES_TYPE_STRIPPING`, the same error code from both.
+  Only bun reads it. All four outcomes are asserted, the refusals by the path they
+  name rather than by their wording.
+
+  A module never notices, whichever runtime it targets. Node goes through tsx — the
+  engine's runtime mounts one and a generated entrypoint installs its own
+  (`dangTsxVersion`, entrypoint_dang.go) — and deno resolves `@dagger.io/dagger`
+  through `deno.json` to a path rather than through node_modules, where the rule
+  does not apply. A *client-only* scope does notice, because there the user runs
+  their own node or deno and the package is an ordinary dependency. So
+  `@dagger.io/core` cannot ship TypeScript source the way this package does, and
+  two of the three runtimes say so rather than one.
+  """
+  publishInstallCheck(ws: Workspace!): Void @check {
+    # One chain per runtime — each publishing into its own registry, each reading
+    # its own stdout, and the three concatenated. Container.stdout is the last
+    # exec's output rather than the chain's, so there is no single container to
+    # read all of this from anyway.
+    let out = loadProbe(ws, "node") + loadProbe(ws, "bun") + loadProbe(ws, "deno")
+
+    Asserts.stringContains(
+      out,
+      "core.js",
+      "the installed package should carry the bundle, got: " + out,
+    )
+    Asserts.stringContains(
+      out,
+      "tsx loaded object",
+      "the installed package should load under tsx, got: " + out,
+    )
+    Asserts.stringContains(
+      out,
+      "bun loaded object",
+      "bun reads TypeScript out of node_modules, so it should load the package " +
+        "as published, got: " + out,
+    )
+    Asserts.stringContains(
+      out,
+      "node refused",
+      "plain node should still refuse a .ts entry under node_modules — if it " +
+        "has stopped, @dagger.io/core may be able to ship source after all. " +
+        "Got: " + out,
+    )
+    Asserts.stringContains(
+      out,
+      "deno refused",
+      "deno enforces the same rule as node; if it has stopped, the constraint " +
+        "on what the split may publish is weaker than recorded. Got: " + out,
+    )
+    # The path rather than the prose: both runtimes name the file they would not
+    # strip, and a refusal for any other reason would not mention it. The wording
+    # of the messages is theirs and may move; this is what pins the *cause*.
+    Asserts.stringContains(
+      out,
+      "@dagger.io/dagger/index.ts",
+      "the refusals should be on the package's own entry, not earlier. Got: " + out,
+    )
+
+    null
+  }
+
+  """
+  deno will not install a package published a minute ago, and the exemption is what
+  lets it through.
+
+  From 2.9 deno enforces a 24-hour floor on dependency age by default, so a
+  generated deno module that pins `@dagger.io/core@<engine version>` breaks for a
+  day after every engine release — see "Releasing" in design/package-split.md. The
+  fix is a `deno.json` key, and this is the check that the key is doing the work:
+  the same install with and without it, refused and accepted.
+
+  It matters here before it matters to users. Nothing generated installs
+  `@dagger.io/dagger` from a registry yet — a deno module resolves it through
+  `imports` to a path — so the floor is not reachable through
+  `helpers/config-updater` today. It is reachable through this harness, which is
+  where the release path gets rehearsed, and where the assertion can exist before
+  the situation does.
+  """
+  denoDependencyAgeCheck(ws: Workspace!): Void @check {
+    let exempt = denoInstall(ws, "age-exempt", true)
+    let enforced = denoInstall(ws, "age-enforced", false)
+
+    Asserts.stringContains(
+      exempt,
+      "install ok",
+      "with the scope exempted, deno should install packages published seconds " +
+        "ago. Got: " + exempt,
+    )
+    Asserts.stringContains(
+      enforced,
+      "install refused",
+      "without the exemption deno should refuse them; if it has stopped, the " +
+        "release path no longer needs the key. Got: " + enforced,
+    )
+    # The reason, not just the refusal: without this the check would also pass on
+    # an unreachable registry or a typo in a package name.
+    Asserts.stringContains(
+      enforced,
+      "minimum dependency date",
+      "deno should refuse on the age floor specifically. Got: " + enforced,
+    )
+
+    null
+  }
+
+  """
+  Run `deno install` against the registry, with or without the age exemption, and
+  report which way it went.
+  """
+  let denoInstall(ws: Workspace!, label: String!, exempt: Boolean!): String! {
+    let pkgs = [
+      PublishedPackage(dir: bundleEntryPackage(ws, "1.0.0"), id: "core"),
+      PublishedPackage(dir: probePackage("probe-writer", "1.0.0", writerSource), id: "writer"),
+      PublishedPackage(dir: probePackage("probe-reader", "1.0.0", readerSource), id: "reader"),
+    ]
+    let reg = LocalRegistry(content: staged(label, pkgs))
+
+    reg
+      .withPublishedAll(runtimeClient(reg, "deno"), pkgs)
+      .withNewFile("/work/package.json", appManifest)
+      .withNewFile("/work/deno.json", denoConfigWith(exempt: exempt))
+      .withExec(["sh", "-c", "deno install 2>&1 && echo 'install ok' || echo 'install refused'"])
+      .stdout
+  }
+
+  """
+  The compiled package loads on all three runtimes, including the two that refuse
+  the source one.
+
+  This is the other half of publishInstallCheck, and the pair is the argument for
+  what step 3 has to publish. Same probe, same registry, same three runtimes — the
+  only difference is that `packager:publishable` compiled the library to JavaScript
+  first, so there is no TypeScript left under node_modules for node or deno to
+  refuse. No tsx anywhere.
+
+  It also exercises the manifest for real, which the bundled shape cannot: the
+  compiled package has the library's actual dependencies rather than a 4 MB bundle
+  with everything inlined, so this is the first check where `graphql-request`,
+  `execa`, `tar` and the rest are resolved and loaded by a consumer.
+  """
+  compiledPackageCheck(ws: Workspace!): Void @check {
+    let out = compiledLoadProbe(ws, "node") +
+      compiledLoadProbe(ws, "bun") +
+      compiledLoadProbe(ws, "deno")
+
+    ["node", "bun", "deno"].each { runtime =>
+      Asserts.stringContains(
+        out,
+        runtime + " loaded object",
+        "the compiled package should load under " + runtime +
+          " with no loader in the way — that is the whole reason for compiling " +
+          "it. Got: " + out,
+      )
+    }
+
+    null
+  }
+
+  """
+  Publish the compiled package and import it under one runtime.
+  """
+  let compiledLoadProbe(ws: Workspace!, runtime: String!): String! {
+    let pkgs = [
+      PublishedPackage(dir: packager.publishable(ws, version: "1.0.0"), id: "core"),
+    ]
+    let reg = LocalRegistry(content: staged("compiled-" + runtime, pkgs))
+
+    reg
+      .withPublishedAll(runtimeClient(reg, runtime), pkgs)
+      .withExec(["npm", "cache", "clean", "--force"])
+      .withNewFile("/work/package.json", probeManifest(withTsx: false))
+      .withNewFile("/work/deno.json", denoConfig)
+      # .js, not .ts: the point is that nothing needs a TypeScript loader any more,
+      # and a .ts probe would put one back for node.
+      .withNewFile(compiledProbe, probeSource)
+      .withExec(installArgs(runtime))
+      .withExec(["sh", "-c", probeLine(runtime, interpreter(runtime), compiledProbe)])
+      .stdout
+  }
+
+  """
+  Everything a check publishes, as one directory — one package per subdirectory,
+  named by its id.
+
+  Built before the registry rather than inside it, because the registry is keyed on
+  it. The same list then drives the publishing, so the key and the packages cannot
+  come apart.
+  """
+  let staged(label: String!, pkgs: [PublishedPackage!]!): Directory! {
+    # The label sits at the top level, where publishing never looks — only the
+    # per-package subdirectories are published. It exists to reach the digest.
+    pkgs
+      .reduce(directory) { tree, pkg => tree.withDirectory(pkg.id, pkg.dir) }
+      .withNewFile("consumer", label + "\n")
+  }
+
+  """
+  Install the published package under one runtime and report which of its loaders
+  can import it.
+
+  node gets two lines because it has two answers: bare node, and node through tsx.
+  """
+  let loadProbe(ws: Workspace!, runtime: String!): String! {
+    let pkgs = [PublishedPackage(dir: corePackage(ws, "1.0.0"), id: "core")]
+    let reg = LocalRegistry(content: staged("source-" + runtime, pkgs))
+
+    reg
+      .withPublishedAll(runtimeClient(reg, runtime), pkgs)
+      # Packing the tarball leaves npm holding the contents it just read. The point
+      # of the next step is that the *registry* can answer it.
+      .withExec(["npm", "cache", "clean", "--force"])
+      .withExec(["npm", "view", "@dagger.io/dagger@1.0.0", "version"])
+      .withNewFile("/work/package.json", probeManifest)
+      .withNewFile("/work/deno.json", denoConfig)
+      .withNewFile(sourceProbe, probeSource)
+      .withExec(installArgs(runtime))
+      .withExec(["sh", "-c", probeScript(runtime)])
+      .stdout
+  }
+
+  """
+  What to run, per runtime. Each line is labelled and its exit code swallowed:
+  both outcomes are results, and a non-zero exit would end the chain before the
+  next loader was tried.
+  """
+  let probeScript(runtime: String!): String! {
+    if (runtime == "bun") {
+      probeLine("bun", interpreter("bun"), sourceProbe)
+    } else if (runtime == "deno") {
+      probeLine("deno", interpreter("deno"), sourceProbe)
+    } else {
+      "ls node_modules/@dagger.io/dagger; " +
+        probeLine("node", interpreter("node"), sourceProbe) + "; " +
+        probeLine("tsx", "npx tsx", sourceProbe)
+    }
+  }
+
+  let probeLine(name: String!, runner: String!, file: String!): String! {
+    "echo -n '" + name + " '; " + runner +
+      " " + file + " 2>&1 || echo '" + name + " refused'"
+  }
+
+  """
+  The probe's manifest. tsx is a dependency for every runtime even though only node
+  uses it, so the trees differ by the resolver and nothing else.
+
+  `type: module`, and not `npm init -y`, whose default is commonjs — under that the
+  probe fails with "Cannot use import statement outside a module" before the
+  runtime ever looks at the package, which would leave the refusals passing for a
+  reason that has nothing to do with it.
+  """
+  let probeManifest(withTsx: Boolean! = true): String! {
+    let tsx = if (withTsx) {
+      ",\n    \"tsx\": \"4.22.4\""
+    } else {
+      ""
+    }
+
+    "{\n" +
+      "  \"name\": \"load-probe\",\n" +
+      "  \"version\": \"1.0.0\",\n" +
+      "  \"type\": \"module\",\n" +
+      "  \"dependencies\": {\n" +
+      "    \"@dagger.io/dagger\": \"1.0.0\"" + tsx + "\n" +
+      "  }\n" +
+      "}\n"
+  }
+
+  """
+  Two copies of the library in one tree should still share one registry.
+
+  This is the guarantee the whole split rests on, and the only place it actually
+  lives. `registry` and `globalConnection` are singletons; once this is several
+  packages, a resolver can install two copies of the one holding them, each
+  evaluating its own. The decorator would write into one registry and the
+  dispatcher read another, and the error a user sees is "my @object class isn't
+  found" — nothing pointing at node_modules. `Symbol.for`-keyed slots on
+  globalThis are what contain it, because they are a language feature rather than
+  a resolver behaviour.
+
+  The tree is built by the resolver rather than by hand, which is the point: two
+  intermediary packages pin different exact versions of the library, each runtime's
+  own installer hoists one and nests the other, and the check asserts both that the
+  duplicate really happened and that the two copies still agree. A dedupe would
+  make this pass for no reason, so the count is asserted too.
+
+  One check per runtime, because this is the axis they stop being interchangeable
+  on: node, bun and deno each have their own resolver, and the measurements in
+  design/package-split.md found the three agreeing on mode 1 and disagreeing on
+  everything else. Sharing one check would test whichever ran.
+
+  Each check runs the tree twice and asserts the *contrast*, because on its own
+  `shared true` says very little. `reflect-metadata` is bundled into each copy and
+  patches a global, so it is not obvious from reading that the `Registry` instance
+  is what keys the metadata — and a runtime that deduped two identical files would
+  report agreement for a reason that has nothing to do with `shared`. The second
+  run has `shared("registry", …)` patched out of the built bundle and has to
+  disagree. Only the pair means anything.
+  """
+  duplicateTreeNodeCheck(ws: Workspace!): Void @check {
+    assertContainment(ws, "node")
+  }
+
+  """The same guarantee, and the same contrast, under bun's resolver."""
+  duplicateTreeBunCheck(ws: Workspace!): Void @check {
+    assertContainment(ws, "bun")
+  }
+
+  """And under deno's."""
+  duplicateTreeDenoCheck(ws: Workspace!): Void @check {
+    assertContainment(ws, "deno")
+  }
+
+  """
+  Build the duplicated tree twice on one runtime — once as shipped, once with the
+  containment removed — and assert they disagree in the right direction.
+  """
+  let assertContainment(ws: Workspace!, runtime: String!): Void {
+    let contained = duplicateTree(
+      ws,
+      "contained-" + runtime,
+      runtime,
+      bundleEntryPackage(ws, "1.0.0"),
+      bundleEntryPackage(ws, "2.0.0"),
+    )
+    let uncontained = duplicateTree(
+      ws,
+      "uncontained-" + runtime,
+      runtime,
+      withoutContainment(bundleEntryPackage(ws, "1.0.0")),
+      withoutContainment(bundleEntryPackage(ws, "2.0.0")),
+    )
+
+    Asserts.stringContains(
+      contained,
+      "copies 2",
+      runtime + ": the tree should hold exactly two copies of the library, or " +
+        "this check proves nothing. Got: " + contained,
+    )
+    Asserts.stringContains(
+      contained,
+      "shared true",
+      runtime + ": two copies of the library should share one registry — the " +
+        "copy that registered a class and the copy that looked it up disagreed. " +
+        "Got: " + contained,
+    )
+    Asserts.stringContains(
+      uncontained,
+      "copies 2",
+      runtime + ": the control needs the same duplicated tree. Got: " + uncontained,
+    )
+    Asserts.stringContains(
+      uncontained,
+      "shared false",
+      runtime + ": with the globalThis slot patched out, the two copies should " +
+        "each get their own registry and the lookup should fail. It did not, so " +
+        "the result above proves less than it appears to. Got: " + uncontained,
+    )
+
+    null
+  }
+
+  """
+  Build the duplicated tree and report what happened: how many copies of the
+  library the resolver installed, and whether the two agreed.
+
+  Both copies run the same code and differ only in version — the hazard is two
+  *copies*, not two implementations.
+
+  The packages here enter at `core.js` rather than at the `index.ts` wrapper, and
+  the probes are JavaScript. Not cosmetic: node and deno will not load TypeScript
+  from node_modules at all (see publishInstallCheck), so on the shape a scope
+  carries today two of the three runtimes would fail on the file extension long
+  before reaching the question this check asks. The singleton code is the same
+  either way — it is the same built bundle — so entering at it isolates the
+  resolver from the loader.
+  """
+  let duplicateTree(
+    ws: Workspace!,
+    label: String!,
+    runtime: String!,
+    coreA: Directory!,
+    coreB: Directory!,
+  ): String! {
+    let pkgs = [
+      PublishedPackage(dir: coreA, id: "core-a"),
+      PublishedPackage(dir: coreB, id: "core-b"),
+      PublishedPackage(dir: probePackage("probe-writer", "1.0.0", writerSource), id: "writer"),
+      PublishedPackage(dir: probePackage("probe-reader", "2.0.0", readerSource), id: "reader"),
+    ]
+    let reg = LocalRegistry(content: staged(label, pkgs))
+
+    # Publish and install in one chain, in the runtime's own container. Across two
+    # containers the second one can get a registry that has forgotten everything,
+    # because a service lives only as long as something holds it. One chain holds
+    # it from the publish to the assertion. The storage volume is the other half of
+    # that — see `service`.
+    reg
+      .withPublishedAll(runtimeClient(reg, runtime), pkgs)
+      .withNewFile("/work/package.json", appManifest)
+      .withNewFile("/work/app.js", appSource)
+      .withNewFile("/work/deno.json", denoConfig)
+      .withExec(installArgs(runtime))
+      .withExec([
+        "sh", "-c",
+        "echo \"copies $(find node_modules -path '*@dagger.io/dagger/package.json' | wc -l | tr -d ' ')\"; " +
+          runCommand(runtime),
+      ])
+      .stdout
+  }
+
+  """
+  A container for one runtime, bound to the registry, with npm available.
+
+  npm is added to the bun and deno images rather than publishing from a separate
+  node container: publishing has to happen in the same chain that installs (see
+  duplicateTree), so whatever runs the install has to be able to publish too. It is
+  only ever the publisher — each runtime still installs with its own resolver,
+  which is the thing under test.
+  """
+  let runtimeClient(reg: LocalRegistry!, runtime: String!): Container! {
+    let base = if (runtime == "bun") {
+      container.from("oven/bun:1-alpine").withExec(["apk", "add", "--no-cache", "nodejs", "npm"])
+    } else if (runtime == "deno") {
+      container.from("denoland/deno:alpine").withExec(["apk", "add", "--no-cache", "nodejs", "npm"])
+    } else {
+      container.from("node:24-alpine")
+    }
+
+    base
+      .withoutEntrypoint
+      .withServiceBinding(reg.alias, reg.service)
+      # HOME is set explicitly because .npmrc is looked up under it and the three
+      # images do not agree on what it is.
+      .withEnvVariable("HOME", "/root")
+      .withNewFile("/root/.npmrc", reg.npmrc)
+      .withExec(["mkdir", "-p", "/work"])
+      .withWorkdir("/work")
+  }
+
+  """
+  How each runtime installs the tree. Each one's own installer, not npm three
+  times: the resolver is what is under test.
+  """
+  let installArgs(runtime: String!): [String!]! {
+    if (runtime == "bun") {
+      ["bun", "install"]
+    } else if (runtime == "deno") {
+      ["deno", "install"]
+    } else {
+      ["npm", "install"]
+    }
+  }
+
+  """
+  Each runtime's bare interpreter. deno needs its permissions opened because the
+  library reads the environment and opens sockets.
+  """
+  let interpreter(runtime: String!): String! {
+    if (runtime == "bun") {
+      "bun"
+    } else if (runtime == "deno") {
+      "deno run --allow-all"
+    } else {
+      "node"
+    }
+  }
+
+  """
+  How each runtime runs the duplicate-tree app. Plain JavaScript, so no loader is
+  involved and what differs between the three is only the resolver.
+  """
+  let runCommand(runtime: String!): String! {
+    interpreter(runtime) + " /work/app.js"
+  }
+
+  """Where each probe source is written."""
+  let sourceProbe: String! = "/work/probe.ts"
+
+  let compiledProbe: String! = "/work/probe.js"
+
+  """
+  The app's manifest. The probes are dependencies rather than `install` arguments so
+  that all three installers read the same thing.
+
+  No tsx: the app and the probes are JavaScript and the packages enter at the
+  bundle, so nothing here needs a loader.
+  """
+  let appManifest: String! {
+    "{\n" +
+      "  \"name\": \"duplicate-tree-app\",\n" +
+      "  \"version\": \"1.0.0\",\n" +
+      "  \"type\": \"module\",\n" +
+      "  \"dependencies\": {\n" +
+      "    \"probe-writer\": \"1.0.0\",\n" +
+      "    \"probe-reader\": \"1.0.0\"\n" +
+      "  }\n" +
+      "}\n"
+  }
+
+  """
+  deno's configuration. Ignored by node and bun, so it is written unconditionally.
+
+  `nodeModulesDir: auto` because the tree under test is a node_modules tree, and
+  deno resolves npm packages into its own global cache otherwise — there would be
+  nothing for the copy count to find.
+
+  `minimumDependencyAge.exclude` because these packages were published seconds ago
+  and deno's floor is 24 hours by default from 2.9. Without it `deno install`
+  refuses them outright, which denoDependencyAgeCheck asserts rather than assumes.
+  """
+  let denoConfig: String! {
+    denoConfigWith(exempt: true)
+  }
+
+  let denoConfigWith(exempt: Boolean!): String! {
+    let exemption = if (exempt) {
+      ",\n  \"minimumDependencyAge\": { \"exclude\": [\"npm:@dagger.io/*\", \"npm:probe-*\"] }"
+    } else {
+      ""
+    }
+
+    "{\n" +
+      "  \"nodeModulesDir\": \"auto\"" + exemption + "\n" +
+      "}\n"
+  }
+
+  """
+  The same package with step 1's globalThis containment removed, back to the
+  module-scope singleton it replaced.
+
+  The grep is the guard: a sed that stops matching would silently leave the
+  bundle intact and turn the negative control into a second copy of the positive
+  one.
+  """
+  let withoutContainment(pkg: Directory!): Directory! {
+    container
+      .from("alpine:3.21")
+      .withDirectory("/pkg", pkg)
+      .withExec([
+        "sed", "-i",
+        "s/shared(\"registry\", () => new Registry)/new Registry/",
+        "/pkg/core.js",
+      ])
+      .withExec(["grep", "-q", "var registry = new Registry", "/pkg/core.js"])
+      .directory("/pkg")
+  }
+
+  """
+  A package that depends on one exact version of the library and does one thing
+  with it. Two of these, pinned to different versions, are what make npm produce
+  a duplicate.
+  """
+  let probePackage(name: String!, coreVersion: String!, source: String!): Directory! {
+    directory
+      .withNewFile("index.js", source)
+      .withNewFile(
+        "package.json",
+        "{\n" +
+          "  \"name\": \"" + name + "\",\n" +
+          "  \"version\": \"1.0.0\",\n" +
+          "  \"type\": \"module\",\n" +
+          "  \"main\": \"./index.js\",\n" +
+          "  \"dependencies\": { \"@dagger.io/dagger\": \"" + coreVersion + "\" }\n" +
+          "}\n",
+      )
+  }
+
+  """
+  Registers a class, through the decorator a user's module would use. Called
+  rather than applied as `@object()`, so the probe needs no decorator support from
+  whatever runs it.
+  """
+  let writerSource: String! {
+    "import { object } from \"@dagger.io/dagger\"\n" +
+      "export class SharedProbe {}\n" +
+      "object()(SharedProbe)\n"
+  }
+
+  """
+  Looks the class up, the way a dispatcher would.
+  """
+  let readerSource: String! {
+    "import { getRegisteredClass } from \"@dagger.io/dagger\"\n" +
+      "export const found = () => getRegisteredClass(\"SharedProbe\") !== undefined\n"
+  }
+
+  """
+  The app over both: import order matters, so the writer runs first.
+  """
+  let appSource: String! {
+    "import \"probe-writer\"\n" +
+      "import { found } from \"probe-reader\"\n" +
+      "console.log(\"shared \" + found())\n"
+  }
+
+  """
+  What the probe runs: a module importing the package the way a user's own code
+  would, rather than an `--eval` string. A .ts file outside node_modules, so node
+  strips types from *this* file and the only question left is whether it can do
+  the same for the package's entry.
+  """
+  let probeSource: String! {
+    "import { dag } from \"@dagger.io/dagger\"\n" +
+      "console.log(\"loaded \" + typeof dag)\n"
+  }
+
+  """
+  The package the SDK writes into a scope, at a version of our choosing.
+
+  Taken from a real generation rather than assembled here, because the two are not
+  interchangeable and the difference is invisible until something tries to import
+  it. `library/src/core/client.gen.ts` — the library's *own* bindings — imports
+  `../session/context.js`, a path that exists in the library source tree and in no
+  package. The bindings a scope gets reach the runtime through the bundle beside
+  them instead. Only the second one is a package.
+
+  The include list is the SDK's own `moduleSdkDirectory` list: `sdk/` also holds
+  the module's clients and loader, which belong to the module and not to the
+  library. A manifest is added because `sdk/` has none — the engine mounts it into
+  node_modules directly, so nothing has ever had to name it.
+  """
+  let corePackage(ws: Workspace!, version: String!): Directory! {
+    let path = Fixtures.out + "/registry-core"
+    let generated = Gen.module(ws, path, "registry-core").layer.directory(path + "/sdk")
+
+    directory
+      .withDirectory(
+        ".",
+        generated,
+        include: ["core.js", "core.d.ts", "index.ts", "telemetry.ts", "client.gen.ts"],
+      )
+      .withNewFile("package.json", corePackageJSON(version))
+  }
+
+  """
+  The same files, entered at the bundle instead of at the TypeScript wrapper.
+
+  For the duplicate-tree checks, which are about the resolver and not the loader:
+  two of the three runtimes cannot load `index.ts` out of node_modules at all, so
+  the faithful shape would fail them on the file extension before reaching the
+  question. `core.js` holds the same singleton code either way — the wrapper only
+  re-exports from it.
+  """
+  let bundleEntryPackage(ws: Workspace!, version: String!): Directory! {
+    corePackage(ws, version).withNewFile("package.json", bundleEntryPackageJSON(version))
+  }
+
+  let bundleEntryPackageJSON(version: String!): String! {
+    "{\n" +
+      "  \"name\": \"@dagger.io/dagger\",\n" +
+      "  \"version\": \"" + version + "\",\n" +
+      "  \"type\": \"module\",\n" +
+      "  \"main\": \"./core.js\",\n" +
+      "  \"exports\": { \".\": \"./core.js\" }\n" +
+      "}\n"
+  }
+
+  """
+  The manifest for it. Mirrors the SDK's own `corePackageJSON`, with the version a
+  caller asked for.
+  """
+  let corePackageJSON(version: String!): String! {
+    "{\n" +
+      "  \"name\": \"@dagger.io/dagger\",\n" +
+      "  \"version\": \"" + version + "\",\n" +
+      "  \"type\": \"module\",\n" +
+      "  \"main\": \"./index.ts\",\n" +
+      "  \"types\": \"./index.ts\",\n" +
+      "  \"exports\": {\n" +
+      "    \".\": \"./index.ts\",\n" +
+      "    \"./telemetry\": \"./telemetry.ts\"\n" +
+      "  }\n" +
+      "}\n"
+  }
+}

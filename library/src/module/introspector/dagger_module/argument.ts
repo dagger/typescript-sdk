@@ -1,8 +1,8 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import ts from "typescript"
 
-import { TypeDefKind } from "../../../api/client.gen.js"
-import { IntrospectionError } from "../../../common/errors/index.js"
+import { TypeDefKind } from "../../../core/client.gen.js"
+import { IntrospectionError } from "../../../session/errors/index.js"
 import { ArgumentOptions } from "../../registry.js"
 import { TypeDef } from "../typedef.js"
 import {

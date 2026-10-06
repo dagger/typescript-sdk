@@ -9632,7 +9632,6 @@ interface ConnectOpts {
     LogOutput?: Writable;
 }
 
-type CallbackFct = (client: Client) => Promise<void>;
 /**
  * connection executes the given function using the default global Dagger client.
  *
@@ -9651,6 +9650,8 @@ type CallbackFct = (client: Client) => Promise<void>;
  * ```
  */
 declare function connection(fct: () => Promise<void>, cfg?: ConnectOpts): Promise<void>;
+
+type CallbackFct = (client: Client) => Promise<void>;
 /**
  * connect runs GraphQL server and initializes a
  * GraphQL client to execute query on it through its callback.

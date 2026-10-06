@@ -1,5 +1,5 @@
-import { TypeDefKind } from "../../../api/client.gen.js"
-import { IntrospectionError } from "../../../common/errors/index.js"
+import { TypeDefKind } from "../../../core/client.gen.js"
+import { IntrospectionError } from "../../../session/errors/index.js"
 import { TypeDef } from "../typedef.js"
 
 export function isTypeDefResolved(typeDef: TypeDef<TypeDefKind>): boolean {

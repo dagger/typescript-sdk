@@ -1,5 +1,7 @@
 import { GraphQLClient } from "graphql-request"
 
+import { shared } from "../shared.js"
+
 /**
  * Wraps the GraphQL client to allow lazy initialization and setting
  * the GQL client of the global Dagger client instance (`dag`).
@@ -44,4 +46,4 @@ export class Connection {
   }
 }
 
-export const globalConnection = new Connection()
+export const globalConnection = shared("connection", () => new Connection())
