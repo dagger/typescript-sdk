@@ -106,45 +106,6 @@ type Packager {
   let bundlePath: String! = "bundle"
 
   """
-  The library compiled to JavaScript and ready to `npm publish`.
-
-  This is the shape `library/package.json` has always described — `main:
-  dist/src/index.js`, `files: ["dist/"]` — and that nothing built, because nothing
-  here is published yet. It has to exist before anything can be:
-  `e2e:registry:publish-install-check` establishes that node and deno both refuse
-  to load TypeScript from under node_modules, so the source tree a scope carries
-  today cannot be what gets published. See design/package-split.md.
-
-  Not committed and not a `@generate` function. The bundle is committed because
-  module generation reads it; this is only ever read by a publish, so building it
-  on demand keeps 1.8 MB of derived files out of the tree.
-
-  The introspector is dropped before the compile. It is generation-time, no
-  published entry point reaches it, and it is the only thing in here that imports
-  the TypeScript compiler — which is what lets the manifest below drop
-  `typescript`, a 24 MB dependency a consumer would otherwise install to run code
-  that never calls it. Same reasoning as `moduleBundleCheck`, one layer out.
-  """
-  publishable(ws: Workspace!, version: String! = "0.0.0"): Directory! {
-    let built = compiled(ws)
-      .withEnvVariable("PUBLISH_VERSION", version)
-      # Derived from the vendored manifest rather than written out here, so the
-      # dependency list cannot drift from the one the bundle is built against.
-      # devDependencies and resolutions go because a consumer installs neither.
-      .withExec(["node", "-e",
-        "const p = require('/src/package.json');" +
-        "delete p.dependencies.typescript;" +
-        "delete p.devDependencies;" +
-        "delete p.resolutions;" +
-        "p.version = process.env.PUBLISH_VERSION;" +
-        "require('fs').writeFileSync('/manifest.json', JSON.stringify(p, null, 2) + '\\n')"])
-
-    directory
-      .withDirectory("dist", built.directory("/src/dist"))
-      .withFile("package.json", built.file("/manifest.json"))
-  }
-
-  """
   The library compiled once, for every package built out of it.
 
   One tsc run rather than one per layer: the layers share a compilation unit
@@ -162,14 +123,13 @@ type Packager {
   }
 
   """
-  The scripts that derive and check a published manifest, mounted together
-  because package-manifest.cjs requires imports.cjs beside it.
+  The scripts that derive a published manifest, mounted together because
+  package-manifest.cjs requires imports.cjs beside it.
   """
   let packageTools: Directory! {
     directory
       .withFile("imports.cjs", currentModule.source.file("imports.cjs"))
       .withFile("package-manifest.cjs", currentModule.source.file("package-manifest.cjs"))
-      .withFile("audit-imports.cjs", currentModule.source.file("audit-imports.cjs"))
   }
 
   """
@@ -258,33 +218,6 @@ type Packager {
         "dispatch. Something re-exported from library/src/index.ts reaches the " +
         "introspector — see library/VENDOR.md."
     }
-
-    null
-  }
-
-  """
-  The published manifest declares what the published code imports, and nothing
-  else.
-
-  Both directions are bugs the split would ship, and both exist in the tree this
-  check was written against. A dependency imported but not declared resolves today
-  only because something else happens to pull it in — fine until that something
-  changes its own dependencies, or until a consumer uses a resolver that does not
-  hoist. A dependency declared but never imported is weight every consumer
-  installs for nothing, and the install-size numbers in design/package-split.md are
-  the argument for caring.
-
-  Run over `publishable`, so the input is compiled JavaScript. That is what makes
-  the comparison meaningful: `import type` is erased by then, and a type-only
-  import is not a runtime dependency. It is also why this cannot be done against
-  the bundle, which inlines its whole closure and imports nothing.
-  """
-  manifestIsHonestCheck(ws: Workspace!): Void @check {
-    bun
-      .withDirectory("/pkg", publishable(ws))
-      .withDirectory("/tools", packageTools)
-      .withExec(["node", "/tools/audit-imports.cjs", "/pkg"])
-      .sync
 
     null
   }

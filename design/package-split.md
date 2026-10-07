@@ -179,6 +179,32 @@ build is part of step 3 rather than a detail of it, and it also lands on the
 dagger/dagger pipeline that generates `core`: generating the bindings is not
 enough, it has to compile them.
 
+### Two things that constrain how the facade gets built
+
+**`tsc` emits a `paths`-resolved specifier verbatim.** `src/core/client.gen.ts`
+imports `@dagger.io/session`, and the compiled `dist/src/core/client.gen.js` still
+imports `@dagger.io/session` — the path mapping is a compile-time convenience, not
+a rewrite. So any package containing more than one layer has to *depend* on the
+others rather than contain them. That is what the facade was always meant to be,
+but it does mean there is no such thing as "the whole library as one package" any
+more, and the check that used to install one is gone with it.
+
+**The facade cannot be built from this tree yet.** `src/index.ts` would have to
+import the four packages by name, and it cannot: the introspector's testdata
+fixtures import it by relative path (`../../../../../index.js`), so a scan has to
+resolve those specifiers — and a scan synthesizes `@dagger.io/*` to a *module's*
+client, not to the library's own layers. Making the facade real from here means
+first moving those fixtures onto `@dagger.io/dagger`, which is a large delta
+against vendored files. Building it in dagger/dagger, where the doc already puts
+it, avoids the question entirely.
+
+Manifest honesty moved with all this. There is no longer a hand-written manifest
+to audit, because the three published manifests are derived from what their layer
+imports — so the property is enforced when the package is built (an undeclared
+import fails the build) rather than checked afterwards. The audit check and its
+script are gone; the scanner they shared, `imports.cjs`, is what the generator
+uses.
+
 ## Who publishes what
 
 The split line is not "who wrote the code". It is **what the version number
