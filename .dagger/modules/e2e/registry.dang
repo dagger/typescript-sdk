@@ -116,11 +116,17 @@ type LocalRegistry {
   `id` only has to be unique within one chain; it names the directory the tarball
   is packed from.
   """
-  let withPublished(from: Container!, pkg: Directory!, id: String!): Container! {
+  let withPublished(
+    from: Container!,
+    pkg: Directory!,
+    id: String!,
+    distTag: String! = "",
+  ): Container! {
     let staged = "/publish/" + id
 
     from
       .withFile("/publish.sh", currentModule.source.file("publish.sh"))
+      .withEnvVariable("DIST_TAG", distTag)
       .withDirectory(staged, pkg)
       .withWorkdir(staged)
       .withExec(["sh", "/publish.sh"])
@@ -130,8 +136,14 @@ type LocalRegistry {
   """
   Publish several packages into one chain, in order.
   """
-  let withPublishedAll(from: Container!, pkgs: [PublishedPackage!]!): Container! {
-    pkgs.reduce(from) { chain, pkg => withPublished(chain, pkg.dir, pkg.id) }
+  let withPublishedAll(
+    from: Container!,
+    pkgs: [PublishedPackage!]!,
+    distTag: String! = "",
+  ): Container! {
+    pkgs.reduce(from) { chain, pkg =>
+      withPublished(chain, pkg.dir, pkg.id, distTag: distTag)
+    }
   }
 }
 
@@ -325,15 +337,112 @@ type RegistryChecks {
   }
 
   """
+  The two-phase release the doc prescribes, rehearsed end to end.
+
+  `npm publish` cannot fail on a dependency that is not fetchable yet — it does
+  not resolve anything — so ordering a release is a problem for *consumers*, not
+  for the publisher. What that buys is the shape asserted here: publish under
+  `next`, where nobody on `latest` can see it; satisfy yourself it resolves and
+  loads; then move `latest`, which takes seconds and is the only user-visible
+  step. If the middle step never passes you never flip, and no consumer saw the
+  version — which matters because `npm unpublish` is restricted to 72 hours and
+  refuses outright once anything depends on a version.
+
+  Rehearsed as an **upgrade**, with 1.0.0 already on `latest` and 2.0.0 going out
+  under `next`, because that is the only case where the two-phase flip protects
+  anybody. Measured here: publishing a *brand-new* package under `--tag next`
+  sets `latest` as well, since a package has to have one — so the first release
+  of a name cannot be staged, and does not need to be, as nothing is installing
+  a package that did not exist. See "Releasing".
+
+  Four things are asserted, in order: `latest` does not move when 2.0.0 is
+  published under `next`; `@next` resolves from a cold cache, so it is the
+  registry answering rather than npm's metadata; `@next` installs and imports,
+  which is what gates the flip; and after `dist-tag add`, a plain install
+  resolves 2.0.0 and imports it.
+  """
+  releaseRehearsalCheck(ws: Workspace!): Void @check {
+    let released = layerPackages(ws, version: "1.0.0")
+    let staging = layerPackages(ws, version: "2.0.0")
+    let reg = LocalRegistry(content: staged("release-rehearsal", released + staging))
+
+    # 1.0.0 goes out the ordinary way, so `latest` points at it the way it would
+    # for anyone already installing the package; 2.0.0 goes out under `next`.
+    let withReleased = reg.withPublishedAll(runtimeClient(reg, "node"), released)
+    let withStaged = reg.withPublishedAll(withReleased, staging, distTag: "next")
+
+    let out = withStaged
+      # No dependencies declared: every install below is driven from the command
+      # line, so what resolves is the tag under test rather than a pinned range.
+      .withNewFile("/work/package.json", "{ \"type\": \"module\" }\n")
+      .withNewFile(compiledProbe, layersProbeSource)
+      .withExec(["sh", "-c", rehearsalScript])
+      .stdout
+
+    Asserts.stringContains(
+      out,
+      "staged: latest 1.0.0 next 2.0.0",
+      "publishing 2.0.0 under `next` must leave `latest` on 1.0.0 — otherwise " +
+        "the flip is not the user-visible step. Got: " + out,
+    )
+    Asserts.stringContains(
+      out,
+      "next smoke: session function",
+      "the staged version should install and import before anything is " +
+        "flipped — that is what gates the flip. Got: " + out,
+    )
+    Asserts.stringContains(
+      out,
+      "flipped: 2.0.0",
+      "after dist-tag add, a plain install should resolve the new version. " +
+        "Got: " + out,
+    )
+    Asserts.stringContains(
+      out,
+      "latest smoke: session function",
+      "and import it. Got: " + out,
+    )
+
+    null
+  }
+
+  """
+  The rehearsal, as one exec: the registry has to stay up across all of it, and a
+  dist tag is state on the service rather than on any container.
+
+  It sets `latest` to 1.0.0 first. The storage volume outlives a run on purpose,
+  so without that the preconditions would be whatever the last rehearsal flipped.
+
+  `--prefer-online` after a cache clean is what makes the resolve steps mean
+  something: npm would otherwise answer a `view` from metadata it already had.
+  """
+  let rehearsalScript: String! {
+    "set -e\n" +
+      "for p in session module telemetry; do\n" +
+      "  npm dist-tag add @dagger.io/$p@1.0.0 latest >/dev/null 2>&1\n" +
+      "done\n" +
+      "npm cache clean --force >/dev/null 2>&1\n" +
+      "echo \"staged: latest $(npm view @dagger.io/session version --prefer-online)" +
+      " next $(npm view @dagger.io/session@next version --prefer-online)\"\n" +
+      "npm install @dagger.io/session@next @dagger.io/module@next " +
+      "@dagger.io/telemetry@next >/dev/null 2>&1\n" +
+      "echo \"next smoke: $(node /work/probe.js | head -1)\"\n" +
+      "for p in session module telemetry; do\n" +
+      "  npm dist-tag add @dagger.io/$p@2.0.0 latest >/dev/null 2>&1\n" +
+      "done\n" +
+      "rm -rf node_modules package-lock.json\n" +
+      "npm cache clean --force >/dev/null 2>&1\n" +
+      "echo \"flipped: $(npm view @dagger.io/session version --prefer-online)\"\n" +
+      "npm install @dagger.io/session @dagger.io/module @dagger.io/telemetry " +
+      ">/dev/null 2>&1\n" +
+      "echo \"latest smoke: $(node /work/probe.js | head -1)\"\n"
+  }
+
+  """
   Publish the three layers and import all three under one runtime.
   """
   let layersProbe(ws: Workspace!, runtime: String!): String! {
-    let pkgs = packager.publishedLayers.map { layer =>
-      PublishedPackage(
-        dir: packager.publishablePackage(ws, layer, version: "1.0.0"),
-        id: layer,
-      )
-    }
+    let pkgs = layerPackages(ws)
     let reg = LocalRegistry(content: staged("layers-" + runtime, pkgs))
 
     reg
@@ -345,6 +454,18 @@ type RegistryChecks {
       .withExec(installArgs(runtime))
       .withExec(["sh", "-c", interpreter(runtime) + " " + compiledProbe])
       .stdout
+  }
+
+  """
+  The three published layers, at the version this harness publishes them under.
+  """
+  let layerPackages(ws: Workspace!, version: String! = "1.0.0"): [PublishedPackage!]! {
+    packager.publishedLayers.map { layer =>
+      PublishedPackage(
+        dir: packager.publishablePackage(ws, layer, version: version),
+        id: layer + "-" + version,
+      )
+    }
   }
 
   """
