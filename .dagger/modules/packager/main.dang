@@ -14,8 +14,9 @@ type Packager {
 
   """
   Directory holding the library's own generated bindings, relative to
-  libraryPath. Matches the layout of the library source they are compiled with,
-  where the runtime they import sits at ../session/context.js.
+  libraryPath. They reach the runtime through @dagger.io/session — the package
+  they will be published alongside — which tsconfig paths resolve to
+  src/session/index.ts, so nothing has to be rewritten at packaging time.
   """
   let bindingsPath: String! = "src/core"
 

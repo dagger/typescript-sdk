@@ -1,7 +1,9 @@
-import { Context } from "../session/context.js"
-import { ConnectOpts } from "../session/connectOpts.js"
-import { withGQLClient } from "../session/graphql/connect.js"
-import { Connection } from "../session/graphql/connection.js"
+import {
+  Connection,
+  ConnectOpts,
+  Context,
+  withGQLClient,
+} from "@dagger.io/session"
 import { Client } from "./client.gen.js"
 
 export type CallbackFct = (client: Client) => Promise<void>

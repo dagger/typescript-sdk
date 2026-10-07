@@ -1,7 +1,8 @@
 import * as graphql_request from 'graphql-request';
-import { GraphQLClient, ClientError } from 'graphql-request';
+import { ClientError, GraphQLClient } from 'graphql-request';
 export { GraphQLClient } from 'graphql-request';
 import * as opentelemetry from '@opentelemetry/api';
+import { BaseClient as BaseClient$1, Context as Context$1, ConnectOpts as ConnectOpts$1 } from '@dagger.io/session';
 import { GraphQLErrorExtensions } from 'graphql';
 import { Writable } from 'node:stream';
 
@@ -46,81 +47,6 @@ declare class Tracer {
  * You can add a custom name to the tracer based on your application.
  */
 declare function getTracer(name?: string): Tracer;
-
-/**
- * Wraps the GraphQL client to allow lazy initialization and setting
- * the GQL client of the global Dagger client instance (`dag`).
- */
-declare class Connection {
-    private _gqlClient?;
-    constructor(_gqlClient?: GraphQLClient | undefined);
-    private _served;
-    resetClient(): void;
-    setGQLClient(gqlClient: GraphQLClient): void;
-    getGQLClient(): GraphQLClient;
-    /**
-     * Run `serve` the first time `key` is seen in this session and remember the
-     * result, so a generated client can ensure its module is served before its
-     * first query without serving it again on every call.
-     */
-    ensureServed(key: string, serve: () => Promise<void>): Promise<void>;
-}
-
-type QueryTree = {
-    operation: string;
-    args?: Record<string, unknown>;
-    inlineType?: string;
-};
-
-/**
- * A module a generated client serves into the session before its first query.
- * `key` memoizes the serve per session (the module's ref or path); `run`
- * performs it, through a context that carries no serve of its own so it cannot
- * recurse.
- */
-type ServeSpec = {
-    key: string;
-    run: () => Promise<void>;
-};
-declare class Context {
-    private _queryTree;
-    private _connection;
-    private _serve?;
-    constructor(_queryTree?: QueryTree[], _connection?: Connection, _serve?: ServeSpec | undefined);
-    getGQLClient(): GraphQLClient;
-    copy(): Context;
-    select(operation: string, args?: Record<string, unknown>): Context;
-    /**
-     * Select via node(id:) with an inline fragment on the given type.
-     * Produces: node(id: "...") { ... on TypeName { children } }
-     */
-    selectNode(id: string, typeName: string): Context;
-    /**
-     * Return a copy of this context that serves `spec`'s module before the first
-     * query on it (or on any context derived from it) runs. Used by a generated
-     * module client to bind its own module to its `dag`.
-     */
-    withServe(spec: ServeSpec): Context;
-    execute<T>(): Promise<T>;
-}
-/**
- * Common base class for every generated API class (Client, Container, and
- * dependency-contributed types).
- *
- * It lives here in the SDK runtime rather than in the generated client.gen.ts
- * so that per-dependency generated files (e.g. hello.gen.ts) can `extends
- * BaseClient` without importing a value from client.gen.ts — client.gen.ts
- * `export *`s those dep files, so a value import would create an ESM cycle.
- * client.gen.ts re-exports BaseClient to keep `import { BaseClient } from
- * "./client.gen.js"` working for existing consumers.
- */
-declare class BaseClient {
-    protected _ctx: Context;
-    /**
-     * @hidden
-     */
-    constructor(_ctx?: Context);
-}
 
 /**
  * Declare a number as float in the Dagger API.
@@ -3219,13 +3145,13 @@ type __TypeInputFieldsOpts = {
 /**
  * A standardized address to load containers, directories, secrets, and other object types. Address format depends on the type, and is validated at type selection.
  */
-declare class Address extends BaseClient {
+declare class Address extends BaseClient$1 {
     private readonly _id?;
     private readonly _value?;
     /**
      * Constructor is used for internal usage only, do not create object from it.
      */
-    constructor(ctx?: Context, _id?: ID, _value?: string);
+    constructor(ctx?: Context$1, _id?: ID, _value?: string);
     /**
      * A unique identifier for this Address.
      */
@@ -3280,7 +3206,7 @@ declare class Address extends BaseClient {
  *
  * A conversation loop running as an addressable, long-lived entity within the session. The conversation itself remains observable at any time as an immutable LLM value.
  */
-declare class Agent extends BaseClient {
+declare class Agent extends BaseClient$1 {
     private readonly _id?;
     private readonly _error?;
     private readonly _handle?;
@@ -3296,7 +3222,7 @@ declare class Agent extends BaseClient {
     /**
      * Constructor is used for internal usage only, do not create object from it.
      */
-    constructor(ctx?: Context, _id?: ID, _error?: string, _handle?: string, _name?: string, _notify?: ID, _pause?: ID, _reseed?: ID, _resume?: ID, _send?: ID, _state?: AgentState, _stop?: ID, _wait?: ID);
+    constructor(ctx?: Context$1, _id?: ID, _error?: string, _handle?: string, _name?: string, _notify?: ID, _pause?: ID, _reseed?: ID, _resume?: ID, _send?: ID, _state?: AgentState, _stop?: ID, _wait?: ID);
     /**
      * A unique identifier for this Agent.
      */
@@ -3425,7 +3351,7 @@ declare class Agent extends BaseClient {
  *
  * A message delivered to an agent's mailbox.
  */
-declare class AgentMessage extends BaseClient {
+declare class AgentMessage extends BaseClient$1 {
     private readonly _id?;
     private readonly _delivery?;
     private readonly _ref?;
@@ -3433,7 +3359,7 @@ declare class AgentMessage extends BaseClient {
     /**
      * Constructor is used for internal usage only, do not create object from it.
      */
-    constructor(ctx?: Context, _id?: ID, _delivery?: AgentMessageDelivery, _ref?: string, _response?: string);
+    constructor(ctx?: Context$1, _id?: ID, _delivery?: AgentMessageDelivery, _ref?: string, _response?: string);
     /**
      * A unique identifier for this AgentMessage.
      */
@@ -3467,7 +3393,7 @@ declare class AgentMessage extends BaseClient {
 /**
  * One workspace value with a complete path and all required dimension keys. Reading metadata does not evaluate the value. Different addresses remain distinct even if they return the same object.
  */
-declare class Artifact extends BaseClient {
+declare class Artifact extends BaseClient$1 {
     private readonly _id?;
     private readonly _description?;
     private readonly _loadError?;
@@ -3476,7 +3402,7 @@ declare class Artifact extends BaseClient {
     /**
      * Constructor is used for internal usage only, do not create object from it.
      */
-    constructor(ctx?: Context, _id?: ID, _description?: string, _loadError?: string, _moduleName?: string, _uri?: string);
+    constructor(ctx?: Context$1, _id?: ID, _description?: string, _loadError?: string, _moduleName?: string, _uri?: string);
     /**
      * A unique identifier for this Artifact.
      */
@@ -3522,7 +3448,7 @@ declare class Artifact extends BaseClient {
      */
     value: (opts?: ArtifactValueOpts) => Node;
 }
-declare class ArtifactDimension extends BaseClient {
+declare class ArtifactDimension extends BaseClient$1 {
     private readonly _id?;
     private readonly _collectionType?;
     private readonly _identifier?;
@@ -3535,7 +3461,7 @@ declare class ArtifactDimension extends BaseClient {
     /**
      * Constructor is used for internal usage only, do not create object from it.
      */
-    constructor(ctx?: Context, _id?: ID, _collectionType?: string, _identifier?: string, _itemType?: string, _keyDescription?: string, _keyName?: string, _kind?: ArtifactDimensionKind, _name?: string, _qualifiedName?: string);
+    constructor(ctx?: Context$1, _id?: ID, _collectionType?: string, _identifier?: string, _itemType?: string, _keyDescription?: string, _keyName?: string, _kind?: ArtifactDimensionKind, _name?: string, _qualifiedName?: string);
     /**
      * A unique identifier for this ArtifactDimension.
      */
@@ -3573,14 +3499,14 @@ declare class ArtifactDimension extends BaseClient {
      */
     qualifiedName: () => Promise<string>;
 }
-declare class ArtifactDimensionKey extends BaseClient {
+declare class ArtifactDimensionKey extends BaseClient$1 {
     private readonly _id?;
     private readonly _dimension?;
     private readonly _key?;
     /**
      * Constructor is used for internal usage only, do not create object from it.
      */
-    constructor(ctx?: Context, _id?: ID, _dimension?: string, _key?: string);
+    constructor(ctx?: Context$1, _id?: ID, _dimension?: string, _key?: string);
     /**
      * A unique identifier for this ArtifactDimensionKey.
      */
@@ -3597,7 +3523,7 @@ declare class ArtifactDimensionKey extends BaseClient {
 /**
  * A schema path and its dimensions. The path can exist even when its collections have no runtime items.
  */
-declare class ArtifactPath extends BaseClient {
+declare class ArtifactPath extends BaseClient$1 {
     private readonly _id?;
     private readonly _description?;
     private readonly _loadError?;
@@ -3606,7 +3532,7 @@ declare class ArtifactPath extends BaseClient {
     /**
      * Constructor is used for internal usage only, do not create object from it.
      */
-    constructor(ctx?: Context, _id?: ID, _description?: string, _loadError?: string, _moduleName?: string, _uri?: string);
+    constructor(ctx?: Context$1, _id?: ID, _description?: string, _loadError?: string, _moduleName?: string, _uri?: string);
     /**
      * A unique identifier for this ArtifactPath.
      */
@@ -3632,12 +3558,12 @@ declare class ArtifactPath extends BaseClient {
      */
     uri: () => Promise<string>;
 }
-declare class ArtifactResult extends BaseClient {
+declare class ArtifactResult extends BaseClient$1 {
     private readonly _id?;
     /**
      * Constructor is used for internal usage only, do not create object from it.
      */
-    constructor(ctx?: Context, _id?: ID);
+    constructor(ctx?: Context$1, _id?: ID);
     /**
      * A unique identifier for this ArtifactResult.
      */
@@ -3658,13 +3584,13 @@ declare class ArtifactResult extends BaseClient {
 /**
  * An immutable selection of workspace artifacts. Listed types, dimensions, and keys use OR; chained filters use AND. Empty alternatives and unknown names match nothing. Filters never change addresses or dimension identifiers.
  */
-declare class Artifacts extends BaseClient {
+declare class Artifacts extends BaseClient$1 {
     private readonly _id?;
     private readonly _uri?;
     /**
      * Constructor is used for internal usage only, do not create object from it.
      */
-    constructor(ctx?: Context, _id?: ID, _uri?: string);
+    constructor(ctx?: Context$1, _id?: ID, _uri?: string);
     /**
      * A unique identifier for this Artifacts.
      */
@@ -3799,12 +3725,12 @@ declare class Artifacts extends BaseClient {
 /**
  * A directory whose contents persist across runs.
  */
-declare class CacheVolume extends BaseClient {
+declare class CacheVolume extends BaseClient$1 {
     private readonly _id?;
     /**
      * Constructor is used for internal usage only, do not create object from it.
      */
-    constructor(ctx?: Context, _id?: ID);
+    constructor(ctx?: Context$1, _id?: ID);
     /**
      * A unique identifier for this CacheVolume.
      */
@@ -3813,7 +3739,7 @@ declare class CacheVolume extends BaseClient {
 /**
  * A comparison between two directories representing changes that can be applied.
  */
-declare class Changeset extends BaseClient {
+declare class Changeset extends BaseClient$1 {
     private readonly _id?;
     private readonly _export?;
     private readonly _isEmpty?;
@@ -3821,7 +3747,7 @@ declare class Changeset extends BaseClient {
     /**
      * Constructor is used for internal usage only, do not create object from it.
      */
-    constructor(ctx?: Context, _id?: ID, _export?: string, _isEmpty?: boolean, _sync?: ID);
+    constructor(ctx?: Context$1, _id?: ID, _export?: string, _isEmpty?: boolean, _sync?: ID);
     /**
      * A unique identifier for this Changeset.
      */
@@ -3907,14 +3833,14 @@ declare class Changeset extends BaseClient {
 /**
  * One deferred check. Reading pass, error, or sync runs it.
  */
-declare class Check extends BaseClient {
+declare class Check extends BaseClient$1 {
     private readonly _id?;
     private readonly _assertion?;
     private readonly _pass?;
     /**
      * Constructor is used for internal usage only, do not create object from it.
      */
-    constructor(ctx?: Context, _id?: ID, _assertion?: string, _pass?: boolean);
+    constructor(ctx?: Context$1, _id?: ID, _assertion?: string, _pass?: boolean);
     /**
      * A unique identifier for this Check.
      */
@@ -3949,12 +3875,12 @@ declare class Check extends BaseClient {
 /**
  * An internal persistent filesync mirror.
  */
-declare class ClientFilesyncMirror extends BaseClient {
+declare class ClientFilesyncMirror extends BaseClient$1 {
     private readonly _id?;
     /**
      * Constructor is used for internal usage only, do not create object from it.
      */
-    constructor(ctx?: Context, _id?: ID);
+    constructor(ctx?: Context$1, _id?: ID);
     /**
      * A unique identifier for this ClientFilesyncMirror.
      */
@@ -3963,13 +3889,13 @@ declare class ClientFilesyncMirror extends BaseClient {
 /**
  * Dagger Cloud configuration and state
  */
-declare class Cloud extends BaseClient {
+declare class Cloud extends BaseClient$1 {
     private readonly _id?;
     private readonly _traceURL?;
     /**
      * Constructor is used for internal usage only, do not create object from it.
      */
-    constructor(ctx?: Context, _id?: ID, _traceURL?: string);
+    constructor(ctx?: Context$1, _id?: ID, _traceURL?: string);
     /**
      * A unique identifier for this Cloud.
      */
@@ -3979,12 +3905,12 @@ declare class Cloud extends BaseClient {
      */
     traceURL: () => Promise<string>;
 }
-declare class CollectionDelta extends BaseClient {
+declare class CollectionDelta extends BaseClient$1 {
     private readonly _id?;
     /**
      * Constructor is used for internal usage only, do not create object from it.
      */
-    constructor(ctx?: Context, _id?: ID);
+    constructor(ctx?: Context$1, _id?: ID);
     /**
      * A unique identifier for this CollectionDelta.
      */
@@ -3998,12 +3924,12 @@ declare class CollectionDelta extends BaseClient {
      */
     removedKeys: () => Promise<string[]>;
 }
-declare class CollectionTypeDef extends BaseClient {
+declare class CollectionTypeDef extends BaseClient$1 {
     private readonly _id?;
     /**
      * Constructor is used for internal usage only, do not create object from it.
      */
-    constructor(ctx?: Context, _id?: ID);
+    constructor(ctx?: Context$1, _id?: ID);
     /**
      * A unique identifier for this CollectionTypeDef.
      */
@@ -4024,7 +3950,7 @@ declare class CollectionTypeDef extends BaseClient {
 /**
  * A command's arguments and execution settings.
  */
-declare class Command extends BaseClient {
+declare class Command extends BaseClient$1 {
     private readonly _id?;
     private readonly _insecureRootCapabilities?;
     private readonly _privilegedNesting?;
@@ -4032,7 +3958,7 @@ declare class Command extends BaseClient {
     /**
      * Constructor is used for internal usage only, do not create object from it.
      */
-    constructor(ctx?: Context, _id?: ID, _insecureRootCapabilities?: boolean, _privilegedNesting?: boolean, _workdir?: string);
+    constructor(ctx?: Context$1, _id?: ID, _insecureRootCapabilities?: boolean, _privilegedNesting?: boolean, _workdir?: string);
     /**
      * A unique identifier for this Command.
      */
@@ -4061,7 +3987,7 @@ declare class Command extends BaseClient {
 /**
  * An OCI-compatible container, also known as a Docker container.
  */
-declare class Container extends BaseClient {
+declare class Container extends BaseClient$1 {
     private readonly _id?;
     private readonly _combinedOutput?;
     private readonly _envVariable?;
@@ -4082,7 +4008,7 @@ declare class Container extends BaseClient {
     /**
      * Constructor is used for internal usage only, do not create object from it.
      */
-    constructor(ctx?: Context, _id?: ID, _combinedOutput?: string, _envVariable?: string, _exists?: boolean, _exitCode?: number, _export?: string, _exportImage?: Void, _imageRef?: string, _label?: string, _platform?: Platform, _publish?: string, _stderr?: string, _stdout?: string, _sync?: ID, _up?: Void, _user?: string, _workdir?: string);
+    constructor(ctx?: Context$1, _id?: ID, _combinedOutput?: string, _envVariable?: string, _exists?: boolean, _exitCode?: number, _export?: string, _exportImage?: Void, _imageRef?: string, _label?: string, _platform?: Platform, _publish?: string, _stderr?: string, _stdout?: string, _sync?: ID, _up?: Void, _user?: string, _workdir?: string);
     /**
      * A unique identifier for this Container.
      */
@@ -4802,13 +4728,13 @@ declare class Container extends BaseClient {
 /**
  * Reflective module API provided to functions at runtime.
  */
-declare class CurrentModule extends BaseClient {
+declare class CurrentModule extends BaseClient$1 {
     private readonly _id?;
     private readonly _name?;
     /**
      * Constructor is used for internal usage only, do not create object from it.
      */
-    constructor(ctx?: Context, _id?: ID, _name?: string);
+    constructor(ctx?: Context$1, _id?: ID, _name?: string);
     /**
      * A unique identifier for this CurrentModule.
      */
@@ -4843,7 +4769,7 @@ declare class CurrentModule extends BaseClient {
      */
     workdirFile: (path: string) => File;
 }
-declare class DiffStat extends BaseClient {
+declare class DiffStat extends BaseClient$1 {
     private readonly _id?;
     private readonly _addedLines?;
     private readonly _kind?;
@@ -4853,7 +4779,7 @@ declare class DiffStat extends BaseClient {
     /**
      * Constructor is used for internal usage only, do not create object from it.
      */
-    constructor(ctx?: Context, _id?: ID, _addedLines?: number, _kind?: DiffStatKind, _oldPath?: string, _path?: string, _removedLines?: number);
+    constructor(ctx?: Context$1, _id?: ID, _addedLines?: number, _kind?: DiffStatKind, _oldPath?: string, _path?: string, _removedLines?: number);
     /**
      * A unique identifier for this DiffStat.
      */
@@ -4882,7 +4808,7 @@ declare class DiffStat extends BaseClient {
 /**
  * A directory.
  */
-declare class Directory extends BaseClient {
+declare class Directory extends BaseClient$1 {
     private readonly _id?;
     private readonly _digest?;
     private readonly _exists?;
@@ -4893,7 +4819,7 @@ declare class Directory extends BaseClient {
     /**
      * Constructor is used for internal usage only, do not create object from it.
      */
-    constructor(ctx?: Context, _id?: ID, _digest?: string, _exists?: boolean, _export?: string, _findUp?: string, _name?: string, _sync?: ID);
+    constructor(ctx?: Context$1, _id?: ID, _digest?: string, _exists?: boolean, _export?: string, _findUp?: string, _name?: string, _sync?: ID);
     /**
      * A unique identifier for this Directory.
      */
@@ -5160,13 +5086,13 @@ declare class Directory extends BaseClient {
 /**
  * The Dagger engine configuration and state
  */
-declare class Engine extends BaseClient {
+declare class Engine extends BaseClient$1 {
     private readonly _id?;
     private readonly _name?;
     /**
      * Constructor is used for internal usage only, do not create object from it.
      */
-    constructor(ctx?: Context, _id?: ID, _name?: string);
+    constructor(ctx?: Context$1, _id?: ID, _name?: string);
     /**
      * A unique identifier for this Engine.
      */
@@ -5187,7 +5113,7 @@ declare class Engine extends BaseClient {
 /**
  * A cache storage for the Dagger engine
  */
-declare class EngineCache extends BaseClient {
+declare class EngineCache extends BaseClient$1 {
     private readonly _id?;
     private readonly _maxUsedSpace?;
     private readonly _minFreeSpace?;
@@ -5197,7 +5123,7 @@ declare class EngineCache extends BaseClient {
     /**
      * Constructor is used for internal usage only, do not create object from it.
      */
-    constructor(ctx?: Context, _id?: ID, _maxUsedSpace?: number, _minFreeSpace?: number, _prune?: Void, _reservedSpace?: number, _targetSpace?: number);
+    constructor(ctx?: Context$1, _id?: ID, _maxUsedSpace?: number, _minFreeSpace?: number, _prune?: Void, _reservedSpace?: number, _targetSpace?: number);
     /**
      * A unique identifier for this EngineCache.
      */
@@ -5237,7 +5163,7 @@ declare class EngineCache extends BaseClient {
 /**
  * An individual cache entry in a cache entry set
  */
-declare class EngineCacheEntry extends BaseClient {
+declare class EngineCacheEntry extends BaseClient$1 {
     private readonly _id?;
     private readonly _activelyUsed?;
     private readonly _createdTimeUnixNano?;
@@ -5249,7 +5175,7 @@ declare class EngineCacheEntry extends BaseClient {
     /**
      * Constructor is used for internal usage only, do not create object from it.
      */
-    constructor(ctx?: Context, _id?: ID, _activelyUsed?: boolean, _createdTimeUnixNano?: number, _dagqlCall?: string, _description?: string, _diskSpaceBytes?: number, _mostRecentUseTimeUnixNano?: number, _recordType?: string);
+    constructor(ctx?: Context$1, _id?: ID, _activelyUsed?: boolean, _createdTimeUnixNano?: number, _dagqlCall?: string, _description?: string, _diskSpaceBytes?: number, _mostRecentUseTimeUnixNano?: number, _recordType?: string);
     /**
      * A unique identifier for this EngineCacheEntry.
      */
@@ -5290,14 +5216,14 @@ declare class EngineCacheEntry extends BaseClient {
 /**
  * A set of cache entries returned by a query to a cache
  */
-declare class EngineCacheEntrySet extends BaseClient {
+declare class EngineCacheEntrySet extends BaseClient$1 {
     private readonly _id?;
     private readonly _diskSpaceBytes?;
     private readonly _entryCount?;
     /**
      * Constructor is used for internal usage only, do not create object from it.
      */
-    constructor(ctx?: Context, _id?: ID, _diskSpaceBytes?: number, _entryCount?: number);
+    constructor(ctx?: Context$1, _id?: ID, _diskSpaceBytes?: number, _entryCount?: number);
     /**
      * A unique identifier for this EngineCacheEntrySet.
      */
@@ -5318,7 +5244,7 @@ declare class EngineCacheEntrySet extends BaseClient {
 /**
  * A definition of a custom enum defined in a Module.
  */
-declare class EnumTypeDef extends BaseClient {
+declare class EnumTypeDef extends BaseClient$1 {
     private readonly _id?;
     private readonly _description?;
     private readonly _name?;
@@ -5326,7 +5252,7 @@ declare class EnumTypeDef extends BaseClient {
     /**
      * Constructor is used for internal usage only, do not create object from it.
      */
-    constructor(ctx?: Context, _id?: ID, _description?: string, _name?: string, _sourceModuleName?: string);
+    constructor(ctx?: Context$1, _id?: ID, _description?: string, _name?: string, _sourceModuleName?: string);
     /**
      * A unique identifier for this EnumTypeDef.
      */
@@ -5360,7 +5286,7 @@ declare class EnumTypeDef extends BaseClient {
 /**
  * A definition of a value in a custom enum defined in a Module.
  */
-declare class EnumValueTypeDef extends BaseClient {
+declare class EnumValueTypeDef extends BaseClient$1 {
     private readonly _id?;
     private readonly _deprecated?;
     private readonly _description?;
@@ -5369,7 +5295,7 @@ declare class EnumValueTypeDef extends BaseClient {
     /**
      * Constructor is used for internal usage only, do not create object from it.
      */
-    constructor(ctx?: Context, _id?: ID, _deprecated?: string, _description?: string, _name?: string, _value?: string);
+    constructor(ctx?: Context$1, _id?: ID, _deprecated?: string, _description?: string, _name?: string, _value?: string);
     /**
      * A unique identifier for this EnumValueTypeDef.
      */
@@ -5398,14 +5324,14 @@ declare class EnumValueTypeDef extends BaseClient {
 /**
  * A collection of environment variables.
  */
-declare class EnvFile extends BaseClient {
+declare class EnvFile extends BaseClient$1 {
     private readonly _id?;
     private readonly _exists?;
     private readonly _get?;
     /**
      * Constructor is used for internal usage only, do not create object from it.
      */
-    constructor(ctx?: Context, _id?: ID, _exists?: boolean, _get?: string);
+    constructor(ctx?: Context$1, _id?: ID, _exists?: boolean, _get?: string);
     /**
      * A unique identifier for this EnvFile.
      */
@@ -5456,14 +5382,14 @@ declare class EnvFile extends BaseClient {
 /**
  * An environment variable name and value.
  */
-declare class EnvVariable extends BaseClient {
+declare class EnvVariable extends BaseClient$1 {
     private readonly _id?;
     private readonly _name?;
     private readonly _value?;
     /**
      * Constructor is used for internal usage only, do not create object from it.
      */
-    constructor(ctx?: Context, _id?: ID, _name?: string, _value?: string);
+    constructor(ctx?: Context$1, _id?: ID, _name?: string, _value?: string);
     /**
      * A unique identifier for this EnvVariable.
      */
@@ -5477,13 +5403,13 @@ declare class EnvVariable extends BaseClient {
      */
     value: () => Promise<string>;
 }
-declare class Error$1 extends BaseClient {
+declare class Error$1 extends BaseClient$1 {
     private readonly _id?;
     private readonly _message?;
     /**
      * Constructor is used for internal usage only, do not create object from it.
      */
-    constructor(ctx?: Context, _id?: ID, _message?: string);
+    constructor(ctx?: Context$1, _id?: ID, _message?: string);
     /**
      * A unique identifier for this Error.
      */
@@ -5509,14 +5435,14 @@ declare class Error$1 extends BaseClient {
      */
     with: (arg: (param: Error$1) => Error$1) => Error$1;
 }
-declare class ErrorValue extends BaseClient {
+declare class ErrorValue extends BaseClient$1 {
     private readonly _id?;
     private readonly _name?;
     private readonly _value?;
     /**
      * Constructor is used for internal usage only, do not create object from it.
      */
-    constructor(ctx?: Context, _id?: ID, _name?: string, _value?: JSON);
+    constructor(ctx?: Context$1, _id?: ID, _name?: string, _value?: JSON);
     /**
      * A unique identifier for this ErrorValue.
      */
@@ -5533,14 +5459,14 @@ declare class ErrorValue extends BaseClient {
 /**
  * An agent function that can modify a conversation.
  */
-declare class Expertise extends BaseClient {
+declare class Expertise extends BaseClient$1 {
     private readonly _id?;
     private readonly _description?;
     private readonly _name?;
     /**
      * Constructor is used for internal usage only, do not create object from it.
      */
-    constructor(ctx?: Context, _id?: ID, _description?: string, _name?: string);
+    constructor(ctx?: Context$1, _id?: ID, _description?: string, _name?: string);
     /**
      * A unique identifier for this Expertise.
      */
@@ -5571,13 +5497,13 @@ interface Exportable {
     id(): Promise<ID>;
     export(path: string): Promise<string>;
 }
-declare class _ExportableClient extends BaseClient {
+declare class _ExportableClient extends BaseClient$1 {
     private readonly _id?;
     private readonly _export?;
     /**
      * Constructor is used for internal usage only, do not create object from it.
      */
-    constructor(ctx?: Context, _id?: ID, _export?: string);
+    constructor(ctx?: Context$1, _id?: ID, _export?: string);
     id: () => Promise<ID>;
     export: (path: string) => Promise<string>;
 }
@@ -5586,7 +5512,7 @@ declare class _ExportableClient extends BaseClient {
  *
  * A field on an object has a static value, as opposed to a function on an object whose value is computed by invoking code (and can accept arguments).
  */
-declare class FieldTypeDef extends BaseClient {
+declare class FieldTypeDef extends BaseClient$1 {
     private readonly _id?;
     private readonly _deprecated?;
     private readonly _description?;
@@ -5594,7 +5520,7 @@ declare class FieldTypeDef extends BaseClient {
     /**
      * Constructor is used for internal usage only, do not create object from it.
      */
-    constructor(ctx?: Context, _id?: ID, _deprecated?: string, _description?: string, _name?: string);
+    constructor(ctx?: Context$1, _id?: ID, _deprecated?: string, _description?: string, _name?: string);
     /**
      * A unique identifier for this FieldTypeDef.
      */
@@ -5623,7 +5549,7 @@ declare class FieldTypeDef extends BaseClient {
 /**
  * A file.
  */
-declare class File extends BaseClient {
+declare class File extends BaseClient$1 {
     private readonly _id?;
     private readonly _contents?;
     private readonly _digest?;
@@ -5634,7 +5560,7 @@ declare class File extends BaseClient {
     /**
      * Constructor is used for internal usage only, do not create object from it.
      */
-    constructor(ctx?: Context, _id?: ID, _contents?: string, _digest?: string, _export?: string, _name?: string, _size?: number, _sync?: ID);
+    constructor(ctx?: Context$1, _id?: ID, _contents?: string, _digest?: string, _export?: string, _name?: string, _size?: number, _sync?: ID);
     /**
      * A unique identifier for this File.
      */
@@ -5749,7 +5675,7 @@ declare class File extends BaseClient {
  *
  * A function always evaluates against a parent object and is given a set of named arguments.
  */
-declare class Function_ extends BaseClient {
+declare class Function_ extends BaseClient$1 {
     private readonly _id?;
     private readonly _deprecated?;
     private readonly _description?;
@@ -5758,7 +5684,7 @@ declare class Function_ extends BaseClient {
     /**
      * Constructor is used for internal usage only, do not create object from it.
      */
-    constructor(ctx?: Context, _id?: ID, _deprecated?: string, _description?: string, _name?: string, _sourceModuleName?: string);
+    constructor(ctx?: Context$1, _id?: ID, _deprecated?: string, _description?: string, _name?: string, _sourceModuleName?: string);
     /**
      * A unique identifier for this Function.
      */
@@ -5853,7 +5779,7 @@ declare class Function_ extends BaseClient {
  *
  * This is a specification for an argument at function definition time, not an argument passed at function call time.
  */
-declare class FunctionArg extends BaseClient {
+declare class FunctionArg extends BaseClient$1 {
     private readonly _id?;
     private readonly _defaultAddress?;
     private readonly _defaultPath?;
@@ -5864,7 +5790,7 @@ declare class FunctionArg extends BaseClient {
     /**
      * Constructor is used for internal usage only, do not create object from it.
      */
-    constructor(ctx?: Context, _id?: ID, _defaultAddress?: string, _defaultPath?: string, _defaultValue?: JSON, _deprecated?: string, _description?: string, _name?: string);
+    constructor(ctx?: Context$1, _id?: ID, _defaultAddress?: string, _defaultPath?: string, _defaultValue?: JSON, _deprecated?: string, _description?: string, _name?: string);
     /**
      * A unique identifier for this FunctionArg.
      */
@@ -5909,7 +5835,7 @@ declare class FunctionArg extends BaseClient {
 /**
  * An active function call.
  */
-declare class FunctionCall extends BaseClient {
+declare class FunctionCall extends BaseClient$1 {
     private readonly _id?;
     private readonly _name?;
     private readonly _parent?;
@@ -5919,7 +5845,7 @@ declare class FunctionCall extends BaseClient {
     /**
      * Constructor is used for internal usage only, do not create object from it.
      */
-    constructor(ctx?: Context, _id?: ID, _name?: string, _parent?: JSON, _parentName?: string, _returnError?: Void, _returnValue?: Void);
+    constructor(ctx?: Context$1, _id?: ID, _name?: string, _parent?: JSON, _parentName?: string, _returnError?: Void, _returnValue?: Void);
     /**
      * A unique identifier for this FunctionCall.
      */
@@ -5954,14 +5880,14 @@ declare class FunctionCall extends BaseClient {
 /**
  * A value passed as a named argument to a function call.
  */
-declare class FunctionCallArgValue extends BaseClient {
+declare class FunctionCallArgValue extends BaseClient$1 {
     private readonly _id?;
     private readonly _name?;
     private readonly _value?;
     /**
      * Constructor is used for internal usage only, do not create object from it.
      */
-    constructor(ctx?: Context, _id?: ID, _name?: string, _value?: JSON);
+    constructor(ctx?: Context$1, _id?: ID, _name?: string, _value?: JSON);
     /**
      * A unique identifier for this FunctionCallArgValue.
      */
@@ -5978,12 +5904,12 @@ declare class FunctionCallArgValue extends BaseClient {
 /**
  * The result of running an SDK's codegen.
  */
-declare class GeneratedCode extends BaseClient {
+declare class GeneratedCode extends BaseClient$1 {
     private readonly _id?;
     /**
      * Constructor is used for internal usage only, do not create object from it.
      */
-    constructor(ctx?: Context, _id?: ID);
+    constructor(ctx?: Context$1, _id?: ID);
     /**
      * A unique identifier for this GeneratedCode.
      */
@@ -6018,12 +5944,12 @@ declare class GeneratedCode extends BaseClient {
 /**
  * A generation function and its staleness check. Reading changeset runs the function.
  */
-declare class Generator extends BaseClient {
+declare class Generator extends BaseClient$1 {
     private readonly _id?;
     /**
      * Constructor is used for internal usage only, do not create object from it.
      */
-    constructor(ctx?: Context, _id?: ID);
+    constructor(ctx?: Context$1, _id?: ID);
     /**
      * A unique identifier for this Generator.
      */
@@ -6050,14 +5976,14 @@ declare class Generator extends BaseClient {
 /**
  * A Git bundle: a self-describing container of refs and the objects needed to reconstruct them, optionally rooted at prerequisite commits.
  */
-declare class GitBundle extends BaseClient {
+declare class GitBundle extends BaseClient$1 {
     private readonly _id?;
     private readonly _objectFormat?;
     private readonly _version?;
     /**
      * Constructor is used for internal usage only, do not create object from it.
      */
-    constructor(ctx?: Context, _id?: ID, _objectFormat?: string, _version?: number);
+    constructor(ctx?: Context$1, _id?: ID, _objectFormat?: string, _version?: number);
     /**
      * A unique identifier for this GitBundle.
      */
@@ -6096,14 +6022,14 @@ declare class GitBundle extends BaseClient {
 /**
  * A ref advertised by a Git bundle.
  */
-declare class GitBundleRef extends BaseClient {
+declare class GitBundleRef extends BaseClient$1 {
     private readonly _id?;
     private readonly _name?;
     private readonly _sha?;
     /**
      * Constructor is used for internal usage only, do not create object from it.
      */
-    constructor(ctx?: Context, _id?: ID, _name?: string, _sha?: string);
+    constructor(ctx?: Context$1, _id?: ID, _name?: string, _sha?: string);
     /**
      * A unique identifier for this GitBundleRef.
      */
@@ -6120,7 +6046,7 @@ declare class GitBundleRef extends BaseClient {
 /**
  * An immutable git commit.
  */
-declare class GitCommit extends BaseClient {
+declare class GitCommit extends BaseClient$1 {
     private readonly _id?;
     private readonly _authorEmail?;
     private readonly _authorName?;
@@ -6136,7 +6062,7 @@ declare class GitCommit extends BaseClient {
     /**
      * Constructor is used for internal usage only, do not create object from it.
      */
-    constructor(ctx?: Context, _id?: ID, _authorEmail?: string, _authorName?: string, _authoredDate?: string, _committedDate?: string, _committerEmail?: string, _committerName?: string, _message?: string, _messageBody?: string, _messageHeadline?: string, _sha?: string, _shortSha?: string);
+    constructor(ctx?: Context$1, _id?: ID, _authorEmail?: string, _authorName?: string, _authoredDate?: string, _committedDate?: string, _committerEmail?: string, _committerName?: string, _message?: string, _messageBody?: string, _messageHeadline?: string, _sha?: string, _shortSha?: string);
     /**
      * A unique identifier for this GitCommit.
      */
@@ -6217,7 +6143,7 @@ declare class GitCommit extends BaseClient {
 /**
  * A receipt for a completed Git push. Reading or replaying the receipt does not push again.
  */
-declare class GitPushResult extends BaseClient {
+declare class GitPushResult extends BaseClient$1 {
     private readonly _id?;
     private readonly _disposition?;
     private readonly _previousSHA?;
@@ -6226,7 +6152,7 @@ declare class GitPushResult extends BaseClient {
     /**
      * Constructor is used for internal usage only, do not create object from it.
      */
-    constructor(ctx?: Context, _id?: ID, _disposition?: GitPushDisposition, _previousSHA?: string, _ref?: string, _sha?: string);
+    constructor(ctx?: Context$1, _id?: ID, _disposition?: GitPushDisposition, _previousSHA?: string, _ref?: string, _sha?: string);
     /**
      * A unique identifier for this GitPushResult.
      */
@@ -6251,7 +6177,7 @@ declare class GitPushResult extends BaseClient {
 /**
  * A git ref (tag, branch, or commit).
  */
-declare class GitRef extends BaseClient {
+declare class GitRef extends BaseClient$1 {
     private readonly _id?;
     private readonly _commit?;
     private readonly _commitSHA?;
@@ -6260,7 +6186,7 @@ declare class GitRef extends BaseClient {
     /**
      * Constructor is used for internal usage only, do not create object from it.
      */
-    constructor(ctx?: Context, _id?: ID, _commit?: string, _commitSHA?: string, _name?: string, _ref?: string);
+    constructor(ctx?: Context$1, _id?: ID, _commit?: string, _commitSHA?: string, _name?: string, _ref?: string);
     /**
      * A unique identifier for this GitRef.
      */
@@ -6357,13 +6283,13 @@ declare class GitRef extends BaseClient {
 /**
  * A git repository.
  */
-declare class GitRepository extends BaseClient {
+declare class GitRepository extends BaseClient$1 {
     private readonly _id?;
     private readonly _url?;
     /**
      * Constructor is used for internal usage only, do not create object from it.
      */
-    constructor(ctx?: Context, _id?: ID, _url?: string);
+    constructor(ctx?: Context$1, _id?: ID, _url?: string);
     /**
      * A unique identifier for this GitRepository.
      */
@@ -6472,12 +6398,12 @@ declare class GitRepository extends BaseClient {
 /**
  * An internal persistent HTTP state.
  */
-declare class HTTPState extends BaseClient {
+declare class HTTPState extends BaseClient$1 {
     private readonly _id?;
     /**
      * Constructor is used for internal usage only, do not create object from it.
      */
-    constructor(ctx?: Context, _id?: ID);
+    constructor(ctx?: Context$1, _id?: ID);
     /**
      * A unique identifier for this HTTPState.
      */
@@ -6486,7 +6412,7 @@ declare class HTTPState extends BaseClient {
 /**
  * Image healthcheck configuration.
  */
-declare class HealthcheckConfig extends BaseClient {
+declare class HealthcheckConfig extends BaseClient$1 {
     private readonly _id?;
     private readonly _interval?;
     private readonly _retries?;
@@ -6497,7 +6423,7 @@ declare class HealthcheckConfig extends BaseClient {
     /**
      * Constructor is used for internal usage only, do not create object from it.
      */
-    constructor(ctx?: Context, _id?: ID, _interval?: string, _retries?: number, _shell?: boolean, _startInterval?: string, _startPeriod?: string, _timeout?: string);
+    constructor(ctx?: Context$1, _id?: ID, _interval?: string, _retries?: number, _shell?: boolean, _startInterval?: string, _startPeriod?: string, _timeout?: string);
     /**
      * A unique identifier for this HealthcheckConfig.
      */
@@ -6534,13 +6460,13 @@ declare class HealthcheckConfig extends BaseClient {
 /**
  * Information about the host environment.
  */
-declare class Host extends BaseClient {
+declare class Host extends BaseClient$1 {
     private readonly _id?;
     private readonly _findUp?;
     /**
      * Constructor is used for internal usage only, do not create object from it.
      */
-    constructor(ctx?: Context, _id?: ID, _findUp?: string);
+    constructor(ctx?: Context$1, _id?: ID, _findUp?: string);
     /**
      * A unique identifier for this Host.
      */
@@ -6607,13 +6533,13 @@ declare class Host extends BaseClient {
  * in the core API. It is not used by user modules and shouldn't ever be as user
  * module accept input objects via their id rather than graphql input types.
  */
-declare class InputTypeDef extends BaseClient {
+declare class InputTypeDef extends BaseClient$1 {
     private readonly _id?;
     private readonly _name?;
     /**
      * Constructor is used for internal usage only, do not create object from it.
      */
-    constructor(ctx?: Context, _id?: ID, _name?: string);
+    constructor(ctx?: Context$1, _id?: ID, _name?: string);
     /**
      * A unique identifier for this InputTypeDef.
      */
@@ -6630,7 +6556,7 @@ declare class InputTypeDef extends BaseClient {
 /**
  * A definition of a custom interface defined in a Module.
  */
-declare class InterfaceTypeDef extends BaseClient {
+declare class InterfaceTypeDef extends BaseClient$1 {
     private readonly _id?;
     private readonly _description?;
     private readonly _name?;
@@ -6638,7 +6564,7 @@ declare class InterfaceTypeDef extends BaseClient {
     /**
      * Constructor is used for internal usage only, do not create object from it.
      */
-    constructor(ctx?: Context, _id?: ID, _description?: string, _name?: string, _sourceModuleName?: string);
+    constructor(ctx?: Context$1, _id?: ID, _description?: string, _name?: string, _sourceModuleName?: string);
     /**
      * A unique identifier for this InterfaceTypeDef.
      */
@@ -6664,7 +6590,7 @@ declare class InterfaceTypeDef extends BaseClient {
      */
     sourceModuleName: () => Promise<string>;
 }
-declare class JSONValue extends BaseClient {
+declare class JSONValue extends BaseClient$1 {
     private readonly _id?;
     private readonly _asBoolean?;
     private readonly _asInteger?;
@@ -6673,7 +6599,7 @@ declare class JSONValue extends BaseClient {
     /**
      * Constructor is used for internal usage only, do not create object from it.
      */
-    constructor(ctx?: Context, _id?: ID, _asBoolean?: boolean, _asInteger?: number, _asString?: string, _contents?: JSON);
+    constructor(ctx?: Context$1, _id?: ID, _asBoolean?: boolean, _asInteger?: number, _asString?: string, _contents?: JSON);
     /**
      * A unique identifier for this JSONValue.
      */
@@ -6745,7 +6671,7 @@ declare class JSONValue extends BaseClient {
 /**
  * A conversation with a large language model (LLM): queue prompts, expose tools, and step the model until it completes its turn.
  */
-declare class LLM extends BaseClient {
+declare class LLM extends BaseClient$1 {
     private readonly _id?;
     private readonly _contextTokens?;
     private readonly _contextWindow?;
@@ -6761,7 +6687,7 @@ declare class LLM extends BaseClient {
     /**
      * Constructor is used for internal usage only, do not create object from it.
      */
-    constructor(ctx?: Context, _id?: ID, _contextTokens?: number, _contextWindow?: number, _hasPending?: boolean, _lastReply?: string, _model?: string, _provider?: string, _reasoningEffort?: string, _spawn?: ID, _sync?: ID, _tools?: string, _transcript?: string);
+    constructor(ctx?: Context$1, _id?: ID, _contextTokens?: number, _contextWindow?: number, _hasPending?: boolean, _lastReply?: string, _model?: string, _provider?: string, _reasoningEffort?: string, _spawn?: ID, _sync?: ID, _tools?: string, _transcript?: string);
     /**
      * A unique identifier for this LLM.
      */
@@ -6985,7 +6911,7 @@ declare class LLM extends BaseClient {
 /**
  * A single piece of content within an LLM message.
  */
-declare class LLMContentBlock extends BaseClient {
+declare class LLMContentBlock extends BaseClient$1 {
     private readonly _id?;
     private readonly _arguments?;
     private readonly _callId?;
@@ -6999,7 +6925,7 @@ declare class LLMContentBlock extends BaseClient {
     /**
      * Constructor is used for internal usage only, do not create object from it.
      */
-    constructor(ctx?: Context, _id?: ID, _arguments?: JSON, _callId?: string, _data?: string, _errored?: boolean, _kind?: LLMContentBlockKind, _mimeType?: string, _signature?: string, _text?: string, _toolName?: string);
+    constructor(ctx?: Context$1, _id?: ID, _arguments?: JSON, _callId?: string, _data?: string, _errored?: boolean, _kind?: LLMContentBlockKind, _mimeType?: string, _signature?: string, _text?: string, _toolName?: string);
     /**
      * A unique identifier for this LLMContentBlock.
      */
@@ -7048,13 +6974,13 @@ declare class LLMContentBlock extends BaseClient {
 /**
  * A single message in an LLM conversation.
  */
-declare class LLMMessage extends BaseClient {
+declare class LLMMessage extends BaseClient$1 {
     private readonly _id?;
     private readonly _role?;
     /**
      * Constructor is used for internal usage only, do not create object from it.
      */
-    constructor(ctx?: Context, _id?: ID, _role?: LLMMessageRole);
+    constructor(ctx?: Context$1, _id?: ID, _role?: LLMMessageRole);
     /**
      * A unique identifier for this LLMMessage.
      */
@@ -7084,7 +7010,7 @@ declare class LLMMessage extends BaseClient {
  *
  * The recorded provenance of a message that arrived through an agent mailbox.
  */
-declare class LLMMessageOrigin extends BaseClient {
+declare class LLMMessageOrigin extends BaseClient$1 {
     private readonly _id?;
     private readonly _agentName?;
     private readonly _kind?;
@@ -7093,7 +7019,7 @@ declare class LLMMessageOrigin extends BaseClient {
     /**
      * Constructor is used for internal usage only, do not create object from it.
      */
-    constructor(ctx?: Context, _id?: ID, _agentName?: string, _kind?: LLMMessageOriginKind, _ref?: string, _replyTo?: string);
+    constructor(ctx?: Context$1, _id?: ID, _agentName?: string, _kind?: LLMMessageOriginKind, _ref?: string, _replyTo?: string);
     /**
      * A unique identifier for this LLMMessageOrigin.
      */
@@ -7122,14 +7048,14 @@ declare class LLMMessageOrigin extends BaseClient {
 /**
  * A skill available to a model: task-specific guidance discovered with ListSkills and read with ReadSkill.
  */
-declare class LLMSkill extends BaseClient {
+declare class LLMSkill extends BaseClient$1 {
     private readonly _id?;
     private readonly _description?;
     private readonly _name?;
     /**
      * Constructor is used for internal usage only, do not create object from it.
      */
-    constructor(ctx?: Context, _id?: ID, _description?: string, _name?: string);
+    constructor(ctx?: Context$1, _id?: ID, _description?: string, _name?: string);
     /**
      * A unique identifier for this LLMSkill.
      */
@@ -7146,7 +7072,7 @@ declare class LLMSkill extends BaseClient {
 /**
  * A count of tokens consumed by LLM API calls.
  */
-declare class LLMTokenUsage extends BaseClient {
+declare class LLMTokenUsage extends BaseClient$1 {
     private readonly _id?;
     private readonly _cachedTokenReads?;
     private readonly _cachedTokenWrites?;
@@ -7156,7 +7082,7 @@ declare class LLMTokenUsage extends BaseClient {
     /**
      * Constructor is used for internal usage only, do not create object from it.
      */
-    constructor(ctx?: Context, _id?: ID, _cachedTokenReads?: number, _cachedTokenWrites?: number, _inputTokens?: number, _outputTokens?: number, _totalTokens?: number);
+    constructor(ctx?: Context$1, _id?: ID, _cachedTokenReads?: number, _cachedTokenWrites?: number, _inputTokens?: number, _outputTokens?: number, _totalTokens?: number);
     /**
      * A unique identifier for this LLMTokenUsage.
      */
@@ -7185,14 +7111,14 @@ declare class LLMTokenUsage extends BaseClient {
 /**
  * A simple key value object that represents a label.
  */
-declare class Label extends BaseClient {
+declare class Label extends BaseClient$1 {
     private readonly _id?;
     private readonly _name?;
     private readonly _value?;
     /**
      * Constructor is used for internal usage only, do not create object from it.
      */
-    constructor(ctx?: Context, _id?: ID, _name?: string, _value?: string);
+    constructor(ctx?: Context$1, _id?: ID, _name?: string, _value?: string);
     /**
      * A unique identifier for this Label.
      */
@@ -7209,12 +7135,12 @@ declare class Label extends BaseClient {
 /**
  * A definition of a list type in a Module.
  */
-declare class ListTypeDef extends BaseClient {
+declare class ListTypeDef extends BaseClient$1 {
     private readonly _id?;
     /**
      * Constructor is used for internal usage only, do not create object from it.
      */
-    constructor(ctx?: Context, _id?: ID);
+    constructor(ctx?: Context$1, _id?: ID);
     /**
      * A unique identifier for this ListTypeDef.
      */
@@ -7227,7 +7153,7 @@ declare class ListTypeDef extends BaseClient {
 /**
  * A Dagger module.
  */
-declare class Module_ extends BaseClient {
+declare class Module_ extends BaseClient$1 {
     private readonly _id?;
     private readonly _description?;
     private readonly _name?;
@@ -7236,7 +7162,7 @@ declare class Module_ extends BaseClient {
     /**
      * Constructor is used for internal usage only, do not create object from it.
      */
-    constructor(ctx?: Context, _id?: ID, _description?: string, _name?: string, _serve?: Void, _sync?: ID);
+    constructor(ctx?: Context$1, _id?: ID, _description?: string, _name?: string, _serve?: Void, _sync?: ID);
     /**
      * A unique identifier for this Module.
      */
@@ -7336,14 +7262,14 @@ declare class Module_ extends BaseClient {
 /**
  * The client generated for the module.
  */
-declare class ModuleConfigClient extends BaseClient {
+declare class ModuleConfigClient extends BaseClient$1 {
     private readonly _id?;
     private readonly _directory?;
     private readonly _generator?;
     /**
      * Constructor is used for internal usage only, do not create object from it.
      */
-    constructor(ctx?: Context, _id?: ID, _directory?: string, _generator?: string);
+    constructor(ctx?: Context$1, _id?: ID, _directory?: string, _generator?: string);
     /**
      * A unique identifier for this ModuleConfigClient.
      */
@@ -7360,7 +7286,7 @@ declare class ModuleConfigClient extends BaseClient {
 /**
  * The source needed to load and run a module, along with any metadata about the source such as versions/urls/etc.
  */
-declare class ModuleSource extends BaseClient {
+declare class ModuleSource extends BaseClient$1 {
     private readonly _id?;
     private readonly _asString?;
     private readonly _cloneRef?;
@@ -7384,7 +7310,7 @@ declare class ModuleSource extends BaseClient {
     /**
      * Constructor is used for internal usage only, do not create object from it.
      */
-    constructor(ctx?: Context, _id?: ID, _asString?: string, _cloneRef?: string, _commit?: string, _configExists?: boolean, _digest?: string, _engineVersion?: string, _htmlRepoURL?: string, _htmlURL?: string, _kind?: ModuleSourceKind, _localContextDirectoryPath?: string, _moduleName?: string, _moduleOriginalName?: string, _originalSubpath?: string, _pin?: string, _repoRootPath?: string, _sourceRootSubpath?: string, _sourceSubpath?: string, _sync?: ID, _version?: string);
+    constructor(ctx?: Context$1, _id?: ID, _asString?: string, _cloneRef?: string, _commit?: string, _configExists?: boolean, _digest?: string, _engineVersion?: string, _htmlRepoURL?: string, _htmlURL?: string, _kind?: ModuleSourceKind, _localContextDirectoryPath?: string, _moduleName?: string, _moduleOriginalName?: string, _originalSubpath?: string, _pin?: string, _repoRootPath?: string, _sourceRootSubpath?: string, _sourceSubpath?: string, _sync?: ID, _version?: string);
     /**
      * A unique identifier for this ModuleSource.
      */
@@ -7652,18 +7578,18 @@ declare class ModuleSource extends BaseClient {
 interface Node {
     id(): Promise<ID>;
 }
-declare class _NodeClient extends BaseClient {
+declare class _NodeClient extends BaseClient$1 {
     private readonly _id?;
     /**
      * Constructor is used for internal usage only, do not create object from it.
      */
-    constructor(ctx?: Context, _id?: ID);
+    constructor(ctx?: Context$1, _id?: ID);
     id: () => Promise<ID>;
 }
 /**
  * A definition of a custom object defined in a Module.
  */
-declare class ObjectTypeDef extends BaseClient {
+declare class ObjectTypeDef extends BaseClient$1 {
     private readonly _id?;
     private readonly _deprecated?;
     private readonly _description?;
@@ -7672,7 +7598,7 @@ declare class ObjectTypeDef extends BaseClient {
     /**
      * Constructor is used for internal usage only, do not create object from it.
      */
-    constructor(ctx?: Context, _id?: ID, _deprecated?: string, _description?: string, _name?: string, _sourceModuleName?: string);
+    constructor(ctx?: Context$1, _id?: ID, _deprecated?: string, _description?: string, _name?: string, _sourceModuleName?: string);
     /**
      * A unique identifier for this ObjectTypeDef.
      */
@@ -7713,7 +7639,7 @@ declare class ObjectTypeDef extends BaseClient {
 /**
  * A port exposed by a container.
  */
-declare class Port extends BaseClient {
+declare class Port extends BaseClient$1 {
     private readonly _id?;
     private readonly _description?;
     private readonly _experimentalSkipHealthcheck?;
@@ -7722,7 +7648,7 @@ declare class Port extends BaseClient {
     /**
      * Constructor is used for internal usage only, do not create object from it.
      */
-    constructor(ctx?: Context, _id?: ID, _description?: string, _experimentalSkipHealthcheck?: boolean, _port?: number, _protocol?: NetworkProtocol);
+    constructor(ctx?: Context$1, _id?: ID, _description?: string, _experimentalSkipHealthcheck?: boolean, _port?: number, _protocol?: NetworkProtocol);
     /**
      * A unique identifier for this Port.
      */
@@ -7747,7 +7673,7 @@ declare class Port extends BaseClient {
 /**
  * The root of the DAG.
  */
-declare class Client extends BaseClient {
+declare class Client extends BaseClient$1 {
     private readonly _id?;
     private readonly _currentTimestamp?;
     private readonly _defaultPlatform?;
@@ -7757,7 +7683,7 @@ declare class Client extends BaseClient {
     /**
      * Constructor is used for internal usage only, do not create object from it.
      */
-    constructor(ctx?: Context, _id?: ID, _currentTimestamp?: string, _defaultPlatform?: Platform, _serveModule?: Void, _setSessionTitle?: Void, _version?: string);
+    constructor(ctx?: Context$1, _id?: ID, _currentTimestamp?: string, _defaultPlatform?: Platform, _serveModule?: Void, _setSessionTitle?: Void, _version?: string);
     /**
      * Get the Raw GraphQL client.
      */
@@ -8011,12 +7937,12 @@ declare class Client extends BaseClient {
 /**
  * An internal persistent bare git mirror.
  */
-declare class RemoteGitMirror extends BaseClient {
+declare class RemoteGitMirror extends BaseClient$1 {
     private readonly _id?;
     /**
      * Constructor is used for internal usage only, do not create object from it.
      */
-    constructor(ctx?: Context, _id?: ID);
+    constructor(ctx?: Context$1, _id?: ID);
     /**
      * A unique identifier for this RemoteGitMirror.
      */
@@ -8025,14 +7951,14 @@ declare class RemoteGitMirror extends BaseClient {
 /**
  * The SDK config of the module.
  */
-declare class SDKConfig extends BaseClient {
+declare class SDKConfig extends BaseClient$1 {
     private readonly _id?;
     private readonly _debug?;
     private readonly _source?;
     /**
      * Constructor is used for internal usage only, do not create object from it.
      */
-    constructor(ctx?: Context, _id?: ID, _debug?: boolean, _source?: string);
+    constructor(ctx?: Context$1, _id?: ID, _debug?: boolean, _source?: string);
     /**
      * A unique identifier for this SDKConfig.
      */
@@ -8049,7 +7975,7 @@ declare class SDKConfig extends BaseClient {
 /**
  * A definition of a custom scalar defined in a Module.
  */
-declare class ScalarTypeDef extends BaseClient {
+declare class ScalarTypeDef extends BaseClient$1 {
     private readonly _id?;
     private readonly _description?;
     private readonly _name?;
@@ -8057,7 +7983,7 @@ declare class ScalarTypeDef extends BaseClient {
     /**
      * Constructor is used for internal usage only, do not create object from it.
      */
-    constructor(ctx?: Context, _id?: ID, _description?: string, _name?: string, _sourceModuleName?: string);
+    constructor(ctx?: Context$1, _id?: ID, _description?: string, _name?: string, _sourceModuleName?: string);
     /**
      * A unique identifier for this ScalarTypeDef.
      */
@@ -8078,13 +8004,13 @@ declare class ScalarTypeDef extends BaseClient {
 /**
  * A GraphQL introspection schema that can be inspected and merged.
  */
-declare class Schema extends BaseClient {
+declare class Schema extends BaseClient$1 {
     private readonly _id?;
     private readonly _contents?;
     /**
      * Constructor is used for internal usage only, do not create object from it.
      */
-    constructor(ctx?: Context, _id?: ID, _contents?: JSON);
+    constructor(ctx?: Context$1, _id?: ID, _contents?: JSON);
     /**
      * A unique identifier for this Schema.
      */
@@ -8106,7 +8032,7 @@ declare class Schema extends BaseClient {
      */
     with: (arg: (param: Schema) => Schema) => Schema;
 }
-declare class SearchResult extends BaseClient {
+declare class SearchResult extends BaseClient$1 {
     private readonly _id?;
     private readonly _absoluteOffset?;
     private readonly _filePath?;
@@ -8115,7 +8041,7 @@ declare class SearchResult extends BaseClient {
     /**
      * Constructor is used for internal usage only, do not create object from it.
      */
-    constructor(ctx?: Context, _id?: ID, _absoluteOffset?: number, _filePath?: string, _lineNumber?: number, _matchedLines?: string);
+    constructor(ctx?: Context$1, _id?: ID, _absoluteOffset?: number, _filePath?: string, _lineNumber?: number, _matchedLines?: string);
     /**
      * A unique identifier for this SearchResult.
      */
@@ -8141,7 +8067,7 @@ declare class SearchResult extends BaseClient {
      */
     submatches: () => Promise<SearchSubmatch[]>;
 }
-declare class SearchSubmatch extends BaseClient {
+declare class SearchSubmatch extends BaseClient$1 {
     private readonly _id?;
     private readonly _end?;
     private readonly _start?;
@@ -8149,7 +8075,7 @@ declare class SearchSubmatch extends BaseClient {
     /**
      * Constructor is used for internal usage only, do not create object from it.
      */
-    constructor(ctx?: Context, _id?: ID, _end?: number, _start?: number, _text?: string);
+    constructor(ctx?: Context$1, _id?: ID, _end?: number, _start?: number, _text?: string);
     /**
      * A unique identifier for this SearchSubmatch.
      */
@@ -8170,7 +8096,7 @@ declare class SearchSubmatch extends BaseClient {
 /**
  * A reference to a secret value, which can be handled more safely than the value itself.
  */
-declare class Secret extends BaseClient {
+declare class Secret extends BaseClient$1 {
     private readonly _id?;
     private readonly _name?;
     private readonly _plaintext?;
@@ -8178,7 +8104,7 @@ declare class Secret extends BaseClient {
     /**
      * Constructor is used for internal usage only, do not create object from it.
      */
-    constructor(ctx?: Context, _id?: ID, _name?: string, _plaintext?: string, _uri?: string);
+    constructor(ctx?: Context$1, _id?: ID, _name?: string, _plaintext?: string, _uri?: string);
     /**
      * A unique identifier for this Secret.
      */
@@ -8199,7 +8125,7 @@ declare class Secret extends BaseClient {
 /**
  * A content-addressed service providing TCP connectivity.
  */
-declare class Service extends BaseClient {
+declare class Service extends BaseClient$1 {
     private readonly _id?;
     private readonly _endpoint?;
     private readonly _hostname?;
@@ -8210,7 +8136,7 @@ declare class Service extends BaseClient {
     /**
      * Constructor is used for internal usage only, do not create object from it.
      */
-    constructor(ctx?: Context, _id?: ID, _endpoint?: string, _hostname?: string, _start?: ID, _stop?: ID, _sync?: ID, _up?: Void);
+    constructor(ctx?: Context$1, _id?: ID, _endpoint?: string, _hostname?: string, _start?: ID, _stop?: ID, _sync?: ID, _up?: Void);
     /**
      * A unique identifier for this Service.
      */
@@ -8273,12 +8199,12 @@ declare class Service extends BaseClient {
 /**
  * A Unix or TCP/IP socket that can be mounted into a container.
  */
-declare class Socket extends BaseClient {
+declare class Socket extends BaseClient$1 {
     private readonly _id?;
     /**
      * Constructor is used for internal usage only, do not create object from it.
      */
-    constructor(ctx?: Context, _id?: ID);
+    constructor(ctx?: Context$1, _id?: ID);
     /**
      * A unique identifier for this Socket.
      */
@@ -8287,7 +8213,7 @@ declare class Socket extends BaseClient {
 /**
  * Source location information.
  */
-declare class SourceMap extends BaseClient {
+declare class SourceMap extends BaseClient$1 {
     private readonly _id?;
     private readonly _column?;
     private readonly _filename?;
@@ -8297,7 +8223,7 @@ declare class SourceMap extends BaseClient {
     /**
      * Constructor is used for internal usage only, do not create object from it.
      */
-    constructor(ctx?: Context, _id?: ID, _column?: number, _filename?: string, _line?: number, _module?: string, _url?: string);
+    constructor(ctx?: Context$1, _id?: ID, _column?: number, _filename?: string, _line?: number, _module?: string, _url?: string);
     /**
      * A unique identifier for this SourceMap.
      */
@@ -8326,7 +8252,7 @@ declare class SourceMap extends BaseClient {
 /**
  * A file or directory status object.
  */
-declare class Stat extends BaseClient {
+declare class Stat extends BaseClient$1 {
     private readonly _id?;
     private readonly _fileType?;
     private readonly _name?;
@@ -8335,7 +8261,7 @@ declare class Stat extends BaseClient {
     /**
      * Constructor is used for internal usage only, do not create object from it.
      */
-    constructor(ctx?: Context, _id?: ID, _fileType?: FileType, _name?: string, _permissions?: number, _size?: number);
+    constructor(ctx?: Context$1, _id?: ID, _fileType?: FileType, _name?: string, _permissions?: number, _size?: number);
     /**
      * A unique identifier for this Stat.
      */
@@ -8366,26 +8292,26 @@ interface Syncer {
     id(): Promise<ID>;
     sync(): Promise<Syncer>;
 }
-declare class _SyncerClient extends BaseClient {
+declare class _SyncerClient extends BaseClient$1 {
     private readonly _id?;
     private readonly _sync?;
     /**
      * Constructor is used for internal usage only, do not create object from it.
      */
-    constructor(ctx?: Context, _id?: ID, _sync?: ID);
+    constructor(ctx?: Context$1, _id?: ID, _sync?: ID);
     id: () => Promise<ID>;
     sync: () => Promise<Syncer>;
 }
 /**
  * An interactive terminal that clients can connect to.
  */
-declare class Terminal extends BaseClient {
+declare class Terminal extends BaseClient$1 {
     private readonly _id?;
     private readonly _sync?;
     /**
      * Constructor is used for internal usage only, do not create object from it.
      */
-    constructor(ctx?: Context, _id?: ID, _sync?: ID);
+    constructor(ctx?: Context$1, _id?: ID, _sync?: ID);
     /**
      * A unique identifier for this Terminal.
      */
@@ -8400,7 +8326,7 @@ declare class Terminal extends BaseClient {
 /**
  * A definition of a parameter or return type in a Module.
  */
-declare class TypeDef extends BaseClient {
+declare class TypeDef extends BaseClient$1 {
     private readonly _id?;
     private readonly _kind?;
     private readonly _name?;
@@ -8408,7 +8334,7 @@ declare class TypeDef extends BaseClient {
     /**
      * Constructor is used for internal usage only, do not create object from it.
      */
-    constructor(ctx?: Context, _id?: ID, _kind?: TypeDefKind, _name?: string, _optional?: boolean);
+    constructor(ctx?: Context$1, _id?: ID, _kind?: TypeDefKind, _name?: string, _optional?: boolean);
     /**
      * A unique identifier for this TypeDef.
      */
@@ -8549,12 +8475,12 @@ declare class TypeDef extends BaseClient {
 /**
  * A filesystem volume that can be mounted into containers.
  */
-declare class Volume extends BaseClient {
+declare class Volume extends BaseClient$1 {
     private readonly _id?;
     /**
      * Constructor is used for internal usage only, do not create object from it.
      */
-    constructor(ctx?: Context, _id?: ID);
+    constructor(ctx?: Context$1, _id?: ID);
     /**
      * A unique identifier for this Volume.
      */
@@ -8563,7 +8489,7 @@ declare class Volume extends BaseClient {
 /**
  * A Dagger workspace detected from the current working directory or constructed from a Directory.
  */
-declare class Workspace extends BaseClient {
+declare class Workspace extends BaseClient$1 {
     private readonly _id?;
     private readonly _address?;
     private readonly _configFile?;
@@ -8576,7 +8502,7 @@ declare class Workspace extends BaseClient {
     /**
      * Constructor is used for internal usage only, do not create object from it.
      */
-    constructor(ctx?: Context, _id?: ID, _address?: string, _configFile?: string, _configRead?: string, _cwd?: string, _detectScope?: string, _entrypoint?: string, _export?: Void, _findUp?: string);
+    constructor(ctx?: Context$1, _id?: ID, _address?: string, _configFile?: string, _configRead?: string, _cwd?: string, _detectScope?: string, _entrypoint?: string, _export?: Void, _findUp?: string);
     /**
      * A unique identifier for this Workspace.
      */
@@ -9072,14 +8998,14 @@ declare class Workspace extends BaseClient {
 /**
  * A source commit classified against the receiving workspace.
  */
-declare class WorkspaceCommitPick extends BaseClient {
+declare class WorkspaceCommitPick extends BaseClient$1 {
     private readonly _id?;
     private readonly _reason?;
     private readonly _status?;
     /**
      * Constructor is used for internal usage only, do not create object from it.
      */
-    constructor(ctx?: Context, _id?: ID, _reason?: WorkspaceCommitPickReason, _status?: WorkspaceCommitPickStatus);
+    constructor(ctx?: Context$1, _id?: ID, _reason?: WorkspaceCommitPickReason, _status?: WorkspaceCommitPickStatus);
     /**
      * A unique identifier for this WorkspaceCommitPick.
      */
@@ -9104,12 +9030,12 @@ declare class WorkspaceCommitPick extends BaseClient {
 /**
  * Local git state for a workspace.
  */
-declare class WorkspaceGit extends BaseClient {
+declare class WorkspaceGit extends BaseClient$1 {
     private readonly _id?;
     /**
      * Constructor is used for internal usage only, do not create object from it.
      */
-    constructor(ctx?: Context, _id?: ID);
+    constructor(ctx?: Context$1, _id?: ID);
     /**
      * A unique identifier for this WorkspaceGit.
      */
@@ -9134,13 +9060,13 @@ declare class WorkspaceGit extends BaseClient {
 /**
  * A planned workspace migration.
  */
-declare class WorkspaceMigration extends BaseClient {
+declare class WorkspaceMigration extends BaseClient$1 {
     private readonly _id?;
     private readonly _configFile?;
     /**
      * Constructor is used for internal usage only, do not create object from it.
      */
-    constructor(ctx?: Context, _id?: ID, _configFile?: string);
+    constructor(ctx?: Context$1, _id?: ID, _configFile?: string);
     /**
      * A unique identifier for this WorkspaceMigration.
      */
@@ -9165,14 +9091,14 @@ declare class WorkspaceMigration extends BaseClient {
 /**
  * A single logical part of a workspace migration.
  */
-declare class WorkspaceMigrationStep extends BaseClient {
+declare class WorkspaceMigrationStep extends BaseClient$1 {
     private readonly _id?;
     private readonly _code?;
     private readonly _description?;
     /**
      * Constructor is used for internal usage only, do not create object from it.
      */
-    constructor(ctx?: Context, _id?: ID, _code?: string, _description?: string);
+    constructor(ctx?: Context$1, _id?: ID, _code?: string, _description?: string);
     /**
      * A unique identifier for this WorkspaceMigrationStep.
      */
@@ -9197,7 +9123,7 @@ declare class WorkspaceMigrationStep extends BaseClient {
 /**
  * A module entry in the workspace configuration.
  */
-declare class WorkspaceModule extends BaseClient {
+declare class WorkspaceModule extends BaseClient$1 {
     private readonly _id?;
     private readonly _entrypoint?;
     private readonly _name?;
@@ -9205,7 +9131,7 @@ declare class WorkspaceModule extends BaseClient {
     /**
      * Constructor is used for internal usage only, do not create object from it.
      */
-    constructor(ctx?: Context, _id?: ID, _entrypoint?: boolean, _name?: string, _source?: string);
+    constructor(ctx?: Context$1, _id?: ID, _entrypoint?: boolean, _name?: string, _source?: string);
     /**
      * A unique identifier for this WorkspaceModule.
      */
@@ -9234,7 +9160,7 @@ declare class WorkspaceModule extends BaseClient {
 /**
  * A constructor-backed module setting.
  */
-declare class WorkspaceModuleSetting extends BaseClient {
+declare class WorkspaceModuleSetting extends BaseClient$1 {
     private readonly _id?;
     private readonly _defaultValue?;
     private readonly _description?;
@@ -9246,7 +9172,7 @@ declare class WorkspaceModuleSetting extends BaseClient {
     /**
      * Constructor is used for internal usage only, do not create object from it.
      */
-    constructor(ctx?: Context, _id?: ID, _defaultValue?: string, _description?: string, _isList?: boolean, _isObject?: boolean, _isString?: boolean, _key?: string, _value?: string);
+    constructor(ctx?: Context$1, _id?: ID, _defaultValue?: string, _description?: string, _isList?: boolean, _isObject?: boolean, _isString?: boolean, _key?: string, _value?: string);
     /**
      * A unique identifier for this WorkspaceModuleSetting.
      */
@@ -9283,14 +9209,14 @@ declare class WorkspaceModuleSetting extends BaseClient {
 /**
  * An installed SDK: a module marked for scaffolding other modules and clients.
  */
-declare class WorkspaceSDK extends BaseClient {
+declare class WorkspaceSDK extends BaseClient$1 {
     private readonly _id?;
     private readonly _name?;
     private readonly _ref?;
     /**
      * Constructor is used for internal usage only, do not create object from it.
      */
-    constructor(ctx?: Context, _id?: ID, _name?: string, _ref?: string);
+    constructor(ctx?: Context$1, _id?: ID, _name?: string, _ref?: string);
     /**
      * A unique identifier for this WorkspaceSDK.
      */
@@ -9657,7 +9583,82 @@ type CallbackFct = (client: Client) => Promise<void>;
  * GraphQL client to execute query on it through its callback.
  * This implementation is based on the existing Go SDK.
  */
-declare function connect(cb: CallbackFct, config?: ConnectOpts): Promise<void>;
+declare function connect(cb: CallbackFct, config?: ConnectOpts$1): Promise<void>;
+
+/**
+ * Wraps the GraphQL client to allow lazy initialization and setting
+ * the GQL client of the global Dagger client instance (`dag`).
+ */
+declare class Connection {
+    private _gqlClient?;
+    constructor(_gqlClient?: GraphQLClient | undefined);
+    private _served;
+    resetClient(): void;
+    setGQLClient(gqlClient: GraphQLClient): void;
+    getGQLClient(): GraphQLClient;
+    /**
+     * Run `serve` the first time `key` is seen in this session and remember the
+     * result, so a generated client can ensure its module is served before its
+     * first query without serving it again on every call.
+     */
+    ensureServed(key: string, serve: () => Promise<void>): Promise<void>;
+}
+
+type QueryTree = {
+    operation: string;
+    args?: Record<string, unknown>;
+    inlineType?: string;
+};
+
+/**
+ * A module a generated client serves into the session before its first query.
+ * `key` memoizes the serve per session (the module's ref or path); `run`
+ * performs it, through a context that carries no serve of its own so it cannot
+ * recurse.
+ */
+type ServeSpec = {
+    key: string;
+    run: () => Promise<void>;
+};
+declare class Context {
+    private _queryTree;
+    private _connection;
+    private _serve?;
+    constructor(_queryTree?: QueryTree[], _connection?: Connection, _serve?: ServeSpec | undefined);
+    getGQLClient(): GraphQLClient;
+    copy(): Context;
+    select(operation: string, args?: Record<string, unknown>): Context;
+    /**
+     * Select via node(id:) with an inline fragment on the given type.
+     * Produces: node(id: "...") { ... on TypeName { children } }
+     */
+    selectNode(id: string, typeName: string): Context;
+    /**
+     * Return a copy of this context that serves `spec`'s module before the first
+     * query on it (or on any context derived from it) runs. Used by a generated
+     * module client to bind its own module to its `dag`.
+     */
+    withServe(spec: ServeSpec): Context;
+    execute<T>(): Promise<T>;
+}
+/**
+ * Common base class for every generated API class (Client, Container, and
+ * dependency-contributed types).
+ *
+ * It lives here in the SDK runtime rather than in the generated client.gen.ts
+ * so that per-dependency generated files (e.g. hello.gen.ts) can `extends
+ * BaseClient` without importing a value from client.gen.ts — client.gen.ts
+ * `export *`s those dep files, so a value import would create an ESM cycle.
+ * client.gen.ts re-exports BaseClient to keep `import { BaseClient } from
+ * "./client.gen.js"` working for existing consumers.
+ */
+declare class BaseClient {
+    protected _ctx: Context;
+    /**
+     * @hidden
+     */
+    constructor(_ctx?: Context);
+}
 
 type Class = {
     new (...args: any[]): any;

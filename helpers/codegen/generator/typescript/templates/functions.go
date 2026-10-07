@@ -868,11 +868,13 @@ type ClientImport struct {
 // clientRuntimeImport is the specifier a client file imports Context and
 // BaseClient from. A scope's client files (module or standalone) reach the
 // runtime through the @dagger.io/dagger package (resolved to the vendored sdk/
-// by a tsconfig/import-map alias); only the library's own bindings import the
-// runtime by relative source path.
+// by a tsconfig/import-map alias); the library's own bindings reach it through
+// @dagger.io/session, the package they will be published alongside. Inside the
+// library that specifier resolves to src/session/index.ts through tsconfig
+// paths, so it needs no build step — see design/package-split.md.
 func (funcs typescriptTemplateFuncs) clientRuntimeImport() string {
 	if funcs.cfg.ModuleConfig == nil {
-		return "../session/context.js"
+		return "@dagger.io/session"
 	}
 	return "@dagger.io/dagger"
 }

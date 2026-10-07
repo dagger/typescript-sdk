@@ -15,6 +15,19 @@
     "skipLibCheck": true,
     "forceConsistentCasingInFileNames": true,
     "moduleResolution": "Node16",
+    // The layers import each other by the package name they will be published
+    // under, so the seam is the one consumers see rather than a relative path
+    // that has to be rewritten at packaging time. Resolved to source here, so
+    // there is no build ordering between a layer and its consumers — which is
+    // the whole reason these are not npm workspaces yet (a workspace member's
+    // `main` points at dist/, and `core` could not typecheck until `session` was
+    // built). See design/package-split.md.
+    "paths": {
+      "@dagger.io/session": ["./src/session/index.ts"],
+      "@dagger.io/core": ["./src/core/index.ts"],
+      "@dagger.io/module": ["./src/module/index.ts"],
+      "@dagger.io/telemetry": ["./src/telemetry/index.ts"]
+    },
     "emitDecoratorMetadata": true,
     "experimentalDecorators": true,
     "declaration": true,
