@@ -126,12 +126,7 @@ type Packager {
   that never calls it. Same reasoning as `moduleBundleCheck`, one layer out.
   """
   publishable(ws: Workspace!, version: String! = "0.0.0"): Directory! {
-    let built = bun
-      .withDirectory("/src", ws.directory("/" + libraryPath))
-      .withWorkdir("/src")
-      .withoutDirectory("/src/src/module/introspector")
-      .withExec(["bun", "install", "--frozen-lockfile"])
-      .withExec(["bun", "x", "tsc"])
+    let built = compiled(ws)
       .withEnvVariable("PUBLISH_VERSION", version)
       # Derived from the vendored manifest rather than written out here, so the
       # dependency list cannot drift from the one the bundle is built against.
@@ -146,6 +141,81 @@ type Packager {
 
     directory
       .withDirectory("dist", built.directory("/src/dist"))
+      .withFile("package.json", built.file("/manifest.json"))
+  }
+
+  """
+  The library compiled once, for every package built out of it.
+
+  One tsc run rather than one per layer: the layers share a compilation unit
+  because they reach each other through tsconfig paths, which is the trade
+  recorded in library/tsconfig.json. Slicing the output per layer afterwards is
+  what makes them separate packages.
+  """
+  let compiled(ws: Workspace!): Container! {
+    bun
+      .withDirectory("/src", ws.directory("/" + libraryPath))
+      .withWorkdir("/src")
+      .withoutDirectory("/src/src/module/introspector")
+      .withExec(["bun", "install", "--frozen-lockfile"])
+      .withExec(["bun", "x", "tsc"])
+  }
+
+  """
+  The scripts that derive and check a published manifest, mounted together
+  because package-manifest.cjs requires imports.cjs beside it.
+  """
+  let packageTools: Directory! {
+    directory
+      .withFile("imports.cjs", currentModule.source.file("imports.cjs"))
+      .withFile("package-manifest.cjs", currentModule.source.file("package-manifest.cjs"))
+      .withFile("audit-imports.cjs", currentModule.source.file("audit-imports.cjs"))
+  }
+
+  """
+  The layers that ship as packages of their own, published from this repo.
+
+  `core` is absent on purpose: it is generated against an engine release and
+  published from dagger/dagger, so its version is the engine's rather than this
+  repo's. The entry point it is generated against still lives here.
+  """
+  publishedLayers: [String!]! {
+    ["session", "module", "telemetry"]
+  }
+
+  """
+  One layer, built and ready to `npm publish`.
+
+  The manifest is derived from what the compiled layer imports rather than
+  written out per package: four hand-kept dependency lists are four things that
+  drift, and the drift only shows up when a consumer installs the package and an
+  import fails. Ranges still come from the library's own manifest, so there is
+  one place where a version is chosen, and a layer importing something the
+  library does not declare fails the build rather than publishing a manifest
+  that cannot be installed.
+
+  Siblings are pinned exactly: `session` and the packages over it are only ever
+  consumed at the version they shipped with.
+  """
+  publishablePackage(
+    ws: Workspace!,
+    layer: String!,
+    version: String! = "0.0.0",
+  ): Directory! {
+    let dist = "/src/dist/src/" + layer
+    let built = compiled(ws)
+      .withDirectory("/tools", packageTools)
+      .withExec([
+        "node", "/tools/package-manifest.cjs",
+        dist, "/src/package.json", "@dagger.io/" + layer, version, "/manifest.json",
+      ])
+
+    # The layer's own subtree becomes the package's dist/, so its entry is
+    # dist/index.js rather than dist/src/<layer>/index.js. Imports inside a layer
+    # are relative and survive the move; imports across layers are package
+    # specifiers and resolve through node_modules once installed.
+    directory
+      .withDirectory("dist", built.directory(dist))
       .withFile("package.json", built.file("/manifest.json"))
   }
 
@@ -212,8 +282,8 @@ type Packager {
   manifestIsHonestCheck(ws: Workspace!): Void @check {
     bun
       .withDirectory("/pkg", publishable(ws))
-      .withFile("/audit.cjs", currentModule.source.file("audit-imports.cjs"))
-      .withExec(["node", "/audit.cjs", "/pkg"])
+      .withDirectory("/tools", packageTools)
+      .withExec(["node", "/tools/audit-imports.cjs", "/pkg"])
       .sync
 
     null

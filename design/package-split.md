@@ -11,11 +11,13 @@ dual-package hazard is measured rather than assumed, on npm, bun and deno — se
 proposed package graph against a local verdaccio; the method is described where the
 results are, so it can be rebuilt.
 
-**Steps 1 and 2 have landed** — `library/src` is laid out in layers, the dead
-subgraph is gone, and `e2e:registry` runs a real registry so the package graph can
-be tested by installing it rather than by reasoning about it. Several claims below
-moved from argued to measured as a result, and one of them changed. Nothing
-published has changed. Sequencing is at the end.
+**Steps 1 and 2 have landed, and step 3 is half done** — `library/src` is laid out
+in layers, the dead subgraph is gone, `e2e:registry` runs a real registry so the
+package graph can be tested by installing it rather than by reasoning about it, and
+`session`, `module` and `telemetry` now build as packages and load from that
+registry on all three runtimes. Several claims below moved from argued to measured
+along the way, and three of them changed. Nothing is published to npmjs yet.
+Sequencing is at the end.
 
 ## What is actually tangled
 
@@ -58,7 +60,7 @@ ownership, local development, and singletons — not the import graph.
 |---|---|---|
 | `@dagger.io/session` | `Context`, `BaseClient`, `Connection`, `computeQuery`, errors, `ConnectOpts`, `connect`/`connection`, **provisioning** | `graphql-request`, `graphql`, `node-fetch`, `@opentelemetry/api`, `adm-zip`, `tar`, `execa`, `env-paths`, `node-color-log` |
 | `@dagger.io/core` | generated core bindings + `dag` | `@dagger.io/session` — and nothing else, now that `core/connect.ts` no longer annotates a callback parameter with `graphql-request`'s `GraphQLClient`. The annotation restated a type `withGQLClient` already declares, so dropping it took the import with it; `core/` references `graphql-request` nowhere. |
-| `@dagger.io/module` | decorators, registry | `@dagger.io/core`, `reflect-metadata` |
+| `@dagger.io/module` | decorators, registry | `@dagger.io/session`, `reflect-metadata` — **not** `core`. `decorators.ts` and `registry.ts` have exactly two cross-layer imports, both into `session` (`errors/index.js`, `shared.js`). The 39 others under `module/` are all in `introspector/`, which is generation-time and published nowhere. |
 | `@dagger.io/telemetry` | otel wiring | the otel SDK |
 | `@dagger.io/dagger` | **facade.** re-exports all four | the four above |
 
@@ -269,9 +271,30 @@ run.
 Three different problems, three different tools. The experiments in "The hazard,
 measured" rule one popular tool out.
 
-**Inside typescript-sdk** — `session` ← `module`, `telemetry`. Use **npm
-workspaces**. One install at the repo root, packages resolve to each other by
-symlink, edits are live, no publish. This is the common case and it is solved.
+**Inside typescript-sdk** — `session` ← `module`, `telemetry`. **Not npm
+workspaces, for now**: the layers import each other by the package name they
+publish under, and `tsconfig`'s `paths` resolve those specifiers to source
+(`src/session/index.ts`). One compilation unit, no build ordering, edits live on
+the source. Both `tsc` and `bun build` honour it, measured.
+
+Workspaces were the original answer and are still the endgame, but they cost more
+than they look here, for a reason specific to this split: a workspace member's
+`main` points at `dist/`, because [these packages cannot ship TypeScript
+source](#these-packages-cannot-ship-typescript-source) — so `core` could not
+typecheck until `session` had been built, which means per-package tsconfigs and
+project references. `paths` gets the same import graph for none of that.
+
+Two facts worth keeping for when workspaces do arrive:
+
+- **`workspace:*` is unpublishable through npm.** npm 11.6.2 packs the protocol
+  verbatim and the consumer gets
+  `EUNSUPPORTEDPROTOCOL: Unsupported URL Type "workspace:"`. bun *does* rewrite it
+  (`bun pm pack` resolves the version) but only once `bun install` has run, which
+  couples publishing to bun. Inter-package deps have to be real semver ranges;
+  npm workspaces still symlink those locally whenever the local version satisfies
+  the range.
+- **Independent publishing is not the hard part.** `npm publish -w <pkg>` publishes
+  one member at its own version, which is what the version table above needs.
 
 **Across repos** — "I changed `session` and want to see it under `core`, which is
 generated in dagger/dagger." Use **npm `overrides`** in the consuming project:
@@ -754,7 +777,29 @@ and the pre-v1 tree gets moved for nothing.
    clears it. What is left is the release rehearsal itself, which needs something
    published to rehearse.
 3. **Publish `session`, `module`, `telemetry`.** Nothing consumes them yet, so a
-   mistake here costs a version bump and nothing else.
+   mistake here costs a version bump and nothing else. *The packages exist:*
+   `packager:publishable-package` builds one per layer, and
+   `e2e:registry:published-layers-check` installs all three from a registry and
+   imports them on node, bun and deno — which is the first time `module` reaches
+   `session` through `@dagger.io/session` and a resolver rather than a relative
+   path. What is left is publishing them to npmjs for real, and the release
+   rehearsal below.
+
+   Their manifests are derived, not written: `package-manifest.cjs` reads what the
+   compiled layer imports and takes each range from the library's own manifest, so
+   four hand-kept dependency lists cannot drift, and a layer importing something
+   the library does not declare fails the build instead of publishing a manifest
+   nobody can install. What came out:
+
+   | Package | Dependencies |
+   |---|---|
+   | `@dagger.io/session` | `@opentelemetry/api`, `adm-zip`, `env-paths`, `execa`, `graphql-request`, `node-color-log`, `node-fetch`, `tar` |
+   | `@dagger.io/module` | `@dagger.io/session`, `reflect-metadata` |
+   | `@dagger.io/telemetry` | `@opentelemetry/{api,core,exporter-trace-otlp-proto,sdk-node,sdk-trace-base}` |
+
+   `graphql` is absent from `session` and that is correct: the library's only use
+   of it is two `import type`s, erased by the compile. It arrives anyway as
+   `graphql-request`'s peer, which npm installs automatically.
 
 *Then in dagger/dagger:*
 
