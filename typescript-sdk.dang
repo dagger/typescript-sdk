@@ -36,26 +36,39 @@ type TypescriptSdk {
   lock: Boolean! = false
 
   """
-  Declare a module entrypoint instead of a legacy runtime.
+  Declare a legacy `[runtime]` instead of a module entrypoint.
 
-  Experimental, and engine-gated: only an engine carrying dagger/dagger#14038
-  loads a module this way. The setting selects the whole loading path, not just
-  the manifest: an entrypoint module gets an `[entrypoint]` manifest,
-  entrypoint/main.dang and the __dagger.dispatch.ts that program shells out to,
-  while a `[runtime]` module gets none of those and keeps the
-  __dagger.entrypoint.ts its runtime execs. No module is generated with both
-  halves.
+  The escape hatch, not the destination: a module generates an entrypoint by
+  default, and this is for an engine too old to load one — only an engine
+  carrying dagger/dagger#14038 reads an `[entrypoint]` table.
 
-  Turning it on is not free. The manifest comes out with an `[entrypoint]` table
-  and no `[runtime]`, and `engineVersion`, `source` and `[[dependencies]]` are
-  fields of the runtime the module no longer declares — so a module that had
-  them loses them. Leave it off unless you are testing the entrypoint path.
+  The setting selects the whole loading path, not just the manifest: an
+  entrypoint module gets an `[entrypoint]` manifest, entrypoint/main.dang and
+  the __dagger.dispatch.ts that program shells out to, while a `[runtime]`
+  module gets none of those and keeps the __dagger.entrypoint.ts its runtime
+  execs. No module is generated with both halves.
+
+  Moving a module onto an entrypoint is not free. The manifest comes out with an
+  `[entrypoint]` table and no `[runtime]`, and `engineVersion`, `source` and
+  `[[dependencies]]` are fields of the runtime the module no longer declares —
+  so a module that had them loses them.
 
   A scope's clients still work. With no `[[dependencies]]` to declare them in,
   the dispatcher serves them into its own session at run time instead — see
   serveBoundModules in the generated __dagger.dispatch.ts.
   """
-  entrypoint: Boolean! = false
+  legacyRuntime: Boolean! = false
+
+  """
+  Whether this scope is generated as an entrypoint module.
+
+  The inverse of `legacyRuntime`, named for the loading path rather than the
+  setting: every branch below picks between the two halves of generation, and
+  the entrypoint is the half each one is about.
+  """
+  let entrypoint: Boolean! {
+    legacyRuntime == false
+  }
 
   """
   packageManager pin for package.json, as `name@version` or just `name`. Empty
@@ -1208,7 +1221,7 @@ type TypescriptSdk {
   survive; `runtime` selects which config files are written. The result is
   rooted at the module's source directory.
 
-  Which dispatch file that is comes from the `entrypoint` setting, because a
+  Which dispatch file that is comes from the `legacyRuntime` setting, because a
   module is loaded one way or the other and never both: an `[entrypoint]` module
   gets entrypoint/main.dang and the __dagger.dispatch.ts it shells out to, a
   `[runtime]` module gets the __dagger.entrypoint.ts that runtime execs. sdk/

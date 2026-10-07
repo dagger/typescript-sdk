@@ -41,8 +41,8 @@ type InitChecks {
     # loads are there from the first run rather than a `dagger generate` later.
     Asserts.added(defaultChanges, defaultPath + "/sdk/client.gen.ts")
     Asserts.added(defaultChanges, defaultPath + "/__dagger.entrypoint.ts")
-    # The manifest-v2 loading path is the `entrypoint` setting's, whole: a scope
-    # seeded without it declares a [runtime] and gets nothing the other path
+    # The manifest-v2 loading path is the `legacyRuntime` setting's, whole: a
+    # scope seeded under it declares a [runtime] and gets nothing the other path
     # reads, so there is never a second dispatcher to wonder about.
     Asserts.notAdded(
       defaultChanges,

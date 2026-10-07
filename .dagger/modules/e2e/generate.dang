@@ -143,11 +143,12 @@ type GenerateChecks {
   Regenerating a `[runtime]` module should take away the entrypoint files an
   earlier generation left behind.
 
-  The `entrypoint` setting picks a loading path whole, and coming off it stops
-  the writing but not the files: __dagger.dispatch.ts and entrypoint/main.dang
-  stay on disk beside the dispatcher the runtime really execs, describing a call
-  recipe nothing reads. Staged rather than fixtured for the same reason as the
-  stale bindings above — nothing generated today has either file to start from.
+  The `legacyRuntime` setting picks a loading path whole, and coming onto it
+  stops the writing but not the files: __dagger.dispatch.ts and
+  entrypoint/main.dang stay on disk beside the dispatcher the runtime really
+  execs, describing a call recipe nothing reads. Staged rather than fixtured for
+  the same reason as the stale bindings above — nothing generated today has
+  either file to start from.
   """
   generatePrunesEntrypointCheck(ws: Workspace!): Void @check {
     let path = fixtures.depAppModule
@@ -231,7 +232,7 @@ type GenerateChecks {
   The Dang program a generated entrypoint scope comes out with.
   """
   let entrypointRecipe(ws: Workspace!, scope: String!, name: String!): String! {
-    typescriptSdk(entrypoint: true, template: "empty", skipGenerateFilename: "")
+    typescriptSdk(legacyRuntime: false, template: "empty", skipGenerateFilename: "")
       .generateScope(ws.withWorkdir(scope), isModule: true, name: name, clients: [])
       .file("entrypoint/main.dang")
       .contents
@@ -426,7 +427,7 @@ type GenerateChecks {
   """
   generateDispatcherServesNothingCheck(ws: Workspace!): Void @check {
     let path = fixtures.depLibModule
-    let changes = Gen.scope(ws, path, "gendep", entrypoint: true)
+    let changes = Gen.scope(ws, path, "gendep", legacyRuntime: false)
 
     Asserts.generated(changes, path + "/__dagger.dispatch.ts")
     Asserts.assert(

@@ -6,14 +6,14 @@ type ManifestChecks {
     let target = moduleSource("github.com/dagger/sdk-helpers@" + commit)
     let path = Fixtures.out + "/manifest-pins"
     let input = ws.withNewFile(path + "/keep.txt", "keep").withWorkdir(path)
-    let unlocked = typescriptSdk(template: "empty", skipGenerateFilename: "").generateScope(input, isModule: true, name: "manifest-pins", clients: [target])
+    let unlocked = typescriptSdk(legacyRuntime: true, template: "empty", skipGenerateFilename: "").generateScope(input, isModule: true, name: "manifest-pins", clients: [target])
     Asserts.stringNotContains(unlocked.file("dagger-module.toml").contents, "pin =", "default output contains a pin")
     Asserts.stringContains(unlocked.file("dagger-module.toml").contents, target.asString, "Git source changed")
-    let locked = typescriptSdk(lock: true, skipGenerateFilename: "").generateScope(unlocked, isModule: true, name: "manifest-pins", clients: [target])
+    let locked = typescriptSdk(legacyRuntime: true, lock: true, skipGenerateFilename: "").generateScope(unlocked, isModule: true, name: "manifest-pins", clients: [target])
     Asserts.stringContains(locked.file("dagger-module.toml").contents, "pin = \"" + commit + "\"", "selected commit was lost")
-    let noClients = typescriptSdk(lock: true, skipGenerateFilename: "").generateScope(locked, isModule: true, name: "manifest-pins", clients: [])
+    let noClients = typescriptSdk(legacyRuntime: true, lock: true, skipGenerateFilename: "").generateScope(locked, isModule: true, name: "manifest-pins", clients: [])
     Asserts.stringContains(noClients.file("dagger-module.toml").contents, "pin = \"" + commit + "\"", "loaded pin was lost")
-    let unlockedAgain = typescriptSdk.generateScope(noClients.withNewFile("dagger.json", "stale"), isModule: true, name: "manifest-pins", clients: [])
+    let unlockedAgain = typescriptSdk(legacyRuntime: true).generateScope(noClients.withNewFile("dagger.json", "stale"), isModule: true, name: "manifest-pins", clients: [])
     let manifest = unlockedAgain.file("dagger-module.toml").contents
     Asserts.stringNotContains(manifest, "pin =", "disabling lock retained a pin with no clients")
     Asserts.stringContains(manifest, target.asString, "generation removed an existing dependency")
@@ -21,9 +21,9 @@ type ManifestChecks {
     Asserts.assert(unlockedAgain.cwd == input.cwd, "generation changed cwd")
     Asserts.assert(unlockedAgain.file("keep.txt").contents == "keep", "generation changed another file")
     # Loaded manifests preserve pins; only supplied ModuleSources provide missing pins.
-    let lockedAgain = typescriptSdk(lock: true, skipGenerateFilename: "").generateScope(unlockedAgain, isModule: true, name: "manifest-pins", clients: [])
+    let lockedAgain = typescriptSdk(legacyRuntime: true, lock: true, skipGenerateFilename: "").generateScope(unlockedAgain, isModule: true, name: "manifest-pins", clients: [])
     Asserts.stringNotContains(lockedAgain.file("dagger-module.toml").contents, "pin =", "locking invented a pin without a supplied module source")
-    let repeated = typescriptSdk(lock: true, skipGenerateFilename: "").generateScope(lockedAgain, isModule: true, name: "manifest-pins", clients: [])
+    let repeated = typescriptSdk(legacyRuntime: true, lock: true, skipGenerateFilename: "").generateScope(lockedAgain, isModule: true, name: "manifest-pins", clients: [])
     Asserts.assert(repeated.changes(lockedAgain).isEmpty, "repeated generation changed the workspace")
     null
   }
@@ -47,7 +47,7 @@ type ManifestChecks {
   entrypointManifestCheck(ws: Workspace!): Void @check {
     let freshPath = Fixtures.out + "/manifest-entrypoint"
     let flipPath = Fixtures.out + "/manifest-entrypoint-flip"
-    let entrypointSdk = typescriptSdk(entrypoint: true, template: "empty", skipGenerateFilename: "")
+    let entrypointSdk = typescriptSdk(legacyRuntime: false, template: "empty", skipGenerateFilename: "")
 
     let fresh = entrypointSdk
       .generateScope(ws.withWorkdir(freshPath), isModule: true, name: "manifest-entrypoint", clients: [])
@@ -59,7 +59,7 @@ type ManifestChecks {
     Asserts.stringContains(fresh, "source = \"./entrypoint\"", "entrypoint source is missing")
     Asserts.stringNotContains(fresh, "manifestVersion", "the builder emits no manifest version; see dagger/dagger#14038")
 
-    let runtimeScope = typescriptSdk(template: "empty", skipGenerateFilename: "")
+    let runtimeScope = typescriptSdk(legacyRuntime: true, template: "empty", skipGenerateFilename: "")
       .generateScope(ws.withWorkdir(flipPath), isModule: true, name: "manifest-entrypoint-flip", clients: [])
     Asserts.stringContains(
       runtimeScope.file("dagger-module.toml").contents,
@@ -87,7 +87,7 @@ type ManifestChecks {
       .withNewFile(dependency + "/main.dang", "type ManifestDep { hello: String! { \"hello\" } }")
       .withWorkdir(Fixtures.splitDenoModule)
     let target = input.withWorkdir(".").moduleSource("/" + dependency).withName("alias")
-    let generated = typescriptSdk(lock: true, skipGenerateFilename: "").generateScope(input, isModule: true, name: "split-deno-app", clients: [target])
+    let generated = typescriptSdk(legacyRuntime: true, lock: true, skipGenerateFilename: "").generateScope(input, isModule: true, name: "split-deno-app", clients: [target])
     let manifest = generated.file("dagger-module.toml").contents
     Asserts.stringContains(manifest, "source = \"../../../dep\"", "dependency path does not start at the manifest")
     Asserts.stringContains(manifest, "name = \"manifest-dep\"", "original module name was lost")

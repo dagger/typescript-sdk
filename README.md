@@ -76,6 +76,7 @@ client add`, and are persisted per scope in `dagger.toml`:
 | `template` | `--template` | `default` (a small working module; `empty` is a bare `@object` class) |
 | `packageManager` | `--package-manager` | unset |
 | `baseImage` | `--base-image` | unset |
+| `legacyRuntime` | `--legacy-runtime` | `false` (the module declares an `[entrypoint]`) |
 
 ```sh
 dagger module init typescript --name my-module --runtime bun
@@ -96,6 +97,17 @@ runtime; Bun and Deno bundle their own.
 
 `--base-image` writes to `deno.json` for Deno modules and to `package.json`
 otherwise — matching where the engine reads it from.
+
+`--legacy-runtime` picks the loading path, and a module is on one of them: by
+default it declares an `[entrypoint]` and carries `entrypoint/main.dang` plus
+the `__dagger.dispatch.ts` that program runs, which only an engine carrying
+[dagger/dagger#14038][manifest-v2] can load. Pass the flag for an older engine
+and the module declares a `[runtime]` with the `__dagger.entrypoint.ts` that
+runtime execs instead. Moving an existing module onto an entrypoint drops
+`engineVersion`, `source` and `[[dependencies]]` with the `[runtime]` they hang
+off.
+
+[manifest-v2]: https://github.com/dagger/dagger/pull/14038
 
 ## Generate a typed client
 
