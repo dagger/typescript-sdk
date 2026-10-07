@@ -375,6 +375,22 @@ sources.** The experiments turned up three, and they need different answers:
    --prefer-online` in a fresh container, with backoff — then run a smoke test.
 3. `npm dist-tag add @dagger.io/core@X latest`, then the facade.
 
+**Rehearsed, and one correction.** `e2e:registry:release-rehearsal-check` runs all
+three steps against a real registry with the three published layers: 1.0.0 out the
+ordinary way, 2.0.0 out under `next`, then the flip. `latest 1.0.0 next 2.0.0`
+before, `2.0.0` after, with an install-and-import either side of the flip — so the
+middle step really is a gate and the flip really is the only user-visible moment.
+
+The correction is step 1's "nobody on `latest` sees either", which is **false for
+the first publish of a package name**: publishing a brand-new package under
+`--tag next` leaves `latest: 1.0.0 next: 1.0.0`, because a package has to have a
+`latest` and the registry assigns one. It is true for every subsequent release,
+which is the case that matters — nothing is installing a package that did not
+exist, so there is nobody to stage the first release away from. The rehearsal
+therefore models an upgrade rather than a first release, and the first publish of
+`session`, `module` and `telemetry` will be visible on `latest` the moment it
+lands.
+
 The user-visible switch is step 3 and takes seconds. If step 2 never succeeds you
 simply never flip, and no user saw it — which matters because `npm unpublish` is
 restricted to a 72-hour window and refuses outright once anything depends on the
@@ -808,8 +824,10 @@ and the pre-v1 tree gets moved for nothing.
    `e2e:registry:published-layers-check` installs all three from a registry and
    imports them on node, bun and deno — which is the first time `module` reaches
    `session` through `@dagger.io/session` and a resolver rather than a relative
-   path. What is left is publishing them to npmjs for real, and the release
-   rehearsal below.
+   path. The release rehearsal is done too —
+   `e2e:registry:release-rehearsal-check` stages an upgrade under `next` and flips
+   it, which is what step 2 was still missing. What is left is publishing them to
+   npmjs for real.
 
    Their manifests are derived, not written: `package-manifest.cjs` reads what the
    compiled layer imports and takes each range from the library's own manifest, so
