@@ -98190,9 +98190,6 @@ var require_Reflect = __commonJS(() => {
 import * as fs4 from "fs";
 import * as path9 from "path";
 
-// src/connection.ts
-var opentelemetry3 = __toESM(require_src(), 1);
-
 // src/session/graphql/connect.ts
 init_client();
 async function withGQLClient(connectOpts, cb) {
@@ -98264,6 +98261,9 @@ async function withSession(fct, cfg = {}) {
     globalConnection.resetClient();
   }
 }
+
+// src/telemetry/tracing.ts
+var opentelemetry3 = __toESM(require_src(), 1);
 
 // src/telemetry/telemetry.ts
 var opentelemetry2 = __toESM(require_src(), 1);
@@ -98365,16 +98365,19 @@ function getContext() {
   return ctx;
 }
 
-// src/connection.ts
-async function connection(fct, cfg = {}) {
+// src/telemetry/tracing.ts
+async function withTracing(fct) {
   try {
     initialize();
-    await opentelemetry3.context.with(getContext(), async () => {
-      await withSession(fct, cfg);
-    });
+    await opentelemetry3.context.with(getContext(), fct);
   } finally {
     await close();
   }
+}
+
+// src/connection.ts
+async function connection(fct, cfg = {}) {
+  await withTracing(() => withSession(fct, cfg));
 }
 
 // src/module/introspector/index.ts

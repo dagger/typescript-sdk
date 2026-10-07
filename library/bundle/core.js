@@ -78210,32 +78210,32 @@ var require_ponyfill_es2018 = __commonJS((exports, module) => {
     function isDictionary(x) {
       return typeof x === "object" || typeof x === "function";
     }
-    function assertDictionary(obj, context2) {
+    function assertDictionary(obj, context3) {
       if (obj !== undefined && !isDictionary(obj)) {
-        throw new TypeError(`${context2} is not an object.`);
+        throw new TypeError(`${context3} is not an object.`);
       }
     }
-    function assertFunction(x, context2) {
+    function assertFunction(x, context3) {
       if (typeof x !== "function") {
-        throw new TypeError(`${context2} is not a function.`);
+        throw new TypeError(`${context3} is not a function.`);
       }
     }
     function isObject(x) {
       return typeof x === "object" && x !== null || typeof x === "function";
     }
-    function assertObject(x, context2) {
+    function assertObject(x, context3) {
       if (!isObject(x)) {
-        throw new TypeError(`${context2} is not an object.`);
+        throw new TypeError(`${context3} is not an object.`);
       }
     }
-    function assertRequiredArgument(x, position, context2) {
+    function assertRequiredArgument(x, position, context3) {
       if (x === undefined) {
-        throw new TypeError(`Parameter ${position} is required in '${context2}'.`);
+        throw new TypeError(`Parameter ${position} is required in '${context3}'.`);
       }
     }
-    function assertRequiredField(x, field, context2) {
+    function assertRequiredField(x, field, context3) {
       if (x === undefined) {
-        throw new TypeError(`${field} is required in '${context2}'.`);
+        throw new TypeError(`${field} is required in '${context3}'.`);
       }
     }
     function convertUnrestrictedDouble(value) {
@@ -78247,26 +78247,26 @@ var require_ponyfill_es2018 = __commonJS((exports, module) => {
     function integerPart(x) {
       return censorNegativeZero(MathTrunc(x));
     }
-    function convertUnsignedLongLongWithEnforceRange(value, context2) {
+    function convertUnsignedLongLongWithEnforceRange(value, context3) {
       const lowerBound = 0;
       const upperBound = Number.MAX_SAFE_INTEGER;
       let x = Number(value);
       x = censorNegativeZero(x);
       if (!NumberIsFinite(x)) {
-        throw new TypeError(`${context2} is not a finite number`);
+        throw new TypeError(`${context3} is not a finite number`);
       }
       x = integerPart(x);
       if (x < lowerBound || x > upperBound) {
-        throw new TypeError(`${context2} is outside the accepted range of ${lowerBound} to ${upperBound}, inclusive`);
+        throw new TypeError(`${context3} is outside the accepted range of ${lowerBound} to ${upperBound}, inclusive`);
       }
       if (!NumberIsFinite(x) || x === 0) {
         return 0;
       }
       return x;
     }
-    function assertReadableStream(x, context2) {
+    function assertReadableStream(x, context3) {
       if (!IsReadableStream(x)) {
-        throw new TypeError(`${context2} is not a ReadableStream.`);
+        throw new TypeError(`${context3} is not a ReadableStream.`);
       }
     }
     function AcquireReadableStreamDefaultReader(stream) {
@@ -79310,26 +79310,26 @@ var require_ponyfill_es2018 = __commonJS((exports, module) => {
     function byteStreamControllerBrandCheckException(name) {
       return new TypeError(`ReadableByteStreamController.prototype.${name} can only be used on a ReadableByteStreamController`);
     }
-    function convertReaderOptions(options, context2) {
-      assertDictionary(options, context2);
+    function convertReaderOptions(options, context3) {
+      assertDictionary(options, context3);
       const mode = options === null || options === undefined ? undefined : options.mode;
       return {
-        mode: mode === undefined ? undefined : convertReadableStreamReaderMode(mode, `${context2} has member 'mode' that`)
+        mode: mode === undefined ? undefined : convertReadableStreamReaderMode(mode, `${context3} has member 'mode' that`)
       };
     }
-    function convertReadableStreamReaderMode(mode, context2) {
+    function convertReadableStreamReaderMode(mode, context3) {
       mode = `${mode}`;
       if (mode !== "byob") {
-        throw new TypeError(`${context2} '${mode}' is not a valid enumeration value for ReadableStreamReaderMode`);
+        throw new TypeError(`${context3} '${mode}' is not a valid enumeration value for ReadableStreamReaderMode`);
       }
       return mode;
     }
-    function convertByobReadOptions(options, context2) {
+    function convertByobReadOptions(options, context3) {
       var _a2;
-      assertDictionary(options, context2);
+      assertDictionary(options, context3);
       const min = (_a2 = options === null || options === undefined ? undefined : options.min) !== null && _a2 !== undefined ? _a2 : 1;
       return {
-        min: convertUnsignedLongLongWithEnforceRange(min, `${context2} has member 'min' that`)
+        min: convertUnsignedLongLongWithEnforceRange(min, `${context3} has member 'min' that`)
       };
     }
     function AcquireReadableStreamBYOBReader(stream) {
@@ -79514,53 +79514,53 @@ var require_ponyfill_es2018 = __commonJS((exports, module) => {
       }
       return size;
     }
-    function convertQueuingStrategy(init, context2) {
-      assertDictionary(init, context2);
+    function convertQueuingStrategy(init, context3) {
+      assertDictionary(init, context3);
       const highWaterMark = init === null || init === undefined ? undefined : init.highWaterMark;
       const size = init === null || init === undefined ? undefined : init.size;
       return {
         highWaterMark: highWaterMark === undefined ? undefined : convertUnrestrictedDouble(highWaterMark),
-        size: size === undefined ? undefined : convertQueuingStrategySize(size, `${context2} has member 'size' that`)
+        size: size === undefined ? undefined : convertQueuingStrategySize(size, `${context3} has member 'size' that`)
       };
     }
-    function convertQueuingStrategySize(fn, context2) {
-      assertFunction(fn, context2);
+    function convertQueuingStrategySize(fn, context3) {
+      assertFunction(fn, context3);
       return (chunk) => convertUnrestrictedDouble(fn(chunk));
     }
-    function convertUnderlyingSink(original, context2) {
-      assertDictionary(original, context2);
+    function convertUnderlyingSink(original, context3) {
+      assertDictionary(original, context3);
       const abort = original === null || original === undefined ? undefined : original.abort;
       const close2 = original === null || original === undefined ? undefined : original.close;
       const start = original === null || original === undefined ? undefined : original.start;
       const type = original === null || original === undefined ? undefined : original.type;
       const write = original === null || original === undefined ? undefined : original.write;
       return {
-        abort: abort === undefined ? undefined : convertUnderlyingSinkAbortCallback(abort, original, `${context2} has member 'abort' that`),
-        close: close2 === undefined ? undefined : convertUnderlyingSinkCloseCallback(close2, original, `${context2} has member 'close' that`),
-        start: start === undefined ? undefined : convertUnderlyingSinkStartCallback(start, original, `${context2} has member 'start' that`),
-        write: write === undefined ? undefined : convertUnderlyingSinkWriteCallback(write, original, `${context2} has member 'write' that`),
+        abort: abort === undefined ? undefined : convertUnderlyingSinkAbortCallback(abort, original, `${context3} has member 'abort' that`),
+        close: close2 === undefined ? undefined : convertUnderlyingSinkCloseCallback(close2, original, `${context3} has member 'close' that`),
+        start: start === undefined ? undefined : convertUnderlyingSinkStartCallback(start, original, `${context3} has member 'start' that`),
+        write: write === undefined ? undefined : convertUnderlyingSinkWriteCallback(write, original, `${context3} has member 'write' that`),
         type
       };
     }
-    function convertUnderlyingSinkAbortCallback(fn, original, context2) {
-      assertFunction(fn, context2);
+    function convertUnderlyingSinkAbortCallback(fn, original, context3) {
+      assertFunction(fn, context3);
       return (reason) => promiseCall(fn, original, [reason]);
     }
-    function convertUnderlyingSinkCloseCallback(fn, original, context2) {
-      assertFunction(fn, context2);
+    function convertUnderlyingSinkCloseCallback(fn, original, context3) {
+      assertFunction(fn, context3);
       return () => promiseCall(fn, original, []);
     }
-    function convertUnderlyingSinkStartCallback(fn, original, context2) {
-      assertFunction(fn, context2);
+    function convertUnderlyingSinkStartCallback(fn, original, context3) {
+      assertFunction(fn, context3);
       return (controller) => reflectCall(fn, original, [controller]);
     }
-    function convertUnderlyingSinkWriteCallback(fn, original, context2) {
-      assertFunction(fn, context2);
+    function convertUnderlyingSinkWriteCallback(fn, original, context3) {
+      assertFunction(fn, context3);
       return (chunk, controller) => promiseCall(fn, original, [chunk, controller]);
     }
-    function assertWritableStream(x, context2) {
+    function assertWritableStream(x, context3) {
       if (!IsWritableStream(x)) {
-        throw new TypeError(`${context2} is not a WritableStream.`);
+        throw new TypeError(`${context3} is not a WritableStream.`);
       }
     }
     function isAbortSignal(value) {
@@ -81231,8 +81231,8 @@ var require_ponyfill_es2018 = __commonJS((exports, module) => {
       stream = CreateReadableStream(startAlgorithm, pullAlgorithm, cancelAlgorithm, 0);
       return stream;
     }
-    function convertUnderlyingDefaultOrByteSource(source, context2) {
-      assertDictionary(source, context2);
+    function convertUnderlyingDefaultOrByteSource(source, context3) {
+      assertDictionary(source, context3);
       const original = source;
       const autoAllocateChunkSize = original === null || original === undefined ? undefined : original.autoAllocateChunkSize;
       const cancel = original === null || original === undefined ? undefined : original.cancel;
@@ -81240,45 +81240,45 @@ var require_ponyfill_es2018 = __commonJS((exports, module) => {
       const start = original === null || original === undefined ? undefined : original.start;
       const type = original === null || original === undefined ? undefined : original.type;
       return {
-        autoAllocateChunkSize: autoAllocateChunkSize === undefined ? undefined : convertUnsignedLongLongWithEnforceRange(autoAllocateChunkSize, `${context2} has member 'autoAllocateChunkSize' that`),
-        cancel: cancel === undefined ? undefined : convertUnderlyingSourceCancelCallback(cancel, original, `${context2} has member 'cancel' that`),
-        pull: pull === undefined ? undefined : convertUnderlyingSourcePullCallback(pull, original, `${context2} has member 'pull' that`),
-        start: start === undefined ? undefined : convertUnderlyingSourceStartCallback(start, original, `${context2} has member 'start' that`),
-        type: type === undefined ? undefined : convertReadableStreamType(type, `${context2} has member 'type' that`)
+        autoAllocateChunkSize: autoAllocateChunkSize === undefined ? undefined : convertUnsignedLongLongWithEnforceRange(autoAllocateChunkSize, `${context3} has member 'autoAllocateChunkSize' that`),
+        cancel: cancel === undefined ? undefined : convertUnderlyingSourceCancelCallback(cancel, original, `${context3} has member 'cancel' that`),
+        pull: pull === undefined ? undefined : convertUnderlyingSourcePullCallback(pull, original, `${context3} has member 'pull' that`),
+        start: start === undefined ? undefined : convertUnderlyingSourceStartCallback(start, original, `${context3} has member 'start' that`),
+        type: type === undefined ? undefined : convertReadableStreamType(type, `${context3} has member 'type' that`)
       };
     }
-    function convertUnderlyingSourceCancelCallback(fn, original, context2) {
-      assertFunction(fn, context2);
+    function convertUnderlyingSourceCancelCallback(fn, original, context3) {
+      assertFunction(fn, context3);
       return (reason) => promiseCall(fn, original, [reason]);
     }
-    function convertUnderlyingSourcePullCallback(fn, original, context2) {
-      assertFunction(fn, context2);
+    function convertUnderlyingSourcePullCallback(fn, original, context3) {
+      assertFunction(fn, context3);
       return (controller) => promiseCall(fn, original, [controller]);
     }
-    function convertUnderlyingSourceStartCallback(fn, original, context2) {
-      assertFunction(fn, context2);
+    function convertUnderlyingSourceStartCallback(fn, original, context3) {
+      assertFunction(fn, context3);
       return (controller) => reflectCall(fn, original, [controller]);
     }
-    function convertReadableStreamType(type, context2) {
+    function convertReadableStreamType(type, context3) {
       type = `${type}`;
       if (type !== "bytes") {
-        throw new TypeError(`${context2} '${type}' is not a valid enumeration value for ReadableStreamType`);
+        throw new TypeError(`${context3} '${type}' is not a valid enumeration value for ReadableStreamType`);
       }
       return type;
     }
-    function convertIteratorOptions(options, context2) {
-      assertDictionary(options, context2);
+    function convertIteratorOptions(options, context3) {
+      assertDictionary(options, context3);
       const preventCancel = options === null || options === undefined ? undefined : options.preventCancel;
       return { preventCancel: Boolean(preventCancel) };
     }
-    function convertPipeOptions(options, context2) {
-      assertDictionary(options, context2);
+    function convertPipeOptions(options, context3) {
+      assertDictionary(options, context3);
       const preventAbort = options === null || options === undefined ? undefined : options.preventAbort;
       const preventCancel = options === null || options === undefined ? undefined : options.preventCancel;
       const preventClose = options === null || options === undefined ? undefined : options.preventClose;
       const signal = options === null || options === undefined ? undefined : options.signal;
       if (signal !== undefined) {
-        assertAbortSignal(signal, `${context2} has member 'signal' that`);
+        assertAbortSignal(signal, `${context3} has member 'signal' that`);
       }
       return {
         preventAbort: Boolean(preventAbort),
@@ -81287,19 +81287,19 @@ var require_ponyfill_es2018 = __commonJS((exports, module) => {
         signal
       };
     }
-    function assertAbortSignal(signal, context2) {
+    function assertAbortSignal(signal, context3) {
       if (!isAbortSignal(signal)) {
-        throw new TypeError(`${context2} is not an AbortSignal.`);
+        throw new TypeError(`${context3} is not an AbortSignal.`);
       }
     }
-    function convertReadableWritablePair(pair, context2) {
-      assertDictionary(pair, context2);
+    function convertReadableWritablePair(pair, context3) {
+      assertDictionary(pair, context3);
       const readable = pair === null || pair === undefined ? undefined : pair.readable;
       assertRequiredField(readable, "readable", "ReadableWritablePair");
-      assertReadableStream(readable, `${context2} has member 'readable' that`);
+      assertReadableStream(readable, `${context3} has member 'readable' that`);
       const writable = pair === null || pair === undefined ? undefined : pair.writable;
       assertRequiredField(writable, "writable", "ReadableWritablePair");
-      assertWritableStream(writable, `${context2} has member 'writable' that`);
+      assertWritableStream(writable, `${context3} has member 'writable' that`);
       return { readable, writable };
     }
 
@@ -81529,8 +81529,8 @@ var require_ponyfill_es2018 = __commonJS((exports, module) => {
     function streamBrandCheckException$1(name) {
       return new TypeError(`ReadableStream.prototype.${name} can only be used on a ReadableStream`);
     }
-    function convertQueuingStrategyInit(init, context2) {
-      assertDictionary(init, context2);
+    function convertQueuingStrategyInit(init, context3) {
+      assertDictionary(init, context3);
       const highWaterMark = init === null || init === undefined ? undefined : init.highWaterMark;
       assertRequiredField(highWaterMark, "highWaterMark", "QueuingStrategyInit");
       return {
@@ -81629,8 +81629,8 @@ var require_ponyfill_es2018 = __commonJS((exports, module) => {
       }
       return x instanceof CountQueuingStrategy2;
     }
-    function convertTransformer(original, context2) {
-      assertDictionary(original, context2);
+    function convertTransformer(original, context3) {
+      assertDictionary(original, context3);
       const cancel = original === null || original === undefined ? undefined : original.cancel;
       const flush = original === null || original === undefined ? undefined : original.flush;
       const readableType = original === null || original === undefined ? undefined : original.readableType;
@@ -81638,28 +81638,28 @@ var require_ponyfill_es2018 = __commonJS((exports, module) => {
       const transform = original === null || original === undefined ? undefined : original.transform;
       const writableType = original === null || original === undefined ? undefined : original.writableType;
       return {
-        cancel: cancel === undefined ? undefined : convertTransformerCancelCallback(cancel, original, `${context2} has member 'cancel' that`),
-        flush: flush === undefined ? undefined : convertTransformerFlushCallback(flush, original, `${context2} has member 'flush' that`),
+        cancel: cancel === undefined ? undefined : convertTransformerCancelCallback(cancel, original, `${context3} has member 'cancel' that`),
+        flush: flush === undefined ? undefined : convertTransformerFlushCallback(flush, original, `${context3} has member 'flush' that`),
         readableType,
-        start: start === undefined ? undefined : convertTransformerStartCallback(start, original, `${context2} has member 'start' that`),
-        transform: transform === undefined ? undefined : convertTransformerTransformCallback(transform, original, `${context2} has member 'transform' that`),
+        start: start === undefined ? undefined : convertTransformerStartCallback(start, original, `${context3} has member 'start' that`),
+        transform: transform === undefined ? undefined : convertTransformerTransformCallback(transform, original, `${context3} has member 'transform' that`),
         writableType
       };
     }
-    function convertTransformerFlushCallback(fn, original, context2) {
-      assertFunction(fn, context2);
+    function convertTransformerFlushCallback(fn, original, context3) {
+      assertFunction(fn, context3);
       return (controller) => promiseCall(fn, original, [controller]);
     }
-    function convertTransformerStartCallback(fn, original, context2) {
-      assertFunction(fn, context2);
+    function convertTransformerStartCallback(fn, original, context3) {
+      assertFunction(fn, context3);
       return (controller) => reflectCall(fn, original, [controller]);
     }
-    function convertTransformerTransformCallback(fn, original, context2) {
-      assertFunction(fn, context2);
+    function convertTransformerTransformCallback(fn, original, context3) {
+      assertFunction(fn, context3);
       return (chunk, controller) => promiseCall(fn, original, [chunk, controller]);
     }
-    function convertTransformerCancelCallback(fn, original, context2) {
-      assertFunction(fn, context2);
+    function convertTransformerCancelCallback(fn, original, context3) {
+      assertFunction(fn, context3);
       return (reason) => promiseCall(fn, original, [reason]);
     }
 
@@ -83974,13 +83974,13 @@ function createGQLClient(port, token) {
       Authorization: "Basic " + Buffer.from(token + ":").toString("base64")
     },
     requestMiddleware: async (req) => {
-      opentelemetry3.propagation.inject(opentelemetry3.context.active(), req.headers, new CustomSetter);
+      opentelemetry4.propagation.inject(opentelemetry4.context.active(), req.headers, new CustomSetter);
       return req;
     }
   });
   return client;
 }
-var opentelemetry3, createFetchWithTimeout = (timeout) => async (input, init) => {
+var opentelemetry4, createFetchWithTimeout = (timeout) => async (input, init) => {
   if (init?.signal) {
     throw new Error("Internal error: could not create fetch client with timeout");
   }
@@ -84014,7 +84014,7 @@ var init_client = __esm(() => {
   init_main();
   init_src();
   init_utils();
-  opentelemetry3 = __toESM(require_src(), 1);
+  opentelemetry4 = __toESM(require_src(), 1);
 });
 
 // node_modules/adm-zip/util/constants.js
@@ -88286,7 +88286,7 @@ var normalizeForceKillAfterDelay = (forceKillAfterDelay) => {
     throw new TypeError(`Expected the \`forceKillAfterDelay\` option to be a non-negative integer, got \`${forceKillAfterDelay}\` (${typeof forceKillAfterDelay})`);
   }
   return forceKillAfterDelay;
-}, DEFAULT_FORCE_KILL_TIMEOUT, subprocessKill = ({ kill, options: { forceKillAfterDelay, killSignal }, onInternalError, context: context3, controller }, signalOrError, errorArgument) => {
+}, DEFAULT_FORCE_KILL_TIMEOUT, subprocessKill = ({ kill, options: { forceKillAfterDelay, killSignal }, onInternalError, context: context4, controller }, signalOrError, errorArgument) => {
   const { signal, error } = parseKillArguments(signalOrError, errorArgument, killSignal);
   emitKillError(error, onInternalError);
   const killResult = kill(signal);
@@ -88296,7 +88296,7 @@ var normalizeForceKillAfterDelay = (forceKillAfterDelay) => {
     forceKillAfterDelay,
     killSignal,
     killResult,
-    context: context3,
+    context: context4,
     controller
   });
   return killResult;
@@ -88313,23 +88313,23 @@ var normalizeForceKillAfterDelay = (forceKillAfterDelay) => {
   if (error !== undefined) {
     onInternalError.reject(error);
   }
-}, setKillTimeout = async ({ kill, signal, forceKillAfterDelay, killSignal, killResult, context: context3, controller }) => {
+}, setKillTimeout = async ({ kill, signal, forceKillAfterDelay, killSignal, killResult, context: context4, controller }) => {
   if (signal === killSignal && killResult) {
     killOnTimeout({
       kill,
       forceKillAfterDelay,
-      context: context3,
+      context: context4,
       controllerSignal: controller.signal
     });
   }
-}, killOnTimeout = async ({ kill, forceKillAfterDelay, context: context3, controllerSignal }) => {
+}, killOnTimeout = async ({ kill, forceKillAfterDelay, context: context4, controllerSignal }) => {
   if (forceKillAfterDelay === false) {
     return;
   }
   try {
     await setTimeout2(forceKillAfterDelay, undefined, { signal: controllerSignal });
     if (kill("SIGKILL")) {
-      context3.isForcefullyTerminated ??= true;
+      context4.isForcefullyTerminated ??= true;
     }
   } catch {}
 };
@@ -88353,9 +88353,9 @@ var validateCancelSignal = ({ cancelSignal }) => {
   if (cancelSignal !== undefined && Object.prototype.toString.call(cancelSignal) !== "[object AbortSignal]") {
     throw new Error(`The \`cancelSignal\` option must be an AbortSignal: ${String(cancelSignal)}`);
   }
-}, throwOnCancel = ({ subprocess, cancelSignal, gracefulCancel, context: context3, controller }) => cancelSignal === undefined || gracefulCancel ? [] : [terminateOnCancel(subprocess, cancelSignal, context3, controller)], terminateOnCancel = async (subprocess, cancelSignal, context3, { signal }) => {
+}, throwOnCancel = ({ subprocess, cancelSignal, gracefulCancel, context: context4, controller }) => cancelSignal === undefined || gracefulCancel ? [] : [terminateOnCancel(subprocess, cancelSignal, context4, controller)], terminateOnCancel = async (subprocess, cancelSignal, context4, { signal }) => {
   await onAbortedSignal(cancelSignal, signal);
-  context3.terminationReason ??= "cancel";
+  context4.terminationReason ??= "cancel";
   subprocess.kill();
   throw cancelSignal.reason;
 };
@@ -88880,25 +88880,25 @@ var validateGracefulCancel = ({ gracefulCancel, cancelSignal, ipc, serialization
   cancelSignal,
   gracefulCancel,
   forceKillAfterDelay,
-  context: context3,
+  context: context4,
   controller
 }) => gracefulCancel ? [sendOnAbort({
   subprocess,
   cancelSignal,
   forceKillAfterDelay,
-  context: context3,
+  context: context4,
   controller
-})] : [], sendOnAbort = async ({ subprocess, cancelSignal, forceKillAfterDelay, context: context3, controller: { signal } }) => {
+})] : [], sendOnAbort = async ({ subprocess, cancelSignal, forceKillAfterDelay, context: context4, controller: { signal } }) => {
   await onAbortedSignal(cancelSignal, signal);
   const reason = getReason(cancelSignal);
   await sendAbort(subprocess, reason);
   killOnTimeout({
     kill: subprocess.kill,
     forceKillAfterDelay,
-    context: context3,
+    context: context4,
     controllerSignal: signal
   });
-  context3.terminationReason ??= "gracefulCancel";
+  context4.terminationReason ??= "gracefulCancel";
   throw cancelSignal.reason;
 }, getReason = ({ reason }) => {
   if (!(reason instanceof DOMException)) {
@@ -88925,9 +88925,9 @@ var validateTimeout = ({ timeout }) => {
   if (timeout !== undefined && (!Number.isFinite(timeout) || timeout < 0)) {
     throw new TypeError(`Expected the \`timeout\` option to be a non-negative integer, got \`${timeout}\` (${typeof timeout})`);
   }
-}, throwOnTimeout = (subprocess, timeout, context3, controller) => timeout === 0 || timeout === undefined ? [] : [killAfterTimeout(subprocess, timeout, context3, controller)], killAfterTimeout = async (subprocess, timeout, context3, { signal }) => {
+}, throwOnTimeout = (subprocess, timeout, context4, controller) => timeout === 0 || timeout === undefined ? [] : [killAfterTimeout(subprocess, timeout, context4, controller)], killAfterTimeout = async (subprocess, timeout, context4, { signal }) => {
   await setTimeout3(timeout, undefined, { signal });
-  context3.terminationReason ??= "timeout";
+  context4.terminationReason ??= "timeout";
   subprocess.kill();
   throw new DiscardedError;
 };
@@ -91284,9 +91284,9 @@ var init_all_sync = __esm(() => {
 
 // node_modules/execa/lib/resolve/exit-async.js
 import { once as once4 } from "node:events";
-var waitForExit = async (subprocess, context3) => {
+var waitForExit = async (subprocess, context4) => {
   const [exitCode, signal] = await waitForExitOrError(subprocess);
-  context3.isForcefullyTerminated ??= false;
+  context4.isForcefullyTerminated ??= false;
   return [exitCode, signal];
 }, waitForExitOrError = async (subprocess) => {
   const [spawnPayload, exitPayload] = await Promise.allSettled([
@@ -92895,14 +92895,14 @@ var waitForSubprocessResult = async ({
     ipc,
     ipcInput
   },
-  context: context3,
+  context: context4,
   verboseInfo,
   fileDescriptors,
   originalStreams,
   onInternalError,
   controller
 }) => {
-  const exitPromise = waitForExit(subprocess, context3);
+  const exitPromise = waitForExit(subprocess, context4);
   const streamInfo = {
     originalStreams,
     fileDescriptors,
@@ -92955,12 +92955,12 @@ var waitForSubprocessResult = async ({
       ]),
       onInternalError,
       throwOnSubprocessError(subprocess, controller),
-      ...throwOnTimeout(subprocess, timeout, context3, controller),
+      ...throwOnTimeout(subprocess, timeout, context4, controller),
       ...throwOnCancel({
         subprocess,
         cancelSignal,
         gracefulCancel,
-        context: context3,
+        context: context4,
         controller
       }),
       ...throwOnGracefulCancel({
@@ -92968,12 +92968,12 @@ var waitForSubprocessResult = async ({
         cancelSignal,
         gracefulCancel,
         forceKillAfterDelay,
-        context: context3,
+        context: context4,
         controller
       })
     ]);
   } catch (error) {
-    context3.terminationReason ??= "other";
+    context4.terminationReason ??= "other";
     return Promise.all([
       { error },
       exitPromise,
@@ -93404,13 +93404,13 @@ var execaCoreAsync = (rawFile, rawArguments, rawOptions, createNested) => {
   const originalStreams = [...subprocess.stdio];
   pipeOutputAsync(subprocess, fileDescriptors, controller);
   cleanupOnExit(subprocess, options, controller);
-  const context3 = {};
+  const context4 = {};
   const onInternalError = createDeferred();
   subprocess.kill = subprocessKill.bind(undefined, {
     kill: subprocess.kill.bind(subprocess),
     options,
     onInternalError,
-    context: context3,
+    context: context4,
     controller
   });
   subprocess.all = makeAllStream(subprocess, options);
@@ -93425,12 +93425,12 @@ var execaCoreAsync = (rawFile, rawArguments, rawOptions, createNested) => {
     originalStreams,
     command,
     escapedCommand,
-    context: context3,
+    context: context4,
     onInternalError,
     controller
   });
   return { subprocess, promise };
-}, handlePromise = async ({ subprocess, options, startTime, verboseInfo, fileDescriptors, originalStreams, command, escapedCommand, context: context3, onInternalError, controller }) => {
+}, handlePromise = async ({ subprocess, options, startTime, verboseInfo, fileDescriptors, originalStreams, command, escapedCommand, context: context4, onInternalError, controller }) => {
   const [
     errorInfo,
     [exitCode, signal],
@@ -93440,7 +93440,7 @@ var execaCoreAsync = (rawFile, rawArguments, rawOptions, createNested) => {
   ] = await waitForSubprocessResult({
     subprocess,
     options,
-    context: context3,
+    context: context4,
     verboseInfo,
     fileDescriptors,
     originalStreams,
@@ -93458,22 +93458,22 @@ var execaCoreAsync = (rawFile, rawArguments, rawOptions, createNested) => {
     stdio,
     all,
     ipcOutput,
-    context: context3,
+    context: context4,
     options,
     command,
     escapedCommand,
     startTime
   });
   return handleResult(result, verboseInfo, options);
-}, getAsyncResult = ({ errorInfo, exitCode, signal, stdio, all, ipcOutput, context: context3, options, command, escapedCommand, startTime }) => ("error" in errorInfo) ? makeError({
+}, getAsyncResult = ({ errorInfo, exitCode, signal, stdio, all, ipcOutput, context: context4, options, command, escapedCommand, startTime }) => ("error" in errorInfo) ? makeError({
   error: errorInfo.error,
   command,
   escapedCommand,
-  timedOut: context3.terminationReason === "timeout",
-  isCanceled: context3.terminationReason === "cancel" || context3.terminationReason === "gracefulCancel",
-  isGracefullyCanceled: context3.terminationReason === "gracefulCancel",
+  timedOut: context4.terminationReason === "timeout",
+  isCanceled: context4.terminationReason === "cancel" || context4.terminationReason === "gracefulCancel",
+  isGracefullyCanceled: context4.terminationReason === "gracefulCancel",
   isMaxBuffer: errorInfo.error instanceof MaxBufferError,
-  isForcefullyTerminated: context3.isForcefullyTerminated,
+  isForcefullyTerminated: context4.isForcefullyTerminated,
   exitCode,
   signal,
   stdio,
@@ -98305,6 +98305,16 @@ function getContext() {
     });
   }
   return ctx;
+}
+// src/telemetry/tracing.ts
+var opentelemetry3 = __toESM(require_src(), 1);
+async function withTracing(fct) {
+  try {
+    initialize();
+    await opentelemetry3.context.with(getContext(), fct);
+  } finally {
+    await close();
+  }
 }
 // src/session/index.ts
 init_errors();
@@ -106131,16 +106141,8 @@ var dag = new Client;
 init_errors();
 
 // src/connection.ts
-var opentelemetry4 = __toESM(require_src(), 1);
 async function connection(fct, cfg = {}) {
-  try {
-    initialize();
-    await opentelemetry4.context.with(getContext(), async () => {
-      await withSession(fct, cfg);
-    });
-  } finally {
-    await close();
-  }
+  await withTracing(() => withSession(fct, cfg));
 }
 // src/core/connect.ts
 async function connect(cb, config = {}) {
@@ -106241,6 +106243,7 @@ var field = registry.field;
 var enumType = registry.enumType;
 var argument = registry.argument;
 export {
+  withTracing,
   up,
   object,
   keys,

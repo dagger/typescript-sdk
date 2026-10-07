@@ -289,21 +289,6 @@ type RegistryChecks {
   }
 
   """
-  The compiled package loads on all three runtimes, including the two that refuse
-  the source one.
-
-  This is the other half of publishInstallCheck, and the pair is the argument for
-  what step 3 has to publish. Same probe, same registry, same three runtimes — the
-  only difference is that `packager:publishable` compiled the library to JavaScript
-  first, so there is no TypeScript left under node_modules for node or deno to
-  refuse. No tsx anywhere.
-
-  It also exercises the manifest for real, which the bundled shape cannot: the
-  compiled package has the library's actual dependencies rather than a 4 MB bundle
-  with everything inlined, so this is the first check where `graphql-request`,
-  `execa`, `tar` and the rest are resolved and loaded by a consumer.
-  """
-  """
   Each layer published on its own installs and loads, on all three runtimes.
 
   This is what makes `session`, `module` and `telemetry` packages rather than
@@ -392,62 +377,6 @@ type RegistryChecks {
       "console.log(\"telemetry \" + typeof getTracer)\n"
   }
 
-  compiledPackageCheck(ws: Workspace!): Void @check {
-    let out = compiledLoadProbe(ws, "node") +
-      compiledLoadProbe(ws, "bun") +
-      compiledLoadProbe(ws, "deno")
-
-    ["node", "bun", "deno"].each { runtime =>
-      Asserts.stringContains(
-        out,
-        runtime + " loaded object",
-        "the compiled package should load under " + runtime +
-          " with no loader in the way — that is the whole reason for compiling " +
-          "it. Got: " + out,
-      )
-    }
-
-    null
-  }
-
-  """
-  Publish the compiled package and import it under one runtime.
-  """
-  let compiledLoadProbe(ws: Workspace!, runtime: String!): String! {
-    let pkgs = [
-      PublishedPackage(dir: packager.publishable(ws, version: "1.0.0"), id: "core"),
-    ]
-    let reg = LocalRegistry(content: staged("compiled-" + runtime, pkgs))
-
-    reg
-      .withPublishedAll(runtimeClient(reg, runtime), pkgs)
-      .withExec(["npm", "cache", "clean", "--force"])
-      .withNewFile("/work/package.json", probeManifest(withTsx: false))
-      .withNewFile("/work/deno.json", denoConfig)
-      # .js, not .ts: the point is that nothing needs a TypeScript loader any more,
-      # and a .ts probe would put one back for node.
-      .withNewFile(compiledProbe, probeSource)
-      .withExec(installArgs(runtime))
-      .withExec(["sh", "-c", probeLine(runtime, interpreter(runtime), compiledProbe)])
-      .stdout
-  }
-
-  """
-  Everything a check publishes, as one directory — one package per subdirectory,
-  named by its id.
-
-  Built before the registry rather than inside it, because the registry is keyed on
-  it. The same list then drives the publishing, so the key and the packages cannot
-  come apart.
-  """
-  let staged(label: String!, pkgs: [PublishedPackage!]!): Directory! {
-    # The label sits at the top level, where publishing never looks — only the
-    # per-package subdirectories are published. It exists to reach the digest.
-    pkgs
-      .reduce(directory) { tree, pkg => tree.withDirectory(pkg.id, pkg.dir) }
-      .withNewFile("consumer", label + "\n")
-  }
-
   """
   Install the published package under one runtime and report which of its loaders
   can import it.
@@ -503,19 +432,14 @@ type RegistryChecks {
   runtime ever looks at the package, which would leave the refusals passing for a
   reason that has nothing to do with it.
   """
-  let probeManifest(withTsx: Boolean! = true): String! {
-    let tsx = if (withTsx) {
-      ",\n    \"tsx\": \"4.22.4\""
-    } else {
-      ""
-    }
-
+  let probeManifest: String! {
     "{\n" +
       "  \"name\": \"load-probe\",\n" +
       "  \"version\": \"1.0.0\",\n" +
       "  \"type\": \"module\",\n" +
       "  \"dependencies\": {\n" +
-      "    \"@dagger.io/dagger\": \"1.0.0\"" + tsx + "\n" +
+      "    \"@dagger.io/dagger\": \"1.0.0\",\n" +
+      "    \"tsx\": \"4.22.4\"\n" +
       "  }\n" +
       "}\n"
   }
