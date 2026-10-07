@@ -188,11 +188,7 @@ pub call(
     fnArgs: fnArgs,
   }})
   (runtime(workspace)
-    .withExec(
-      ["tsx", "--no-deprecation", "--tsconfig", "tsconfig.json", "__dagger.dispatch.ts", "engine-call"],
-      stdin: request,
-      experimentalPrivilegedNesting: true,
-    )
+    .withExec(["tsx", "--no-deprecation", "--tsconfig", "tsconfig.json", "__dagger.dispatch.ts", "engine-call"], stdin: request)
     .stdout :: JSON!)
 }
 ```
