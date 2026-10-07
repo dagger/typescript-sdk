@@ -303,6 +303,95 @@ type RegistryChecks {
   with everything inlined, so this is the first check where `graphql-request`,
   `execa`, `tar` and the rest are resolved and loaded by a consumer.
   """
+  """
+  Each layer published on its own installs and loads, on all three runtimes.
+
+  This is what makes `session`, `module` and `telemetry` packages rather than
+  directories, and it is the only check that exercises the seam the whole split
+  turns on: `module` reaches `session` through `@dagger.io/session`, resolved out
+  of node_modules by the runtime's own resolver, rather than through a relative
+  path that only works inside this tree.
+
+  It also validates the manifests `packager:publishable-package` derives. They
+  are computed from what the compiled layer imports, so nothing here asserts them
+  directly — a missing dependency shows up as an import that fails, which is the
+  failure a consumer would get and the reason this check is the validation rather
+  than a second audit.
+
+  All three are published for every probe even though a probe only needs its own
+  closure: uniform content keeps this to one registry per runtime, and publishing
+  two extra small packages is cheaper than three more verdaccios.
+  """
+  publishedLayersCheck(ws: Workspace!): Void @check {
+    ["node", "bun", "deno"].each { runtime =>
+      let out = layersProbe(ws, runtime)
+
+      ["session", "module", "telemetry"].each { layer =>
+        Asserts.stringContains(
+          out,
+          layer + " function",
+          runtime + ": @dagger.io/" + layer + " should install from the registry " +
+            "and load its entry point. Got: " + out,
+        )
+      }
+    }
+
+    null
+  }
+
+  """
+  Publish the three layers and import all three under one runtime.
+  """
+  let layersProbe(ws: Workspace!, runtime: String!): String! {
+    let pkgs = packager.publishedLayers.map { layer =>
+      PublishedPackage(
+        dir: packager.publishablePackage(ws, layer, version: "1.0.0"),
+        id: layer,
+      )
+    }
+    let reg = LocalRegistry(content: staged("layers-" + runtime, pkgs))
+
+    reg
+      .withPublishedAll(runtimeClient(reg, runtime), pkgs)
+      .withExec(["npm", "cache", "clean", "--force"])
+      .withNewFile("/work/package.json", layersManifest)
+      .withNewFile("/work/deno.json", denoConfig)
+      .withNewFile(compiledProbe, layersProbeSource)
+      .withExec(installArgs(runtime))
+      .withExec(["sh", "-c", interpreter(runtime) + " " + compiledProbe])
+      .stdout
+  }
+
+  """
+  A consumer of all three layers, pinned exactly as a generated client would pin
+  them.
+  """
+  let layersManifest: String! {
+    "{\n" +
+      "  \"name\": \"layers-probe\",\n" +
+      "  \"version\": \"1.0.0\",\n" +
+      "  \"type\": \"module\",\n" +
+      "  \"dependencies\": {\n" +
+      "    \"@dagger.io/session\": \"1.0.0\",\n" +
+      "    \"@dagger.io/module\": \"1.0.0\",\n" +
+      "    \"@dagger.io/telemetry\": \"1.0.0\"\n" +
+      "  }\n" +
+      "}\n"
+  }
+
+  """
+  One line per layer, naming what came back. A layer whose dependency is missing
+  from its manifest fails on the import rather than on the assertion.
+  """
+  let layersProbeSource: String! {
+    "import { Context } from \"@dagger.io/session\"\n" +
+      "import { object } from \"@dagger.io/module\"\n" +
+      "import { getTracer } from \"@dagger.io/telemetry\"\n" +
+      "console.log(\"session \" + typeof Context)\n" +
+      "console.log(\"module \" + typeof object)\n" +
+      "console.log(\"telemetry \" + typeof getTracer)\n"
+  }
+
   compiledPackageCheck(ws: Workspace!): Void @check {
     let out = compiledLoadProbe(ws, "node") +
       compiledLoadProbe(ws, "bun") +

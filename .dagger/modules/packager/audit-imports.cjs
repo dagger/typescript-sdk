@@ -9,7 +9,7 @@
 const fs = require("fs")
 const path = require("path")
 
-const builtins = new Set(require("module").builtinModules)
+const { externalImports } = require("./imports.cjs")
 
 // Declared to satisfy another dependency's peer range rather than because this
 // code imports it. graphql-request peers on graphql "14 - 16"; the library's own
@@ -22,45 +22,7 @@ const manifest = JSON.parse(
 )
 const declared = new Set(Object.keys(manifest.dependencies ?? {}))
 
-// Static imports are matched anchored at the start of a line, because tsc emits
-// one per line and client.gen.js is 20k lines of doc comments that otherwise
-// match on prose like `... from "alpine"`. Dynamic import() and require() can sit
-// anywhere, so those are matched loosely and filtered by shape below.
-const statements = [
-  /^\s*(?:import|export)\b[^;\n]*?\bfrom\s*["']([^"']+)["']/gm,
-  /^\s*import\s*["']([^"']+)["']/gm,
-  /(?:require|import)\(\s*["']([^"']+)["']\s*\)/g,
-]
-
-// A specifier, not a sentence: no whitespace, and a name before any subpath.
-const specifierShape = /^(?:@[^/\s]+\/)?[^/\s]+(?:\/[^\s]*)?$/
-
-function sources(dir) {
-  return fs.readdirSync(dir, { withFileTypes: true }).flatMap((entry) => {
-    const full = path.join(dir, entry.name)
-    if (entry.isDirectory()) return sources(full)
-    return entry.isFile() && full.endsWith(".js") ? [full] : []
-  })
-}
-
-function packageOf(specifier) {
-  const parts = specifier.split("/")
-  return specifier.startsWith("@") ? parts.slice(0, 2).join("/") : parts[0]
-}
-
-const imported = new Map()
-for (const file of sources(path.join(root, "dist"))) {
-  const source = fs.readFileSync(file, "utf8")
-  for (const pattern of statements) {
-    for (const [, spec] of source.matchAll(pattern)) {
-      if (spec.startsWith(".") || spec.startsWith("node:")) continue
-      if (!specifierShape.test(spec)) continue
-      const name = packageOf(spec)
-      if (builtins.has(name)) continue
-      if (!imported.has(name)) imported.set(name, path.relative(root, file))
-    }
-  }
-}
+const imported = externalImports(path.join(root, "dist"), root)
 
 const missing = [...imported].filter(([name]) => !declared.has(name))
 const unused = [...declared].filter(
