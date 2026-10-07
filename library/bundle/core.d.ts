@@ -1,1940 +1,10 @@
+import * as graphql_request from 'graphql-request';
+import { ClientError, GraphQLClient } from 'graphql-request';
+export { GraphQLClient } from 'graphql-request';
+import * as opentelemetry from '@opentelemetry/api';
+import { BaseClient as BaseClient$1, Context as Context$1, ConnectOpts as ConnectOpts$1 } from '@dagger.io/session';
+import { GraphQLErrorExtensions } from 'graphql';
 import { Writable } from 'node:stream';
-
-/**
- * Conveniently represents flow's "Maybe" type https://flow.org/en/docs/types/maybe/
- *
- * @internal
- */
-declare type Maybe<T> = null | undefined | T;
-
-/** @category Source */
-interface Location$1 {
-  line: number;
-  column: number;
-}
-/**
- * A representation of source input to GraphQL. The `name` and `locationOffset` parameters are
- * optional, but they are useful for clients who store GraphQL documents in source files.
- * For example, if the GraphQL input starts at line 40 in a file named `Foo.graphql`, it might
- * be useful for `name` to be `"Foo.graphql"` and location to be `{ line: 40, column: 1 }`.
- * The `line` and `column` properties in `locationOffset` are 1-indexed.
- */
-declare class Source {
-  /** The GraphQL source text. */
-  body: string;
-  /** Name used in diagnostics for this source, such as a file path or request name. */
-  name: string;
-  /** One-indexed line and column where this source begins. */
-  locationOffset: Location$1;
-  /**
-   * Creates a Source instance.
-   * @param body - The GraphQL source text.
-   * @param name - Name used in diagnostics for this source.
-   * @param locationOffset - One-indexed line and column where this source begins.
-   * @example
-   * ```ts
-   * import { Source } from 'graphql/language';
-   *
-   * const source = new Source(
-   *   'type Query { greeting: String }',
-   *   'schema.graphql',
-   *   { line: 10, column: 1 },
-   * );
-   *
-   * source.body; // => 'type Query { greeting: String }'
-   * source.name; // => 'schema.graphql'
-   * source.locationOffset; // => { line: 10, column: 1 }
-   * ```
-   */
-  constructor(body: string, name?: string, locationOffset?: Location$1);
-  /**
-   * Returns the value used by `Object.prototype.toString`.
-   * @returns The built-in string tag for this object.
-   */
-  get [Symbol.toStringTag](): string;
-}
-
-/** @category Kinds */
-/** The set of allowed kind values for AST nodes. */
-declare enum Kind {
-  /** AST kind for name nodes. */
-  NAME = 'Name',
-  /** AST kind for document nodes. */
-  DOCUMENT = 'Document',
-  /** AST kind for operation definition nodes. */
-  OPERATION_DEFINITION = 'OperationDefinition',
-  /** AST kind for variable definition nodes. */
-  VARIABLE_DEFINITION = 'VariableDefinition',
-  /** AST kind for selection set nodes. */
-  SELECTION_SET = 'SelectionSet',
-  /** AST kind for field selection nodes. */
-  FIELD = 'Field',
-  /** AST kind for argument nodes. */
-  ARGUMENT = 'Argument',
-  /** AST kind for fragment spread nodes. */
-  FRAGMENT_SPREAD = 'FragmentSpread',
-  /** AST kind for inline fragment nodes. */
-  INLINE_FRAGMENT = 'InlineFragment',
-  /** AST kind for fragment definition nodes. */
-  FRAGMENT_DEFINITION = 'FragmentDefinition',
-  /** AST kind for variable reference nodes. */
-  VARIABLE = 'Variable',
-  /** AST kind for integer value nodes. */
-  INT = 'IntValue',
-  /** AST kind for floating-point value nodes. */
-  FLOAT = 'FloatValue',
-  /** AST kind for string value nodes. */
-  STRING = 'StringValue',
-  /** AST kind for boolean value nodes. */
-  BOOLEAN = 'BooleanValue',
-  /** AST kind for null value nodes. */
-  NULL = 'NullValue',
-  /** AST kind for enum value nodes. */
-  ENUM = 'EnumValue',
-  /** AST kind for list value nodes. */
-  LIST = 'ListValue',
-  /** AST kind for object value nodes. */
-  OBJECT = 'ObjectValue',
-  /** AST kind for object field nodes. */
-  OBJECT_FIELD = 'ObjectField',
-  /** AST kind for directive nodes. */
-  DIRECTIVE = 'Directive',
-  /** AST kind for named type reference nodes. */
-  NAMED_TYPE = 'NamedType',
-  /** AST kind for list type reference nodes. */
-  LIST_TYPE = 'ListType',
-  /** AST kind for non-null type reference nodes. */
-  NON_NULL_TYPE = 'NonNullType',
-  /** AST kind for schema definition nodes. */
-  SCHEMA_DEFINITION = 'SchemaDefinition',
-  /** AST kind for operation type definition nodes. */
-  OPERATION_TYPE_DEFINITION = 'OperationTypeDefinition',
-  /** AST kind for scalar type definition nodes. */
-  SCALAR_TYPE_DEFINITION = 'ScalarTypeDefinition',
-  /** AST kind for object type definition nodes. */
-  OBJECT_TYPE_DEFINITION = 'ObjectTypeDefinition',
-  /** AST kind for field definition nodes. */
-  FIELD_DEFINITION = 'FieldDefinition',
-  /** AST kind for input value definition nodes. */
-  INPUT_VALUE_DEFINITION = 'InputValueDefinition',
-  /** AST kind for interface type definition nodes. */
-  INTERFACE_TYPE_DEFINITION = 'InterfaceTypeDefinition',
-  /** AST kind for union type definition nodes. */
-  UNION_TYPE_DEFINITION = 'UnionTypeDefinition',
-  /** AST kind for enum type definition nodes. */
-  ENUM_TYPE_DEFINITION = 'EnumTypeDefinition',
-  /** AST kind for enum value definition nodes. */
-  ENUM_VALUE_DEFINITION = 'EnumValueDefinition',
-  /** AST kind for input object type definition nodes. */
-  INPUT_OBJECT_TYPE_DEFINITION = 'InputObjectTypeDefinition',
-  /** AST kind for directive definition nodes. */
-  DIRECTIVE_DEFINITION = 'DirectiveDefinition',
-  /** AST kind for schema extension nodes. */
-  SCHEMA_EXTENSION = 'SchemaExtension',
-  /** AST kind for directive extension nodes. */
-  DIRECTIVE_EXTENSION = 'DirectiveExtension',
-  /** AST kind for scalar type extension nodes. */
-  SCALAR_TYPE_EXTENSION = 'ScalarTypeExtension',
-  /** AST kind for object type extension nodes. */
-  OBJECT_TYPE_EXTENSION = 'ObjectTypeExtension',
-  /** AST kind for interface type extension nodes. */
-  INTERFACE_TYPE_EXTENSION = 'InterfaceTypeExtension',
-  /** AST kind for union type extension nodes. */
-  UNION_TYPE_EXTENSION = 'UnionTypeExtension',
-  /** AST kind for enum type extension nodes. */
-  ENUM_TYPE_EXTENSION = 'EnumTypeExtension',
-  /** AST kind for input object type extension nodes. */
-  INPUT_OBJECT_TYPE_EXTENSION = 'InputObjectTypeExtension',
-  /** AST kind for type coordinate nodes. */
-  TYPE_COORDINATE = 'TypeCoordinate',
-  /** AST kind for member coordinate nodes. */
-  MEMBER_COORDINATE = 'MemberCoordinate',
-  /** AST kind for argument coordinate nodes. */
-  ARGUMENT_COORDINATE = 'ArgumentCoordinate',
-  /** AST kind for directive coordinate nodes. */
-  DIRECTIVE_COORDINATE = 'DirectiveCoordinate',
-  /** AST kind for directive argument coordinate nodes. */
-  DIRECTIVE_ARGUMENT_COORDINATE = 'DirectiveArgumentCoordinate',
-}
-
-/** @category Lexing */
-/**
- * An exported enum describing the different kinds of tokens that the
- * lexer emits.
- */
-declare enum TokenKind {
-  /** Start-of-file token. */
-  SOF = '<SOF>',
-  /** End-of-file token. */
-  EOF = '<EOF>',
-  /** The `!` punctuation token. */
-  BANG = '!',
-  /** The `$` punctuation token. */
-  DOLLAR = '$',
-  /** The `&` punctuation token. */
-  AMP = '&',
-  /** The `(` punctuation token. */
-  PAREN_L = '(',
-  /** The `)` punctuation token. */
-  PAREN_R = ')',
-  /** The `.` punctuation token. */
-  DOT = '.',
-  /** The `...` spread punctuation token. */
-  SPREAD = '...',
-  /** The `:` punctuation token. */
-  COLON = ':',
-  /** The `=` punctuation token. */
-  EQUALS = '=',
-  /** The `@` punctuation token. */
-  AT = '@',
-  /** The `[` punctuation token. */
-  BRACKET_L = '[',
-  /** The `]` punctuation token. */
-  BRACKET_R = ']',
-  /** The `{` punctuation token. */
-  BRACE_L = '{',
-  /** The `|` punctuation token. */
-  PIPE = '|',
-  /** The `}` punctuation token. */
-  BRACE_R = '}',
-  /** A GraphQL name token or name AST node. */
-  NAME = 'Name',
-  /** An integer value token or AST node. */
-  INT = 'Int',
-  /** A floating-point value token or AST node. */
-  FLOAT = 'Float',
-  /** A string value token or AST node. */
-  STRING = 'String',
-  /** A block string value token. */
-  BLOCK_STRING = 'BlockString',
-  /** A comment token. */
-  COMMENT = 'Comment',
-}
-
-/** @category AST */
-
-/**
- * Contains a range of UTF-8 character offsets and token references that
- * identify the region of the source from which the AST derived.
- */
-declare class Location {
-  /** The character offset at which this Node begins. */
-  readonly start: number;
-  /** The character offset at which this Node ends. */
-  readonly end: number;
-  /** The Token at which this Node begins. */
-  readonly startToken: Token;
-  /** The Token at which this Node ends. */
-  readonly endToken: Token;
-  /** The Source document the AST represents. */
-  readonly source: Source;
-  /**
-   * Creates a Location instance.
-   * @param startToken - The start token.
-   * @param endToken - The end token.
-   * @param source - Source document used to derive error locations.
-   * @example
-   * ```ts
-   * import { Location, Source, Token, TokenKind } from 'graphql/language';
-   *
-   * const source = new Source('{ hello }');
-   * const startToken = new Token(TokenKind.BRACE_L, 0, 1, 1, 1);
-   * const endToken = new Token(TokenKind.BRACE_R, 8, 9, 1, 9);
-   * const location = new Location(startToken, endToken, source);
-   *
-   * location.start; // => 0
-   * location.end; // => 9
-   * location.source.body; // => '{ hello }'
-   * ```
-   */
-  constructor(startToken: Token, endToken: Token, source: Source);
-  /**
-   * Returns the value used by `Object.prototype.toString`.
-   * @returns The built-in string tag for this object.
-   */
-  get [Symbol.toStringTag](): string;
-  /**
-   * Returns a JSON representation of this location.
-   * @returns The JSON-serializable representation.
-   * @example
-   * ```ts
-   * import { parse } from 'graphql/language';
-   *
-   * const document = parse('{ hello }');
-   * const location = document.loc?.toJSON();
-   *
-   * location; // => { start: 0, end: 9 }
-   * ```
-   */
-  toJSON(): {
-    start: number;
-    end: number;
-  };
-}
-/**
- * Represents a range of characters represented by a lexical token
- * within a Source.
- */
-declare class Token {
-  /** The kind of Token. */
-  readonly kind: TokenKind;
-  /** The character offset at which this Node begins. */
-  readonly start: number;
-  /** The character offset at which this Node ends. */
-  readonly end: number;
-  /** The 1-indexed line number on which this Token appears. */
-  readonly line: number;
-  /** The 1-indexed column number at which this Token begins. */
-  readonly column: number;
-  /**
-   * For non-punctuation tokens, represents the interpreted value of the token.
-   *
-   * Note: is undefined for punctuation tokens, but typed as string for
-   * convenience in the parser.
-   */
-  readonly value: string;
-  /**
-   * Tokens exist as nodes in a double-linked-list amongst all tokens
-   * including ignored tokens. <SOF> is always the first node and <EOF>
-   * the last.
-   */
-  readonly prev: Token | null;
-  /** Next token in the token stream, including ignored tokens. */
-  readonly next: Token | null;
-  /**
-   * Creates a Token instance.
-   * @param kind - Token kind produced by lexical analysis.
-   * @param start - Character offset where this token begins.
-   * @param end - Character offset where this token ends.
-   * @param line - One-indexed line number where this token begins.
-   * @param column - One-indexed column number where this token begins.
-   * @param value - Interpreted value for non-punctuation tokens.
-   * @example
-   * ```ts
-   * import { Token, TokenKind } from 'graphql/language';
-   *
-   * const token = new Token(TokenKind.NAME, 2, 7, 1, 3, 'hello');
-   *
-   * token.kind; // => TokenKind.NAME
-   * token.value; // => 'hello'
-   * token.toJSON(); // => { kind: 'Name', value: 'hello', line: 1, column: 3 }
-   * ```
-   */
-  constructor(
-    kind: TokenKind,
-    start: number,
-    end: number,
-    line: number,
-    column: number,
-    value?: string,
-  );
-  /**
-   * Returns the value used by `Object.prototype.toString`.
-   * @returns The built-in string tag for this object.
-   */
-  get [Symbol.toStringTag](): string;
-  /**
-   * Returns a JSON representation of this token.
-   * @returns The JSON-serializable representation.
-   * @example
-   * ```ts
-   * import { Lexer, Source } from 'graphql/language';
-   *
-   * const lexer = new Lexer(new Source('{ hello }'));
-   * const token = lexer.advance().toJSON();
-   *
-   * token; // => { kind: '{', value: undefined, line: 1, column: 1 }
-   * ```
-   */
-  toJSON(): {
-    kind: TokenKind;
-    value?: string;
-    line: number;
-    column: number;
-  };
-}
-/** The list of all possible AST node types. */
-declare type ASTNode =
-  | NameNode
-  | DocumentNode
-  | OperationDefinitionNode
-  | VariableDefinitionNode
-  | VariableNode
-  | SelectionSetNode
-  | FieldNode
-  | ArgumentNode
-  | FragmentSpreadNode
-  | InlineFragmentNode
-  | FragmentDefinitionNode
-  | IntValueNode
-  | FloatValueNode
-  | StringValueNode
-  | BooleanValueNode
-  | NullValueNode
-  | EnumValueNode
-  | ListValueNode
-  | ObjectValueNode
-  | ObjectFieldNode
-  | DirectiveNode
-  | NamedTypeNode
-  | ListTypeNode
-  | NonNullTypeNode
-  | SchemaDefinitionNode
-  | OperationTypeDefinitionNode
-  | ScalarTypeDefinitionNode
-  | ObjectTypeDefinitionNode
-  | FieldDefinitionNode
-  | InputValueDefinitionNode
-  | InterfaceTypeDefinitionNode
-  | UnionTypeDefinitionNode
-  | EnumTypeDefinitionNode
-  | EnumValueDefinitionNode
-  | InputObjectTypeDefinitionNode
-  | DirectiveDefinitionNode
-  | SchemaExtensionNode
-  | ScalarTypeExtensionNode
-  | ObjectTypeExtensionNode
-  | InterfaceTypeExtensionNode
-  | UnionTypeExtensionNode
-  | EnumTypeExtensionNode
-  | InputObjectTypeExtensionNode
-  | DirectiveExtensionNode
-  | TypeCoordinateNode
-  | MemberCoordinateNode
-  | ArgumentCoordinateNode
-  | DirectiveCoordinateNode
-  | DirectiveArgumentCoordinateNode;
-/** An identifier in a GraphQL document. */
-interface NameNode {
-  /** The discriminator identifying the concrete AST or introspection kind. */
-  readonly kind: Kind.NAME;
-  /** The source location for this AST node, if location tracking was enabled. */
-  readonly loc?: Location;
-  /** Parsed value represented by this node. */
-  readonly value: string;
-}
-/** The root AST node for a parsed GraphQL document. */
-interface DocumentNode {
-  /** The discriminator identifying the concrete AST or introspection kind. */
-  readonly kind: Kind.DOCUMENT;
-  /** The source location for this AST node, if location tracking was enabled. */
-  readonly loc?: Location;
-  /** Top-level executable and type-system definitions in this document. */
-  readonly definitions: ReadonlyArray<DefinitionNode>;
-  /** The number of lexical tokens parsed for this document, if token counting was enabled. */
-  readonly tokenCount?: number | undefined;
-}
-/** Any top-level definition that may appear in a GraphQL document. */
-declare type DefinitionNode =
-  | ExecutableDefinitionNode
-  | TypeSystemDefinitionNode
-  | TypeSystemExtensionNode;
-/** Any executable definition that may appear in an operation document. */
-declare type ExecutableDefinitionNode =
-  | OperationDefinitionNode
-  | FragmentDefinitionNode;
-/** A query, mutation, or subscription operation definition. */
-interface OperationDefinitionNode {
-  /** The discriminator identifying the concrete AST or introspection kind. */
-  readonly kind: Kind.OPERATION_DEFINITION;
-  /** The optional GraphQL description associated with this definition. */
-  readonly description?: StringValueNode;
-  /** The source location for this AST node, if location tracking was enabled. */
-  readonly loc?: Location;
-  /** The operation selected for execution. */
-  readonly operation: OperationTypeNode;
-  /** Name node identifying this AST node. */
-  readonly name?: NameNode;
-  /** Variable definitions declared by this operation or fragment. */
-  readonly variableDefinitions?: ReadonlyArray<VariableDefinitionNode>;
-  /** Directives available in this schema or applied to this AST node. */
-  readonly directives?: ReadonlyArray<DirectiveNode>;
-  /** Selections made by this operation, field, or fragment. */
-  readonly selectionSet: SelectionSetNode;
-}
-/**
- * The operation types supported by GraphQL executable definitions.
- * @category Kinds
- */
-declare enum OperationTypeNode {
-  /** A query operation. */
-  QUERY = 'query',
-  /** A mutation operation. */
-  MUTATION = 'mutation',
-  /** A subscription operation. */
-  SUBSCRIPTION = 'subscription',
-}
-
-/** A variable declaration in an operation or legacy fragment definition. */
-interface VariableDefinitionNode {
-  /** The discriminator identifying the concrete AST or introspection kind. */
-  readonly kind: Kind.VARIABLE_DEFINITION;
-  /** The optional GraphQL description associated with this definition. */
-  readonly description?: StringValueNode;
-  /** The source location for this AST node, if location tracking was enabled. */
-  readonly loc?: Location;
-  /** The variable being defined or referenced. */
-  readonly variable: VariableNode;
-  /** The GraphQL type reference or runtime type for this element. */
-  readonly type: TypeNode;
-  /** Default value used when no explicit value is supplied. */
-  readonly defaultValue?: ConstValueNode;
-  /** Directives available in this schema or applied to this AST node. */
-  readonly directives?: ReadonlyArray<ConstDirectiveNode>;
-}
-/** A variable reference, such as `$id`. */
-interface VariableNode {
-  /** The discriminator identifying the concrete AST or introspection kind. */
-  readonly kind: Kind.VARIABLE;
-  /** The source location for this AST node, if location tracking was enabled. */
-  readonly loc?: Location;
-  /** Name node identifying this AST node. */
-  readonly name: NameNode;
-}
-/** A set of fields and fragments selected from an object, interface, or union. */
-interface SelectionSetNode {
-  /** The discriminator identifying the concrete AST or introspection kind. */
-  kind: Kind.SELECTION_SET;
-  /** The source location for this AST node, if location tracking was enabled. */
-  loc?: Location;
-  /** Fields and fragments contained in this selection set. */
-  selections: ReadonlyArray<SelectionNode>;
-}
-/** Any selection that may appear inside a selection set. */
-declare type SelectionNode =
-  | FieldNode
-  | FragmentSpreadNode
-  | InlineFragmentNode;
-/** A field selected in an executable GraphQL document. */
-interface FieldNode {
-  /** The discriminator identifying the concrete AST or introspection kind. */
-  readonly kind: Kind.FIELD;
-  /** The source location for this AST node, if location tracking was enabled. */
-  readonly loc?: Location;
-  /** The response-key alias for this field, if one was supplied. */
-  readonly alias?: NameNode;
-  /** Name node identifying this AST node. */
-  readonly name: NameNode;
-  /** Arguments supplied to this field, directive, or coordinate. */
-  readonly arguments?: ReadonlyArray<ArgumentNode>;
-  /** Directives available in this schema or applied to this AST node. */
-  readonly directives?: ReadonlyArray<DirectiveNode>;
-  /** Selections made by this operation, field, or fragment. */
-  readonly selectionSet?: SelectionSetNode;
-}
-/** An argument supplied to a field or directive. */
-interface ArgumentNode {
-  /** The discriminator identifying the concrete AST or introspection kind. */
-  readonly kind: Kind.ARGUMENT;
-  /** The source location for this AST node, if location tracking was enabled. */
-  readonly loc?: Location;
-  /** Name node identifying this AST node. */
-  readonly name: NameNode;
-  /** Parsed value represented by this node. */
-  readonly value: ValueNode;
-}
-/** An argument node whose value is guaranteed to be constant. */
-interface ConstArgumentNode {
-  /** The discriminator identifying the concrete AST or introspection kind. */
-  readonly kind: Kind.ARGUMENT;
-  /** The source location for this AST node, if location tracking was enabled. */
-  readonly loc?: Location;
-  /** Name node identifying this AST node. */
-  readonly name: NameNode;
-  /** Parsed value represented by this node. */
-  readonly value: ConstValueNode;
-}
-/** A named fragment spread, such as `...userFields`. */
-interface FragmentSpreadNode {
-  /** The discriminator identifying the concrete AST or introspection kind. */
-  readonly kind: Kind.FRAGMENT_SPREAD;
-  /** The source location for this AST node, if location tracking was enabled. */
-  readonly loc?: Location;
-  /** Name node identifying this AST node. */
-  readonly name: NameNode;
-  /** Directives available in this schema or applied to this AST node. */
-  readonly directives?: ReadonlyArray<DirectiveNode>;
-}
-/** An inline fragment spread with an optional type condition. */
-interface InlineFragmentNode {
-  /** The discriminator identifying the concrete AST or introspection kind. */
-  readonly kind: Kind.INLINE_FRAGMENT;
-  /** The source location for this AST node, if location tracking was enabled. */
-  readonly loc?: Location;
-  /** The type condition that limits where this fragment applies. */
-  readonly typeCondition?: NamedTypeNode;
-  /** Directives available in this schema or applied to this AST node. */
-  readonly directives?: ReadonlyArray<DirectiveNode>;
-  /** Selections made by this operation, field, or fragment. */
-  readonly selectionSet: SelectionSetNode;
-}
-/** A reusable fragment definition declared in an executable document. */
-interface FragmentDefinitionNode {
-  /** The discriminator identifying the concrete AST or introspection kind. */
-  readonly kind: Kind.FRAGMENT_DEFINITION;
-  /** The optional GraphQL description associated with this definition. */
-  readonly description?: StringValueNode;
-  /** The source location for this AST node, if location tracking was enabled. */
-  readonly loc?: Location;
-  /** Name node identifying this AST node. */
-  readonly name: NameNode;
-  /**
-   * Deprecated variable definitions declared by this legacy fragment
-   * definition. This legacy fragment variable syntax will be removed in v17.
-   * Move variable definitions to operations for spec-compliant documents; if
-   * you need variables or arguments scoped to fragments, v17 has a more
-   * complete experimental fragment-arguments feature.
-   * @deprecated variableDefinitions will be removed in v17.0.0
-   */
-  readonly variableDefinitions?: ReadonlyArray<VariableDefinitionNode>;
-  /** The type condition that limits where this fragment applies. */
-  readonly typeCondition: NamedTypeNode;
-  /** Directives available in this schema or applied to this AST node. */
-  readonly directives?: ReadonlyArray<DirectiveNode>;
-  /** Selections made by this operation, field, or fragment. */
-  readonly selectionSet: SelectionSetNode;
-}
-/** Any value literal that may appear in an executable GraphQL document. */
-declare type ValueNode =
-  | VariableNode
-  | IntValueNode
-  | FloatValueNode
-  | StringValueNode
-  | BooleanValueNode
-  | NullValueNode
-  | EnumValueNode
-  | ListValueNode
-  | ObjectValueNode;
-/** Any value literal that is guaranteed not to contain a variable reference. */
-declare type ConstValueNode =
-  | IntValueNode
-  | FloatValueNode
-  | StringValueNode
-  | BooleanValueNode
-  | NullValueNode
-  | EnumValueNode
-  | ConstListValueNode
-  | ConstObjectValueNode;
-/** An integer value literal. */
-interface IntValueNode {
-  /** The discriminator identifying the concrete AST or introspection kind. */
-  readonly kind: Kind.INT;
-  /** The source location for this AST node, if location tracking was enabled. */
-  readonly loc?: Location;
-  /** Parsed value represented by this node. */
-  readonly value: string;
-}
-/** A floating-point value literal. */
-interface FloatValueNode {
-  /** The discriminator identifying the concrete AST or introspection kind. */
-  readonly kind: Kind.FLOAT;
-  /** The source location for this AST node, if location tracking was enabled. */
-  readonly loc?: Location;
-  /** Parsed value represented by this node. */
-  readonly value: string;
-}
-/** A string value literal. */
-interface StringValueNode {
-  /** The discriminator identifying the concrete AST or introspection kind. */
-  readonly kind: Kind.STRING;
-  /** The source location for this AST node, if location tracking was enabled. */
-  readonly loc?: Location;
-  /** Parsed value represented by this node. */
-  readonly value: string;
-  /** Whether this string was parsed from block string syntax. */
-  readonly block?: boolean;
-}
-/** A boolean value literal. */
-interface BooleanValueNode {
-  /** The discriminator identifying the concrete AST or introspection kind. */
-  readonly kind: Kind.BOOLEAN;
-  /** The source location for this AST node, if location tracking was enabled. */
-  readonly loc?: Location;
-  /** Parsed value represented by this node. */
-  readonly value: boolean;
-}
-/** A null value literal. */
-interface NullValueNode {
-  /** The discriminator identifying the concrete AST or introspection kind. */
-  readonly kind: Kind.NULL;
-  /** The source location for this AST node, if location tracking was enabled. */
-  readonly loc?: Location;
-}
-/** An enum value literal. */
-interface EnumValueNode {
-  /** The discriminator identifying the concrete AST or introspection kind. */
-  readonly kind: Kind.ENUM;
-  /** The source location for this AST node, if location tracking was enabled. */
-  readonly loc?: Location;
-  /** Parsed value represented by this node. */
-  readonly value: string;
-}
-/** A list value literal. */
-interface ListValueNode {
-  /** The discriminator identifying the concrete AST or introspection kind. */
-  readonly kind: Kind.LIST;
-  /** The source location for this AST node, if location tracking was enabled. */
-  readonly loc?: Location;
-  /** Values contained in this enum, list, or input-object definition. */
-  readonly values: ReadonlyArray<ValueNode>;
-}
-/** A list value literal whose elements are all constant values. */
-interface ConstListValueNode {
-  /** The discriminator identifying the concrete AST or introspection kind. */
-  readonly kind: Kind.LIST;
-  /** The source location for this AST node, if location tracking was enabled. */
-  readonly loc?: Location;
-  /** Values contained in this enum, list, or input-object definition. */
-  readonly values: ReadonlyArray<ConstValueNode>;
-}
-/** An input object value literal. */
-interface ObjectValueNode {
-  /** The discriminator identifying the concrete AST or introspection kind. */
-  readonly kind: Kind.OBJECT;
-  /** The source location for this AST node, if location tracking was enabled. */
-  readonly loc?: Location;
-  /** Fields declared by this object, interface, input object, or literal. */
-  readonly fields: ReadonlyArray<ObjectFieldNode>;
-}
-/** An input object value literal whose fields are all constant values. */
-interface ConstObjectValueNode {
-  /** The discriminator identifying the concrete AST or introspection kind. */
-  readonly kind: Kind.OBJECT;
-  /** The source location for this AST node, if location tracking was enabled. */
-  readonly loc?: Location;
-  /** Fields declared by this object, interface, input object, or literal. */
-  readonly fields: ReadonlyArray<ConstObjectFieldNode>;
-}
-/** A field inside an input object value literal. */
-interface ObjectFieldNode {
-  /** The discriminator identifying the concrete AST or introspection kind. */
-  readonly kind: Kind.OBJECT_FIELD;
-  /** The source location for this AST node, if location tracking was enabled. */
-  readonly loc?: Location;
-  /** Name node identifying this AST node. */
-  readonly name: NameNode;
-  /** Parsed value represented by this node. */
-  readonly value: ValueNode;
-}
-/** A field inside a constant input object value literal. */
-interface ConstObjectFieldNode {
-  /** The discriminator identifying the concrete AST or introspection kind. */
-  readonly kind: Kind.OBJECT_FIELD;
-  /** The source location for this AST node, if location tracking was enabled. */
-  readonly loc?: Location;
-  /** Name node identifying this AST node. */
-  readonly name: NameNode;
-  /** Parsed value represented by this node. */
-  readonly value: ConstValueNode;
-}
-/** A directive applied to an executable or type-system location. */
-interface DirectiveNode {
-  /** The discriminator identifying the concrete AST or introspection kind. */
-  readonly kind: Kind.DIRECTIVE;
-  /** The source location for this AST node, if location tracking was enabled. */
-  readonly loc?: Location;
-  /** Name node identifying this AST node. */
-  readonly name: NameNode;
-  /** Arguments supplied to this field, directive, or coordinate. */
-  readonly arguments?: ReadonlyArray<ArgumentNode>;
-}
-/** A directive whose arguments are all constant values. */
-interface ConstDirectiveNode {
-  /** The discriminator identifying the concrete AST or introspection kind. */
-  readonly kind: Kind.DIRECTIVE;
-  /** The source location for this AST node, if location tracking was enabled. */
-  readonly loc?: Location;
-  /** Name node identifying this AST node. */
-  readonly name: NameNode;
-  /** Arguments supplied to this field, directive, or coordinate. */
-  readonly arguments?: ReadonlyArray<ConstArgumentNode>;
-}
-/** Any GraphQL type reference AST node. */
-declare type TypeNode = NamedTypeNode | ListTypeNode | NonNullTypeNode;
-/** A named type reference. */
-interface NamedTypeNode {
-  /** The discriminator identifying the concrete AST or introspection kind. */
-  readonly kind: Kind.NAMED_TYPE;
-  /** The source location for this AST node, if location tracking was enabled. */
-  readonly loc?: Location;
-  /** Name node identifying this AST node. */
-  readonly name: NameNode;
-}
-/** A list type reference. */
-interface ListTypeNode {
-  /** The discriminator identifying the concrete AST or introspection kind. */
-  readonly kind: Kind.LIST_TYPE;
-  /** The source location for this AST node, if location tracking was enabled. */
-  readonly loc?: Location;
-  /** The GraphQL type reference or runtime type for this element. */
-  readonly type: TypeNode;
-}
-/** A non-null type reference. */
-interface NonNullTypeNode {
-  /** The discriminator identifying the concrete AST or introspection kind. */
-  readonly kind: Kind.NON_NULL_TYPE;
-  /** The source location for this AST node, if location tracking was enabled. */
-  readonly loc?: Location;
-  /** The GraphQL type reference or runtime type for this element. */
-  readonly type: NamedTypeNode | ListTypeNode;
-}
-/** Any type-system definition that may appear in a schema document. */
-declare type TypeSystemDefinitionNode =
-  | SchemaDefinitionNode
-  | TypeDefinitionNode
-  | DirectiveDefinitionNode;
-/** A schema definition in a type-system document. */
-interface SchemaDefinitionNode {
-  /** The discriminator identifying the concrete AST or introspection kind. */
-  readonly kind: Kind.SCHEMA_DEFINITION;
-  /** The source location for this AST node, if location tracking was enabled. */
-  readonly loc?: Location;
-  /** The optional GraphQL description associated with this definition. */
-  readonly description?: StringValueNode;
-  /** Directives available in this schema or applied to this AST node. */
-  readonly directives?: ReadonlyArray<ConstDirectiveNode>;
-  /** Root operation types declared by this schema definition or extension. */
-  readonly operationTypes: ReadonlyArray<OperationTypeDefinitionNode>;
-}
-/** A root operation type declaration inside a schema definition or extension. */
-interface OperationTypeDefinitionNode {
-  /** The discriminator identifying the concrete AST or introspection kind. */
-  readonly kind: Kind.OPERATION_TYPE_DEFINITION;
-  /** The source location for this AST node, if location tracking was enabled. */
-  readonly loc?: Location;
-  /** The operation selected for execution. */
-  readonly operation: OperationTypeNode;
-  /** The GraphQL type reference or runtime type for this element. */
-  readonly type: NamedTypeNode;
-}
-/** Any named type definition that may appear in a schema document. */
-declare type TypeDefinitionNode =
-  | ScalarTypeDefinitionNode
-  | ObjectTypeDefinitionNode
-  | InterfaceTypeDefinitionNode
-  | UnionTypeDefinitionNode
-  | EnumTypeDefinitionNode
-  | InputObjectTypeDefinitionNode;
-/** A scalar type definition in a type-system document. */
-interface ScalarTypeDefinitionNode {
-  /** The discriminator identifying the concrete AST or introspection kind. */
-  readonly kind: Kind.SCALAR_TYPE_DEFINITION;
-  /** The source location for this AST node, if location tracking was enabled. */
-  readonly loc?: Location;
-  /** The optional GraphQL description associated with this definition. */
-  readonly description?: StringValueNode;
-  /** Name node identifying this AST node. */
-  readonly name: NameNode;
-  /** Directives available in this schema or applied to this AST node. */
-  readonly directives?: ReadonlyArray<ConstDirectiveNode>;
-}
-/** An object type definition in a type-system document. */
-interface ObjectTypeDefinitionNode {
-  /** The discriminator identifying the concrete AST or introspection kind. */
-  readonly kind: Kind.OBJECT_TYPE_DEFINITION;
-  /** The source location for this AST node, if location tracking was enabled. */
-  readonly loc?: Location;
-  /** The optional GraphQL description associated with this definition. */
-  readonly description?: StringValueNode;
-  /** Name node identifying this AST node. */
-  readonly name: NameNode;
-  /** Interfaces implemented by this object or interface type. */
-  readonly interfaces?: ReadonlyArray<NamedTypeNode>;
-  /** Directives available in this schema or applied to this AST node. */
-  readonly directives?: ReadonlyArray<ConstDirectiveNode>;
-  /** Fields declared by this object, interface, input object, or literal. */
-  readonly fields?: ReadonlyArray<FieldDefinitionNode>;
-}
-/** A field definition declared by an object or interface type. */
-interface FieldDefinitionNode {
-  /** The discriminator identifying the concrete AST or introspection kind. */
-  readonly kind: Kind.FIELD_DEFINITION;
-  /** The source location for this AST node, if location tracking was enabled. */
-  readonly loc?: Location;
-  /** The optional GraphQL description associated with this definition. */
-  readonly description?: StringValueNode;
-  /** Name node identifying this AST node. */
-  readonly name: NameNode;
-  /** Arguments supplied to this field, directive, or coordinate. */
-  readonly arguments?: ReadonlyArray<InputValueDefinitionNode>;
-  /** The GraphQL type reference or runtime type for this element. */
-  readonly type: TypeNode;
-  /** Directives available in this schema or applied to this AST node. */
-  readonly directives?: ReadonlyArray<ConstDirectiveNode>;
-}
-/** An argument or input-field definition. */
-interface InputValueDefinitionNode {
-  /** The discriminator identifying the concrete AST or introspection kind. */
-  readonly kind: Kind.INPUT_VALUE_DEFINITION;
-  /** The source location for this AST node, if location tracking was enabled. */
-  readonly loc?: Location;
-  /** The optional GraphQL description associated with this definition. */
-  readonly description?: StringValueNode;
-  /** Name node identifying this AST node. */
-  readonly name: NameNode;
-  /** The GraphQL type reference or runtime type for this element. */
-  readonly type: TypeNode;
-  /** Default value used when no explicit value is supplied. */
-  readonly defaultValue?: ConstValueNode;
-  /** Directives available in this schema or applied to this AST node. */
-  readonly directives?: ReadonlyArray<ConstDirectiveNode>;
-}
-/** An interface type definition in a type-system document. */
-interface InterfaceTypeDefinitionNode {
-  /** The discriminator identifying the concrete AST or introspection kind. */
-  readonly kind: Kind.INTERFACE_TYPE_DEFINITION;
-  /** The source location for this AST node, if location tracking was enabled. */
-  readonly loc?: Location;
-  /** The optional GraphQL description associated with this definition. */
-  readonly description?: StringValueNode;
-  /** Name node identifying this AST node. */
-  readonly name: NameNode;
-  /** Interfaces implemented by this object or interface type. */
-  readonly interfaces?: ReadonlyArray<NamedTypeNode>;
-  /** Directives available in this schema or applied to this AST node. */
-  readonly directives?: ReadonlyArray<ConstDirectiveNode>;
-  /** Fields declared by this object, interface, input object, or literal. */
-  readonly fields?: ReadonlyArray<FieldDefinitionNode>;
-}
-/** A union type definition in a type-system document. */
-interface UnionTypeDefinitionNode {
-  /** The discriminator identifying the concrete AST or introspection kind. */
-  readonly kind: Kind.UNION_TYPE_DEFINITION;
-  /** The source location for this AST node, if location tracking was enabled. */
-  readonly loc?: Location;
-  /** The optional GraphQL description associated with this definition. */
-  readonly description?: StringValueNode;
-  /** Name node identifying this AST node. */
-  readonly name: NameNode;
-  /** Directives available in this schema or applied to this AST node. */
-  readonly directives?: ReadonlyArray<ConstDirectiveNode>;
-  /** Object types that belong to this union type. */
-  readonly types?: ReadonlyArray<NamedTypeNode>;
-}
-/** An enum type definition in a type-system document. */
-interface EnumTypeDefinitionNode {
-  /** The discriminator identifying the concrete AST or introspection kind. */
-  readonly kind: Kind.ENUM_TYPE_DEFINITION;
-  /** The source location for this AST node, if location tracking was enabled. */
-  readonly loc?: Location;
-  /** The optional GraphQL description associated with this definition. */
-  readonly description?: StringValueNode;
-  /** Name node identifying this AST node. */
-  readonly name: NameNode;
-  /** Directives available in this schema or applied to this AST node. */
-  readonly directives?: ReadonlyArray<ConstDirectiveNode>;
-  /** Values contained in this enum, list, or input-object definition. */
-  readonly values?: ReadonlyArray<EnumValueDefinitionNode>;
-}
-/** An enum value definition. */
-interface EnumValueDefinitionNode {
-  /** The discriminator identifying the concrete AST or introspection kind. */
-  readonly kind: Kind.ENUM_VALUE_DEFINITION;
-  /** The source location for this AST node, if location tracking was enabled. */
-  readonly loc?: Location;
-  /** The optional GraphQL description associated with this definition. */
-  readonly description?: StringValueNode;
-  /** Name node identifying this AST node. */
-  readonly name: NameNode;
-  /** Directives available in this schema or applied to this AST node. */
-  readonly directives?: ReadonlyArray<ConstDirectiveNode>;
-}
-/** An input object type definition in a type-system document. */
-interface InputObjectTypeDefinitionNode {
-  /** The discriminator identifying the concrete AST or introspection kind. */
-  readonly kind: Kind.INPUT_OBJECT_TYPE_DEFINITION;
-  /** The source location for this AST node, if location tracking was enabled. */
-  readonly loc?: Location;
-  /** The optional GraphQL description associated with this definition. */
-  readonly description?: StringValueNode;
-  /** Name node identifying this AST node. */
-  readonly name: NameNode;
-  /** Directives available in this schema or applied to this AST node. */
-  readonly directives?: ReadonlyArray<ConstDirectiveNode>;
-  /** Fields declared by this object, interface, input object, or literal. */
-  readonly fields?: ReadonlyArray<InputValueDefinitionNode>;
-}
-/** A directive definition in a type-system document. */
-interface DirectiveDefinitionNode {
-  /** The discriminator identifying the concrete AST or introspection kind. */
-  readonly kind: Kind.DIRECTIVE_DEFINITION;
-  /** The source location for this AST node, if location tracking was enabled. */
-  readonly loc?: Location;
-  /** The optional GraphQL description associated with this definition. */
-  readonly description?: StringValueNode;
-  /** Name node identifying this AST node. */
-  readonly name: NameNode;
-  /** Arguments supplied to this field, directive, or coordinate. */
-  readonly arguments?: ReadonlyArray<InputValueDefinitionNode>;
-  /** Directives available in this schema or applied to this AST node. */
-  readonly directives?: ReadonlyArray<ConstDirectiveNode>;
-  /** Whether this directive may appear more than once at the same location. */
-  readonly repeatable: boolean;
-  /** Locations where this directive may be applied. */
-  readonly locations: ReadonlyArray<NameNode>;
-}
-/** Any type-system extension that may appear in a schema extension document. */
-declare type TypeSystemExtensionNode =
-  | SchemaExtensionNode
-  | TypeExtensionNode
-  | DirectiveExtensionNode;
-/** A schema extension in a type-system document. */
-interface SchemaExtensionNode {
-  /** The discriminator identifying the concrete AST or introspection kind. */
-  readonly kind: Kind.SCHEMA_EXTENSION;
-  /** The source location for this AST node, if location tracking was enabled. */
-  readonly loc?: Location;
-  /** Directives available in this schema or applied to this AST node. */
-  readonly directives?: ReadonlyArray<ConstDirectiveNode>;
-  /** Root operation types declared by this schema definition or extension. */
-  readonly operationTypes?: ReadonlyArray<OperationTypeDefinitionNode>;
-}
-/** Any named type extension that may appear in a schema extension document. */
-declare type TypeExtensionNode =
-  | ScalarTypeExtensionNode
-  | ObjectTypeExtensionNode
-  | InterfaceTypeExtensionNode
-  | UnionTypeExtensionNode
-  | EnumTypeExtensionNode
-  | InputObjectTypeExtensionNode;
-/** A scalar type extension. */
-interface ScalarTypeExtensionNode {
-  /** The discriminator identifying the concrete AST or introspection kind. */
-  readonly kind: Kind.SCALAR_TYPE_EXTENSION;
-  /** The source location for this AST node, if location tracking was enabled. */
-  readonly loc?: Location;
-  /** Name node identifying this AST node. */
-  readonly name: NameNode;
-  /** Directives available in this schema or applied to this AST node. */
-  readonly directives?: ReadonlyArray<ConstDirectiveNode>;
-}
-/** An object type extension. */
-interface ObjectTypeExtensionNode {
-  /** The discriminator identifying the concrete AST or introspection kind. */
-  readonly kind: Kind.OBJECT_TYPE_EXTENSION;
-  /** The source location for this AST node, if location tracking was enabled. */
-  readonly loc?: Location;
-  /** Name node identifying this AST node. */
-  readonly name: NameNode;
-  /** Interfaces implemented by this object or interface type. */
-  readonly interfaces?: ReadonlyArray<NamedTypeNode>;
-  /** Directives available in this schema or applied to this AST node. */
-  readonly directives?: ReadonlyArray<ConstDirectiveNode>;
-  /** Fields declared by this object, interface, input object, or literal. */
-  readonly fields?: ReadonlyArray<FieldDefinitionNode>;
-}
-/** An interface type extension. */
-interface InterfaceTypeExtensionNode {
-  /** The discriminator identifying the concrete AST or introspection kind. */
-  readonly kind: Kind.INTERFACE_TYPE_EXTENSION;
-  /** The source location for this AST node, if location tracking was enabled. */
-  readonly loc?: Location;
-  /** Name node identifying this AST node. */
-  readonly name: NameNode;
-  /** Interfaces implemented by this object or interface type. */
-  readonly interfaces?: ReadonlyArray<NamedTypeNode>;
-  /** Directives available in this schema or applied to this AST node. */
-  readonly directives?: ReadonlyArray<ConstDirectiveNode>;
-  /** Fields declared by this object, interface, input object, or literal. */
-  readonly fields?: ReadonlyArray<FieldDefinitionNode>;
-}
-/** A union type extension. */
-interface UnionTypeExtensionNode {
-  /** The discriminator identifying the concrete AST or introspection kind. */
-  readonly kind: Kind.UNION_TYPE_EXTENSION;
-  /** The source location for this AST node, if location tracking was enabled. */
-  readonly loc?: Location;
-  /** Name node identifying this AST node. */
-  readonly name: NameNode;
-  /** Directives available in this schema or applied to this AST node. */
-  readonly directives?: ReadonlyArray<ConstDirectiveNode>;
-  /** Object types that belong to this union type. */
-  readonly types?: ReadonlyArray<NamedTypeNode>;
-}
-/** An enum type extension. */
-interface EnumTypeExtensionNode {
-  /** The discriminator identifying the concrete AST or introspection kind. */
-  readonly kind: Kind.ENUM_TYPE_EXTENSION;
-  /** The source location for this AST node, if location tracking was enabled. */
-  readonly loc?: Location;
-  /** Name node identifying this AST node. */
-  readonly name: NameNode;
-  /** Directives available in this schema or applied to this AST node. */
-  readonly directives?: ReadonlyArray<ConstDirectiveNode>;
-  /** Values contained in this enum, list, or input-object definition. */
-  readonly values?: ReadonlyArray<EnumValueDefinitionNode>;
-}
-/** An input object type extension. */
-interface InputObjectTypeExtensionNode {
-  /** The discriminator identifying the concrete AST or introspection kind. */
-  readonly kind: Kind.INPUT_OBJECT_TYPE_EXTENSION;
-  /** The source location for this AST node, if location tracking was enabled. */
-  readonly loc?: Location;
-  /** Name node identifying this AST node. */
-  readonly name: NameNode;
-  /** Directives available in this schema or applied to this AST node. */
-  readonly directives?: ReadonlyArray<ConstDirectiveNode>;
-  /** Fields declared by this object, interface, input object, or literal. */
-  readonly fields?: ReadonlyArray<InputValueDefinitionNode>;
-}
-/** A directive extension. */
-interface DirectiveExtensionNode {
-  /** The discriminator identifying the concrete AST or introspection kind. */
-  readonly kind: Kind.DIRECTIVE_EXTENSION;
-  /** The source location for this AST node, if location tracking was enabled. */
-  readonly loc?: Location;
-  /** Name node identifying this AST node. */
-  readonly name: NameNode;
-  /** Directives available in this schema or applied to this AST node. */
-  readonly directives?: ReadonlyArray<ConstDirectiveNode>;
-}
-/** A schema coordinate that refers to a named type. */
-interface TypeCoordinateNode {
-  /** The discriminator identifying the concrete AST or introspection kind. */
-  readonly kind: Kind.TYPE_COORDINATE;
-  /** The source location for this AST node, if location tracking was enabled. */
-  readonly loc?: Location;
-  /** Name node identifying this AST node. */
-  readonly name: NameNode;
-}
-/** A schema coordinate that refers to a member of a named type. */
-interface MemberCoordinateNode {
-  /** The discriminator identifying the concrete AST or introspection kind. */
-  readonly kind: Kind.MEMBER_COORDINATE;
-  /** The source location for this AST node, if location tracking was enabled. */
-  readonly loc?: Location;
-  /** Name node identifying this AST node. */
-  readonly name: NameNode;
-  /** The member name referenced by this schema coordinate. */
-  readonly memberName: NameNode;
-}
-/** A schema coordinate that refers to a field or directive argument. */
-interface ArgumentCoordinateNode {
-  /** The discriminator identifying the concrete AST or introspection kind. */
-  readonly kind: Kind.ARGUMENT_COORDINATE;
-  /** The source location for this AST node, if location tracking was enabled. */
-  readonly loc?: Location;
-  /** Name node identifying this AST node. */
-  readonly name: NameNode;
-  /** The field name referenced by this schema coordinate. */
-  readonly fieldName: NameNode;
-  /** The argument name referenced by this schema coordinate. */
-  readonly argumentName: NameNode;
-}
-/** A schema coordinate that refers to a directive. */
-interface DirectiveCoordinateNode {
-  /** The discriminator identifying the concrete AST or introspection kind. */
-  readonly kind: Kind.DIRECTIVE_COORDINATE;
-  /** The source location for this AST node, if location tracking was enabled. */
-  readonly loc?: Location;
-  /** Name node identifying this AST node. */
-  readonly name: NameNode;
-}
-/** A schema coordinate that refers to a directive argument. */
-interface DirectiveArgumentCoordinateNode {
-  /** The discriminator identifying the concrete AST or introspection kind. */
-  readonly kind: Kind.DIRECTIVE_ARGUMENT_COORDINATE;
-  /** The source location for this AST node, if location tracking was enabled. */
-  readonly loc?: Location;
-  /** Name node identifying this AST node. */
-  readonly name: NameNode;
-  /** The argument name referenced by this schema coordinate. */
-  readonly argumentName: NameNode;
-}
-
-/** @category Source */
-
-/** Represents a location in a Source. */
-interface SourceLocation {
-  /** One-indexed line number in the source document. */
-  readonly line: number;
-  /** One-indexed column number in the source document. */
-  readonly column: number;
-}
-
-/** @category Errors */
-
-/**
- * Custom extensions
- * @remarks
- * Use a unique identifier name for your extension, for example the name of
- * your library or project. Do not use a shortened identifier as this increases
- * the risk of conflicts. We recommend you add at most one extension field,
- * an object which can contain all the values you need.
- */
-interface GraphQLErrorExtensions {
-  [attributeName: string]: unknown;
-}
-/**
- * Custom formatted extensions
- * @remarks
- * Use a unique identifier name for your extension, for example the name of
- * your library or project. Do not use a shortened identifier as this increases
- * the risk of conflicts. We recommend you add at most one extension field,
- * an object which can contain all the values you need.
- */
-interface GraphQLFormattedErrorExtensions {
-  [attributeName: string]: unknown;
-}
-/** Options used to construct a GraphQLError. */
-interface GraphQLErrorOptions {
-  /** AST node or nodes associated with this error. */
-  nodes?: ReadonlyArray<ASTNode> | ASTNode | null;
-  /** Source document used to derive error locations. */
-  source?: Maybe<Source>;
-  /** Character offsets in the source document associated with this error. */
-  positions?: Maybe<ReadonlyArray<number>>;
-  /** Response path where this error occurred during execution. */
-  path?: Maybe<ReadonlyArray<string | number>>;
-  /** Original error that caused this GraphQLError, if one exists. */
-  originalError?: Maybe<
-    Error & {
-      /** Extension fields associated with this value. */
-      readonly extensions?: unknown;
-    }
-  >;
-  /** Extension fields to include in the formatted result. */
-  extensions?: Maybe<GraphQLErrorExtensions>;
-}
-/**
- * A GraphQLError describes an Error found during the parse, validate, or
- * execute phases of performing a GraphQL operation. In addition to a message
- * and stack trace, it also includes information about the locations in a
- * GraphQL document and/or execution result that correspond to the Error.
- */
-declare class GraphQLError extends Error {
-  /**
-   * An array of `{ line, column }` locations within the source GraphQL document
-   * which correspond to this error.
-   *
-   * Errors during validation often contain multiple locations, for example to
-   * point out two things with the same name. Errors during execution include a
-   * single location, the field which produced the error.
-   *
-   * Enumerable, and appears in the result of JSON.stringify().
-   */
-  readonly locations: ReadonlyArray<SourceLocation> | undefined;
-  /**
-   * An array describing the JSON-path into the execution response which
-   * corresponds to this error. Only included for errors during execution.
-   *
-   * Enumerable, and appears in the result of JSON.stringify().
-   */
-  readonly path: ReadonlyArray<string | number> | undefined;
-  /** An array of GraphQL AST Nodes corresponding to this error. */
-  readonly nodes: ReadonlyArray<ASTNode> | undefined;
-  /**
-   * The source GraphQL document for the first location of this error.
-   *
-   * Note that if this Error represents more than one node, the source may not
-   * represent nodes after the first node.
-   */
-  readonly source: Source | undefined;
-  /**
-   * An array of character offsets within the source GraphQL document
-   * which correspond to this error.
-   */
-  readonly positions: ReadonlyArray<number> | undefined;
-  /** Original error that caused this GraphQLError, if one exists. */
-  readonly originalError: Error | undefined;
-  /** Extension fields to add to the formatted error. */
-  readonly extensions: GraphQLErrorExtensions;
-  /**
-   * Creates a GraphQLError instance.
-   * @param message - Human-readable error message.
-   * @param options - Error metadata such as source locations, response path, original error, and extensions.
-   * This positional-arguments constructor overload is deprecated. Use the
-   * `GraphQLError(message, options)` overload instead.
-   * @example
-   * ```ts
-   * // Create an error from AST nodes and response metadata.
-   * import { parse } from 'graphql/language';
-   * import { GraphQLError } from 'graphql/error';
-   *
-   * const document = parse('{ greeting }');
-   * const fieldNode = document.definitions[0].selectionSet.selections[0];
-   * const error = new GraphQLError('Cannot query this field.', {
-   *   nodes: fieldNode,
-   *   path: ['greeting'],
-   *   extensions: { code: 'FORBIDDEN' },
-   * });
-   *
-   * error.message; // => 'Cannot query this field.'
-   * error.locations; // => [{ line: 1, column: 3 }]
-   * error.path; // => ['greeting']
-   * error.extensions; // => { code: 'FORBIDDEN' }
-   * ```
-   * @example
-   * ```ts
-   * // This variant derives locations from source positions and preserves the original error.
-   * import { Source } from 'graphql/language';
-   * import { GraphQLError } from 'graphql/error';
-   *
-   * const source = new Source('{ greeting }');
-   * const originalError = new Error('Database unavailable.');
-   * const error = new GraphQLError('Resolver failed.', {
-   *   source,
-   *   positions: [2],
-   *   path: ['greeting'],
-   *   originalError,
-   * });
-   *
-   * error.locations; // => [{ line: 1, column: 3 }]
-   * error.path; // => ['greeting']
-   * error.originalError; // => originalError
-   * ```
-   */
-  constructor(message: string, options?: GraphQLErrorOptions);
-  /**
-   * Creates a GraphQLError instance using the legacy positional constructor.
-   * This deprecated overload will be removed in v17. Prefer the
-   * `GraphQLErrorOptions` object overload, which keeps optional error metadata
-   * in a single options bag.
-   * @param message - Human-readable error message.
-   * @param nodes - AST node or nodes associated with this error.
-   * @param source - Source document used to derive error locations.
-   * @param positions - Character offsets in the source document associated with
-   * this error.
-   * @param path - Response path where this error occurred during execution.
-   * @param originalError - Original error that caused this GraphQLError, if one
-   * exists.
-   * @param extensions - Extension fields to include in the formatted error.
-   * @example
-   * ```ts
-   * import { Source } from 'graphql/language';
-   * import { GraphQLError } from 'graphql/error';
-   *
-   * const source = new Source('{ greeting }');
-   * const originalError = new Error('Database unavailable.');
-   * const error = new GraphQLError(
-   *   'Resolver failed.',
-   *   undefined,
-   *   source,
-   *   [2],
-   *   ['greeting'],
-   *   originalError,
-   *   { code: 'INTERNAL' },
-   * );
-   *
-   * error.locations; // => [{ line: 1, column: 3 }]
-   * error.path; // => ['greeting']
-   * error.originalError; // => originalError
-   * error.extensions; // => { code: 'INTERNAL' }
-   * ```
-   * @deprecated Please use the `GraphQLErrorOptions` constructor overload instead.
-   */
-  constructor(
-    message: string,
-    nodes?: ReadonlyArray<ASTNode> | ASTNode | null,
-    source?: Maybe<Source>,
-    positions?: Maybe<ReadonlyArray<number>>,
-    path?: Maybe<ReadonlyArray<string | number>>,
-    originalError?: Maybe<
-      Error & {
-        readonly extensions?: unknown;
-      }
-    >,
-    extensions?: Maybe<GraphQLErrorExtensions>,
-  );
-  /**
-   * Returns the value used by `Object.prototype.toString`.
-   * @returns The built-in string tag for this object.
-   */
-  get [Symbol.toStringTag](): string;
-  /**
-   * Returns this error as a human-readable message with source locations.
-   * @returns The formatted error string.
-   * @example
-   * ```ts
-   * import { Source } from 'graphql/language';
-   * import { GraphQLError } from 'graphql/error';
-   *
-   * const error = new GraphQLError('Cannot query field "name".', {
-   *   source: new Source('{ name }'),
-   *   positions: [2],
-   * });
-   *
-   * error.toString(); // => 'Cannot query field "name".\n\nGraphQL request:1:3\n1 | { name }\n  |   ^'
-   * ```
-   */
-  toString(): string;
-  /**
-   * Returns the JSON representation used when this object is serialized.
-   * @returns The JSON-serializable representation.
-   * @example
-   * ```ts
-   * import { GraphQLError } from 'graphql/error';
-   *
-   * const error = new GraphQLError('Resolver failed.', {
-   *   path: ['viewer', 'name'],
-   *   extensions: { code: 'INTERNAL' },
-   * });
-   *
-   * error.toJSON(); // => { message: 'Resolver failed.', path: ['viewer', 'name'], extensions: { code: 'INTERNAL' } }
-   * ```
-   */
-  toJSON(): GraphQLFormattedError;
-}
-/** See: https://spec.graphql.org/draft/#sec-Errors */
-interface GraphQLFormattedError {
-  /**
-   * A short, human-readable summary of the problem that **SHOULD NOT** change
-   * from occurrence to occurrence of the problem, except for purposes of
-   * localization.
-   */
-  readonly message: string;
-  /**
-   * If an error can be associated to a particular point in the requested
-   * GraphQL document, it should contain a list of locations.
-   */
-  readonly locations?: ReadonlyArray<SourceLocation>;
-  /**
-   * If an error can be associated to a particular field in the GraphQL result,
-   * it _must_ contain an entry with the key `path` that details the path of
-   * the response field which experienced the error. This allows clients to
-   * identify whether a null result is intentional or caused by a runtime error.
-   */
-  readonly path?: ReadonlyArray<string | number>;
-  /**
-   * Reserved for implementors to extend the protocol however they see fit,
-   * and hence there are no additional restrictions on its contents.
-   */
-  readonly extensions?: GraphQLFormattedErrorExtensions;
-}
-
-interface DocumentTypeDecoration<TResult, TVariables> {
-    /**
-     * This type is used to ensure that the variables you pass in to the query are assignable to Variables
-     * and that the Result is assignable to whatever you pass your result to. The method is never actually
-     * implemented, but the type is valid because we list it as optional
-     */
-    __apiType?: (variables: TVariables) => TResult;
-}
-interface TypedDocumentNode<TResult = {
-    [key: string]: any;
-}, TVariables = {
-    [key: string]: any;
-}> extends DocumentNode, DocumentTypeDecoration<TResult, TVariables> {
-}
-
-type RemoveIndex<T> = {
-    [K in keyof T as string extends K ? never : number extends K ? never : K]: T[K];
-};
-type MaybeLazy<T> = T | (() => T);
-type MaybePromise<T> = T | Promise<T>;
-
-type Fetch = typeof fetch;
-/**
- * 'None' will throw whenever the response contains errors
- *
- * 'Ignore' will ignore incoming errors and resolve like no errors occurred
- *
- * 'All' will return both the errors and data
- */
-type ErrorPolicy = 'none' | 'ignore' | 'all';
-interface JsonSerializer {
-    stringify: (obj: any) => string;
-    parse: (obj: string) => unknown;
-}
-interface AdditionalRequestOptions {
-    jsonSerializer?: JsonSerializer;
-    /**
-     * Decide how to handle GraphQLErrors in response
-     */
-    errorPolicy?: ErrorPolicy;
-}
-type Variables = object;
-interface GraphQLResponse<T = unknown> {
-    data?: T;
-    errors?: GraphQLError[];
-    extensions?: unknown;
-    status: number;
-    headers: Headers;
-    /**
-     * The response body text. Useful for debugging non-GraphQL responses
-     * (e.g., 401/403 errors that return plain JSON instead of GraphQL).
-     */
-    body: string;
-    [key: string]: unknown;
-}
-interface GraphQLRequestContext<V extends Variables = Variables> {
-    query: string | string[];
-    variables?: V;
-}
-type RequestDocument = string | String | DocumentNode;
-/**
- * TypedDocumentString is generated by \@graphql-codegen with `documentMode: 'string'`.
- * It's a boxed String with type metadata for result and variables types.
- * @see https://github.com/graffle-js/graffle/issues/1467
- */
-type TypedDocumentString<$Result, $Variables> = String & DocumentTypeDecoration<$Result, $Variables>;
-interface GraphQLClientResponse<Data> {
-    status: number;
-    headers: Headers;
-    /**
-     * The response body text. Useful for debugging non-GraphQL responses
-     * (e.g., 401/403 errors that return plain JSON instead of GraphQL).
-     */
-    body: string;
-    data: Data;
-    extensions?: unknown;
-    errors?: GraphQLError[];
-}
-type HTTPMethodInput = 'GET' | 'POST' | 'get' | 'post';
-interface RequestConfig extends Omit<RequestInit, 'headers' | 'method'>, AdditionalRequestOptions {
-    fetch?: Fetch;
-    method?: HTTPMethodInput;
-    headers?: MaybeLazy<HeadersInit>;
-    requestMiddleware?: RequestMiddleware;
-    responseMiddleware?: ResponseMiddleware;
-    jsonSerializer?: JsonSerializer;
-    excludeOperationName?: boolean;
-}
-type RawRequestOptions<V extends Variables = Variables> = {
-    query: string;
-    requestHeaders?: HeadersInit;
-    signal?: RequestInit['signal'];
-} & (V extends Record<any, never> ? {
-    variables?: V;
-} : keyof RemoveIndex<V> extends never ? {
-    variables?: V;
-} : {
-    variables: V;
-});
-type RequestOptions<V extends Variables = Variables, T = unknown> = {
-    document: RequestDocument | TypedDocumentNode<T, V> | TypedDocumentString<T, V>;
-    requestHeaders?: HeadersInit;
-    signal?: RequestInit['signal'];
-} & (V extends Record<any, never> ? {
-    variables?: V;
-} : keyof RemoveIndex<V> extends never ? {
-    variables?: V;
-} : {
-    variables: V;
-});
-type ResponseMiddleware = (response: GraphQLClientResponse<unknown> | ClientError | Error, request: RequestInitExtended) => MaybePromise<void>;
-type RequestMiddleware<V extends Variables = Variables> = (request: RequestInitExtended<V>) => RequestInitExtended | Promise<RequestInitExtended>;
-type RequestInitExtended<V extends Variables = Variables> = RequestInit & {
-    url: string;
-    operationName?: string;
-    variables?: V;
-};
-type VariablesAndRequestHeadersArgs<V extends Variables> = V extends Record<any, never> ? [variables?: V, requestHeaders?: HeadersInit] : keyof RemoveIndex<V> extends never ? [variables?: V, requestHeaders?: HeadersInit] : [variables: V, requestHeaders?: HeadersInit];
-
-declare class ClientError extends Error {
-    response: GraphQLResponse;
-    request: GraphQLRequestContext;
-    constructor(response: GraphQLResponse, request: GraphQLRequestContext);
-    private static extractMessage;
-}
-
-type BatchRequestDocument<V extends Variables = Variables> = {
-    document: RequestDocument;
-    variables?: V;
-};
-interface BatchRequestsOptions<V extends Variables = Variables> {
-    documents: BatchRequestDocument<V>[];
-    requestHeaders?: HeadersInit;
-    signal?: RequestInit['signal'];
-}
-type BatchResult = [Result, ...Result[]];
-interface Result<Data extends object = object> {
-    data: Data;
-}
-
-/**
- * GraphQL Client.
- */
-declare class GraphQLClient {
-    private url;
-    readonly requestConfig: RequestConfig;
-    constructor(url: string, requestConfig?: RequestConfig);
-    /**
-     * Send a GraphQL query to the server.
-     */
-    rawRequest: RawRequestMethod;
-    /**
-     * Send a GraphQL document to the server.
-     */
-    request<T = any, V extends Variables = Variables>(document: RequestDocument | TypedDocumentNode<T, V> | TypedDocumentString<T, V>, ...variablesAndRequestHeaders: VariablesAndRequestHeadersArgs<V>): Promise<T>;
-    request<T = any, V extends Variables = Variables>(options: RequestOptions<V, T>): Promise<T>;
-    /**
-     * Send GraphQL documents in batch to the server.
-     */
-    batchRequests<$BatchResult extends BatchResult, $Variables extends Variables = Variables>(documents: BatchRequestDocument<$Variables>[], requestHeaders?: HeadersInit): Promise<$BatchResult>;
-    batchRequests<$BatchResult extends BatchResult, $Variables extends Variables = Variables>(options: BatchRequestsOptions<$Variables>): Promise<$BatchResult>;
-    setHeaders(headers: HeadersInit): this;
-    /**
-     * Attach a header to the client. All subsequent requests will have this header.
-     */
-    setHeader(key: string, value: string): this;
-    /**
-     * Change the client endpoint. All subsequent requests will send to this endpoint.
-     */
-    setEndpoint(value: string): this;
-}
-interface RawRequestMethod {
-    <T = any, V extends Variables = Variables>(query: string, variables?: V, requestHeaders?: HeadersInit): Promise<GraphQLClientResponse<T>>;
-    <T, V extends Variables = Variables>(options: RawRequestOptions<V>): Promise<GraphQLClientResponse<T>>;
-}
-
-interface ExceptionWithCode {
-    code: string | number;
-    name?: string;
-    message?: string;
-    stack?: string;
-}
-interface ExceptionWithMessage {
-    code?: string | number;
-    message: string;
-    name?: string;
-    stack?: string;
-}
-interface ExceptionWithName {
-    code?: string | number;
-    message?: string;
-    name: string;
-    stack?: string;
-}
-/**
- * Defines Exception.
- *
- * string or an object with one of (message or name or code) and optional stack
- *
- * @since 1.0.0
- */
-type Exception = ExceptionWithCode | ExceptionWithMessage | ExceptionWithName | string;
-
-/**
- * Defines High-Resolution Time.
- *
- * The first number, HrTime[0], is UNIX Epoch time in seconds since 00:00:00 UTC on 1 January 1970.
- * The second number, HrTime[1], represents the partial second elapsed since Unix Epoch time represented by first number in nanoseconds.
- * For example, 2021-01-01T12:30:10.150Z in UNIX Epoch time in milliseconds is represented as 1609504210150.
- * The first number is calculated by converting and truncating the Epoch time in milliseconds to seconds:
- * HrTime[0] = Math.trunc(1609504210150 / 1000) = 1609504210.
- * The second number is calculated by converting the digits after the decimal point of the subtraction, (1609504210150 / 1000) - HrTime[0], to nanoseconds:
- * HrTime[1] = Number((1609504210.150 - HrTime[0]).toFixed(9)) * 1e9 = 150000000.
- * This is represented in HrTime format as [1609504210, 150000000].
- *
- * @since 1.0.0
- */
-type HrTime = [number, number];
-/**
- * Defines TimeInput.
- *
- * hrtime, epoch milliseconds, performance.now() or Date
- *
- * @since 1.0.0
- */
-type TimeInput = HrTime | number | Date;
-
-/**
- * Attributes is a map from string to attribute values.
- *
- * Note: only the own enumerable keys are counted as valid attribute keys.
- *
- * @since 1.3.0
- */
-interface Attributes {
-    [attributeKey: string]: AttributeValue | undefined;
-}
-/**
- * Attribute values may be any non-nullish primitive value except an object.
- *
- * null or undefined attribute values are invalid and will result in undefined behavior.
- *
- * @since 1.3.0
- */
-type AttributeValue = string | number | boolean | Array<null | undefined | string> | Array<null | undefined | number> | Array<null | undefined | boolean>;
-
-/**
- * @deprecated please use {@link Attributes}
- * @since 1.0.0
- */
-type SpanAttributes = Attributes;
-/**
- * @deprecated please use {@link AttributeValue}
- * @since 1.0.0
- */
-type SpanAttributeValue = AttributeValue;
-
-/**
- * @since 1.0.0
- */
-interface TraceState {
-    /**
-     * Create a new TraceState which inherits from this TraceState and has the
-     * given key set.
-     * The new entry will always be added in the front of the list of states.
-     *
-     * @param key key of the TraceState entry.
-     * @param value value of the TraceState entry.
-     */
-    set(key: string, value: string): TraceState;
-    /**
-     * Return a new TraceState which inherits from this TraceState but does not
-     * contain the given key.
-     *
-     * @param key the key for the TraceState entry to be removed.
-     */
-    unset(key: string): TraceState;
-    /**
-     * Returns the value to which the specified key is mapped, or `undefined` if
-     * this map contains no mapping for the key.
-     *
-     * @param key with which the specified value is to be associated.
-     * @returns the value to which the specified key is mapped, or `undefined` if
-     *     this map contains no mapping for the key.
-     */
-    get(key: string): string | undefined;
-    /**
-     * Serializes the TraceState to a `list` as defined below. The `list` is a
-     * series of `list-members` separated by commas `,`, and a list-member is a
-     * key/value pair separated by an equals sign `=`. Spaces and horizontal tabs
-     * surrounding `list-members` are ignored. There can be a maximum of 32
-     * `list-members` in a `list`.
-     *
-     * @returns the serialized string.
-     */
-    serialize(): string;
-}
-
-/**
- * A SpanContext represents the portion of a {@link Span} which must be
- * serialized and propagated along side of a {@link Baggage}.
- *
- * @since 1.0.0
- */
-interface SpanContext {
-    /**
-     * The ID of the trace that this span belongs to. It is worldwide unique
-     * with practically sufficient probability by being made as 16 randomly
-     * generated bytes, encoded as a 32 lowercase hex characters corresponding to
-     * 128 bits.
-     */
-    traceId: string;
-    /**
-     * The ID of the Span. It is globally unique with practically sufficient
-     * probability by being made as 8 randomly generated bytes, encoded as a 16
-     * lowercase hex characters corresponding to 64 bits.
-     */
-    spanId: string;
-    /**
-     * Only true if the SpanContext was propagated from a remote parent.
-     */
-    isRemote?: boolean;
-    /**
-     * Trace flags to propagate.
-     *
-     * It is represented as 1 byte (bitmap). Bit to represent whether trace is
-     * sampled or not. When set, the least significant bit documents that the
-     * caller may have recorded trace data. A caller who does not record trace
-     * data out-of-band leaves this flag unset.
-     *
-     * see {@link TraceFlags} for valid flag values.
-     */
-    traceFlags: number;
-    /**
-     * Tracing-system-specific info to propagate.
-     *
-     * The tracestate field value is a `list` as defined below. The `list` is a
-     * series of `list-members` separated by commas `,`, and a list-member is a
-     * key/value pair separated by an equals sign `=`. Spaces and horizontal tabs
-     * surrounding `list-members` are ignored. There can be a maximum of 32
-     * `list-members` in a `list`.
-     * More Info: https://www.w3.org/TR/trace-context/#tracestate-field
-     *
-     * Examples:
-     *     Single tracing system (generic format):
-     *         tracestate: rojo=00f067aa0ba902b7
-     *     Multiple tracing systems (with different formatting):
-     *         tracestate: rojo=00f067aa0ba902b7,congo=t61rcWkgMzE
-     */
-    traceState?: TraceState;
-}
-
-/**
- * @since 1.0.0
- */
-interface SpanStatus {
-    /** The status code of this message. */
-    code: SpanStatusCode;
-    /** A developer-facing error message. */
-    message?: string;
-}
-/**
- * An enumeration of status codes.
- *
- * @since 1.0.0
- */
-declare enum SpanStatusCode {
-    /**
-     * The default status.
-     */
-    UNSET = 0,
-    /**
-     * The operation has been validated by an Application developer or
-     * Operator to have completed successfully.
-     */
-    OK = 1,
-    /**
-     * The operation contains an error.
-     */
-    ERROR = 2
-}
-
-/**
- * A pointer from the current {@link Span} to another span in the same trace or
- * in a different trace.
- * Few examples of Link usage.
- * 1. Batch Processing: A batch of elements may contain elements associated
- *    with one or more traces/spans. Since there can only be one parent
- *    SpanContext, Link is used to keep reference to SpanContext of all
- *    elements in the batch.
- * 2. Public Endpoint: A SpanContext in incoming client request on a public
- *    endpoint is untrusted from service provider perspective. In such case it
- *    is advisable to start a new trace with appropriate sampling decision.
- *    However, it is desirable to associate incoming SpanContext to new trace
- *    initiated on service provider side so two traces (from Client and from
- *    Service Provider) can be correlated.
- *
- * @since 1.0.0
- */
-interface Link {
-    /** The {@link SpanContext} of a linked span. */
-    context: SpanContext;
-    /** A set of {@link SpanAttributes} on the link. */
-    attributes?: SpanAttributes;
-    /** Count of attributes of the link that were dropped due to collection limits */
-    droppedAttributesCount?: number;
-}
-
-/**
- * An interface that represents a span. A span represents a single operation
- * within a trace. Examples of span might include remote procedure calls or a
- * in-process function calls to sub-components. A Trace has a single, top-level
- * "root" Span that in turn may have zero or more child Spans, which in turn
- * may have children.
- *
- * Spans are created by the {@link Tracer.startSpan} method.
- *
- * @since 1.0.0
- */
-interface Span {
-    /**
-     * Returns the {@link SpanContext} object associated with this Span.
-     *
-     * Get an immutable, serializable identifier for this span that can be used
-     * to create new child spans. Returned SpanContext is usable even after the
-     * span ends.
-     *
-     * @returns the SpanContext object associated with this Span.
-     */
-    spanContext(): SpanContext;
-    /**
-     * Sets an attribute to the span.
-     *
-     * Sets a single Attribute with the key and value passed as arguments.
-     *
-     * @param key the key for this attribute.
-     * @param value the value for this attribute. Setting a value null or
-     *              undefined is invalid and will result in undefined behavior.
-     */
-    setAttribute(key: string, value: SpanAttributeValue): this;
-    /**
-     * Sets attributes to the span.
-     *
-     * @param attributes the attributes that will be added.
-     *                   null or undefined attribute values
-     *                   are invalid and will result in undefined behavior.
-     */
-    setAttributes(attributes: SpanAttributes): this;
-    /**
-     * Adds an event to the Span.
-     *
-     * @param name the name of the event.
-     * @param [attributesOrStartTime] the attributes that will be added; these are
-     *     associated with this event. Can be also a start time
-     *     if type is {@type TimeInput} and 3rd param is undefined
-     * @param [startTime] start time of the event.
-     */
-    addEvent(name: string, attributesOrStartTime?: SpanAttributes | TimeInput, startTime?: TimeInput): this;
-    /**
-     * Adds a single link to the span.
-     *
-     * Links added after the creation will not affect the sampling decision.
-     * It is preferred span links be added at span creation.
-     *
-     * @param link the link to add.
-     */
-    addLink(link: Link): this;
-    /**
-     * Adds multiple links to the span.
-     *
-     * Links added after the creation will not affect the sampling decision.
-     * It is preferred span links be added at span creation.
-     *
-     * @param links the links to add.
-     */
-    addLinks(links: Link[]): this;
-    /**
-     * Sets the status of the span.
-     *
-     * By default, a span has status {@link SpanStatusCode.UNSET}.
-     * Calling this method overrides that default.
-     *
-     * The status codes have a total order: `OK > ERROR > UNSET`.
-     *
-     * - Once {@link SpanStatusCode.OK} is set, any further attempts to change
-     *   the status are ignored.
-     * - Any attempt to set {@link SpanStatusCode.UNSET} is always ignored.
-     *
-     * The `message` field is only used when {@link SpanStatusCode.ERROR} is set.
-     * For all other status codes, `message` is ignored.
-     *
-     * @param status The {@link SpanStatus} to set.
-     */
-    setStatus(status: SpanStatus): this;
-    /**
-     * Updates the Span name.
-     *
-     * This will override the name provided via {@link Tracer.startSpan}.
-     *
-     * Upon this update, any sampling behavior based on Span name will depend on
-     * the implementation.
-     *
-     * @param name the Span name.
-     */
-    updateName(name: string): this;
-    /**
-     * Marks the end of Span execution.
-     *
-     * Call to End of a Span MUST not have any effects on child spans. Those may
-     * still be running and can be ended later.
-     *
-     * Do not return `this`. The Span generally should not be used after it
-     * is ended so chaining is not desired in this context.
-     *
-     * @param [endTime] the time to set as Span's end time. If not provided,
-     *     use the current time as the span's end time.
-     */
-    end(endTime?: TimeInput): void;
-    /**
-     * Returns the flag whether this span will be recorded.
-     *
-     * @returns true if this Span is active and recording information like events
-     *     with the `AddEvent` operation and attributes using `setAttributes`.
-     */
-    isRecording(): boolean;
-    /**
-     * Sets exception as a span event
-     * @param exception the exception the only accepted values are string or Error
-     * @param [time] the time to set as Span's event time. If not provided,
-     *     use the current time.
-     */
-    recordException(exception: Exception, time?: TimeInput): void;
-}
 
 /**
  * Tracer encapsulates the OpenTelemetry Tracer.
@@ -1942,7 +12,7 @@ interface Span {
 declare class Tracer {
     private tracer;
     constructor(name: string);
-    startSpan(name: string, attributes?: Attributes): Span;
+    startSpan(name: string, attributes?: opentelemetry.Attributes): opentelemetry.Span;
     /**
      * Execute the functions with a custom span with the given name using startActiveSpan.
      * The function executed will use the parent context of the function (it can be another span
@@ -1964,7 +34,7 @@ declare class Tracer {
      * })
      * ```
      */
-    startActiveSpan<T>(name: string, fn: (span: Span) => Promise<T>, attributes?: Attributes): Promise<T>;
+    startActiveSpan<T>(name: string, fn: (span: opentelemetry.Span) => Promise<T>, attributes?: opentelemetry.Attributes): Promise<T>;
 }
 
 /**
@@ -1979,147 +49,21 @@ declare class Tracer {
 declare function getTracer(name?: string): Tracer;
 
 /**
- * Wraps the GraphQL client to allow lazy initialization and setting
- * the GQL client of the global Dagger client instance (`dag`).
- */
-declare class Connection {
-    private _gqlClient?;
-    constructor(_gqlClient?: GraphQLClient | undefined);
-    private _served;
-    resetClient(): void;
-    setGQLClient(gqlClient: GraphQLClient): void;
-    getGQLClient(): GraphQLClient;
-    /**
-     * Run `serve` the first time `key` is seen in this session and remember the
-     * result, so a generated client can ensure its module is served before its
-     * first query without serving it again on every call.
-     */
-    ensureServed(key: string, serve: () => Promise<void>): Promise<void>;
-}
-
-type QueryTree = {
-    operation: string;
-    args?: Record<string, unknown>;
-    inlineType?: string;
-};
-
-/**
- * A module a generated client serves into the session before its first query.
- * `key` memoizes the serve per session (the module's ref or path); `run`
- * performs it, through a context that carries no serve of its own so it cannot
- * recurse.
- */
-type ServeSpec = {
-    key: string;
-    run: () => Promise<void>;
-};
-declare class Context {
-    private _queryTree;
-    private _connection;
-    private _serve?;
-    constructor(_queryTree?: QueryTree[], _connection?: Connection, _serve?: ServeSpec | undefined);
-    getGQLClient(): GraphQLClient;
-    copy(): Context;
-    select(operation: string, args?: Record<string, unknown>): Context;
-    /**
-     * Select via node(id:) with an inline fragment on the given type.
-     * Produces: node(id: "...") { ... on TypeName { children } }
-     */
-    selectNode(id: string, typeName: string): Context;
-    /**
-     * Return a copy of this context that serves `spec`'s module before the first
-     * query on it (or on any context derived from it) runs. Used by a generated
-     * module client to bind its own module to its `dag`.
-     */
-    withServe(spec: ServeSpec): Context;
-    execute<T>(): Promise<T>;
-}
-/**
- * Common base class for every generated API class (Client, Container, and
- * dependency-contributed types).
- *
- * It lives here in the SDK runtime rather than in the generated client.gen.ts
- * so that per-dependency generated files (e.g. hello.gen.ts) can `extends
- * BaseClient` without importing a value from client.gen.ts — client.gen.ts
- * `export *`s those dep files, so a value import would create an ESM cycle.
- * client.gen.ts re-exports BaseClient to keep `import { BaseClient } from
- * "./client.gen.js"` working for existing consumers.
- */
-declare class BaseClient {
-    protected _ctx: Context;
-    /**
-     * @hidden
-     */
-    constructor(_ctx?: Context);
-}
-
-/**
  * Declare a number as float in the Dagger API.
  */
 type float = number;
 
-/**
- * How acronyms and terms are written where a word starts with a capital.
- */
-declare enum AcronymStyle {
-    /**
-     * HttpClient, Ipv6Address, GitHubRepo
-     */
-    Capitalized = "CAPITALIZED",
-    /**
-     * HTTPClient, IPv6Address, GitHubRepo
-     */
-    Uppercase = "UPPERCASE"
-}
-/**
- * Utility function to convert a AcronymStyle value to its name so
- * it can be uses as argument to call a exposed function.
- */
-declare function AcronymStyleValueToName(value: AcronymStyle): string;
-/**
- * Utility function to convert a AcronymStyle name to its value so
- * it can be properly used inside the module runtime.
- */
-declare function AcronymStyleNameToValue(name: string): AcronymStyle;
-type AddressContainerOpts = {
-    /**
-     * Resolve the address's image tag live, ignoring the workspace lockfile: neither read a pinned value nor record one.
-     *
-     * A DAG address is unaffected: its module evaluates as usual.
-     */
-    noLock?: boolean;
-};
 type AddressDirectoryOpts = {
     exclude?: string[];
     include?: string[];
     gitignore?: boolean;
     noCache?: boolean;
-    /**
-     * Resolve the address's git ref live, ignoring the workspace lockfile: neither read a pinned value nor record one.
-     *
-     * A DAG address is unaffected: its module evaluates as usual.
-     */
-    noLock?: boolean;
 };
 type AddressFileOpts = {
     exclude?: string[];
     include?: string[];
     gitignore?: boolean;
     noCache?: boolean;
-    /**
-     * Resolve the address's git ref live, ignoring the workspace lockfile: neither read a pinned value nor record one.
-     *
-     * A DAG address is unaffected: its module evaluates as usual.
-     */
-    noLock?: boolean;
-};
-type AddressGitRefOpts = {
-    /**
-     * Resolve the address's git ref live, ignoring the workspace lockfile: neither read a pinned value nor record one.
-     *
-     * A DAG address is unaffected: its module evaluates as usual.
-     */
-    noLock?: boolean;
 };
 type AgentNotifyOpts = {
     /**
@@ -2221,7 +165,7 @@ declare function AgentStateValueToName(value: AgentState): string;
 declare function AgentStateNameToValue(name: string): AgentState;
 type ArtifactUriOpts = {
     /**
-     * Prefix the workspace's Git address and commit: dag://<workspace>@<commit>:<path>. Fails if the artifact has no workspace, or its workspace has no Git address.
+     * Prefix the workspace's Git address and commit: dag://<workspace>@<commit>:<path>. Fails if the workspace has no Git address.
      */
     absolute?: boolean;
     /**
@@ -2301,10 +245,6 @@ type ArtifactsValuesOpts = {
      * Field arguments applied to each artifact, as a JSON object.
      */
     arguments?: JSON;
-    /**
-     * Evaluate at most this many artifacts at once on this engine; the rest wait. Checks that scale out to cloud engines are not counted. 0 means no limit.
-     */
-    maxConcurrency?: number;
 };
 type BuildArg = {
     /**
@@ -2349,45 +289,6 @@ declare function CacheSharingModeValueToName(value: CacheSharingMode): string;
  * it can be properly used inside the module runtime.
  */
 declare function CacheSharingModeNameToValue(name: string): CacheSharingMode;
-/**
- * A convention for joining words into an identifier.
- */
-declare enum Casing {
-    /**
-     * httpClient
-     */
-    Camel = "CAMEL",
-    /**
-     * httpclient (output only: drops word boundaries)
-     */
-    Flat = "FLAT",
-    /**
-     * http-client
-     */
-    Kebab = "KEBAB",
-    /**
-     * HTTPClient
-     */
-    Pascal = "PASCAL",
-    /**
-     * HTTP_CLIENT
-     */
-    ScreamingSnake = "SCREAMING_SNAKE",
-    /**
-     * http_client
-     */
-    Snake = "SNAKE"
-}
-/**
- * Utility function to convert a Casing value to its name so
- * it can be uses as argument to call a exposed function.
- */
-declare function CasingValueToName(value: Casing): string;
-/**
- * Utility function to convert a Casing name to its value so
- * it can be properly used inside the module runtime.
- */
-declare function CasingNameToValue(name: string): Casing;
 type ChangesetFilterOpts = {
     /**
      * Only include changes at paths matching these patterns. Empty includes all paths.
@@ -2487,14 +388,6 @@ type ContainerAsServiceOpts = {
      * @deprecated Commands can access Dagger by default. Use "disableDaggerInDagger" to opt out.
      */
     experimentalPrivilegedNesting?: boolean;
-    /**
-     * Connect Dagger clients started by the command to the current engine as new sessions, instead of as clients of the current session. Each connection gets its own session, released when that client closes.
-     *
-     * The command reaches the engine through DAGGER_ENGINE, so SDKs run a Dagger CLI: set _EXPERIMENTAL_DAGGER_CLI_BIN to one in the container, or let the SDK download one.
-     *
-     * Cannot be combined with "disableDaggerInDagger".
-     */
-    daggerInDaggerNewSession?: boolean;
     /**
      * Execute the command with all root capabilities. This is similar to running a command with "sudo" or executing "docker run" with the "--privileged" flag. Containerization does not provide any security guarantees when using this option. It should only be used when absolutely necessary and only with trusted commands.
      */
@@ -2621,10 +514,6 @@ type ContainerFromOpts = {
      * Allow HTTPS registry communication without verifying the server certificate.
      */
     insecureSkipTLSVerify?: boolean;
-    /**
-     * Ignore the workspace lockfile for this lookup.
-     */
-    noLock?: boolean;
 };
 type ContainerImportOpts = {
     /**
@@ -2752,14 +641,6 @@ type ContainerUpOpts = {
      */
     experimentalPrivilegedNesting?: boolean;
     /**
-     * Connect Dagger clients started by the command to the current engine as new sessions, instead of as clients of the current session. Each connection gets its own session, released when that client closes.
-     *
-     * The command reaches the engine through DAGGER_ENGINE, so SDKs run a Dagger CLI: set _EXPERIMENTAL_DAGGER_CLI_BIN to one in the container, or let the SDK download one.
-     *
-     * Cannot be combined with "disableDaggerInDagger".
-     */
-    daggerInDaggerNewSession?: boolean;
-    /**
      * Execute the command with all root capabilities. This is similar to running a command with "sudo" or executing "docker run" with the "--privileged" flag. Containerization does not provide any security guarantees when using this option. It should only be used when absolutely necessary and only with trusted commands.
      */
     insecureRootCapabilities?: boolean;
@@ -2871,11 +752,11 @@ type ContainerWithExecOpts = {
      */
     redirectStdin?: string;
     /**
-     * Redirect the command's standard output to a file in the container. The redirected output is not logged. Example: "./stdout.txt"
+     * Redirect the command's standard output to a file in the container. Example: "./stdout.txt"
      */
     redirectStdout?: string;
     /**
-     * Redirect the command's standard error to a file in the container. The redirected output is not logged. Example: "./stderr.txt"
+     * Redirect the command's standard error to a file in the container. Example: "./stderr.txt"
      */
     redirectStderr?: string;
     /**
@@ -2890,14 +771,6 @@ type ContainerWithExecOpts = {
      * @deprecated Commands can access Dagger by default. Use "disableDaggerInDagger" to opt out.
      */
     experimentalPrivilegedNesting?: boolean;
-    /**
-     * Connect Dagger clients started by the command to the current engine as new sessions, instead of as clients of the current session. Each connection gets its own session, released when that client closes.
-     *
-     * The command reaches the engine through DAGGER_ENGINE, so SDKs run a Dagger CLI: set _EXPERIMENTAL_DAGGER_CLI_BIN to one in the container, or let the SDK download one.
-     *
-     * Cannot be combined with "disableDaggerInDagger".
-     */
-    daggerInDaggerNewSession?: boolean;
     /**
      * Execute the command with all root capabilities. Like --privileged in Docker
      *
@@ -3040,10 +913,6 @@ type ContainerWithMountedFileOpts = {
      * Replace "${VAR}" or "$VAR" in the value of path according to the current environment variables defined in the container (e.g. "/$VAR/foo.txt").
      */
     expand?: boolean;
-    /**
-     * Mount the file read-only.
-     */
-    readOnly?: boolean;
 };
 type ContainerWithMountedSecretOpts = {
     /**
@@ -3895,12 +1764,6 @@ type GitRepositoryAsWorkspaceOpts = {
      */
     cwd?: string;
 };
-type GitRepositoryBranchOpts = {
-    /**
-     * Ignore the workspace lockfile for this lookup.
-     */
-    noLock?: boolean;
-};
 type GitRepositoryBranchesOpts = {
     /**
      * Glob patterns (e.g., "refs/tags/v*").
@@ -3913,33 +1776,11 @@ type GitRepositoryBundleOpts = {
      */
     base?: GitRef;
 };
-type GitRepositoryHeadOpts = {
-    /**
-     * Ignore the workspace lockfile for this lookup.
-     */
-    noLock?: boolean;
-};
 type GitRepositoryLatestOpts = {
     /**
      * Version query used to select the greatest matching release ref.
      */
     version?: string;
-    /**
-     * Ignore the workspace lockfile for this lookup.
-     */
-    noLock?: boolean;
-};
-type GitRepositoryRefOpts = {
-    /**
-     * Ignore the workspace lockfile for this lookup.
-     */
-    noLock?: boolean;
-};
-type GitRepositoryTagOpts = {
-    /**
-     * Ignore the workspace lockfile for this lookup.
-     */
-    noLock?: boolean;
 };
 type GitRepositoryTagsOpts = {
     /**
@@ -4016,39 +1857,6 @@ type HostTunnelOpts = {
 type ID = string & {
     __ID: never;
 };
-type IdentifierFormatOpts = {
-    /**
-     * How to write acronyms and terms where a word starts with a capital.
-     */
-    acronyms?: AcronymStyle;
-};
-/**
- * The kind of a word in an identifier.
- */
-declare enum IdentifierWordKind {
-    /**
-     * An acronym, from the dictionary or a run of capitals.
-     */
-    Acronym = "ACRONYM",
-    /**
-     * A dictionary term with a fixed mixed-case spelling (GitHub, IPv6).
-     */
-    Term = "TERM",
-    /**
-     * An ordinary word.
-     */
-    Word = "WORD"
-}
-/**
- * Utility function to convert a IdentifierWordKind value to its name so
- * it can be uses as argument to call a exposed function.
- */
-declare function IdentifierWordKindValueToName(value: IdentifierWordKind): string;
-/**
- * Utility function to convert a IdentifierWordKind name to its value so
- * it can be properly used inside the module runtime.
- */
-declare function IdentifierWordKindNameToValue(name: string): IdentifierWordKind;
 /**
  * Compression algorithm to use for image layers.
  */
@@ -4104,12 +1912,6 @@ type JSONValueContentsOpts = {
      */
     indent?: string;
 };
-type LLMArtifactsOpts = {
-    /**
-     * Only include artifacts matching these path patterns, as with Workspace.artifacts. A path selects that path and its children.
-     */
-    include?: string[];
-};
 type LLMLoopOpts = {
     /**
      * Cap the number of steps. The loop fails if the cap is reached before the model ends its turn.
@@ -4121,10 +1923,6 @@ type LLMLoopOpts = {
     maxTokens?: number;
 };
 type LLMSpawnOpts = {
-    /**
-     * Expertise to compose into the new agent's conversation. Agent arguments receive the new agent, which cannot be used until composition completes; if composition fails, the agent is left STOPPED.
-     */
-    expertise?: Expertise[];
     /**
      * Display label for the agent — telemetry and error messages; carries no identity. Defaults to a short name derived from the conversation.
      */
@@ -4216,12 +2014,6 @@ type LLMWithToolsOpts = {
      */
     version?: number;
 };
-type LLMContentWithFileOpts = {
-    /**
-     * The media MIME type, e.g. "image/png". Inferred from the file's contents when omitted.
-     */
-    mimeType?: string;
-};
 type LLMContentBlockInput = {
     /**
      * The arguments to pass to the tool (for TOOL_CALL kind).
@@ -4236,9 +2028,9 @@ type LLMContentBlockInput = {
      */
     content?: LLMContentBlockInput[];
     /**
-     * Media bytes. Supply exactly one of data or file for media.
+     * Base64-encoded media bytes. Supply exactly one of data or file for media.
      */
-    data?: Bytes;
+    data?: string;
     /**
      * Whether the tool call resulted in an error (for TOOL_RESULT kind).
      */
@@ -4391,13 +2183,7 @@ type ModuleServeOpts = {
      */
     includeDependencies?: boolean;
     /**
-     * Install the module as the workspace main, promoting its main-object methods onto the Query root
-     */
-    main?: boolean;
-    /**
-     * Compatibility alias for main.
-     *
-     * @deprecated Use main.
+     * Install the module as the entrypoint, promoting its main-object methods onto the Query root
      */
     entrypoint?: boolean;
 };
@@ -4549,7 +2335,7 @@ type ClientCurrentTypeDefsOpts = {
      */
     returnAllTypes?: boolean;
     /**
-     * Strip core API functions from the Query type, leaving only module-sourced functions (constructors, workspace main proxies, etc.).
+     * Strip core API functions from the Query type, leaving only module-sourced functions (constructors, entrypoint proxies, etc.).
      *
      * Core types (Container, Directory, etc.) are kept so return types and method chaining still work.
      */
@@ -4574,16 +2360,6 @@ type ClientFileOpts = {
      * Permissions of the new file. Example: 0600
      */
     permissions?: number;
-};
-type ClientFormatIdentifiersOpts = {
-    /**
-     * How to write acronyms and terms where a word starts with a capital.
-     */
-    acronyms?: AcronymStyle;
-    /**
-     * The engine version whose naming dictionary to parse the names with, e.g. the __schemaVersion of a schema being generated. Defaults to the caller's engine version.
-     */
-    version?: string;
 };
 type ClientGitOpts = {
     /**
@@ -5189,13 +2965,7 @@ type WorkspaceWithInitModuleOpts = {
      */
     install?: boolean;
     /**
-     * Select this module as the workspace main and install it. False prevents automatic selection. When omitted, select only if both path and name are omitted and the module is installed.
-     */
-    main?: boolean;
-    /**
-     * Compatibility alias for main.
-     *
-     * @deprecated Use main.
+     * Select this module as the entrypoint and install it. False prevents automatic selection. When omitted, select only if both path and name are omitted and the module is installed.
      */
     entrypoint?: boolean;
     /**
@@ -5218,12 +2988,6 @@ type WorkspaceWithNewFileOpts = {
      * Permissions of the new file.
      */
     permissions?: number;
-};
-type WorkspaceWithPatchFileOpts = {
-    /**
-     * How to handle hunks that no longer apply to the target content: fail (default), or apply what fits and leave git-style conflict markers where it doesn't.
-     */
-    onConflict?: PatchConflict;
 };
 type WorkspaceWithResetOpts = {
     /**
@@ -5274,10 +3038,6 @@ type WorkspaceWithUpdatedModulesOpts = {
      * New version request for exactly one selected module. Cannot be combined with a version suffix.
      */
     version?: string;
-    /**
-     * New source for exactly one selected module. Resolved like an install source. Cannot be combined with a version or a version suffix.
-     */
-    source?: string;
 };
 type WorkspaceWithoutClientOpts = {
     /**
@@ -5385,45 +3145,33 @@ type __TypeInputFieldsOpts = {
 /**
  * A standardized address to load containers, directories, secrets, and other object types. Address format depends on the type, and is validated at type selection.
  */
-declare class Address extends BaseClient {
+declare class Address extends BaseClient$1 {
     private readonly _id?;
     private readonly _value?;
     /**
      * Constructor is used for internal usage only, do not create object from it.
      */
-    constructor(ctx?: Context, _id?: ID, _value?: string);
+    constructor(ctx?: Context$1, _id?: ID, _value?: string);
     /**
      * A unique identifier for this Address.
      */
     id: () => Promise<ID>;
     /**
      * Load a container from the address.
-     * @param opts.noLock Resolve the address's image tag live, ignoring the workspace lockfile: neither read a pinned value nor record one.
-     *
-     * A DAG address is unaffected: its module evaluates as usual.
      */
-    container: (opts?: AddressContainerOpts) => Container;
+    container: () => Container;
     /**
      * Load a directory from the address.
-     * @param opts.noLock Resolve the address's git ref live, ignoring the workspace lockfile: neither read a pinned value nor record one.
-     *
-     * A DAG address is unaffected: its module evaluates as usual.
      */
     directory: (opts?: AddressDirectoryOpts) => Directory;
     /**
      * Load a file from the address.
-     * @param opts.noLock Resolve the address's git ref live, ignoring the workspace lockfile: neither read a pinned value nor record one.
-     *
-     * A DAG address is unaffected: its module evaluates as usual.
      */
     file: (opts?: AddressFileOpts) => File;
     /**
      * Load a git ref (branch, tag or commit) from the address.
-     * @param opts.noLock Resolve the address's git ref live, ignoring the workspace lockfile: neither read a pinned value nor record one.
-     *
-     * A DAG address is unaffected: its module evaluates as usual.
      */
-    gitRef: (opts?: AddressGitRefOpts) => GitRef;
+    gitRef: () => GitRef;
     /**
      * Load a git repository from the address.
      */
@@ -5458,7 +3206,7 @@ declare class Address extends BaseClient {
  *
  * A conversation loop running as an addressable, long-lived entity within the session. The conversation itself remains observable at any time as an immutable LLM value.
  */
-declare class Agent extends BaseClient {
+declare class Agent extends BaseClient$1 {
     private readonly _id?;
     private readonly _error?;
     private readonly _handle?;
@@ -5474,7 +3222,7 @@ declare class Agent extends BaseClient {
     /**
      * Constructor is used for internal usage only, do not create object from it.
      */
-    constructor(ctx?: Context, _id?: ID, _error?: string, _handle?: string, _name?: string, _notify?: ID, _pause?: ID, _reseed?: ID, _resume?: ID, _send?: ID, _state?: AgentState, _stop?: ID, _wait?: ID);
+    constructor(ctx?: Context$1, _id?: ID, _error?: string, _handle?: string, _name?: string, _notify?: ID, _pause?: ID, _reseed?: ID, _resume?: ID, _send?: ID, _state?: AgentState, _stop?: ID, _wait?: ID);
     /**
      * A unique identifier for this Agent.
      */
@@ -5524,11 +3272,6 @@ declare class Agent extends BaseClient {
      */
     notify: (subscriber: Agent, opts?: AgentNotifyOpts) => Promise<Agent>;
     /**
-     * The agent that spawned this agent, or null for a root agent.
-     * @experimental
-     */
-    parent: () => Promise<Agent | null>;
-    /**
      * Stop draining the mailbox once the in-flight step completes, or immediately with interrupt.
      *
      * Pause takes priority over pending work: a mid-turn pause suspends the turn, which resume continues. Messages sent while paused enqueue with QUEUED delivery until a resume.
@@ -5559,15 +3302,6 @@ declare class Agent extends BaseClient {
      * @experimental
      */
     resume: () => Promise<Agent>;
-    /**
-     * The conversation the agent was spawned from: the tools, workspace and message history its loop started with.
-     *
-     * Fixed by the spawn; stepping does not move it (see snapshot for the latest committed step). Its workspace is the baseline the agent's own changes are measured from.
-     *
-     * For an agent restored under a handle, this is the conversation it was restored from.
-     * @experimental
-     */
-    seed: () => LLM;
     /**
      * Enqueue a message, on the record: it is consumed at a step boundary, appends to the agent's history, and steers the running turn or opens a new one.
      *
@@ -5617,7 +3351,7 @@ declare class Agent extends BaseClient {
  *
  * A message delivered to an agent's mailbox.
  */
-declare class AgentMessage extends BaseClient {
+declare class AgentMessage extends BaseClient$1 {
     private readonly _id?;
     private readonly _delivery?;
     private readonly _ref?;
@@ -5625,7 +3359,7 @@ declare class AgentMessage extends BaseClient {
     /**
      * Constructor is used for internal usage only, do not create object from it.
      */
-    constructor(ctx?: Context, _id?: ID, _delivery?: AgentMessageDelivery, _ref?: string, _response?: string);
+    constructor(ctx?: Context$1, _id?: ID, _delivery?: AgentMessageDelivery, _ref?: string, _response?: string);
     /**
      * A unique identifier for this AgentMessage.
      */
@@ -5659,7 +3393,7 @@ declare class AgentMessage extends BaseClient {
 /**
  * One workspace value with a complete path and all required dimension keys. Reading metadata does not evaluate the value. Different addresses remain distinct even if they return the same object.
  */
-declare class Artifact extends BaseClient {
+declare class Artifact extends BaseClient$1 {
     private readonly _id?;
     private readonly _description?;
     private readonly _loadError?;
@@ -5668,7 +3402,7 @@ declare class Artifact extends BaseClient {
     /**
      * Constructor is used for internal usage only, do not create object from it.
      */
-    constructor(ctx?: Context, _id?: ID, _description?: string, _loadError?: string, _moduleName?: string, _uri?: string);
+    constructor(ctx?: Context$1, _id?: ID, _description?: string, _loadError?: string, _moduleName?: string, _uri?: string);
     /**
      * A unique identifier for this Artifact.
      */
@@ -5698,12 +3432,12 @@ declare class Artifact extends BaseClient {
      */
     moduleName: () => Promise<string>;
     /**
-     * Ordered, literal fields to follow. Workspace main targets use their shorthand.
+     * Ordered, literal fields to follow. Entrypoint targets use their shorthand.
      */
     path: () => Promise<string[]>;
     /**
      * The artifact's DAG address, such as dag://engine-dev/playground.
-     * @param opts.absolute Prefix the workspace's Git address and commit: dag://<workspace>@<commit>:<path>. Fails if the artifact has no workspace, or its workspace has no Git address.
+     * @param opts.absolute Prefix the workspace's Git address and commit: dag://<workspace>@<commit>:<path>. Fails if the workspace has no Git address.
      * @param opts.dimensionKeys Include the dimension keys as a query. Without them, the address is a path selector.
      * @param opts.typeAssertion Include the artifact type in the scheme: dag+container://.
      */
@@ -5713,12 +3447,8 @@ declare class Artifact extends BaseClient {
      * @param opts.arguments Field arguments as a JSON object.
      */
     value: (opts?: ArtifactValueOpts) => Node;
-    /**
-     * The workspace this artifact was discovered in; its address is relative to it. Null for an artifact without a workspace, such as one of an LLM's bound tool objects (see LLM.artifacts).
-     */
-    workspace: () => Promise<Workspace | null>;
 }
-declare class ArtifactDimension extends BaseClient {
+declare class ArtifactDimension extends BaseClient$1 {
     private readonly _id?;
     private readonly _collectionType?;
     private readonly _identifier?;
@@ -5731,7 +3461,7 @@ declare class ArtifactDimension extends BaseClient {
     /**
      * Constructor is used for internal usage only, do not create object from it.
      */
-    constructor(ctx?: Context, _id?: ID, _collectionType?: string, _identifier?: string, _itemType?: string, _keyDescription?: string, _keyName?: string, _kind?: ArtifactDimensionKind, _name?: string, _qualifiedName?: string);
+    constructor(ctx?: Context$1, _id?: ID, _collectionType?: string, _identifier?: string, _itemType?: string, _keyDescription?: string, _keyName?: string, _kind?: ArtifactDimensionKind, _name?: string, _qualifiedName?: string);
     /**
      * A unique identifier for this ArtifactDimension.
      */
@@ -5769,14 +3499,14 @@ declare class ArtifactDimension extends BaseClient {
      */
     qualifiedName: () => Promise<string>;
 }
-declare class ArtifactDimensionKey extends BaseClient {
+declare class ArtifactDimensionKey extends BaseClient$1 {
     private readonly _id?;
     private readonly _dimension?;
     private readonly _key?;
     /**
      * Constructor is used for internal usage only, do not create object from it.
      */
-    constructor(ctx?: Context, _id?: ID, _dimension?: string, _key?: string);
+    constructor(ctx?: Context$1, _id?: ID, _dimension?: string, _key?: string);
     /**
      * A unique identifier for this ArtifactDimensionKey.
      */
@@ -5793,7 +3523,7 @@ declare class ArtifactDimensionKey extends BaseClient {
 /**
  * A schema path and its dimensions. The path can exist even when its collections have no runtime items.
  */
-declare class ArtifactPath extends BaseClient {
+declare class ArtifactPath extends BaseClient$1 {
     private readonly _id?;
     private readonly _description?;
     private readonly _loadError?;
@@ -5802,7 +3532,7 @@ declare class ArtifactPath extends BaseClient {
     /**
      * Constructor is used for internal usage only, do not create object from it.
      */
-    constructor(ctx?: Context, _id?: ID, _description?: string, _loadError?: string, _moduleName?: string, _uri?: string);
+    constructor(ctx?: Context$1, _id?: ID, _description?: string, _loadError?: string, _moduleName?: string, _uri?: string);
     /**
      * A unique identifier for this ArtifactPath.
      */
@@ -5828,12 +3558,12 @@ declare class ArtifactPath extends BaseClient {
      */
     uri: () => Promise<string>;
 }
-declare class ArtifactResult extends BaseClient {
+declare class ArtifactResult extends BaseClient$1 {
     private readonly _id?;
     /**
      * Constructor is used for internal usage only, do not create object from it.
      */
-    constructor(ctx?: Context, _id?: ID);
+    constructor(ctx?: Context$1, _id?: ID);
     /**
      * A unique identifier for this ArtifactResult.
      */
@@ -5852,37 +3582,37 @@ declare class ArtifactResult extends BaseClient {
     value: () => Promise<Node | null>;
 }
 /**
- * An immutable selection of workspace artifacts. Listed types, dimensions, and keys use OR; chained filters use AND. Empty alternatives match nothing; unknown names match nothing but module load failures. Filters never change addresses or dimension identifiers. Module keys match a module's configured or kebab-case name. A module that failed to load has no schema, so its load failure stands in for whatever it would hold: a filter keeps it when the module could hold something the filter selects, and an exclusion drops it only by its own address, such as <module>/** or ?module=<module>.
+ * An immutable selection of workspace artifacts. Listed types, dimensions, and keys use OR; chained filters use AND. Empty alternatives and unknown names match nothing. Filters never change addresses or dimension identifiers.
  */
-declare class Artifacts extends BaseClient {
+declare class Artifacts extends BaseClient$1 {
     private readonly _id?;
     private readonly _uri?;
     /**
      * Constructor is used for internal usage only, do not create object from it.
      */
-    constructor(ctx?: Context, _id?: ID, _uri?: string);
+    constructor(ctx?: Context$1, _id?: ID, _uri?: string);
     /**
      * A unique identifier for this Artifacts.
      */
     id: () => Promise<ID>;
     /**
-     * Convert the selection to Changesets. Fail if any artifact is not a Changeset; a module load failure fails with its load error. Does not apply command filters.
+     * Convert the selection to Changesets. Fail if any artifact is not a Changeset. Does not apply command filters.
      */
     asChangesets: () => Promise<Changeset[]>;
     /**
-     * Convert the selection to Checks. Fail if any artifact is not a Check. A module load failure is a Check that fails with its load error. Does not apply command filters or run the checks.
+     * Convert the selection to Checks. Fail if any artifact is not a Check. Does not apply command filters or run the checks.
      */
     asChecks: () => Promise<Check[]>;
     /**
-     * Convert the selection to expertise without running the functions. Each must take one LLM! argument and return LLM!; any other arguments must be optional or auto-filled. Agent arguments receive the agent that owns the conversation. A module load failure fails with its load error.
+     * Convert the selection to expertise without running the functions. Fail if any artifact is not a source of expertise.
      */
     asExpertise: () => Promise<Expertise[]>;
     /**
-     * Convert the selection to Generators without running them. Fail if any artifact is not a Generator. Module load failures are skipped: generating can repair them.
+     * Convert the selection to Generators without running them. Fail if any artifact is not a Generator.
      */
     asGenerators: () => Promise<Generator[]>;
     /**
-     * Convert the selection to Services. Fail if any artifact is not a Service; a module load failure fails with its load error. Does not apply command filters or start the services.
+     * Convert the selection to Services. Fail if any artifact is not a Service. Does not apply command filters or start the services.
      */
     asServices: () => Promise<Service[]>;
     /**
@@ -5929,7 +3659,7 @@ declare class Artifacts extends BaseClient {
      */
     filterPath: (path: string[]) => Artifacts;
     /**
-     * Keep paths that match a glob pattern. A literal path matches exactly. Both module-qualified and workspace main paths match.
+     * Keep paths that match a glob pattern. A literal path matches exactly. Both module-qualified and entrypoint paths match.
      */
     filterPathPattern: (pattern: string) => Artifacts;
     /**
@@ -5941,8 +3671,6 @@ declare class Artifacts extends BaseClient {
      * Apply a DAG address as one filter: the chain of path, type, and dimension-key filters it encodes.
      *
      * The scheme is optional. The path may be a pattern; an empty path selects all artifacts.
-     *
-     * A module that failed to load keeps its load failure when the module could hold what the address selects, as with every filter (see Artifacts).
      * @param uri A DAG address: [dag[+<type>]://][<path>][?<dimension>=<key>&...]
      */
     filterUri: (uri: string) => Artifacts;
@@ -5977,7 +3705,6 @@ declare class Artifacts extends BaseClient {
      * Evaluate the selection in parallel, retaining each result and error.
      * @param opts.failFast Cancel remaining work after the first failure.
      * @param opts.arguments Field arguments applied to each artifact, as a JSON object.
-     * @param opts.maxConcurrency Evaluate at most this many artifacts at once on this engine; the rest wait. Checks that scale out to cloud engines are not counted. 0 means no limit.
      */
     values: (opts?: ArtifactsValuesOpts) => Promise<ArtifactResult[]>;
     /**
@@ -5998,12 +3725,12 @@ declare class Artifacts extends BaseClient {
 /**
  * A directory whose contents persist across runs.
  */
-declare class CacheVolume extends BaseClient {
+declare class CacheVolume extends BaseClient$1 {
     private readonly _id?;
     /**
      * Constructor is used for internal usage only, do not create object from it.
      */
-    constructor(ctx?: Context, _id?: ID);
+    constructor(ctx?: Context$1, _id?: ID);
     /**
      * A unique identifier for this CacheVolume.
      */
@@ -6012,7 +3739,7 @@ declare class CacheVolume extends BaseClient {
 /**
  * A comparison between two directories representing changes that can be applied.
  */
-declare class Changeset extends BaseClient {
+declare class Changeset extends BaseClient$1 {
     private readonly _id?;
     private readonly _export?;
     private readonly _isEmpty?;
@@ -6020,7 +3747,7 @@ declare class Changeset extends BaseClient {
     /**
      * Constructor is used for internal usage only, do not create object from it.
      */
-    constructor(ctx?: Context, _id?: ID, _export?: string, _isEmpty?: boolean, _sync?: ID);
+    constructor(ctx?: Context$1, _id?: ID, _export?: string, _isEmpty?: boolean, _sync?: ID);
     /**
      * A unique identifier for this Changeset.
      */
@@ -6106,14 +3833,14 @@ declare class Changeset extends BaseClient {
 /**
  * One deferred check. Reading pass, error, or sync runs it.
  */
-declare class Check extends BaseClient {
+declare class Check extends BaseClient$1 {
     private readonly _id?;
     private readonly _assertion?;
     private readonly _pass?;
     /**
      * Constructor is used for internal usage only, do not create object from it.
      */
-    constructor(ctx?: Context, _id?: ID, _assertion?: string, _pass?: boolean);
+    constructor(ctx?: Context$1, _id?: ID, _assertion?: string, _pass?: boolean);
     /**
      * A unique identifier for this Check.
      */
@@ -6148,12 +3875,12 @@ declare class Check extends BaseClient {
 /**
  * An internal persistent filesync mirror.
  */
-declare class ClientFilesyncMirror extends BaseClient {
+declare class ClientFilesyncMirror extends BaseClient$1 {
     private readonly _id?;
     /**
      * Constructor is used for internal usage only, do not create object from it.
      */
-    constructor(ctx?: Context, _id?: ID);
+    constructor(ctx?: Context$1, _id?: ID);
     /**
      * A unique identifier for this ClientFilesyncMirror.
      */
@@ -6162,13 +3889,13 @@ declare class ClientFilesyncMirror extends BaseClient {
 /**
  * Dagger Cloud configuration and state
  */
-declare class Cloud extends BaseClient {
+declare class Cloud extends BaseClient$1 {
     private readonly _id?;
     private readonly _traceURL?;
     /**
      * Constructor is used for internal usage only, do not create object from it.
      */
-    constructor(ctx?: Context, _id?: ID, _traceURL?: string);
+    constructor(ctx?: Context$1, _id?: ID, _traceURL?: string);
     /**
      * A unique identifier for this Cloud.
      */
@@ -6178,12 +3905,12 @@ declare class Cloud extends BaseClient {
      */
     traceURL: () => Promise<string>;
 }
-declare class CollectionDelta extends BaseClient {
+declare class CollectionDelta extends BaseClient$1 {
     private readonly _id?;
     /**
      * Constructor is used for internal usage only, do not create object from it.
      */
-    constructor(ctx?: Context, _id?: ID);
+    constructor(ctx?: Context$1, _id?: ID);
     /**
      * A unique identifier for this CollectionDelta.
      */
@@ -6197,12 +3924,12 @@ declare class CollectionDelta extends BaseClient {
      */
     removedKeys: () => Promise<string[]>;
 }
-declare class CollectionTypeDef extends BaseClient {
+declare class CollectionTypeDef extends BaseClient$1 {
     private readonly _id?;
     /**
      * Constructor is used for internal usage only, do not create object from it.
      */
-    constructor(ctx?: Context, _id?: ID);
+    constructor(ctx?: Context$1, _id?: ID);
     /**
      * A unique identifier for this CollectionTypeDef.
      */
@@ -6223,7 +3950,7 @@ declare class CollectionTypeDef extends BaseClient {
 /**
  * A command's arguments and execution settings.
  */
-declare class Command extends BaseClient {
+declare class Command extends BaseClient$1 {
     private readonly _id?;
     private readonly _insecureRootCapabilities?;
     private readonly _privilegedNesting?;
@@ -6231,7 +3958,7 @@ declare class Command extends BaseClient {
     /**
      * Constructor is used for internal usage only, do not create object from it.
      */
-    constructor(ctx?: Context, _id?: ID, _insecureRootCapabilities?: boolean, _privilegedNesting?: boolean, _workdir?: string);
+    constructor(ctx?: Context$1, _id?: ID, _insecureRootCapabilities?: boolean, _privilegedNesting?: boolean, _workdir?: string);
     /**
      * A unique identifier for this Command.
      */
@@ -6260,7 +3987,7 @@ declare class Command extends BaseClient {
 /**
  * An OCI-compatible container, also known as a Docker container.
  */
-declare class Container extends BaseClient {
+declare class Container extends BaseClient$1 {
     private readonly _id?;
     private readonly _combinedOutput?;
     private readonly _envVariable?;
@@ -6281,7 +4008,7 @@ declare class Container extends BaseClient {
     /**
      * Constructor is used for internal usage only, do not create object from it.
      */
-    constructor(ctx?: Context, _id?: ID, _combinedOutput?: string, _envVariable?: string, _exists?: boolean, _exitCode?: number, _export?: string, _exportImage?: Void, _imageRef?: string, _label?: string, _platform?: Platform, _publish?: string, _stderr?: string, _stdout?: string, _sync?: ID, _up?: Void, _user?: string, _workdir?: string);
+    constructor(ctx?: Context$1, _id?: ID, _combinedOutput?: string, _envVariable?: string, _exists?: boolean, _exitCode?: number, _export?: string, _exportImage?: Void, _imageRef?: string, _label?: string, _platform?: Platform, _publish?: string, _stderr?: string, _stdout?: string, _sync?: ID, _up?: Void, _user?: string, _workdir?: string);
     /**
      * A unique identifier for this Container.
      */
@@ -6295,11 +4022,6 @@ declare class Container extends BaseClient {
      * If empty, the container's default command is used.
      * @param opts.useEntrypoint If the container has an entrypoint, prepend it to the args.
      * @param opts.disableDaggerInDagger Disable Dagger API access for the executed command. By default, commands can connect to the current Dagger engine.
-     * @param opts.daggerInDaggerNewSession Connect Dagger clients started by the command to the current engine as new sessions, instead of as clients of the current session. Each connection gets its own session, released when that client closes.
-     *
-     * The command reaches the engine through DAGGER_ENGINE, so SDKs run a Dagger CLI: set _EXPERIMENTAL_DAGGER_CLI_BIN to one in the container, or let the SDK download one.
-     *
-     * Cannot be combined with "disableDaggerInDagger".
      * @param opts.insecureRootCapabilities Execute the command with all root capabilities. This is similar to running a command with "sudo" or executing "docker run" with the "--privileged" flag. Containerization does not provide any security guarantees when using this option. It should only be used when absolutely necessary and only with trusted commands.
      * @param opts.expand Replace "${VAR}" or "$VAR" in the args according to the current environment variables defined in the container (e.g. "/$VAR/foo").
      * @param opts.noInit If set, skip the automatic init process injected into containers by default.
@@ -6444,7 +4166,6 @@ declare class Container extends BaseClient {
      *
      * Defaults to "HTTPS". Use "HTTP" only for plain HTTP registries.
      * @param opts.insecureSkipTLSVerify Allow HTTPS registry communication without verifying the server certificate.
-     * @param opts.noLock Ignore the workspace lockfile for this lookup.
      */
     from: (address: string, opts?: ContainerFromOpts) => Container;
     /**
@@ -6569,11 +4290,6 @@ declare class Container extends BaseClient {
      * If empty, the container's default command is used.
      * @param opts.useEntrypoint If the container has an entrypoint, prepend it to the args.
      * @param opts.disableDaggerInDagger Disable Dagger API access for the executed command. By default, commands can connect to the current Dagger engine.
-     * @param opts.daggerInDaggerNewSession Connect Dagger clients started by the command to the current engine as new sessions, instead of as clients of the current session. Each connection gets its own session, released when that client closes.
-     *
-     * The command reaches the engine through DAGGER_ENGINE, so SDKs run a Dagger CLI: set _EXPERIMENTAL_DAGGER_CLI_BIN to one in the container, or let the SDK download one.
-     *
-     * Cannot be combined with "disableDaggerInDagger".
      * @param opts.insecureRootCapabilities Execute the command with all root capabilities. This is similar to running a command with "sudo" or executing "docker run" with the "--privileged" flag. Containerization does not provide any security guarantees when using this option. It should only be used when absolutely necessary and only with trusted commands.
      * @param opts.expand Replace "${VAR}" or "$VAR" in the args according to the current environment variables defined in the container (e.g. "/$VAR/foo").
      * @param opts.noInit If set, skip the automatic init process injected into containers by default.
@@ -6664,15 +4380,10 @@ declare class Container extends BaseClient {
      * @param opts.useEntrypoint Apply the OCI entrypoint, if present, by prepending it to the args. Ignored by default.
      * @param opts.stdin Content to write to the command's standard input. Example: "Hello world")
      * @param opts.redirectStdin Redirect the command's standard input from a file in the container. Example: "./stdin.txt"
-     * @param opts.redirectStdout Redirect the command's standard output to a file in the container. The redirected output is not logged. Example: "./stdout.txt"
-     * @param opts.redirectStderr Redirect the command's standard error to a file in the container. The redirected output is not logged. Example: "./stderr.txt"
+     * @param opts.redirectStdout Redirect the command's standard output to a file in the container. Example: "./stdout.txt"
+     * @param opts.redirectStderr Redirect the command's standard error to a file in the container. Example: "./stderr.txt"
      * @param opts.expect Exit codes this command is allowed to exit with without error
      * @param opts.disableDaggerInDagger Disable Dagger API access for the executed command. By default, commands can connect to the current Dagger engine.
-     * @param opts.daggerInDaggerNewSession Connect Dagger clients started by the command to the current engine as new sessions, instead of as clients of the current session. Each connection gets its own session, released when that client closes.
-     *
-     * The command reaches the engine through DAGGER_ENGINE, so SDKs run a Dagger CLI: set _EXPERIMENTAL_DAGGER_CLI_BIN to one in the container, or let the SDK download one.
-     *
-     * Cannot be combined with "disableDaggerInDagger".
      * @param opts.insecureRootCapabilities Execute the command with all root capabilities. Like --privileged in Docker
      *
      * DANGER: this grants the command full access to the host system. Only use when 1) you trust the command being executed and 2) you specifically need this level of access.
@@ -6778,7 +4489,6 @@ declare class Container extends BaseClient {
      * If the group is omitted, it defaults to the same as the user.
      * @param opts.inheritOwner Set the owner to the container's current user.
      * @param opts.expand Replace "${VAR}" or "$VAR" in the value of path according to the current environment variables defined in the container (e.g. "/$VAR/foo.txt").
-     * @param opts.readOnly Mount the file read-only.
      */
     withMountedFile: (path: string, source: File, opts?: ContainerWithMountedFileOpts) => Container;
     /**
@@ -7018,24 +4728,17 @@ declare class Container extends BaseClient {
 /**
  * Reflective module API provided to functions at runtime.
  */
-declare class CurrentModule extends BaseClient {
+declare class CurrentModule extends BaseClient$1 {
     private readonly _id?;
     private readonly _name?;
-    private readonly _sourceSubpath?;
     /**
      * Constructor is used for internal usage only, do not create object from it.
      */
-    constructor(ctx?: Context, _id?: ID, _name?: string, _sourceSubpath?: string);
+    constructor(ctx?: Context$1, _id?: ID, _name?: string);
     /**
      * A unique identifier for this CurrentModule.
      */
     id: () => Promise<ID>;
-    /**
-     * The module's context directory loaded into the engine (plus any generated code that may have been created).
-     *
-     * It holds the module's source code and every other file the engine loaded for the module, at their paths relative to the context root. Use sourceSubpath to locate the source code in it.
-     */
-    contextDirectory: () => Directory;
     /**
      * The dependencies of the module.
      */
@@ -7053,10 +4756,6 @@ declare class CurrentModule extends BaseClient {
      */
     source: () => Directory;
     /**
-     * The path to the directory containing the module's source code, relative to the context directory.
-     */
-    sourceSubpath: () => Promise<string>;
-    /**
      * Load a directory from the module's scratch working directory, including any changes that may have been made to it during module function execution.
      * @param path Location of the directory to access (e.g., ".").
      * @param opts.exclude Exclude artifacts that match the given pattern (e.g., ["node_modules/", ".git*"]).
@@ -7070,7 +4769,7 @@ declare class CurrentModule extends BaseClient {
      */
     workdirFile: (path: string) => File;
 }
-declare class DiffStat extends BaseClient {
+declare class DiffStat extends BaseClient$1 {
     private readonly _id?;
     private readonly _addedLines?;
     private readonly _kind?;
@@ -7080,7 +4779,7 @@ declare class DiffStat extends BaseClient {
     /**
      * Constructor is used for internal usage only, do not create object from it.
      */
-    constructor(ctx?: Context, _id?: ID, _addedLines?: number, _kind?: DiffStatKind, _oldPath?: string, _path?: string, _removedLines?: number);
+    constructor(ctx?: Context$1, _id?: ID, _addedLines?: number, _kind?: DiffStatKind, _oldPath?: string, _path?: string, _removedLines?: number);
     /**
      * A unique identifier for this DiffStat.
      */
@@ -7109,7 +4808,7 @@ declare class DiffStat extends BaseClient {
 /**
  * A directory.
  */
-declare class Directory extends BaseClient {
+declare class Directory extends BaseClient$1 {
     private readonly _id?;
     private readonly _digest?;
     private readonly _exists?;
@@ -7120,7 +4819,7 @@ declare class Directory extends BaseClient {
     /**
      * Constructor is used for internal usage only, do not create object from it.
      */
-    constructor(ctx?: Context, _id?: ID, _digest?: string, _exists?: boolean, _export?: string, _findUp?: string, _name?: string, _sync?: ID);
+    constructor(ctx?: Context$1, _id?: ID, _digest?: string, _exists?: boolean, _export?: string, _findUp?: string, _name?: string, _sync?: ID);
     /**
      * A unique identifier for this Directory.
      */
@@ -7387,13 +5086,13 @@ declare class Directory extends BaseClient {
 /**
  * The Dagger engine configuration and state
  */
-declare class Engine extends BaseClient {
+declare class Engine extends BaseClient$1 {
     private readonly _id?;
     private readonly _name?;
     /**
      * Constructor is used for internal usage only, do not create object from it.
      */
-    constructor(ctx?: Context, _id?: ID, _name?: string);
+    constructor(ctx?: Context$1, _id?: ID, _name?: string);
     /**
      * A unique identifier for this Engine.
      */
@@ -7414,7 +5113,7 @@ declare class Engine extends BaseClient {
 /**
  * A cache storage for the Dagger engine
  */
-declare class EngineCache extends BaseClient {
+declare class EngineCache extends BaseClient$1 {
     private readonly _id?;
     private readonly _maxUsedSpace?;
     private readonly _minFreeSpace?;
@@ -7424,7 +5123,7 @@ declare class EngineCache extends BaseClient {
     /**
      * Constructor is used for internal usage only, do not create object from it.
      */
-    constructor(ctx?: Context, _id?: ID, _maxUsedSpace?: number, _minFreeSpace?: number, _prune?: Void, _reservedSpace?: number, _targetSpace?: number);
+    constructor(ctx?: Context$1, _id?: ID, _maxUsedSpace?: number, _minFreeSpace?: number, _prune?: Void, _reservedSpace?: number, _targetSpace?: number);
     /**
      * A unique identifier for this EngineCache.
      */
@@ -7464,7 +5163,7 @@ declare class EngineCache extends BaseClient {
 /**
  * An individual cache entry in a cache entry set
  */
-declare class EngineCacheEntry extends BaseClient {
+declare class EngineCacheEntry extends BaseClient$1 {
     private readonly _id?;
     private readonly _activelyUsed?;
     private readonly _createdTimeUnixNano?;
@@ -7476,7 +5175,7 @@ declare class EngineCacheEntry extends BaseClient {
     /**
      * Constructor is used for internal usage only, do not create object from it.
      */
-    constructor(ctx?: Context, _id?: ID, _activelyUsed?: boolean, _createdTimeUnixNano?: number, _dagqlCall?: string, _description?: string, _diskSpaceBytes?: number, _mostRecentUseTimeUnixNano?: number, _recordType?: string);
+    constructor(ctx?: Context$1, _id?: ID, _activelyUsed?: boolean, _createdTimeUnixNano?: number, _dagqlCall?: string, _description?: string, _diskSpaceBytes?: number, _mostRecentUseTimeUnixNano?: number, _recordType?: string);
     /**
      * A unique identifier for this EngineCacheEntry.
      */
@@ -7517,14 +5216,14 @@ declare class EngineCacheEntry extends BaseClient {
 /**
  * A set of cache entries returned by a query to a cache
  */
-declare class EngineCacheEntrySet extends BaseClient {
+declare class EngineCacheEntrySet extends BaseClient$1 {
     private readonly _id?;
     private readonly _diskSpaceBytes?;
     private readonly _entryCount?;
     /**
      * Constructor is used for internal usage only, do not create object from it.
      */
-    constructor(ctx?: Context, _id?: ID, _diskSpaceBytes?: number, _entryCount?: number);
+    constructor(ctx?: Context$1, _id?: ID, _diskSpaceBytes?: number, _entryCount?: number);
     /**
      * A unique identifier for this EngineCacheEntrySet.
      */
@@ -7545,7 +5244,7 @@ declare class EngineCacheEntrySet extends BaseClient {
 /**
  * A definition of a custom enum defined in a Module.
  */
-declare class EnumTypeDef extends BaseClient {
+declare class EnumTypeDef extends BaseClient$1 {
     private readonly _id?;
     private readonly _description?;
     private readonly _name?;
@@ -7553,7 +5252,7 @@ declare class EnumTypeDef extends BaseClient {
     /**
      * Constructor is used for internal usage only, do not create object from it.
      */
-    constructor(ctx?: Context, _id?: ID, _description?: string, _name?: string, _sourceModuleName?: string);
+    constructor(ctx?: Context$1, _id?: ID, _description?: string, _name?: string, _sourceModuleName?: string);
     /**
      * A unique identifier for this EnumTypeDef.
      */
@@ -7587,7 +5286,7 @@ declare class EnumTypeDef extends BaseClient {
 /**
  * A definition of a value in a custom enum defined in a Module.
  */
-declare class EnumValueTypeDef extends BaseClient {
+declare class EnumValueTypeDef extends BaseClient$1 {
     private readonly _id?;
     private readonly _deprecated?;
     private readonly _description?;
@@ -7596,7 +5295,7 @@ declare class EnumValueTypeDef extends BaseClient {
     /**
      * Constructor is used for internal usage only, do not create object from it.
      */
-    constructor(ctx?: Context, _id?: ID, _deprecated?: string, _description?: string, _name?: string, _value?: string);
+    constructor(ctx?: Context$1, _id?: ID, _deprecated?: string, _description?: string, _name?: string, _value?: string);
     /**
      * A unique identifier for this EnumValueTypeDef.
      */
@@ -7625,14 +5324,14 @@ declare class EnumValueTypeDef extends BaseClient {
 /**
  * A collection of environment variables.
  */
-declare class EnvFile extends BaseClient {
+declare class EnvFile extends BaseClient$1 {
     private readonly _id?;
     private readonly _exists?;
     private readonly _get?;
     /**
      * Constructor is used for internal usage only, do not create object from it.
      */
-    constructor(ctx?: Context, _id?: ID, _exists?: boolean, _get?: string);
+    constructor(ctx?: Context$1, _id?: ID, _exists?: boolean, _get?: string);
     /**
      * A unique identifier for this EnvFile.
      */
@@ -7683,14 +5382,14 @@ declare class EnvFile extends BaseClient {
 /**
  * An environment variable name and value.
  */
-declare class EnvVariable extends BaseClient {
+declare class EnvVariable extends BaseClient$1 {
     private readonly _id?;
     private readonly _name?;
     private readonly _value?;
     /**
      * Constructor is used for internal usage only, do not create object from it.
      */
-    constructor(ctx?: Context, _id?: ID, _name?: string, _value?: string);
+    constructor(ctx?: Context$1, _id?: ID, _name?: string, _value?: string);
     /**
      * A unique identifier for this EnvVariable.
      */
@@ -7704,13 +5403,13 @@ declare class EnvVariable extends BaseClient {
      */
     value: () => Promise<string>;
 }
-declare class Error$1 extends BaseClient {
+declare class Error$1 extends BaseClient$1 {
     private readonly _id?;
     private readonly _message?;
     /**
      * Constructor is used for internal usage only, do not create object from it.
      */
-    constructor(ctx?: Context, _id?: ID, _message?: string);
+    constructor(ctx?: Context$1, _id?: ID, _message?: string);
     /**
      * A unique identifier for this Error.
      */
@@ -7736,14 +5435,14 @@ declare class Error$1 extends BaseClient {
      */
     with: (arg: (param: Error$1) => Error$1) => Error$1;
 }
-declare class ErrorValue extends BaseClient {
+declare class ErrorValue extends BaseClient$1 {
     private readonly _id?;
     private readonly _name?;
     private readonly _value?;
     /**
      * Constructor is used for internal usage only, do not create object from it.
      */
-    constructor(ctx?: Context, _id?: ID, _name?: string, _value?: JSON);
+    constructor(ctx?: Context$1, _id?: ID, _name?: string, _value?: JSON);
     /**
      * A unique identifier for this ErrorValue.
      */
@@ -7758,38 +5457,34 @@ declare class ErrorValue extends BaseClient {
     value: () => Promise<JSON>;
 }
 /**
- * A function that can modify a conversation.
+ * An agent function that can modify a conversation.
  */
-declare class Expertise extends BaseClient {
+declare class Expertise extends BaseClient$1 {
     private readonly _id?;
     private readonly _description?;
     private readonly _name?;
     /**
      * Constructor is used for internal usage only, do not create object from it.
      */
-    constructor(ctx?: Context, _id?: ID, _description?: string, _name?: string);
+    constructor(ctx?: Context$1, _id?: ID, _description?: string, _name?: string);
     /**
      * A unique identifier for this Expertise.
      */
     id: () => Promise<ID>;
     /**
-     * The artifact this expertise runs. Look it up again by URI to pick up module changes.
-     */
-    artifact: () => Artifact;
-    /**
-     * The function's description.
+     * The agent function's description.
      */
     description: () => Promise<string>;
     /**
-     * The function's name.
+     * The agent function's name.
      */
     name: () => Promise<string>;
     /**
-     * The module that defines the function.
+     * The module that defines the agent function.
      */
     originalModule: () => Module_;
     /**
-     * The function's path within its module.
+     * The agent function's path within its module.
      */
     path: () => Promise<string[]>;
 }
@@ -7802,13 +5497,13 @@ interface Exportable {
     id(): Promise<ID>;
     export(path: string): Promise<string>;
 }
-declare class _ExportableClient extends BaseClient {
+declare class _ExportableClient extends BaseClient$1 {
     private readonly _id?;
     private readonly _export?;
     /**
      * Constructor is used for internal usage only, do not create object from it.
      */
-    constructor(ctx?: Context, _id?: ID, _export?: string);
+    constructor(ctx?: Context$1, _id?: ID, _export?: string);
     id: () => Promise<ID>;
     export: (path: string) => Promise<string>;
 }
@@ -7817,7 +5512,7 @@ declare class _ExportableClient extends BaseClient {
  *
  * A field on an object has a static value, as opposed to a function on an object whose value is computed by invoking code (and can accept arguments).
  */
-declare class FieldTypeDef extends BaseClient {
+declare class FieldTypeDef extends BaseClient$1 {
     private readonly _id?;
     private readonly _deprecated?;
     private readonly _description?;
@@ -7825,7 +5520,7 @@ declare class FieldTypeDef extends BaseClient {
     /**
      * Constructor is used for internal usage only, do not create object from it.
      */
-    constructor(ctx?: Context, _id?: ID, _deprecated?: string, _description?: string, _name?: string);
+    constructor(ctx?: Context$1, _id?: ID, _deprecated?: string, _description?: string, _name?: string);
     /**
      * A unique identifier for this FieldTypeDef.
      */
@@ -7854,7 +5549,7 @@ declare class FieldTypeDef extends BaseClient {
 /**
  * A file.
  */
-declare class File extends BaseClient {
+declare class File extends BaseClient$1 {
     private readonly _id?;
     private readonly _contents?;
     private readonly _digest?;
@@ -7865,7 +5560,7 @@ declare class File extends BaseClient {
     /**
      * Constructor is used for internal usage only, do not create object from it.
      */
-    constructor(ctx?: Context, _id?: ID, _contents?: string, _digest?: string, _export?: string, _name?: string, _size?: number, _sync?: ID);
+    constructor(ctx?: Context$1, _id?: ID, _contents?: string, _digest?: string, _export?: string, _name?: string, _size?: number, _sync?: ID);
     /**
      * A unique identifier for this File.
      */
@@ -7980,7 +5675,7 @@ declare class File extends BaseClient {
  *
  * A function always evaluates against a parent object and is given a set of named arguments.
  */
-declare class Function_ extends BaseClient {
+declare class Function_ extends BaseClient$1 {
     private readonly _id?;
     private readonly _deprecated?;
     private readonly _description?;
@@ -7989,7 +5684,7 @@ declare class Function_ extends BaseClient {
     /**
      * Constructor is used for internal usage only, do not create object from it.
      */
-    constructor(ctx?: Context, _id?: ID, _deprecated?: string, _description?: string, _name?: string, _sourceModuleName?: string);
+    constructor(ctx?: Context$1, _id?: ID, _deprecated?: string, _description?: string, _name?: string, _sourceModuleName?: string);
     /**
      * A unique identifier for this Function.
      */
@@ -8084,7 +5779,7 @@ declare class Function_ extends BaseClient {
  *
  * This is a specification for an argument at function definition time, not an argument passed at function call time.
  */
-declare class FunctionArg extends BaseClient {
+declare class FunctionArg extends BaseClient$1 {
     private readonly _id?;
     private readonly _defaultAddress?;
     private readonly _defaultPath?;
@@ -8095,7 +5790,7 @@ declare class FunctionArg extends BaseClient {
     /**
      * Constructor is used for internal usage only, do not create object from it.
      */
-    constructor(ctx?: Context, _id?: ID, _defaultAddress?: string, _defaultPath?: string, _defaultValue?: JSON, _deprecated?: string, _description?: string, _name?: string);
+    constructor(ctx?: Context$1, _id?: ID, _defaultAddress?: string, _defaultPath?: string, _defaultValue?: JSON, _deprecated?: string, _description?: string, _name?: string);
     /**
      * A unique identifier for this FunctionArg.
      */
@@ -8140,7 +5835,7 @@ declare class FunctionArg extends BaseClient {
 /**
  * An active function call.
  */
-declare class FunctionCall extends BaseClient {
+declare class FunctionCall extends BaseClient$1 {
     private readonly _id?;
     private readonly _name?;
     private readonly _parent?;
@@ -8150,7 +5845,7 @@ declare class FunctionCall extends BaseClient {
     /**
      * Constructor is used for internal usage only, do not create object from it.
      */
-    constructor(ctx?: Context, _id?: ID, _name?: string, _parent?: JSON, _parentName?: string, _returnError?: Void, _returnValue?: Void);
+    constructor(ctx?: Context$1, _id?: ID, _name?: string, _parent?: JSON, _parentName?: string, _returnError?: Void, _returnValue?: Void);
     /**
      * A unique identifier for this FunctionCall.
      */
@@ -8185,14 +5880,14 @@ declare class FunctionCall extends BaseClient {
 /**
  * A value passed as a named argument to a function call.
  */
-declare class FunctionCallArgValue extends BaseClient {
+declare class FunctionCallArgValue extends BaseClient$1 {
     private readonly _id?;
     private readonly _name?;
     private readonly _value?;
     /**
      * Constructor is used for internal usage only, do not create object from it.
      */
-    constructor(ctx?: Context, _id?: ID, _name?: string, _value?: JSON);
+    constructor(ctx?: Context$1, _id?: ID, _name?: string, _value?: JSON);
     /**
      * A unique identifier for this FunctionCallArgValue.
      */
@@ -8209,12 +5904,12 @@ declare class FunctionCallArgValue extends BaseClient {
 /**
  * The result of running an SDK's codegen.
  */
-declare class GeneratedCode extends BaseClient {
+declare class GeneratedCode extends BaseClient$1 {
     private readonly _id?;
     /**
      * Constructor is used for internal usage only, do not create object from it.
      */
-    constructor(ctx?: Context, _id?: ID);
+    constructor(ctx?: Context$1, _id?: ID);
     /**
      * A unique identifier for this GeneratedCode.
      */
@@ -8249,12 +5944,12 @@ declare class GeneratedCode extends BaseClient {
 /**
  * A generation function and its staleness check. Reading changeset runs the function.
  */
-declare class Generator extends BaseClient {
+declare class Generator extends BaseClient$1 {
     private readonly _id?;
     /**
      * Constructor is used for internal usage only, do not create object from it.
      */
-    constructor(ctx?: Context, _id?: ID);
+    constructor(ctx?: Context$1, _id?: ID);
     /**
      * A unique identifier for this Generator.
      */
@@ -8281,14 +5976,14 @@ declare class Generator extends BaseClient {
 /**
  * A Git bundle: a self-describing container of refs and the objects needed to reconstruct them, optionally rooted at prerequisite commits.
  */
-declare class GitBundle extends BaseClient {
+declare class GitBundle extends BaseClient$1 {
     private readonly _id?;
     private readonly _objectFormat?;
     private readonly _version?;
     /**
      * Constructor is used for internal usage only, do not create object from it.
      */
-    constructor(ctx?: Context, _id?: ID, _objectFormat?: string, _version?: number);
+    constructor(ctx?: Context$1, _id?: ID, _objectFormat?: string, _version?: number);
     /**
      * A unique identifier for this GitBundle.
      */
@@ -8327,14 +6022,14 @@ declare class GitBundle extends BaseClient {
 /**
  * A ref advertised by a Git bundle.
  */
-declare class GitBundleRef extends BaseClient {
+declare class GitBundleRef extends BaseClient$1 {
     private readonly _id?;
     private readonly _name?;
     private readonly _sha?;
     /**
      * Constructor is used for internal usage only, do not create object from it.
      */
-    constructor(ctx?: Context, _id?: ID, _name?: string, _sha?: string);
+    constructor(ctx?: Context$1, _id?: ID, _name?: string, _sha?: string);
     /**
      * A unique identifier for this GitBundleRef.
      */
@@ -8351,7 +6046,7 @@ declare class GitBundleRef extends BaseClient {
 /**
  * An immutable git commit.
  */
-declare class GitCommit extends BaseClient {
+declare class GitCommit extends BaseClient$1 {
     private readonly _id?;
     private readonly _authorEmail?;
     private readonly _authorName?;
@@ -8364,11 +6059,10 @@ declare class GitCommit extends BaseClient {
     private readonly _messageHeadline?;
     private readonly _sha?;
     private readonly _shortSha?;
-    private readonly _treeSHA?;
     /**
      * Constructor is used for internal usage only, do not create object from it.
      */
-    constructor(ctx?: Context, _id?: ID, _authorEmail?: string, _authorName?: string, _authoredDate?: string, _committedDate?: string, _committerEmail?: string, _committerName?: string, _message?: string, _messageBody?: string, _messageHeadline?: string, _sha?: string, _shortSha?: string, _treeSHA?: string);
+    constructor(ctx?: Context$1, _id?: ID, _authorEmail?: string, _authorName?: string, _authoredDate?: string, _committedDate?: string, _committerEmail?: string, _committerName?: string, _message?: string, _messageBody?: string, _messageHeadline?: string, _sha?: string, _shortSha?: string);
     /**
      * A unique identifier for this GitCommit.
      */
@@ -8445,17 +6139,11 @@ declare class GitCommit extends BaseClient {
      * @param opts.includeTags Set to true to populate tag refs in the local checkout .git.
      */
     tree: (opts?: GitCommitTreeOpts) => Directory;
-    /**
-     * The ID of the commit's Git tree object.
-     *
-     * Commits with identical trees have identical contents and file modes.
-     */
-    treeSHA: () => Promise<string>;
 }
 /**
  * A receipt for a completed Git push. Reading or replaying the receipt does not push again.
  */
-declare class GitPushResult extends BaseClient {
+declare class GitPushResult extends BaseClient$1 {
     private readonly _id?;
     private readonly _disposition?;
     private readonly _previousSHA?;
@@ -8464,7 +6152,7 @@ declare class GitPushResult extends BaseClient {
     /**
      * Constructor is used for internal usage only, do not create object from it.
      */
-    constructor(ctx?: Context, _id?: ID, _disposition?: GitPushDisposition, _previousSHA?: string, _ref?: string, _sha?: string);
+    constructor(ctx?: Context$1, _id?: ID, _disposition?: GitPushDisposition, _previousSHA?: string, _ref?: string, _sha?: string);
     /**
      * A unique identifier for this GitPushResult.
      */
@@ -8489,17 +6177,16 @@ declare class GitPushResult extends BaseClient {
 /**
  * A git ref (tag, branch, or commit).
  */
-declare class GitRef extends BaseClient {
+declare class GitRef extends BaseClient$1 {
     private readonly _id?;
     private readonly _commit?;
     private readonly _commitSHA?;
-    private readonly _contains?;
     private readonly _name?;
     private readonly _ref?;
     /**
      * Constructor is used for internal usage only, do not create object from it.
      */
-    constructor(ctx?: Context, _id?: ID, _commit?: string, _commitSHA?: string, _contains?: boolean, _name?: string, _ref?: string);
+    constructor(ctx?: Context$1, _id?: ID, _commit?: string, _commitSHA?: string, _name?: string, _ref?: string);
     /**
      * A unique identifier for this GitRef.
      */
@@ -8529,13 +6216,6 @@ declare class GitRef extends BaseClient {
      * @param other The other ref to compare against.
      */
     commonAncestor: (other: GitRef) => GitRef;
-    /**
-     * Return true when the other ref's commit equals this commit or is an ancestor of it.
-     *
-     * Compares commit history across branches, tags and detached refs. Incomplete or unavailable history is an error.
-     * @param other The ref whose commit to look for in this ref's history.
-     */
-    contains: (other: GitRef) => Promise<boolean>;
     /**
      * Commits reachable from this ref, newest first, starting with the commit this ref resolves to.
      * @param opts.limit Maximum number of commits to return.
@@ -8601,40 +6281,15 @@ declare class GitRef extends BaseClient {
     with: (arg: (param: GitRef) => GitRef) => GitRef;
 }
 /**
- * A named reference to a remote Git repository.
- */
-declare class GitRemote extends BaseClient {
-    private readonly _id?;
-    private readonly _name?;
-    /**
-     * Constructor is used for internal usage only, do not create object from it.
-     */
-    constructor(ctx?: Context, _id?: ID, _name?: string);
-    /**
-     * A unique identifier for this GitRemote.
-     */
-    id: () => Promise<ID>;
-    /**
-     * The remote's name.
-     */
-    name: () => Promise<string>;
-    /**
-     * Access this remote's repository using its fetch URL and the caller's credentials, or the source's existing capability for this exact destination.
-     *
-     * HEAD is the remote's HEAD, independent of the workspace's selected commit. Remote registration alone does not grant credentials.
-     */
-    repository: () => GitRepository;
-}
-/**
  * A git repository.
  */
-declare class GitRepository extends BaseClient {
+declare class GitRepository extends BaseClient$1 {
     private readonly _id?;
     private readonly _url?;
     /**
      * Constructor is used for internal usage only, do not create object from it.
      */
-    constructor(ctx?: Context, _id?: ID, _url?: string);
+    constructor(ctx?: Context$1, _id?: ID, _url?: string);
     /**
      * A unique identifier for this GitRepository.
      */
@@ -8649,9 +6304,8 @@ declare class GitRepository extends BaseClient {
     /**
      * Returns details of a branch.
      * @param name Branch's name (e.g., "main").
-     * @param opts.noLock Ignore the workspace lockfile for this lookup.
      */
-    branch: (name: string, opts?: GitRepositoryBranchOpts) => GitRef;
+    branch: (name: string) => GitRef;
     /**
      * branches that match any of the given glob patterns.
      * @param opts.patterns Glob patterns (e.g., "refs/tags/v*").
@@ -8671,22 +6325,14 @@ declare class GitRepository extends BaseClient {
      */
     commit: (id: string) => GitCommit;
     /**
-     * Return the sole remote, otherwise origin, otherwise the selected branch's upstream remote, otherwise null.
-     *
-     * Frozen workspaces retain their captured upstream selection. Does not contact remote servers.
-     */
-    defaultRemote: () => Promise<GitRemote | null>;
-    /**
      * Returns details for HEAD.
-     * @param opts.noLock Ignore the workspace lockfile for this lookup.
      */
-    head: (opts?: GitRepositoryHeadOpts) => GitRef;
+    head: () => GitRef;
     /**
      * Return the latest stable release tag, falling back to HEAD when no release exists.
      *
-     * Release selection accepts an optional "v" prefix, incomplete versions, and zero-padded numeric components. This operation is pinned unless noLock is enabled.
+     * Release selection accepts an optional "v" prefix, incomplete versions, and zero-padded numeric components. This operation is pinned.
      * @param opts.version Version query used to select the greatest matching release ref.
-     * @param opts.noLock Ignore the workspace lockfile for this lookup.
      */
     latest: (opts?: GitRepositoryLatestOpts) => GitRef;
     /**
@@ -8696,26 +6342,13 @@ declare class GitRepository extends BaseClient {
      * Commit identifiers may be abbreviated: an unambiguous hex prefix (4-40 characters) of a commit SHA resolves like git rev-parse, with named refs taking precedence. Abbreviated SHAs resolve against locally available objects, so remote repositories (resolved via ls-remote) can only expand prefixes of already-fetched commits; use the full SHA or a named ref otherwise.
      *
      * The name may be followed by git revision suffixes, applied left to right: `~N` follows first parents N times and `^N` selects the Nth parent (`~` and `^` mean 1, `^0` is the commit itself), e.g. `HEAD~3`, `main^2` or `abc1234~2`. The result is a detached ref of the resulting commit; remote repositories fetch the history the walk needs. Other git revision syntax (`^{...}`, `@{...}`, `:path`, ranges) is not supported.
-     *
-     * A repository derived from a remote one (e.g. a workspace's history after a snapshot or commit) resolves names and commits it does not contain itself through that remote, with its authentication. Its branches and tags listings include the remote's.
-     * @param opts.noLock Ignore the workspace lockfile for this lookup.
      */
-    ref: (name: string, opts?: GitRepositoryRefOpts) => GitRef;
-    /**
-     * Look up a remote by name. Fails when the remote does not exist.
-     * @param name The remote's name.
-     */
-    remote: (name: string) => GitRemote;
-    /**
-     * List this repository's named remotes, with registered remotes overriding configured ones. Does not contact remote servers.
-     */
-    remotes: () => Promise<GitRemote[]>;
+    ref: (name: string) => GitRef;
     /**
      * Returns details of a tag.
      * @param name Tag's name (e.g., "v0.3.9").
-     * @param opts.noLock Ignore the workspace lockfile for this lookup.
      */
-    tag: (name: string, opts?: GitRepositoryTagOpts) => GitRef;
+    tag: (name: string) => GitRef;
     /**
      * tags that match any of the given glob patterns.
      * @param opts.patterns Glob patterns (e.g., "refs/tags/v*").
@@ -8741,8 +6374,6 @@ declare class GitRepository extends BaseClient {
      * Accepts a whole checkout (including .git and pending file edits), .git contents, or a bare repository. Does not initialize a repository, merge histories, or modify either input.
      *
      * The receiver's logical routing wins over the supplied Git configuration; that configuration is not rewritten. Use Directory.asGit to open the supplied repository without retaining the receiver's routing.
-     *
-     * When the receiver is a remote repository (or was derived from one), that remote is retained with its authentication: refs the supplied storage does not contain resolve through it.
      * @param directory Existing Git storage to open. Git metadata and object dependencies must be contained in this directory.
      */
     withContents: (directory: Directory) => GitRepository;
@@ -8767,12 +6398,12 @@ declare class GitRepository extends BaseClient {
 /**
  * An internal persistent HTTP state.
  */
-declare class HTTPState extends BaseClient {
+declare class HTTPState extends BaseClient$1 {
     private readonly _id?;
     /**
      * Constructor is used for internal usage only, do not create object from it.
      */
-    constructor(ctx?: Context, _id?: ID);
+    constructor(ctx?: Context$1, _id?: ID);
     /**
      * A unique identifier for this HTTPState.
      */
@@ -8781,7 +6412,7 @@ declare class HTTPState extends BaseClient {
 /**
  * Image healthcheck configuration.
  */
-declare class HealthcheckConfig extends BaseClient {
+declare class HealthcheckConfig extends BaseClient$1 {
     private readonly _id?;
     private readonly _interval?;
     private readonly _retries?;
@@ -8792,7 +6423,7 @@ declare class HealthcheckConfig extends BaseClient {
     /**
      * Constructor is used for internal usage only, do not create object from it.
      */
-    constructor(ctx?: Context, _id?: ID, _interval?: string, _retries?: number, _shell?: boolean, _startInterval?: string, _startPeriod?: string, _timeout?: string);
+    constructor(ctx?: Context$1, _id?: ID, _interval?: string, _retries?: number, _shell?: boolean, _startInterval?: string, _startPeriod?: string, _timeout?: string);
     /**
      * A unique identifier for this HealthcheckConfig.
      */
@@ -8829,13 +6460,13 @@ declare class HealthcheckConfig extends BaseClient {
 /**
  * Information about the host environment.
  */
-declare class Host extends BaseClient {
+declare class Host extends BaseClient$1 {
     private readonly _id?;
     private readonly _findUp?;
     /**
      * Constructor is used for internal usage only, do not create object from it.
      */
-    constructor(ctx?: Context, _id?: ID, _findUp?: string);
+    constructor(ctx?: Context$1, _id?: ID, _findUp?: string);
     /**
      * A unique identifier for this Host.
      */
@@ -8897,81 +6528,18 @@ declare class Host extends BaseClient {
     unixSocket: (path: string) => Socket;
 }
 /**
- * A name parsed into words, which can be formatted in any casing.
- */
-declare class Identifier extends BaseClient {
-    private readonly _id?;
-    private readonly _format?;
-    private readonly _name?;
-    /**
-     * Constructor is used for internal usage only, do not create object from it.
-     */
-    constructor(ctx?: Context, _id?: ID, _format?: string, _name?: string);
-    /**
-     * A unique identifier for this Identifier.
-     */
-    id: () => Promise<ID>;
-    /**
-     * Format the identifier in a casing.
-     * @param casing The casing to format the identifier in.
-     * @param opts.acronyms How to write acronyms and terms where a word starts with a capital.
-     */
-    format: (casing: Casing, opts?: IdentifierFormatOpts) => Promise<string>;
-    /**
-     * The name as given.
-     */
-    name: () => Promise<string>;
-    /**
-     * The words that make up the name, in order.
-     */
-    words: () => Promise<IdentifierWord[]>;
-}
-/**
- * One word of an identifier.
- */
-declare class IdentifierWord extends BaseClient {
-    private readonly _id?;
-    private readonly _kind?;
-    private readonly _suffix?;
-    private readonly _text?;
-    /**
-     * Constructor is used for internal usage only, do not create object from it.
-     */
-    constructor(ctx?: Context, _id?: ID, _kind?: IdentifierWordKind, _suffix?: string, _text?: string);
-    /**
-     * A unique identifier for this IdentifierWord.
-     */
-    id: () => Promise<ID>;
-    /**
-     * The kind of word.
-     */
-    kind: () => Promise<IdentifierWordKind>;
-    /**
-     * Trailing digits and/or a plural "s", in that order: SHA+"s", OAuth+"2", HTTP+"2s".
-     */
-    suffix: () => Promise<string>;
-    /**
-     * The dictionary entry this word matched, if any.
-     */
-    term: () => Promise<NamingTerm | null>;
-    /**
-     * Standard spelling: "client" (WORD), "HTTP" (ACRONYM), "GitHub" (TERM).
-     */
-    text: () => Promise<string>;
-}
-/**
  * A graphql input type, which is essentially just a group of named args.
  * This is currently only used to represent pre-existing usage of graphql input types
  * in the core API. It is not used by user modules and shouldn't ever be as user
  * module accept input objects via their id rather than graphql input types.
  */
-declare class InputTypeDef extends BaseClient {
+declare class InputTypeDef extends BaseClient$1 {
     private readonly _id?;
     private readonly _name?;
     /**
      * Constructor is used for internal usage only, do not create object from it.
      */
-    constructor(ctx?: Context, _id?: ID, _name?: string);
+    constructor(ctx?: Context$1, _id?: ID, _name?: string);
     /**
      * A unique identifier for this InputTypeDef.
      */
@@ -8988,7 +6556,7 @@ declare class InputTypeDef extends BaseClient {
 /**
  * A definition of a custom interface defined in a Module.
  */
-declare class InterfaceTypeDef extends BaseClient {
+declare class InterfaceTypeDef extends BaseClient$1 {
     private readonly _id?;
     private readonly _description?;
     private readonly _name?;
@@ -8996,7 +6564,7 @@ declare class InterfaceTypeDef extends BaseClient {
     /**
      * Constructor is used for internal usage only, do not create object from it.
      */
-    constructor(ctx?: Context, _id?: ID, _description?: string, _name?: string, _sourceModuleName?: string);
+    constructor(ctx?: Context$1, _id?: ID, _description?: string, _name?: string, _sourceModuleName?: string);
     /**
      * A unique identifier for this InterfaceTypeDef.
      */
@@ -9022,7 +6590,7 @@ declare class InterfaceTypeDef extends BaseClient {
      */
     sourceModuleName: () => Promise<string>;
 }
-declare class JSONValue extends BaseClient {
+declare class JSONValue extends BaseClient$1 {
     private readonly _id?;
     private readonly _asBoolean?;
     private readonly _asInteger?;
@@ -9031,7 +6599,7 @@ declare class JSONValue extends BaseClient {
     /**
      * Constructor is used for internal usage only, do not create object from it.
      */
-    constructor(ctx?: Context, _id?: ID, _asBoolean?: boolean, _asInteger?: number, _asString?: string, _contents?: JSON);
+    constructor(ctx?: Context$1, _id?: ID, _asBoolean?: boolean, _asInteger?: number, _asString?: string, _contents?: JSON);
     /**
      * A unique identifier for this JSONValue.
      */
@@ -9103,7 +6671,7 @@ declare class JSONValue extends BaseClient {
 /**
  * A conversation with a large language model (LLM): queue prompts, expose tools, and step the model until it completes its turn.
  */
-declare class LLM extends BaseClient {
+declare class LLM extends BaseClient$1 {
     private readonly _id?;
     private readonly _contextTokens?;
     private readonly _contextWindow?;
@@ -9119,7 +6687,7 @@ declare class LLM extends BaseClient {
     /**
      * Constructor is used for internal usage only, do not create object from it.
      */
-    constructor(ctx?: Context, _id?: ID, _contextTokens?: number, _contextWindow?: number, _hasPending?: boolean, _lastReply?: string, _model?: string, _provider?: string, _reasoningEffort?: string, _spawn?: ID, _sync?: ID, _tools?: string, _transcript?: string);
+    constructor(ctx?: Context$1, _id?: ID, _contextTokens?: number, _contextWindow?: number, _hasPending?: boolean, _lastReply?: string, _model?: string, _provider?: string, _reasoningEffort?: string, _spawn?: ID, _sync?: ID, _tools?: string, _transcript?: string);
     /**
      * A unique identifier for this LLM.
      */
@@ -9134,23 +6702,7 @@ declare class LLM extends BaseClient {
      */
     agent: (handle: string, name: string) => Agent;
     /**
-     * Discover every artifact this conversation can address, as one selection, without evaluating their values.
-     *
-     * Tool objects bound with withTools contribute their modules' artifacts, rooted at their current values: evaluating one reads the live state of the bound tools, not a fresh construction. If a module's main object is bound, only its tree is included; otherwise each bound object of that module contributes its own tree. Addresses start with the module name. These artifacts have no workspace of their own: they evaluate in the LLM's bound workspace, if any, whoever evaluates them.
-     *
-     * The workspace part is the artifacts of the workspace bound with withWorkspace, as returned by Workspace.artifacts; an LLM with no bound workspace has none. A workspace module with the same name as a module with bound tool objects is omitted: the bound tools shadow it. Unless they are only a plain construction of the module, which has no state of its own: then the workspace module's artifacts are kept instead.
-     *
-     * Tool arguments that take an address resolve it here: a DAG address to one object, or, for Artifacts and Artifact arguments, a selection filtered like filterUri.
-     * @param opts.include Only include artifacts matching these path patterns, as with Workspace.artifacts. A path selects that path and its children.
-     * @experimental
-     */
-    artifacts: (opts?: LLMArtifactsOpts) => Artifacts;
-    /**
-     * Run expertise on this conversation, passing it through each function in order, and record it in expertise.
-     *
-     * Composing an entry that is already recorded refreshes its module: the module's contributions are cleared, all of its recorded entries run again, and compatible tool state is kept. Other contributions are untouched.
-     *
-     * Agent arguments receive the agent that owns this conversation. Without one, entries requiring an Agent are skipped.
+     * Run expertise in list order, passing this conversation through each function. Retain existing contributions.
      * @param expertise The expertise to run. Each reference retains its source workspace.
      */
     compose: (expertise: Expertise[]) => LLM;
@@ -9162,10 +6714,6 @@ declare class LLM extends BaseClient {
      * The model's total context window in tokens, or null if unknown (e.g. a local or uncatalogued model).
      */
     contextWindow: () => Promise<number>;
-    /**
-     * Expertise composed into this conversation, in order.
-     */
-    expertise: () => Promise<Expertise[]>;
     /**
      * Fork the conversation, so that otherwise-identical follow-ups evaluate independently instead of deduplicating to a single cached result.
      * @param label A label distinguishing this fork from its siblings, e.g. "attempt-2" when retrying a flaky evaluation.
@@ -9202,6 +6750,15 @@ declare class LLM extends BaseClient {
      */
     reasoningEffort: () => Promise<string>;
     /**
+     * Run expertise in list order, replacing their modules' contributions and preserving compatible tool state.
+     *
+     * Clear each selected module's contributions once before execution. Retain unowned contributions and contributions from other modules. Keep this LLM's workspace.
+     *
+     * A change to a tool binding's version resets its state. Removed bindings, changed identities, and incompatible state are errors.
+     * @param expertise The expertise to run. Each reference retains its source workspace.
+     */
+    recompose: (expertise: Expertise[]) => LLM;
+    /**
      * The skills visible to the model, exactly as the ListSkills tool serves them: engine-embedded skills, skills installed with withSkills, and skills discovered in the workspace.
      */
     skills: () => Promise<LLMSkill[]>;
@@ -9213,7 +6770,6 @@ declare class LLM extends BaseClient {
      * The loop is not started: the agent spends nothing until it is prompted or resumed, and any input pending on the conversation is stepped then.
      *
      * With a handle, spawn restores an instance instead of minting one: this conversation becomes the committed history of the agent that handle names, so prompting it continues where it left off — rebuild a conversation's ID from a trace, load it, and spawn it under the handle it belonged to. Fails if that instance already has a runtime entry in this session: a restore must happen before anything else addresses the instance, since by then it may have stepped.
-     * @param opts.expertise Expertise to compose into the new agent's conversation. Agent arguments receive the new agent, which cannot be used until composition completes; if composition fails, the agent is left STOPPED.
      * @param opts.name Display label for the agent — telemetry and error messages; carries no identity. Defaults to a short name derived from the conversation.
      * @param opts.handle The runtime handle to restore the instance under, as published on its loop span as dagger.io/agent.id. Omit to mint a fresh instance.
      * @param opts.state The lifecycle state to create the agent in, as facts on the entry: IDLE is ready to be prompted, PAUSED parks it, FAILED holds an error a resume retries past, STOPPED preserves a dormant snapshot that send or resume can relaunch.
@@ -9353,52 +6909,9 @@ declare class LLM extends BaseClient {
     with: (arg: (param: LLM) => LLM) => LLM;
 }
 /**
- * An ordered run of text and media content for a model to read, built outside any conversation.
- */
-declare class LLMContent extends BaseClient {
-    private readonly _id?;
-    /**
-     * Constructor is used for internal usage only, do not create object from it.
-     */
-    constructor(ctx?: Context, _id?: ID);
-    /**
-     * A unique identifier for this LLMContent.
-     */
-    id: () => Promise<ID>;
-    /**
-     * The ordered text and media blocks.
-     */
-    blocks: () => Promise<LLMContentBlock[]>;
-    /**
-     * Append image, audio, or PDF bytes as an inline media block. The media kind follows the MIME type.
-     *
-     * Prefer withFile for anything but small payloads: the bytes become part of the content's identity, so they travel with every reference to it.
-     * @param data The media bytes.
-     * @param mimeType The media MIME type, e.g. "image/png".
-     */
-    withData: (data: Bytes, mimeType: string) => LLMContent;
-    /**
-     * Append an image, audio, or PDF file as an inline media block. The media kind follows the MIME type.
-     * @param file The media file. Its contents become the block's inline bytes.
-     * @param opts.mimeType The media MIME type, e.g. "image/png". Inferred from the file's contents when omitted.
-     */
-    withFile: (file: File, opts?: LLMContentWithFileOpts) => LLMContent;
-    /**
-     * Append a block of text.
-     * @param text The text.
-     */
-    withText: (text: string) => LLMContent;
-    /**
-     * Call the provided function with current LLMContent.
-     *
-     * This is useful for reusability and readability by not breaking the calling chain.
-     */
-    with: (arg: (param: LLMContent) => LLMContent) => LLMContent;
-}
-/**
  * A single piece of content within an LLM message.
  */
-declare class LLMContentBlock extends BaseClient {
+declare class LLMContentBlock extends BaseClient$1 {
     private readonly _id?;
     private readonly _arguments?;
     private readonly _callId?;
@@ -9412,7 +6925,7 @@ declare class LLMContentBlock extends BaseClient {
     /**
      * Constructor is used for internal usage only, do not create object from it.
      */
-    constructor(ctx?: Context, _id?: ID, _arguments?: JSON, _callId?: string, _data?: Bytes, _errored?: boolean, _kind?: LLMContentBlockKind, _mimeType?: string, _signature?: string, _text?: string, _toolName?: string);
+    constructor(ctx?: Context$1, _id?: ID, _arguments?: JSON, _callId?: string, _data?: string, _errored?: boolean, _kind?: LLMContentBlockKind, _mimeType?: string, _signature?: string, _text?: string, _toolName?: string);
     /**
      * A unique identifier for this LLMContentBlock.
      */
@@ -9430,9 +6943,9 @@ declare class LLMContentBlock extends BaseClient {
      */
     content: () => Promise<LLMContentBlock[]>;
     /**
-     * The media bytes (for IMAGE, AUDIO, or DOCUMENT kinds).
+     * Base64-encoded media bytes (for IMAGE, AUDIO, or DOCUMENT kinds).
      */
-    data: () => Promise<Bytes>;
+    data: () => Promise<string>;
     /**
      * Whether the tool call resulted in an error (for TOOL_RESULT kind).
      */
@@ -9461,13 +6974,13 @@ declare class LLMContentBlock extends BaseClient {
 /**
  * A single message in an LLM conversation.
  */
-declare class LLMMessage extends BaseClient {
+declare class LLMMessage extends BaseClient$1 {
     private readonly _id?;
     private readonly _role?;
     /**
      * Constructor is used for internal usage only, do not create object from it.
      */
-    constructor(ctx?: Context, _id?: ID, _role?: LLMMessageRole);
+    constructor(ctx?: Context$1, _id?: ID, _role?: LLMMessageRole);
     /**
      * A unique identifier for this LLMMessage.
      */
@@ -9497,7 +7010,7 @@ declare class LLMMessage extends BaseClient {
  *
  * The recorded provenance of a message that arrived through an agent mailbox.
  */
-declare class LLMMessageOrigin extends BaseClient {
+declare class LLMMessageOrigin extends BaseClient$1 {
     private readonly _id?;
     private readonly _agentName?;
     private readonly _kind?;
@@ -9506,7 +7019,7 @@ declare class LLMMessageOrigin extends BaseClient {
     /**
      * Constructor is used for internal usage only, do not create object from it.
      */
-    constructor(ctx?: Context, _id?: ID, _agentName?: string, _kind?: LLMMessageOriginKind, _ref?: string, _replyTo?: string);
+    constructor(ctx?: Context$1, _id?: ID, _agentName?: string, _kind?: LLMMessageOriginKind, _ref?: string, _replyTo?: string);
     /**
      * A unique identifier for this LLMMessageOrigin.
      */
@@ -9535,14 +7048,14 @@ declare class LLMMessageOrigin extends BaseClient {
 /**
  * A skill available to a model: task-specific guidance discovered with ListSkills and read with ReadSkill.
  */
-declare class LLMSkill extends BaseClient {
+declare class LLMSkill extends BaseClient$1 {
     private readonly _id?;
     private readonly _description?;
     private readonly _name?;
     /**
      * Constructor is used for internal usage only, do not create object from it.
      */
-    constructor(ctx?: Context, _id?: ID, _description?: string, _name?: string);
+    constructor(ctx?: Context$1, _id?: ID, _description?: string, _name?: string);
     /**
      * A unique identifier for this LLMSkill.
      */
@@ -9559,7 +7072,7 @@ declare class LLMSkill extends BaseClient {
 /**
  * A count of tokens consumed by LLM API calls.
  */
-declare class LLMTokenUsage extends BaseClient {
+declare class LLMTokenUsage extends BaseClient$1 {
     private readonly _id?;
     private readonly _cachedTokenReads?;
     private readonly _cachedTokenWrites?;
@@ -9569,7 +7082,7 @@ declare class LLMTokenUsage extends BaseClient {
     /**
      * Constructor is used for internal usage only, do not create object from it.
      */
-    constructor(ctx?: Context, _id?: ID, _cachedTokenReads?: number, _cachedTokenWrites?: number, _inputTokens?: number, _outputTokens?: number, _totalTokens?: number);
+    constructor(ctx?: Context$1, _id?: ID, _cachedTokenReads?: number, _cachedTokenWrites?: number, _inputTokens?: number, _outputTokens?: number, _totalTokens?: number);
     /**
      * A unique identifier for this LLMTokenUsage.
      */
@@ -9598,14 +7111,14 @@ declare class LLMTokenUsage extends BaseClient {
 /**
  * A simple key value object that represents a label.
  */
-declare class Label extends BaseClient {
+declare class Label extends BaseClient$1 {
     private readonly _id?;
     private readonly _name?;
     private readonly _value?;
     /**
      * Constructor is used for internal usage only, do not create object from it.
      */
-    constructor(ctx?: Context, _id?: ID, _name?: string, _value?: string);
+    constructor(ctx?: Context$1, _id?: ID, _name?: string, _value?: string);
     /**
      * A unique identifier for this Label.
      */
@@ -9622,12 +7135,12 @@ declare class Label extends BaseClient {
 /**
  * A definition of a list type in a Module.
  */
-declare class ListTypeDef extends BaseClient {
+declare class ListTypeDef extends BaseClient$1 {
     private readonly _id?;
     /**
      * Constructor is used for internal usage only, do not create object from it.
      */
-    constructor(ctx?: Context, _id?: ID);
+    constructor(ctx?: Context$1, _id?: ID);
     /**
      * A unique identifier for this ListTypeDef.
      */
@@ -9640,7 +7153,7 @@ declare class ListTypeDef extends BaseClient {
 /**
  * A Dagger module.
  */
-declare class Module_ extends BaseClient {
+declare class Module_ extends BaseClient$1 {
     private readonly _id?;
     private readonly _description?;
     private readonly _name?;
@@ -9649,7 +7162,7 @@ declare class Module_ extends BaseClient {
     /**
      * Constructor is used for internal usage only, do not create object from it.
      */
-    constructor(ctx?: Context, _id?: ID, _description?: string, _name?: string, _serve?: Void, _sync?: ID);
+    constructor(ctx?: Context$1, _id?: ID, _description?: string, _name?: string, _serve?: Void, _sync?: ID);
     /**
      * A unique identifier for this Module.
      */
@@ -9707,8 +7220,7 @@ declare class Module_ extends BaseClient {
      *
      * Note: this can only be called once per session. In the future, it could return a stream or service to remove the side effect.
      * @param opts.includeDependencies Expose the dependencies of this module to the client
-     * @param opts.main Install the module as the workspace main, promoting its main-object methods onto the Query root
-     * @param opts.entrypoint Compatibility alias for main.
+     * @param opts.entrypoint Install the module as the entrypoint, promoting its main-object methods onto the Query root
      */
     serve: (opts?: ModuleServeOpts) => Promise<void>;
     /**
@@ -9750,14 +7262,14 @@ declare class Module_ extends BaseClient {
 /**
  * The client generated for the module.
  */
-declare class ModuleConfigClient extends BaseClient {
+declare class ModuleConfigClient extends BaseClient$1 {
     private readonly _id?;
     private readonly _directory?;
     private readonly _generator?;
     /**
      * Constructor is used for internal usage only, do not create object from it.
      */
-    constructor(ctx?: Context, _id?: ID, _directory?: string, _generator?: string);
+    constructor(ctx?: Context$1, _id?: ID, _directory?: string, _generator?: string);
     /**
      * A unique identifier for this ModuleConfigClient.
      */
@@ -9774,7 +7286,7 @@ declare class ModuleConfigClient extends BaseClient {
 /**
  * The source needed to load and run a module, along with any metadata about the source such as versions/urls/etc.
  */
-declare class ModuleSource extends BaseClient {
+declare class ModuleSource extends BaseClient$1 {
     private readonly _id?;
     private readonly _asString?;
     private readonly _cloneRef?;
@@ -9798,7 +7310,7 @@ declare class ModuleSource extends BaseClient {
     /**
      * Constructor is used for internal usage only, do not create object from it.
      */
-    constructor(ctx?: Context, _id?: ID, _asString?: string, _cloneRef?: string, _commit?: string, _configExists?: boolean, _digest?: string, _engineVersion?: string, _htmlRepoURL?: string, _htmlURL?: string, _kind?: ModuleSourceKind, _localContextDirectoryPath?: string, _moduleName?: string, _moduleOriginalName?: string, _originalSubpath?: string, _pin?: string, _repoRootPath?: string, _sourceRootSubpath?: string, _sourceSubpath?: string, _sync?: ID, _version?: string);
+    constructor(ctx?: Context$1, _id?: ID, _asString?: string, _cloneRef?: string, _commit?: string, _configExists?: boolean, _digest?: string, _engineVersion?: string, _htmlRepoURL?: string, _htmlURL?: string, _kind?: ModuleSourceKind, _localContextDirectoryPath?: string, _moduleName?: string, _moduleOriginalName?: string, _originalSubpath?: string, _pin?: string, _repoRootPath?: string, _sourceRootSubpath?: string, _sourceSubpath?: string, _sync?: ID, _version?: string);
     /**
      * A unique identifier for this ModuleSource.
      */
@@ -10061,47 +7573,23 @@ declare class ModuleSource extends BaseClient {
     with: (arg: (param: ModuleSource) => ModuleSource) => ModuleSource;
 }
 /**
- * An entry in the naming dictionary.
- */
-declare class NamingTerm extends BaseClient {
-    private readonly _id?;
-    private readonly _capitalized?;
-    private readonly _spelling?;
-    /**
-     * Constructor is used for internal usage only, do not create object from it.
-     */
-    constructor(ctx?: Context, _id?: ID, _capitalized?: string, _spelling?: string);
-    /**
-     * A unique identifier for this NamingTerm.
-     */
-    id: () => Promise<ID>;
-    /**
-     * Spelling in the CAPITALIZED style: "Http", "Ipv6", "GitHub", "Ios".
-     */
-    capitalized: () => Promise<string>;
-    /**
-     * Standard spelling: "HTTP", "IPv6", "GitHub", "iOS".
-     */
-    spelling: () => Promise<string>;
-}
-/**
  * An object with a globally unique ID.
  */
 interface Node {
     id(): Promise<ID>;
 }
-declare class _NodeClient extends BaseClient {
+declare class _NodeClient extends BaseClient$1 {
     private readonly _id?;
     /**
      * Constructor is used for internal usage only, do not create object from it.
      */
-    constructor(ctx?: Context, _id?: ID);
+    constructor(ctx?: Context$1, _id?: ID);
     id: () => Promise<ID>;
 }
 /**
  * A definition of a custom object defined in a Module.
  */
-declare class ObjectTypeDef extends BaseClient {
+declare class ObjectTypeDef extends BaseClient$1 {
     private readonly _id?;
     private readonly _deprecated?;
     private readonly _description?;
@@ -10110,7 +7598,7 @@ declare class ObjectTypeDef extends BaseClient {
     /**
      * Constructor is used for internal usage only, do not create object from it.
      */
-    constructor(ctx?: Context, _id?: ID, _deprecated?: string, _description?: string, _name?: string, _sourceModuleName?: string);
+    constructor(ctx?: Context$1, _id?: ID, _deprecated?: string, _description?: string, _name?: string, _sourceModuleName?: string);
     /**
      * A unique identifier for this ObjectTypeDef.
      */
@@ -10151,7 +7639,7 @@ declare class ObjectTypeDef extends BaseClient {
 /**
  * A port exposed by a container.
  */
-declare class Port extends BaseClient {
+declare class Port extends BaseClient$1 {
     private readonly _id?;
     private readonly _description?;
     private readonly _experimentalSkipHealthcheck?;
@@ -10160,7 +7648,7 @@ declare class Port extends BaseClient {
     /**
      * Constructor is used for internal usage only, do not create object from it.
      */
-    constructor(ctx?: Context, _id?: ID, _description?: string, _experimentalSkipHealthcheck?: boolean, _port?: number, _protocol?: NetworkProtocol);
+    constructor(ctx?: Context$1, _id?: ID, _description?: string, _experimentalSkipHealthcheck?: boolean, _port?: number, _protocol?: NetworkProtocol);
     /**
      * A unique identifier for this Port.
      */
@@ -10185,7 +7673,7 @@ declare class Port extends BaseClient {
 /**
  * The root of the DAG.
  */
-declare class Client extends BaseClient {
+declare class Client extends BaseClient$1 {
     private readonly _id?;
     private readonly _currentTimestamp?;
     private readonly _defaultPlatform?;
@@ -10195,11 +7683,11 @@ declare class Client extends BaseClient {
     /**
      * Constructor is used for internal usage only, do not create object from it.
      */
-    constructor(ctx?: Context, _id?: ID, _currentTimestamp?: string, _defaultPlatform?: Platform, _serveModule?: Void, _setSessionTitle?: Void, _version?: string);
+    constructor(ctx?: Context$1, _id?: ID, _currentTimestamp?: string, _defaultPlatform?: Platform, _serveModule?: Void, _setSessionTitle?: Void, _version?: string);
     /**
      * Get the Raw GraphQL client.
      */
-    getGQLClient(): GraphQLClient;
+    getGQLClient(): graphql_request.GraphQLClient;
     /**
      * A unique identifier for this Query.
      */
@@ -10263,7 +7751,7 @@ declare class Client extends BaseClient {
     /**
      * The TypeDef representations of the objects currently being served in the session.
      * @param opts.returnAllTypes Return the full referenced typedef closure instead of only top-level served typedefs.
-     * @param opts.hideCore Strip core API functions from the Query type, leaving only module-sourced functions (constructors, workspace main proxies, etc.).
+     * @param opts.hideCore Strip core API functions from the Query type, leaving only module-sourced functions (constructors, entrypoint proxies, etc.).
      *
      * Core types (Container, Directory, etc.) are kept so return types and method chaining still work.
      */
@@ -10309,15 +7797,6 @@ declare class Client extends BaseClient {
      */
     file: (name: string, contents: string, opts?: ClientFileOpts) => File;
     /**
-     * Format many names at once, for codegen. Returns them in input order.
-     * @param names The names to format, in any casing.
-     * @param casing The casing to format the names in.
-     * @param opts.acronyms How to write acronyms and terms where a word starts with a capital.
-     * @param opts.version The engine version whose naming dictionary to parse the names with, e.g. the __schemaVersion of a schema being generated. Defaults to the caller's engine version.
-     * @experimental
-     */
-    formatIdentifiers: (names: string[], casing: Casing, opts?: ClientFormatIdentifiersOpts) => Promise<string[]>;
-    /**
      * Creates a function.
      * @param name Name of the function, in its original format from the implementation language.
      * @param returnType Return type of the function.
@@ -10358,14 +7837,6 @@ declare class Client extends BaseClient {
      */
     http: (url: string, opts?: ClientHttpOpts) => File;
     /**
-     * Parse a name in any casing into words.
-     *
-     * Known acronyms and terms come from the naming dictionary; everything else falls back to the case heuristic. Errors on non-ASCII input, input with no letters or digits, or input over 256 bytes.
-     * @param name The name to parse.
-     * @experimental
-     */
-    identifier: (name: string) => Identifier;
-    /**
      * Initialize a JSON value
      */
     json: () => JSONValue;
@@ -10376,13 +7847,6 @@ declare class Client extends BaseClient {
      * @experimental
      */
     llm: (opts?: ClientLLMOpts) => LLM;
-    /**
-     * Start an empty run of text and media content, independent of any conversation.
-     *
-     * Add blocks with withText, withFile, and withData. A function exposed as an LLM tool can return the content to give the model text and media as the tool's result, e.g. a caption and a screenshot for the model to look at.
-     * @experimental
-     */
-    llmContent: () => LLMContent;
     /**
      * Create a new module.
      */
@@ -10397,11 +7861,6 @@ declare class Client extends BaseClient {
      * @param opts.requireKind If set, error out if the ref string is not of the provided requireKind.
      */
     moduleSource: (refString: string, opts?: ClientModuleSourceOpts) => ModuleSource;
-    /**
-     * The acronyms and terms used to parse and format identifiers.
-     * @experimental
-     */
-    namingDictionary: () => Promise<NamingTerm[]>;
     /**
      * Load any object by its ID.
      */
@@ -10478,12 +7937,12 @@ declare class Client extends BaseClient {
 /**
  * An internal persistent bare git mirror.
  */
-declare class RemoteGitMirror extends BaseClient {
+declare class RemoteGitMirror extends BaseClient$1 {
     private readonly _id?;
     /**
      * Constructor is used for internal usage only, do not create object from it.
      */
-    constructor(ctx?: Context, _id?: ID);
+    constructor(ctx?: Context$1, _id?: ID);
     /**
      * A unique identifier for this RemoteGitMirror.
      */
@@ -10492,14 +7951,14 @@ declare class RemoteGitMirror extends BaseClient {
 /**
  * The SDK config of the module.
  */
-declare class SDKConfig extends BaseClient {
+declare class SDKConfig extends BaseClient$1 {
     private readonly _id?;
     private readonly _debug?;
     private readonly _source?;
     /**
      * Constructor is used for internal usage only, do not create object from it.
      */
-    constructor(ctx?: Context, _id?: ID, _debug?: boolean, _source?: string);
+    constructor(ctx?: Context$1, _id?: ID, _debug?: boolean, _source?: string);
     /**
      * A unique identifier for this SDKConfig.
      */
@@ -10516,7 +7975,7 @@ declare class SDKConfig extends BaseClient {
 /**
  * A definition of a custom scalar defined in a Module.
  */
-declare class ScalarTypeDef extends BaseClient {
+declare class ScalarTypeDef extends BaseClient$1 {
     private readonly _id?;
     private readonly _description?;
     private readonly _name?;
@@ -10524,7 +7983,7 @@ declare class ScalarTypeDef extends BaseClient {
     /**
      * Constructor is used for internal usage only, do not create object from it.
      */
-    constructor(ctx?: Context, _id?: ID, _description?: string, _name?: string, _sourceModuleName?: string);
+    constructor(ctx?: Context$1, _id?: ID, _description?: string, _name?: string, _sourceModuleName?: string);
     /**
      * A unique identifier for this ScalarTypeDef.
      */
@@ -10545,13 +8004,13 @@ declare class ScalarTypeDef extends BaseClient {
 /**
  * A GraphQL introspection schema that can be inspected and merged.
  */
-declare class Schema extends BaseClient {
+declare class Schema extends BaseClient$1 {
     private readonly _id?;
     private readonly _contents?;
     /**
      * Constructor is used for internal usage only, do not create object from it.
      */
-    constructor(ctx?: Context, _id?: ID, _contents?: JSON);
+    constructor(ctx?: Context$1, _id?: ID, _contents?: JSON);
     /**
      * A unique identifier for this Schema.
      */
@@ -10573,7 +8032,7 @@ declare class Schema extends BaseClient {
      */
     with: (arg: (param: Schema) => Schema) => Schema;
 }
-declare class SearchResult extends BaseClient {
+declare class SearchResult extends BaseClient$1 {
     private readonly _id?;
     private readonly _absoluteOffset?;
     private readonly _filePath?;
@@ -10582,7 +8041,7 @@ declare class SearchResult extends BaseClient {
     /**
      * Constructor is used for internal usage only, do not create object from it.
      */
-    constructor(ctx?: Context, _id?: ID, _absoluteOffset?: number, _filePath?: string, _lineNumber?: number, _matchedLines?: string);
+    constructor(ctx?: Context$1, _id?: ID, _absoluteOffset?: number, _filePath?: string, _lineNumber?: number, _matchedLines?: string);
     /**
      * A unique identifier for this SearchResult.
      */
@@ -10608,7 +8067,7 @@ declare class SearchResult extends BaseClient {
      */
     submatches: () => Promise<SearchSubmatch[]>;
 }
-declare class SearchSubmatch extends BaseClient {
+declare class SearchSubmatch extends BaseClient$1 {
     private readonly _id?;
     private readonly _end?;
     private readonly _start?;
@@ -10616,7 +8075,7 @@ declare class SearchSubmatch extends BaseClient {
     /**
      * Constructor is used for internal usage only, do not create object from it.
      */
-    constructor(ctx?: Context, _id?: ID, _end?: number, _start?: number, _text?: string);
+    constructor(ctx?: Context$1, _id?: ID, _end?: number, _start?: number, _text?: string);
     /**
      * A unique identifier for this SearchSubmatch.
      */
@@ -10637,7 +8096,7 @@ declare class SearchSubmatch extends BaseClient {
 /**
  * A reference to a secret value, which can be handled more safely than the value itself.
  */
-declare class Secret extends BaseClient {
+declare class Secret extends BaseClient$1 {
     private readonly _id?;
     private readonly _name?;
     private readonly _plaintext?;
@@ -10645,7 +8104,7 @@ declare class Secret extends BaseClient {
     /**
      * Constructor is used for internal usage only, do not create object from it.
      */
-    constructor(ctx?: Context, _id?: ID, _name?: string, _plaintext?: string, _uri?: string);
+    constructor(ctx?: Context$1, _id?: ID, _name?: string, _plaintext?: string, _uri?: string);
     /**
      * A unique identifier for this Secret.
      */
@@ -10666,7 +8125,7 @@ declare class Secret extends BaseClient {
 /**
  * A content-addressed service providing TCP connectivity.
  */
-declare class Service extends BaseClient {
+declare class Service extends BaseClient$1 {
     private readonly _id?;
     private readonly _endpoint?;
     private readonly _hostname?;
@@ -10677,7 +8136,7 @@ declare class Service extends BaseClient {
     /**
      * Constructor is used for internal usage only, do not create object from it.
      */
-    constructor(ctx?: Context, _id?: ID, _endpoint?: string, _hostname?: string, _start?: ID, _stop?: ID, _sync?: ID, _up?: Void);
+    constructor(ctx?: Context$1, _id?: ID, _endpoint?: string, _hostname?: string, _start?: ID, _stop?: ID, _sync?: ID, _up?: Void);
     /**
      * A unique identifier for this Service.
      */
@@ -10740,12 +8199,12 @@ declare class Service extends BaseClient {
 /**
  * A Unix or TCP/IP socket that can be mounted into a container.
  */
-declare class Socket extends BaseClient {
+declare class Socket extends BaseClient$1 {
     private readonly _id?;
     /**
      * Constructor is used for internal usage only, do not create object from it.
      */
-    constructor(ctx?: Context, _id?: ID);
+    constructor(ctx?: Context$1, _id?: ID);
     /**
      * A unique identifier for this Socket.
      */
@@ -10754,7 +8213,7 @@ declare class Socket extends BaseClient {
 /**
  * Source location information.
  */
-declare class SourceMap extends BaseClient {
+declare class SourceMap extends BaseClient$1 {
     private readonly _id?;
     private readonly _column?;
     private readonly _filename?;
@@ -10764,7 +8223,7 @@ declare class SourceMap extends BaseClient {
     /**
      * Constructor is used for internal usage only, do not create object from it.
      */
-    constructor(ctx?: Context, _id?: ID, _column?: number, _filename?: string, _line?: number, _module?: string, _url?: string);
+    constructor(ctx?: Context$1, _id?: ID, _column?: number, _filename?: string, _line?: number, _module?: string, _url?: string);
     /**
      * A unique identifier for this SourceMap.
      */
@@ -10793,7 +8252,7 @@ declare class SourceMap extends BaseClient {
 /**
  * A file or directory status object.
  */
-declare class Stat extends BaseClient {
+declare class Stat extends BaseClient$1 {
     private readonly _id?;
     private readonly _fileType?;
     private readonly _name?;
@@ -10802,7 +8261,7 @@ declare class Stat extends BaseClient {
     /**
      * Constructor is used for internal usage only, do not create object from it.
      */
-    constructor(ctx?: Context, _id?: ID, _fileType?: FileType, _name?: string, _permissions?: number, _size?: number);
+    constructor(ctx?: Context$1, _id?: ID, _fileType?: FileType, _name?: string, _permissions?: number, _size?: number);
     /**
      * A unique identifier for this Stat.
      */
@@ -10833,26 +8292,26 @@ interface Syncer {
     id(): Promise<ID>;
     sync(): Promise<Syncer>;
 }
-declare class _SyncerClient extends BaseClient {
+declare class _SyncerClient extends BaseClient$1 {
     private readonly _id?;
     private readonly _sync?;
     /**
      * Constructor is used for internal usage only, do not create object from it.
      */
-    constructor(ctx?: Context, _id?: ID, _sync?: ID);
+    constructor(ctx?: Context$1, _id?: ID, _sync?: ID);
     id: () => Promise<ID>;
     sync: () => Promise<Syncer>;
 }
 /**
  * An interactive terminal that clients can connect to.
  */
-declare class Terminal extends BaseClient {
+declare class Terminal extends BaseClient$1 {
     private readonly _id?;
     private readonly _sync?;
     /**
      * Constructor is used for internal usage only, do not create object from it.
      */
-    constructor(ctx?: Context, _id?: ID, _sync?: ID);
+    constructor(ctx?: Context$1, _id?: ID, _sync?: ID);
     /**
      * A unique identifier for this Terminal.
      */
@@ -10867,7 +8326,7 @@ declare class Terminal extends BaseClient {
 /**
  * A definition of a parameter or return type in a Module.
  */
-declare class TypeDef extends BaseClient {
+declare class TypeDef extends BaseClient$1 {
     private readonly _id?;
     private readonly _kind?;
     private readonly _name?;
@@ -10875,7 +8334,7 @@ declare class TypeDef extends BaseClient {
     /**
      * Constructor is used for internal usage only, do not create object from it.
      */
-    constructor(ctx?: Context, _id?: ID, _kind?: TypeDefKind, _name?: string, _optional?: boolean);
+    constructor(ctx?: Context$1, _id?: ID, _kind?: TypeDefKind, _name?: string, _optional?: boolean);
     /**
      * A unique identifier for this TypeDef.
      */
@@ -11016,12 +8475,12 @@ declare class TypeDef extends BaseClient {
 /**
  * A filesystem volume that can be mounted into containers.
  */
-declare class Volume extends BaseClient {
+declare class Volume extends BaseClient$1 {
     private readonly _id?;
     /**
      * Constructor is used for internal usage only, do not create object from it.
      */
-    constructor(ctx?: Context, _id?: ID);
+    constructor(ctx?: Context$1, _id?: ID);
     /**
      * A unique identifier for this Volume.
      */
@@ -11030,7 +8489,7 @@ declare class Volume extends BaseClient {
 /**
  * A Dagger workspace detected from the current working directory or constructed from a Directory.
  */
-declare class Workspace extends BaseClient {
+declare class Workspace extends BaseClient$1 {
     private readonly _id?;
     private readonly _address?;
     private readonly _configFile?;
@@ -11040,11 +8499,10 @@ declare class Workspace extends BaseClient {
     private readonly _entrypoint?;
     private readonly _export?;
     private readonly _findUp?;
-    private readonly _main?;
     /**
      * Constructor is used for internal usage only, do not create object from it.
      */
-    constructor(ctx?: Context, _id?: ID, _address?: string, _configFile?: string, _configRead?: string, _cwd?: string, _detectScope?: string, _entrypoint?: string, _export?: Void, _findUp?: string, _main?: string);
+    constructor(ctx?: Context$1, _id?: ID, _address?: string, _configFile?: string, _configRead?: string, _cwd?: string, _detectScope?: string, _entrypoint?: string, _export?: Void, _findUp?: string);
     /**
      * A unique identifier for this Workspace.
      */
@@ -11055,8 +8513,6 @@ declare class Workspace extends BaseClient {
     address: () => Promise<string>;
     /**
      * Discover static object artifacts from workspace modules without evaluating their values.
-     *
-     * Omits the paths that the workspace's check.skip, generate.skip, and up.skip settings skip.
      * @param opts.include Only include artifacts matching these path patterns, as with checks and services. A path selects that path and its children.
      */
     artifacts: (opts?: WorkspaceArtifactsOpts) => Artifacts;
@@ -11118,8 +8574,9 @@ declare class Workspace extends BaseClient {
      */
     directory: (path: string, opts?: WorkspaceDirectoryOpts) => Directory;
     /**
-     * Compatibility alias for main.
-     * @deprecated Use main.
+     * Installed name of the module selected as the workspace entrypoint, or an empty string when none is selected.
+     *
+     * Reflects the selected env's effective view. Fails if several modules are selected.
      */
     entrypoint: () => Promise<string>;
     /**
@@ -11179,12 +8636,6 @@ declare class Workspace extends BaseClient {
      * @param pattern Pattern to match (e.g., "*.md").
      */
     glob: (pattern: string) => Promise<string[]>;
-    /**
-     * Installed name of the module selected as the workspace main, or an empty string when none is selected.
-     *
-     * Reflects the selected env's effective view. Fails if several modules are selected.
-     */
-    main: () => Promise<string>;
     /**
      * Plan the explicit migration needed for the current workspace.
      *
@@ -11354,9 +8805,10 @@ declare class Workspace extends BaseClient {
      */
     withDirectory: (path: string, source: Directory) => Workspace;
     /**
-     * Compatibility alias for withMain.
+     * Return this workspace with an installed module selected as its entrypoint.
+     *
+     * Every other entrypoint selection is cleared. Entrypoints live in the base workspace config.
      * @param name Exact installed module name.
-     * @deprecated Use withMain.
      */
     withEntrypoint: (name: string) => Workspace;
     /**
@@ -11374,8 +8826,7 @@ declare class Workspace extends BaseClient {
      * @param opts.name Module name. The engine infers it from path, the active config file, or the workspace root when omitted.
      * @param opts.path Module path relative to the workspace cwd, or an absolute workspace path. Defaults to .dagger/modules/<name> beside the active workspace config.
      * @param opts.install Install the module. When omitted, install only if path is omitted.
-     * @param opts.main Select this module as the workspace main and install it. False prevents automatic selection. When omitted, select only if both path and name are omitted and the module is installed.
-     * @param opts.entrypoint Compatibility alias for main.
+     * @param opts.entrypoint Select this module as the entrypoint and install it. False prevents automatic selection. When omitted, select only if both path and name are omitted and the module is installed.
      * @param opts.settings Explicit SDK-module constructor setting overrides for this scope.
      */
     withInitModule: (sdk: string, opts?: WorkspaceWithInitModuleOpts) => Workspace;
@@ -11385,13 +8836,6 @@ declare class Workspace extends BaseClient {
      * Fail if legacy configuration needs workspace migration.
      */
     withInitialized: () => Workspace;
-    /**
-     * Return this workspace with an installed module selected as its main.
-     *
-     * Every other main selection is cleared. The main module lives in the base workspace config.
-     * @param name Exact installed module name.
-     */
-    withMain: (name: string) => Workspace;
     /**
      * Return this workspace with a module installed in its config.
      *
@@ -11433,15 +8877,6 @@ declare class Workspace extends BaseClient {
      */
     withNewFile: (path: string, contents: string, opts?: WorkspaceWithNewFileOpts) => Workspace;
     /**
-     * Return this workspace with the given Git-compatible patch file applied, without mutating the source.
-     *
-     * Paths in the patch are relative to the workspace root, whatever its cwd, as `git diff` writes them. Patching a path at or under a mount is an error.
-     * @param patch File containing the patch to apply
-     * @param opts.onConflict How to handle hunks that no longer apply to the target content: fail (default), or apply what fits and leave git-style conflict markers where it doesn't.
-     * @experimental
-     */
-    withPatchFile: (patch: File, opts?: WorkspaceWithPatchFileOpts) => Workspace;
-    /**
      * Move this workspace's Git HEAD to a commit and return the resulting stable workspace.
      *
      * A local workspace is snapshotted automatically before resetting; untracked files require interactive approval. The host checkout is not modified. By default the difference between the previous working tree and the target commit stays uncommitted, as with git reset --mixed, so history can be reworked and reapplied with withCommit — e.g. to amend the latest commit message, reset to its parent and commit again.
@@ -11480,22 +8915,13 @@ declare class Workspace extends BaseClient {
      */
     withUpdatedLock: (opts?: WorkspaceWithUpdatedLockOpts) => Workspace;
     /**
-     * Return this workspace with updated module sources, versions and lockfile state.
+     * Return this workspace with updated module versions and lockfile state.
      *
      * An SDK client scope is regenerated when it targets an updated module.
      * @param opts.names Installed module names or sources. A version suffix sets a new request. An empty list refreshes all installed modules.
      * @param opts.version New version request for exactly one selected module. Cannot be combined with a version suffix.
-     * @param opts.source New source for exactly one selected module. Resolved like an install source. Cannot be combined with a version or a version suffix.
      */
     withUpdatedModules: (opts?: WorkspaceWithUpdatedModulesOpts) => Workspace;
-    /**
-     * Return this workspace with the calling client's user-level config re-read and applied.
-     *
-     * User-level config (the [workspaces.*] section of the Dagger config file) is read when a session loads its workspace, and snapshots keep that configuration. Call this to pick up edits made since, for example when an agent reloads its modules.
-     *
-     * The entry is matched by the workspace's git origin remote. A workspace without one, or without a matching entry, gets no user-level config.
-     */
-    withUserConfig: () => Workspace;
     /**
      * Return this workspace with its working directory pointed at the given workspace-relative path.
      * @param path Workspace-relative path to use as the working directory.
@@ -11533,8 +8959,7 @@ declare class Workspace extends BaseClient {
      */
     withoutDirectory: (path: string) => Workspace;
     /**
-     * Compatibility alias for withoutMain.
-     * @deprecated Use withoutMain.
+     * Return this workspace with no module selected as its entrypoint.
      */
     withoutEntrypoint: () => Workspace;
     /**
@@ -11542,15 +8967,6 @@ declare class Workspace extends BaseClient {
      * @param path Path of the file to remove. Relative paths resolve from the workspace cwd.
      */
     withoutFile: (path: string) => Workspace;
-    /**
-     * Return this workspace with files removed, without mutating the source.
-     * @param paths Paths of the files to remove. Relative paths resolve from the workspace cwd.
-     */
-    withoutFiles: (paths: string[]) => Workspace;
-    /**
-     * Return this workspace with no module selected as its main.
-     */
-    withoutMain: () => Workspace;
     /**
      * Return this workspace with a module removed from its config.
      *
@@ -11582,14 +8998,14 @@ declare class Workspace extends BaseClient {
 /**
  * A source commit classified against the receiving workspace.
  */
-declare class WorkspaceCommitPick extends BaseClient {
+declare class WorkspaceCommitPick extends BaseClient$1 {
     private readonly _id?;
     private readonly _reason?;
     private readonly _status?;
     /**
      * Constructor is used for internal usage only, do not create object from it.
      */
-    constructor(ctx?: Context, _id?: ID, _reason?: WorkspaceCommitPickReason, _status?: WorkspaceCommitPickStatus);
+    constructor(ctx?: Context$1, _id?: ID, _reason?: WorkspaceCommitPickReason, _status?: WorkspaceCommitPickStatus);
     /**
      * A unique identifier for this WorkspaceCommitPick.
      */
@@ -11614,12 +9030,12 @@ declare class WorkspaceCommitPick extends BaseClient {
 /**
  * Local git state for a workspace.
  */
-declare class WorkspaceGit extends BaseClient {
+declare class WorkspaceGit extends BaseClient$1 {
     private readonly _id?;
     /**
      * Constructor is used for internal usage only, do not create object from it.
      */
-    constructor(ctx?: Context, _id?: ID);
+    constructor(ctx?: Context$1, _id?: ID);
     /**
      * A unique identifier for this WorkspaceGit.
      */
@@ -11644,13 +9060,13 @@ declare class WorkspaceGit extends BaseClient {
 /**
  * A planned workspace migration.
  */
-declare class WorkspaceMigration extends BaseClient {
+declare class WorkspaceMigration extends BaseClient$1 {
     private readonly _id?;
     private readonly _configFile?;
     /**
      * Constructor is used for internal usage only, do not create object from it.
      */
-    constructor(ctx?: Context, _id?: ID, _configFile?: string);
+    constructor(ctx?: Context$1, _id?: ID, _configFile?: string);
     /**
      * A unique identifier for this WorkspaceMigration.
      */
@@ -11675,14 +9091,14 @@ declare class WorkspaceMigration extends BaseClient {
 /**
  * A single logical part of a workspace migration.
  */
-declare class WorkspaceMigrationStep extends BaseClient {
+declare class WorkspaceMigrationStep extends BaseClient$1 {
     private readonly _id?;
     private readonly _code?;
     private readonly _description?;
     /**
      * Constructor is used for internal usage only, do not create object from it.
      */
-    constructor(ctx?: Context, _id?: ID, _code?: string, _description?: string);
+    constructor(ctx?: Context$1, _id?: ID, _code?: string, _description?: string);
     /**
      * A unique identifier for this WorkspaceMigrationStep.
      */
@@ -11707,33 +9123,27 @@ declare class WorkspaceMigrationStep extends BaseClient {
 /**
  * A module entry in the workspace configuration.
  */
-declare class WorkspaceModule extends BaseClient {
+declare class WorkspaceModule extends BaseClient$1 {
     private readonly _id?;
     private readonly _entrypoint?;
-    private readonly _main?;
     private readonly _name?;
     private readonly _source?;
     /**
      * Constructor is used for internal usage only, do not create object from it.
      */
-    constructor(ctx?: Context, _id?: ID, _entrypoint?: boolean, _main?: boolean, _name?: string, _source?: string);
+    constructor(ctx?: Context$1, _id?: ID, _entrypoint?: boolean, _name?: string, _source?: string);
     /**
      * A unique identifier for this WorkspaceModule.
      */
     id: () => Promise<ID>;
     /**
-     * Compatibility alias for main.
-     * @deprecated Use main.
+     * Whether the module is the workspace entrypoint (functions aliased to Query root).
      */
     entrypoint: () => Promise<boolean>;
     /**
      * List the functions of this module's main object, in GraphQL field form.
      */
     functions: () => Promise<string[]>;
-    /**
-     * Whether the module is the workspace main (functions aliased to Query root).
-     */
-    main: () => Promise<boolean>;
     /**
      * The module name.
      */
@@ -11750,7 +9160,7 @@ declare class WorkspaceModule extends BaseClient {
 /**
  * A constructor-backed module setting.
  */
-declare class WorkspaceModuleSetting extends BaseClient {
+declare class WorkspaceModuleSetting extends BaseClient$1 {
     private readonly _id?;
     private readonly _defaultValue?;
     private readonly _description?;
@@ -11762,7 +9172,7 @@ declare class WorkspaceModuleSetting extends BaseClient {
     /**
      * Constructor is used for internal usage only, do not create object from it.
      */
-    constructor(ctx?: Context, _id?: ID, _defaultValue?: string, _description?: string, _isList?: boolean, _isObject?: boolean, _isString?: boolean, _key?: string, _value?: string);
+    constructor(ctx?: Context$1, _id?: ID, _defaultValue?: string, _description?: string, _isList?: boolean, _isObject?: boolean, _isString?: boolean, _key?: string, _value?: string);
     /**
      * A unique identifier for this WorkspaceModuleSetting.
      */
@@ -11799,14 +9209,14 @@ declare class WorkspaceModuleSetting extends BaseClient {
 /**
  * An installed SDK: a module marked for scaffolding other modules and clients.
  */
-declare class WorkspaceSDK extends BaseClient {
+declare class WorkspaceSDK extends BaseClient$1 {
     private readonly _id?;
     private readonly _name?;
     private readonly _ref?;
     /**
      * Constructor is used for internal usage only, do not create object from it.
      */
-    constructor(ctx?: Context, _id?: ID, _name?: string, _ref?: string);
+    constructor(ctx?: Context$1, _id?: ID, _name?: string, _ref?: string);
     /**
      * A unique identifier for this WorkspaceSDK.
      */
@@ -12173,7 +9583,82 @@ type CallbackFct = (client: Client) => Promise<void>;
  * GraphQL client to execute query on it through its callback.
  * This implementation is based on the existing Go SDK.
  */
-declare function connect(cb: CallbackFct, config?: ConnectOpts): Promise<void>;
+declare function connect(cb: CallbackFct, config?: ConnectOpts$1): Promise<void>;
+
+/**
+ * Wraps the GraphQL client to allow lazy initialization and setting
+ * the GQL client of the global Dagger client instance (`dag`).
+ */
+declare class Connection {
+    private _gqlClient?;
+    constructor(_gqlClient?: GraphQLClient | undefined);
+    private _served;
+    resetClient(): void;
+    setGQLClient(gqlClient: GraphQLClient): void;
+    getGQLClient(): GraphQLClient;
+    /**
+     * Run `serve` the first time `key` is seen in this session and remember the
+     * result, so a generated client can ensure its module is served before its
+     * first query without serving it again on every call.
+     */
+    ensureServed(key: string, serve: () => Promise<void>): Promise<void>;
+}
+
+type QueryTree = {
+    operation: string;
+    args?: Record<string, unknown>;
+    inlineType?: string;
+};
+
+/**
+ * A module a generated client serves into the session before its first query.
+ * `key` memoizes the serve per session (the module's ref or path); `run`
+ * performs it, through a context that carries no serve of its own so it cannot
+ * recurse.
+ */
+type ServeSpec = {
+    key: string;
+    run: () => Promise<void>;
+};
+declare class Context {
+    private _queryTree;
+    private _connection;
+    private _serve?;
+    constructor(_queryTree?: QueryTree[], _connection?: Connection, _serve?: ServeSpec | undefined);
+    getGQLClient(): GraphQLClient;
+    copy(): Context;
+    select(operation: string, args?: Record<string, unknown>): Context;
+    /**
+     * Select via node(id:) with an inline fragment on the given type.
+     * Produces: node(id: "...") { ... on TypeName { children } }
+     */
+    selectNode(id: string, typeName: string): Context;
+    /**
+     * Return a copy of this context that serves `spec`'s module before the first
+     * query on it (or on any context derived from it) runs. Used by a generated
+     * module client to bind its own module to its `dag`.
+     */
+    withServe(spec: ServeSpec): Context;
+    execute<T>(): Promise<T>;
+}
+/**
+ * Common base class for every generated API class (Client, Container, and
+ * dependency-contributed types).
+ *
+ * It lives here in the SDK runtime rather than in the generated client.gen.ts
+ * so that per-dependency generated files (e.g. hello.gen.ts) can `extends
+ * BaseClient` without importing a value from client.gen.ts — client.gen.ts
+ * `export *`s those dep files, so a value import would create an ESM cycle.
+ * client.gen.ts re-exports BaseClient to keep `import { BaseClient } from
+ * "./client.gen.js"` working for existing consumers.
+ */
+declare class BaseClient {
+    protected _ctx: Context;
+    /**
+     * @hidden
+     */
+    constructor(_ctx?: Context);
+}
 
 type Class = {
     new (...args: any[]): any;
@@ -12304,5 +9789,5 @@ declare const enumType: () => (<T extends Class>(constructor: T) => T);
  */
 declare const argument: (opts?: ArgumentOptions) => ((target: object, propertyKey: string | undefined, parameterIndex: number) => void);
 
-export { AcronymStyle, AcronymStyleNameToValue, AcronymStyleValueToName, Address, Agent, AgentMessage, AgentMessageDelivery, AgentMessageDeliveryNameToValue, AgentMessageDeliveryValueToName, AgentState, AgentStateNameToValue, AgentStateValueToName, Artifact, ArtifactDimension, ArtifactDimensionKey, ArtifactDimensionKind, ArtifactDimensionKindNameToValue, ArtifactDimensionKindValueToName, ArtifactPath, ArtifactResult, Artifacts, BaseClient, CacheSharingMode, CacheSharingModeNameToValue, CacheSharingModeValueToName, CacheVolume, Casing, CasingNameToValue, CasingValueToName, Changeset, ChangesetMergeConflict, ChangesetMergeConflictNameToValue, ChangesetMergeConflictValueToName, ChangesetsMergeConflict, ChangesetsMergeConflictNameToValue, ChangesetsMergeConflictValueToName, Check, Client, ClientFilesyncMirror, Cloud, CollectionDelta, CollectionTypeDef, Command, Container, Context, CurrentModule, DaggerSDKError, DiffStat, DiffStatKind, DiffStatKindNameToValue, DiffStatKindValueToName, Directory, DockerImageRefValidationError, ERROR_CODES, Engine, EngineCache, EngineCacheEntry, EngineCacheEntrySet, EngineSessionConnectParamsParseError, EngineSessionConnectionTimeoutError, EngineSessionError, EnumTypeDef, EnumValueTypeDef, EnvFile, EnvVariable, Error$1 as Error, ErrorValue, ExecError, ExistsType, ExistsTypeNameToValue, ExistsTypeValueToName, Expertise, FieldTypeDef, File, FileType, FileTypeNameToValue, FileTypeValueToName, FunctionArg, FunctionCachePolicy, FunctionCachePolicyNameToValue, FunctionCachePolicyValueToName, FunctionCall, FunctionCallArgValue, FunctionNotFound, Function_, GeneratedCode, Generator, GitBundle, GitBundleRef, GitCommit, GitPushDisposition, GitPushDispositionNameToValue, GitPushDispositionValueToName, GitPushResult, GitRef, GitRemote, GitRepository, GraphQLClient, GraphQLRequestError, HTTPState, HealthcheckConfig, Host, Identifier, IdentifierWord, IdentifierWordKind, IdentifierWordKindNameToValue, IdentifierWordKindValueToName, ImageLayerCompression, ImageLayerCompressionNameToValue, ImageLayerCompressionValueToName, ImageMediaTypes, ImageMediaTypesNameToValue, ImageMediaTypesValueToName, InitEngineSessionBinaryError, InputTypeDef, InterfaceTypeDef, IntrospectionError, JSONValue, LLM, LLMContent, LLMContentBlock, LLMContentBlockKind, LLMContentBlockKindNameToValue, LLMContentBlockKindValueToName, LLMMessage, LLMMessageOrigin, LLMMessageOriginKind, LLMMessageOriginKindNameToValue, LLMMessageOriginKindValueToName, LLMMessageRole, LLMMessageRoleNameToValue, LLMMessageRoleValueToName, LLMSkill, LLMTokenUsage, Label, ListTypeDef, ModuleConfigClient, ModuleSource, ModuleSourceExperimentalFeature, ModuleSourceExperimentalFeatureNameToValue, ModuleSourceExperimentalFeatureValueToName, ModuleSourceKind, ModuleSourceKindNameToValue, ModuleSourceKindValueToName, Module_, NamingTerm, NetworkProtocol, NetworkProtocolNameToValue, NetworkProtocolValueToName, NotAwaitedRequestError, ObjectTypeDef, PatchConflict, PatchConflictNameToValue, PatchConflictValueToName, Port, RegistryProtocol, RegistryProtocolNameToValue, RegistryProtocolValueToName, RemoteGitMirror, ReturnType, ReturnTypeNameToValue, ReturnTypeValueToName, SDKConfig, ScalarTypeDef, Schema, SearchResult, SearchSubmatch, Secret, Service, Socket, SourceMap, Stat, Terminal, TooManyNestedObjectsError, TypeDef, TypeDefKind, TypeDefKindNameToValue, TypeDefKindValueToName, UnknownDaggerError, Volume, Workspace, WorkspaceCommitPick, WorkspaceCommitPickReason, WorkspaceCommitPickReasonNameToValue, WorkspaceCommitPickReasonValueToName, WorkspaceCommitPickStatus, WorkspaceCommitPickStatusNameToValue, WorkspaceCommitPickStatusValueToName, WorkspaceGit, WorkspaceMigration, WorkspaceMigrationStep, WorkspaceModule, WorkspaceModuleSetting, WorkspaceSDK, _ExportableClient, _NodeClient, _SyncerClient, agent, argument, check, collection, connect, connection, dag, delta, enumType, field, func, generate, get, getRegisteredClass, getTracer, keys, object, up };
-export type { AddressContainerOpts, AddressDirectoryOpts, AddressFileOpts, AddressGitRefOpts, AgentNotifyOpts, AgentPauseOpts, AgentSendOpts, AgentStopOpts, ArtifactUriOpts, ArtifactValueOpts, ArtifactsFilterDirectivesOpts, ArtifactsFilterParentDirectivesOpts, ArtifactsFilterParentTypesOpts, ArtifactsFilterTypesOpts, ArtifactsPathDefinitionsOpts, ArtifactsValuesOpts, BuildArg, Bytes, CallbackFct, ChangesetFilterOpts, ChangesetWithChangesetOpts, ChangesetWithChangesetsOpts, ClientBlobOpts, ClientCacheVolumeOpts, ClientContainerOpts, ClientCurrentTypeDefsOpts, ClientEngineVolumeOpts, ClientEnvFileOpts, ClientFileOpts, ClientFormatIdentifiersOpts, ClientGitOpts, ClientHttpOpts, ClientLLMOpts, ClientModuleSourceOpts, ClientSecretOpts, ClientServeModuleOpts, ClientSshfsVolumeOpts, ConnectOpts, ContainerAsServiceOpts, ContainerAsTarballOpts, ContainerDirectoryOpts, ContainerExistsOpts, ContainerExportImageOpts, ContainerExportOpts, ContainerFileOpts, ContainerFromOpts, ContainerImportOpts, ContainerLayerOpts, ContainerManifestOpts, ContainerPublishOpts, ContainerShellOpts, ContainerStatOpts, ContainerTerminalOpts, ContainerUpOpts, ContainerWithDefaultTerminalCmdOpts, ContainerWithDirectoryOpts, ContainerWithDockerHealthcheckOpts, ContainerWithEntrypointOpts, ContainerWithEnvVariableOpts, ContainerWithExecOpts, ContainerWithExposedPortOpts, ContainerWithFileOpts, ContainerWithFilesOpts, ContainerWithMountedCacheOpts, ContainerWithMountedDirectoryOpts, ContainerWithMountedFileOpts, ContainerWithMountedSecretOpts, ContainerWithMountedTempOpts, ContainerWithMountedVolumeOpts, ContainerWithNewFileOpts, ContainerWithRunOpts, ContainerWithShellOpts, ContainerWithSymlinkOpts, ContainerWithUnixSocketOpts, ContainerWithWorkdirOpts, ContainerWithoutDirectoryOpts, ContainerWithoutEntrypointOpts, ContainerWithoutExposedPortOpts, ContainerWithoutFileOpts, ContainerWithoutFilesOpts, ContainerWithoutMountOpts, ContainerWithoutUnixSocketOpts, CurrentModuleWorkdirOpts, DirectoryAsModuleOpts, DirectoryAsModuleSourceOpts, DirectoryAsWorkspaceOpts, DirectoryDockerBuildOpts, DirectoryEntriesOpts, DirectoryExistsOpts, DirectoryExportOpts, DirectoryFilterOpts, DirectorySearchOpts, DirectoryStatOpts, DirectoryTerminalOpts, DirectoryWithDirectoryOpts, DirectoryWithFileOpts, DirectoryWithFilesOpts, DirectoryWithNewDirectoryOpts, DirectoryWithNewFileOpts, DirectoryWithPatchFileOpts, DirectoryWithPatchOpts, EngineCacheEntrySetOpts, EngineCachePruneOpts, EnvFileGetOpts, EnvFileVariablesOpts, Exportable, FileAsEnvFileOpts, FileContentsOpts, FileDigestOpts, FileExportOpts, FileSearchOpts, FileWithReplacedOpts, FunctionWithArgOpts, FunctionWithCachePolicyOpts, FunctionWithDeprecatedOpts, GitCommitAncestorReleaseTagOpts, GitCommitChangesOpts, GitCommitReleaseTagOpts, GitCommitTreeOpts, GitRefAsWorkspaceOpts, GitRefLogOpts, GitRefPushOpts, GitRefTreeOpts, GitRefWithCommitOpts, GitRepositoryAsWorkspaceOpts, GitRepositoryBranchOpts, GitRepositoryBranchesOpts, GitRepositoryBundleOpts, GitRepositoryHeadOpts, GitRepositoryLatestOpts, GitRepositoryRefOpts, GitRepositoryTagOpts, GitRepositoryTagsOpts, GitRepositoryWithBundleOpts, GitRepositoryWithRemoteOpts, HostDirectoryOpts, HostFileOpts, HostFindUpOpts, HostServiceOpts, HostTunnelOpts, ID, IdentifierFormatOpts, JSON, JSONValueContentsOpts, LLMArtifactsOpts, LLMContentBlockInput, LLMContentWithFileOpts, LLMLoopOpts, LLMMessageOriginInput, LLMSpawnOpts, LLMStepOpts, LLMWithContentFileOpts, LLMWithContentOpts, LLMWithModelOpts, LLMWithPromptOpts, LLMWithResponseOpts, LLMWithToolResultOpts, LLMWithToolsOpts, ModuleServeOpts, Node, PipelineLabel, Platform, PortForward, ServiceEndpointOpts, ServicePortsOpts, ServiceStopOpts, ServiceTerminalOpts, ServiceUpOpts, Syncer, TypeDefWithEnumMemberOpts, TypeDefWithEnumOpts, TypeDefWithEnumValueOpts, TypeDefWithFieldOpts, TypeDefWithInterfaceOpts, TypeDefWithObjectOpts, TypeDefWithScalarOpts, Void, WorkspaceArtifactsOpts, WorkspaceChangesOpts, WorkspaceCompareCommitsFromOpts, WorkspaceConfigReadOpts, WorkspaceDirectoryOpts, WorkspaceExportOpts, WorkspaceFindRootsOpts, WorkspaceFindUpOpts, WorkspaceMigrateModuleOpts, WorkspaceMigrateOpts, WorkspaceSearchOpts, WorkspaceWithClientOpts, WorkspaceWithCommitOpts, WorkspaceWithCommitsFromOpts, WorkspaceWithConfigEnvOpts, WorkspaceWithConfigValueOpts, WorkspaceWithFileOpts, WorkspaceWithInitModuleOpts, WorkspaceWithModuleOpts, WorkspaceWithNewFileOpts, WorkspaceWithPatchFileOpts, WorkspaceWithResetOpts, WorkspaceWithSdkOpts, WorkspaceWithUpdatedClientsOpts, WorkspaceWithUpdatedLockOpts, WorkspaceWithUpdatedModulesOpts, WorkspaceWithoutClientOpts, WorkspaceWithoutConfigEnvOpts, WorkspaceWithoutConfigValueOpts, WorkspaceWithoutModuleOpts, WorkspaceWithoutSdkOpts, __DirectiveArgsOpts, __FieldArgsOpts, __TypeEnumValuesOpts, __TypeFieldsOpts, __TypeInputFieldsOpts, float };
+export { Address, Agent, AgentMessage, AgentMessageDelivery, AgentMessageDeliveryNameToValue, AgentMessageDeliveryValueToName, AgentState, AgentStateNameToValue, AgentStateValueToName, Artifact, ArtifactDimension, ArtifactDimensionKey, ArtifactDimensionKind, ArtifactDimensionKindNameToValue, ArtifactDimensionKindValueToName, ArtifactPath, ArtifactResult, Artifacts, BaseClient, CacheSharingMode, CacheSharingModeNameToValue, CacheSharingModeValueToName, CacheVolume, Changeset, ChangesetMergeConflict, ChangesetMergeConflictNameToValue, ChangesetMergeConflictValueToName, ChangesetsMergeConflict, ChangesetsMergeConflictNameToValue, ChangesetsMergeConflictValueToName, Check, Client, ClientFilesyncMirror, Cloud, CollectionDelta, CollectionTypeDef, Command, Container, Context, CurrentModule, DaggerSDKError, DiffStat, DiffStatKind, DiffStatKindNameToValue, DiffStatKindValueToName, Directory, DockerImageRefValidationError, ERROR_CODES, Engine, EngineCache, EngineCacheEntry, EngineCacheEntrySet, EngineSessionConnectParamsParseError, EngineSessionConnectionTimeoutError, EngineSessionError, EnumTypeDef, EnumValueTypeDef, EnvFile, EnvVariable, Error$1 as Error, ErrorValue, ExecError, ExistsType, ExistsTypeNameToValue, ExistsTypeValueToName, Expertise, FieldTypeDef, File, FileType, FileTypeNameToValue, FileTypeValueToName, FunctionArg, FunctionCachePolicy, FunctionCachePolicyNameToValue, FunctionCachePolicyValueToName, FunctionCall, FunctionCallArgValue, FunctionNotFound, Function_, GeneratedCode, Generator, GitBundle, GitBundleRef, GitCommit, GitPushDisposition, GitPushDispositionNameToValue, GitPushDispositionValueToName, GitPushResult, GitRef, GitRepository, GraphQLRequestError, HTTPState, HealthcheckConfig, Host, ImageLayerCompression, ImageLayerCompressionNameToValue, ImageLayerCompressionValueToName, ImageMediaTypes, ImageMediaTypesNameToValue, ImageMediaTypesValueToName, InitEngineSessionBinaryError, InputTypeDef, InterfaceTypeDef, IntrospectionError, JSONValue, LLM, LLMContentBlock, LLMContentBlockKind, LLMContentBlockKindNameToValue, LLMContentBlockKindValueToName, LLMMessage, LLMMessageOrigin, LLMMessageOriginKind, LLMMessageOriginKindNameToValue, LLMMessageOriginKindValueToName, LLMMessageRole, LLMMessageRoleNameToValue, LLMMessageRoleValueToName, LLMSkill, LLMTokenUsage, Label, ListTypeDef, ModuleConfigClient, ModuleSource, ModuleSourceExperimentalFeature, ModuleSourceExperimentalFeatureNameToValue, ModuleSourceExperimentalFeatureValueToName, ModuleSourceKind, ModuleSourceKindNameToValue, ModuleSourceKindValueToName, Module_, NetworkProtocol, NetworkProtocolNameToValue, NetworkProtocolValueToName, NotAwaitedRequestError, ObjectTypeDef, PatchConflict, PatchConflictNameToValue, PatchConflictValueToName, Port, RegistryProtocol, RegistryProtocolNameToValue, RegistryProtocolValueToName, RemoteGitMirror, ReturnType, ReturnTypeNameToValue, ReturnTypeValueToName, SDKConfig, ScalarTypeDef, Schema, SearchResult, SearchSubmatch, Secret, Service, Socket, SourceMap, Stat, Terminal, TooManyNestedObjectsError, TypeDef, TypeDefKind, TypeDefKindNameToValue, TypeDefKindValueToName, UnknownDaggerError, Volume, Workspace, WorkspaceCommitPick, WorkspaceCommitPickReason, WorkspaceCommitPickReasonNameToValue, WorkspaceCommitPickReasonValueToName, WorkspaceCommitPickStatus, WorkspaceCommitPickStatusNameToValue, WorkspaceCommitPickStatusValueToName, WorkspaceGit, WorkspaceMigration, WorkspaceMigrationStep, WorkspaceModule, WorkspaceModuleSetting, WorkspaceSDK, _ExportableClient, _NodeClient, _SyncerClient, agent, argument, check, collection, connect, connection, dag, delta, enumType, field, func, generate, get, getRegisteredClass, getTracer, keys, object, up };
+export type { AddressDirectoryOpts, AddressFileOpts, AgentNotifyOpts, AgentPauseOpts, AgentSendOpts, AgentStopOpts, ArtifactUriOpts, ArtifactValueOpts, ArtifactsFilterDirectivesOpts, ArtifactsFilterParentDirectivesOpts, ArtifactsFilterParentTypesOpts, ArtifactsFilterTypesOpts, ArtifactsPathDefinitionsOpts, ArtifactsValuesOpts, BuildArg, Bytes, CallbackFct, ChangesetFilterOpts, ChangesetWithChangesetOpts, ChangesetWithChangesetsOpts, ClientBlobOpts, ClientCacheVolumeOpts, ClientContainerOpts, ClientCurrentTypeDefsOpts, ClientEngineVolumeOpts, ClientEnvFileOpts, ClientFileOpts, ClientGitOpts, ClientHttpOpts, ClientLLMOpts, ClientModuleSourceOpts, ClientSecretOpts, ClientServeModuleOpts, ClientSshfsVolumeOpts, ConnectOpts, ContainerAsServiceOpts, ContainerAsTarballOpts, ContainerDirectoryOpts, ContainerExistsOpts, ContainerExportImageOpts, ContainerExportOpts, ContainerFileOpts, ContainerFromOpts, ContainerImportOpts, ContainerLayerOpts, ContainerManifestOpts, ContainerPublishOpts, ContainerShellOpts, ContainerStatOpts, ContainerTerminalOpts, ContainerUpOpts, ContainerWithDefaultTerminalCmdOpts, ContainerWithDirectoryOpts, ContainerWithDockerHealthcheckOpts, ContainerWithEntrypointOpts, ContainerWithEnvVariableOpts, ContainerWithExecOpts, ContainerWithExposedPortOpts, ContainerWithFileOpts, ContainerWithFilesOpts, ContainerWithMountedCacheOpts, ContainerWithMountedDirectoryOpts, ContainerWithMountedFileOpts, ContainerWithMountedSecretOpts, ContainerWithMountedTempOpts, ContainerWithMountedVolumeOpts, ContainerWithNewFileOpts, ContainerWithRunOpts, ContainerWithShellOpts, ContainerWithSymlinkOpts, ContainerWithUnixSocketOpts, ContainerWithWorkdirOpts, ContainerWithoutDirectoryOpts, ContainerWithoutEntrypointOpts, ContainerWithoutExposedPortOpts, ContainerWithoutFileOpts, ContainerWithoutFilesOpts, ContainerWithoutMountOpts, ContainerWithoutUnixSocketOpts, CurrentModuleWorkdirOpts, DirectoryAsModuleOpts, DirectoryAsModuleSourceOpts, DirectoryAsWorkspaceOpts, DirectoryDockerBuildOpts, DirectoryEntriesOpts, DirectoryExistsOpts, DirectoryExportOpts, DirectoryFilterOpts, DirectorySearchOpts, DirectoryStatOpts, DirectoryTerminalOpts, DirectoryWithDirectoryOpts, DirectoryWithFileOpts, DirectoryWithFilesOpts, DirectoryWithNewDirectoryOpts, DirectoryWithNewFileOpts, DirectoryWithPatchFileOpts, DirectoryWithPatchOpts, EngineCacheEntrySetOpts, EngineCachePruneOpts, EnvFileGetOpts, EnvFileVariablesOpts, Exportable, FileAsEnvFileOpts, FileContentsOpts, FileDigestOpts, FileExportOpts, FileSearchOpts, FileWithReplacedOpts, FunctionWithArgOpts, FunctionWithCachePolicyOpts, FunctionWithDeprecatedOpts, GitCommitAncestorReleaseTagOpts, GitCommitChangesOpts, GitCommitReleaseTagOpts, GitCommitTreeOpts, GitRefAsWorkspaceOpts, GitRefLogOpts, GitRefPushOpts, GitRefTreeOpts, GitRefWithCommitOpts, GitRepositoryAsWorkspaceOpts, GitRepositoryBranchesOpts, GitRepositoryBundleOpts, GitRepositoryLatestOpts, GitRepositoryTagsOpts, GitRepositoryWithBundleOpts, GitRepositoryWithRemoteOpts, HostDirectoryOpts, HostFileOpts, HostFindUpOpts, HostServiceOpts, HostTunnelOpts, ID, JSON, JSONValueContentsOpts, LLMContentBlockInput, LLMLoopOpts, LLMMessageOriginInput, LLMSpawnOpts, LLMStepOpts, LLMWithContentFileOpts, LLMWithContentOpts, LLMWithModelOpts, LLMWithPromptOpts, LLMWithResponseOpts, LLMWithToolResultOpts, LLMWithToolsOpts, ModuleServeOpts, Node, PipelineLabel, Platform, PortForward, ServiceEndpointOpts, ServicePortsOpts, ServiceStopOpts, ServiceTerminalOpts, ServiceUpOpts, Syncer, TypeDefWithEnumMemberOpts, TypeDefWithEnumOpts, TypeDefWithEnumValueOpts, TypeDefWithFieldOpts, TypeDefWithInterfaceOpts, TypeDefWithObjectOpts, TypeDefWithScalarOpts, Void, WorkspaceArtifactsOpts, WorkspaceChangesOpts, WorkspaceCompareCommitsFromOpts, WorkspaceConfigReadOpts, WorkspaceDirectoryOpts, WorkspaceExportOpts, WorkspaceFindRootsOpts, WorkspaceFindUpOpts, WorkspaceMigrateModuleOpts, WorkspaceMigrateOpts, WorkspaceSearchOpts, WorkspaceWithClientOpts, WorkspaceWithCommitOpts, WorkspaceWithCommitsFromOpts, WorkspaceWithConfigEnvOpts, WorkspaceWithConfigValueOpts, WorkspaceWithFileOpts, WorkspaceWithInitModuleOpts, WorkspaceWithModuleOpts, WorkspaceWithNewFileOpts, WorkspaceWithResetOpts, WorkspaceWithSdkOpts, WorkspaceWithUpdatedClientsOpts, WorkspaceWithUpdatedLockOpts, WorkspaceWithUpdatedModulesOpts, WorkspaceWithoutClientOpts, WorkspaceWithoutConfigEnvOpts, WorkspaceWithoutConfigValueOpts, WorkspaceWithoutModuleOpts, WorkspaceWithoutSdkOpts, __DirectiveArgsOpts, __FieldArgsOpts, __TypeEnumValuesOpts, __TypeFieldsOpts, __TypeInputFieldsOpts, float };

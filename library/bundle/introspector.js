@@ -98403,6 +98403,9 @@ import ts4 from "typescript";
 import * as path8 from "path";
 import ts3 from "typescript";
 
+// src/session/index.ts
+init_errors();
+
 // src/session/graphql/compute_query.ts
 init_main();
 init_errors();
@@ -106450,7 +106453,6 @@ function resolveTypeDef(typeDef, reference) {
   throw new IntrospectionError(`type ${JSON.stringify(typeDef)} has already been resolved, it should not be overwritten ; reference: ${JSON.stringify(reference)}`);
 }
 // src/module/registry.ts
-init_errors();
 var import_reflect_metadata = __toESM(require_Reflect(), 1);
 class Registry {
   collection = () => this.object();
