@@ -60,17 +60,6 @@ type TypescriptSdk {
   legacyRuntime: Boolean! = false
 
   """
-  Whether this scope is generated as an entrypoint module.
-
-  The inverse of `legacyRuntime`, named for the loading path rather than the
-  setting: every branch below picks between the two halves of generation, and
-  the entrypoint is the half each one is about.
-  """
-  let entrypoint: Boolean! {
-    legacyRuntime == false
-  }
-
-  """
   packageManager pin for package.json, as `name@version` or just `name`. Empty
   writes no field. Node only; Bun and Deno bundle their own.
   """
@@ -233,7 +222,7 @@ type TypescriptSdk {
       # The entrypoint manifest is written on every run rather than only when the
       # scope has none: rewriting one that exists is what lets an existing module
       # be flipped onto an entrypoint by turning the setting on.
-      let configured = if (entrypoint) {
+      let configured = if (legacyRuntime == false) {
         withEntrypointManifest(seeded, scope, name, hasToml)
       } else if (hasToml) {
         seeded
@@ -252,7 +241,7 @@ type TypescriptSdk {
       # rather than no answer: sourceSubpath comes back unset, moduleSourcePath
       # reads that as ".", and generation then looks for src/ at the workspace
       # root instead of inside the module.
-      let source = if (entrypoint) { scope } else { moduleSourcePath(configured, scope) }
+      let source = if (legacyRuntime == false) { scope } else { moduleSourcePath(configured, scope) }
       let rt = effectiveRuntime(configured, source)
       # The same targets feed the module's runtime dependencies and its clients/
       # directory — the per-module client files its own source imports and any
@@ -267,7 +256,7 @@ type TypescriptSdk {
       # would not add a dependency, it would fail the generation. The
       # consequence is real and has no workaround here: a module with an
       # entrypoint cannot serve a client yet.
-      let served = if (entrypoint) {
+      let served = if (legacyRuntime == false) {
         configured
       } else {
         withClientDependencies(configured, scope, clients)
@@ -293,7 +282,7 @@ type TypescriptSdk {
       # loose clients/ file reached by tsconfig alias — that path predates the
       # opt-in and stays as it was. A module that cannot load yet contributes
       # nothing; its next generation repairs it.
-      let selfTargets = if (entrypoint == false or selfRecorded) { selfClientTarget(staged, scope, name) } else { [] }
+      let selfTargets = if (legacyRuntime or selfRecorded) { selfClientTarget(staged, scope, name) } else { [] }
       let withSelf = externalTargets + selfTargets
       let complete = moduleFiles(
         served,
@@ -304,7 +293,7 @@ type TypescriptSdk {
         # could not read the module's client set has no business pruning
         # bindings it could not re-render. The entrypoint path loads through the
         # Dang literals and is never in that position.
-        entrypoint or selfTargets.length > 0,
+        legacyRuntime == false or selfTargets.length > 0,
       )
 
       # The workspace-level .dagger/core an earlier layout shared is gone: every
@@ -897,7 +886,7 @@ type TypescriptSdk {
     # Under an entrypoint each client nests in its own package directory and the
     # loader imports it relatively; the embedded [runtime] layout keeps the flat
     # clients/<m>.gen.ts files its tsconfig aliases point at.
-    let layoutArgs = if (entrypoint) { ["--packaged-clients"] } else { ["--flat-clients"] }
+    let layoutArgs = if (legacyRuntime == false) { ["--packaged-clients"] } else { ["--flat-clients"] }
 
     withTargets
       .withExec([
@@ -1111,7 +1100,7 @@ type TypescriptSdk {
     # client files are staged flat beside it — packaged clients flattened out of
     # their package directories. This tree is a throwaway; only typedef.json is
     # read back.
-    let staged = if (entrypoint) {
+    let staged = if (legacyRuntime == false) {
       packagedClientNames(clients).reduce(sdk) { acc, name =>
         acc.withFile(name + ".gen.ts", clients.file(name + "/" + name + ".gen.ts"))
       }
@@ -1248,8 +1237,8 @@ type TypescriptSdk {
     # The embedded layout's sdk/ carries the client files and the loader flat
     # beside client.gen.ts: sdk/ is the one directory the builtin runtime mounts
     # into node_modules, and it cannot be told to mount anything else.
-    let sdk = if (entrypoint) { moduleSdkDirectory(bindings) } else { embeddedSdkDirectory(bindings) }
-    let clients = if (entrypoint) { moduleClientsDirectory(bindings) } else { directory }
+    let sdk = if (legacyRuntime == false) { moduleSdkDirectory(bindings) } else { embeddedSdkDirectory(bindings) }
+    let clients = if (legacyRuntime == false) { moduleClientsDirectory(bindings) } else { directory }
     let typedef = moduleTypedefJSON(moduleName, source, sdk, clients)
     let clientNames = bindingAliasModules(bindings)
 
@@ -1258,7 +1247,7 @@ type TypescriptSdk {
     # clients/dagger/ — the identical shape a client-only scope generates — and
     # the loader among them. The embedded [runtime] layout ships everything
     # inside sdk/, resolved by tsconfig alias.
-    let base = if (entrypoint) {
+    let base = if (legacyRuntime == false) {
       directory
         .withDirectory("clients", withClientPackageManifests(clients, clientNames))
         .withDirectory("clients/dagger", corePackage(bindings))
@@ -1300,7 +1289,7 @@ type TypescriptSdk {
   beside client.gen.ts in the bindings root.
   """
   let bindingAliasModules(bindings: Directory!): [String!]! {
-    if (entrypoint) {
+    if (legacyRuntime == false) {
       packagedClientNames(moduleClientsDirectory(bindings))
     } else {
       bindings.entries
@@ -1337,12 +1326,12 @@ type TypescriptSdk {
       # Deno resolves through its import map, so under an entrypoint the map
       # points at the packages: core at ./clients/dagger, each client in its
       # package directory (the trailing slash selects that form).
-      let denoCore = if (entrypoint) { "./clients/dagger" } else { "" }
-      let denoClientsDir = if (entrypoint) { "clients/" } else { "sdk" }
+      let denoCore = if (legacyRuntime == false) { "./clients/dagger" } else { "" }
+      let denoClientsDir = if (legacyRuntime == false) { "clients/" } else { "sdk" }
       configUpdater
         .withExec(["config-updater", "deno-config", "/existing/deno.json", "/out/deno.json", denoCore, denoClientsDir] + aliasModules)
         .directory("/out")
-    } else if (entrypoint) {
+    } else if (legacyRuntime == false) {
       # package.json is the link: node/bun resolve every @dagger.io/* package
       # through node_modules after an install, so the tsconfig carries no path
       # alias at all — "-" writes none and removes one an earlier layout left.
@@ -1394,7 +1383,7 @@ type TypescriptSdk {
     # Only the entrypoint recipe installs anything, and detection reads
     # package.json through a container — so a `[runtime]` module does not pay
     # for an answer nothing would bake.
-    let pkgManager = if (entrypoint) { effectivePackageManager(ws, sourcePath, rt) } else { "" }
+    let pkgManager = if (legacyRuntime == false) { effectivePackageManager(ws, sourcePath, rt) } else { "" }
 
     moduleDirectory(
       ws.moduleSource("/" + scope).introspectionSchemaJSON.contents,
@@ -1447,7 +1436,7 @@ type TypescriptSdk {
   permissions they were rendered with.
   """
   let moduleFiles(ws: Workspace!, sourcePath: String!, generated: Directory!, pruneStale: Boolean!): Workspace! {
-    if (entrypoint) {
+    if (legacyRuntime == false) {
       # clients/ is fully generated under an entrypoint, so anything in it this
       # run does not render is stale and removed. Earlier layouts are taken with
       # it: the embedded sdk/, a loader or client packages left at the module
@@ -1547,7 +1536,7 @@ type TypescriptSdk {
     let existing = existingDir(ws, sourcePath)
     let prefix = if (sourcePath == ".") { "/" } else { "/" + sourcePath + "/" }
 
-    if (entrypoint) {
+    if (legacyRuntime == false) {
       if (existing.exists(legacyEntrypointFile)) {
         ws.withoutFile(prefix + legacyEntrypointFile)
       } else {
@@ -1670,7 +1659,7 @@ type TypescriptSdk {
       # and rewrites the loader. The config re-runs against the user's ORIGINAL
       # files, not the first pass's output, so nothing the first pass — which
       # does not know the self client's name — decided about the config sticks.
-      if (entrypoint) {
+      if (legacyRuntime == false) {
         let clients = moduleClientsDirectory(bindings)
         generated
           .withoutDirectory("clients")
