@@ -100,12 +100,18 @@ otherwise — matching where the engine reads it from.
 
 `--legacy-runtime` picks the loading path, and a module is on one of them: by
 default it declares an `[entrypoint]` and carries `entrypoint/main.dang` plus
-the `__dagger.dispatch.ts` that program runs, which only an engine carrying
-[dagger/dagger#14038][manifest-v2] can load. Pass the flag for an older engine
-and the module declares a `[runtime]` with the `__dagger.entrypoint.ts` that
-runtime execs instead. Moving an existing module onto an entrypoint drops
+the `__dagger.dispatch.ts` that program runs, which needs an engine carrying
+[dagger/dagger#14038][manifest-v2] — `v1.0.0-beta.15` or newer. Pass the flag
+for an older engine and the module declares a `[runtime]` with the
+`__dagger.entrypoint.ts` that runtime execs instead. Moving an existing module onto an entrypoint drops
 `engineVersion`, `source` and `[[dependencies]]` with the `[runtime]` they hang
 off.
+
+Pass it on a current engine too, for now: #14038 gates the entrypoint path on a
+`manifestVersion` that the manifest builder has no field for, so an
+`[entrypoint]` manifest written here reads as a runtime-less module and does not
+load anywhere yet. The default is what the generated tree *should* be; the flag
+is what runs today.
 
 [manifest-v2]: https://github.com/dagger/dagger/pull/14038
 
