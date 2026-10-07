@@ -378,6 +378,22 @@ type RegistryChecks {
   }
 
   """
+  Everything a check publishes, as one directory — one package per subdirectory,
+  named by its id.
+
+  Built before the registry rather than inside it, because the registry is keyed on
+  it. The same list then drives the publishing, so the key and the packages cannot
+  come apart.
+  """
+  let staged(label: String!, pkgs: [PublishedPackage!]!): Directory! {
+    # The label sits at the top level, where publishing never looks — only the
+    # per-package subdirectories are published. It exists to reach the digest.
+    pkgs
+      .reduce(directory) { tree, pkg => tree.withDirectory(pkg.id, pkg.dir) }
+      .withNewFile("consumer", label + "\n")
+  }
+
+  """
   Install the published package under one runtime and report which of its loaders
   can import it.
 
