@@ -319,7 +319,8 @@ type TypescriptSdk {
       migrated.withWorkdir(scope)
     } else {
       # A client-only scope: clients/<module> packages under the scope, with the
-      # scope's own clients/dagger beside them, wired through its package.json.
+      # scope's own clients/dagger beside them, wired through its package.json —
+      # or its deno.json, for a Deno project.
       withoutLegacyWorkspaceCore(clientScope(ws, scope, clientTargets(ws, clients)), configDir(ws))
     }
   }
@@ -2057,21 +2058,28 @@ type TypescriptSdk {
 
   """
   Generate a client-only scope: its clients/ directory of installable packages,
-  the scope's own core among them, wired through the scope's package.json.
+  the scope's own core among them, wired through the scope's own config.
+
+  Which config is the link follows the runtime, detected the way a module's is
+  (a deno.json means Deno): node and bun resolve a package through node_modules
+  after an install, so package.json names each as a file: dependency, while
+  Deno resolves through its import map and gets the same entries as aliases in
+  deno.json — see withScopeClientLinks for why the two cannot share a file.
 
   What this SDK generated into clients/ and does not render this run is
   removed, and only that: the rest of the scope is the user's and untouched,
   and so is anything of theirs under clients/. A scope whose last client leaves
-  loses the packages and its file: deps — and the directory itself only when
-  nothing else was in it.
+  loses the packages and its config entries — and the directory itself only
+  when nothing else was in it.
   """
   let clientScope(ws: Workspace!, base: String!, targets: [ClientTarget!]!): Workspace! {
     let dir = scopeFile(base, "clients")
+    let rt = effectiveRuntime(ws, base)
 
     if (targets.length == 0) {
       # Nothing rendered, so every owned file is stale.
       let cleared = prunedOwnedFiles(ws, dir, directory)
-      withScopeClientDeps(withoutLegacyScopeClients(prunedClientPackages(cleared, base, []), base), base, [])
+      withScopeClientLinks(withoutLegacyScopeClients(prunedClientPackages(cleared, base, []), base), base, rt, [])
     } else {
       let generated = clientDirectory(generateClientBindings(targets, scopeRepoURL(ws, base, targets)))
       let modules = packagedClientNames(generated)
@@ -2080,9 +2088,9 @@ type TypescriptSdk {
       # .dagger/clients directory of the layout before that.
       let migrated = withoutLegacyScopeClients(prunedClientPackages(ws, base, []), base)
       let written = writeChanged(prunedOwnedFiles(migrated, dir, generated), dir, generated)
-      # package.json is the link: the scope's manifest names its core and each
-      # client as file: dependencies, so `npm install` in the scope wires them.
-      withScopeClientDeps(written, base, modules)
+      # The scope's config is the link: it names its core and each client the
+      # way the runtime resolves them, so the scope's own code imports them.
+      withScopeClientLinks(written, base, rt, modules)
     }
   }
 
@@ -2100,9 +2108,31 @@ type TypescriptSdk {
   }
 
   """
-  Wire a client-only scope's package.json to its clients/dagger core and each
-  generated client, all as file: dependencies. Preserves the rest of the user's
-  manifest; with no clients left, the SDK's own deps are pruned instead.
+  Wire a client-only scope's config to its clients/dagger core and each
+  generated client, in the one file its runtime resolves through.
+
+  Deno resolves through its import map, not node_modules, so package.json is
+  the wrong link for a Deno scope — and worse than useless: Deno reads a
+  package.json beside deno.json as "bring your own node_modules" and then
+  expects an install nothing runs, so the scope's imports fail to resolve and
+  its `deno check` asks for an @types/node nobody declared. A Deno scope is
+  wired through deno.json alone, a node or bun scope through package.json alone.
+  """
+  let withScopeClientLinks(ws: Workspace!, scope: String!, rt: Runtime!, modules: [String!]!): Workspace! {
+    if (rt == Runtime.DENO) {
+      withScopeClientImports(ws, scope, modules)
+    } else {
+      withScopeClientDeps(ws, scope, modules)
+    }
+  }
+
+  """
+  Wire a node or bun client-only scope's package.json to its clients/dagger
+  core and each generated client, all as file: dependencies — the link for the
+  runtimes that resolve a package through node_modules after an install.
+  Preserves the rest of the user's manifest; with no clients left, the SDK's
+  own deps are pruned instead. Never for a Deno scope, which resolves through
+  its import map: withScopeClientImports is its link.
   """
   let withScopeClientDeps(ws: Workspace!, scope: String!, modules: [String!]!): Workspace! {
     let pkgPath = scopeFile(scope, "package.json")
@@ -2117,6 +2147,34 @@ type TypescriptSdk {
       .file("/out/package.json")
 
     writeChanged(ws, scope, directory.withFile("package.json", updated))
+  }
+
+  """
+  Wire a Deno client-only scope's deno.json to its clients/dagger core and each
+  generated client, as import-map aliases, plus the unstable flags the library
+  needs under Deno: core.js imports node builtins bare, index.ts reaches
+  client.gen.ts through a .js specifier, and the provisioning path uses Node's
+  timers. The same flags a Deno module gets, so a Deno scope behaves the same
+  whichever kind it is. Preserves the rest of the user's config; with no
+  clients left, the SDK's own aliases and flags are pruned instead — and a
+  scope that never had a deno.json is not given one just to prune it.
+  """
+  let withScopeClientImports(ws: Workspace!, scope: String!, modules: [String!]!): Workspace! {
+    let cfgPath = scopeFile(scope, "deno.json")
+    let existing = ws.directory("/", include: [cfgPath])
+    let core = if (modules.length == 0) { "-" } else { "./clients/dagger" }
+
+    if (modules.length == 0 and existing.exists(cfgPath) == false) {
+      ws
+    } else {
+      let updated = configUpdaterBuilder
+        .withDirectory("/existing", if (existing.exists(scope)) { existing.directory(scope) } else { directory })
+        .withDirectory("/out", directory)
+        .withExec(["config-updater", "deno-deps", "/existing/deno.json", "/out/deno.json", core, "clients/"] + modules)
+        .file("/out/deno.json")
+
+      writeChanged(ws, scope, directory.withFile("deno.json", updated))
+    }
   }
 
   """

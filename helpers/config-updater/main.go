@@ -72,6 +72,17 @@ func run(args []string) error {
 			return fmt.Errorf("usage: config-updater deno-config INPUT_PATH OUTPUT_PATH CORE_DIR CLIENTS_DIR [MODULE...]")
 		}
 		updated, err = updateDenoConfig(input, extra[0], extra[1], extra[2:])
+	case "deno-deps":
+		// deno-deps INPUT OUTPUT CORE_DIR CLIENTS_DIR [MODULE...]
+		//
+		// The deno.json counterpart of shared-deps: wire a client scope to its
+		// vendored core and client packages as import-map aliases — Deno resolves
+		// through the map, not node_modules — plus the unstable flags the library
+		// needs under Deno. CORE_DIR "-" prunes everything this writer owns.
+		if len(extra) < 2 {
+			return fmt.Errorf("usage: config-updater deno-deps INPUT_PATH OUTPUT_PATH CORE_DIR CLIENTS_DIR [MODULE...]")
+		}
+		updated, err = updateDenoDeps(input, extra[0], extra[1], extra[2:])
 	case "shared-deps":
 		// shared-deps INPUT OUTPUT CORE_REL [CLIENT_NAME=CLIENT_REL ...]
 		//
@@ -84,7 +95,7 @@ func run(args []string) error {
 		}
 		updated, err = updateSharedDeps(input, extra[0], extra[1:])
 	default:
-		return fmt.Errorf("unknown subcommand %q (expected one of: package-json, tsconfig, deno-config, shared-deps)", subcommand)
+		return fmt.Errorf("unknown subcommand %q (expected one of: package-json, tsconfig, deno-config, deno-deps, shared-deps)", subcommand)
 	}
 	if err != nil {
 		return fmt.Errorf("%s: %w", subcommand, err)
@@ -520,6 +531,95 @@ func updateDenoConfig(denoConfig, coreDir, clientsDir string, modules []string) 
 	}
 
 	return denoConfig, nil
+}
+
+// updateDenoDeps wires a client scope's deno.json to the packages under its
+// clients/: the @dagger.io/dagger aliases at coreDir, one @dagger.io/<module>
+// per client, and the unstable flags the library needs under Deno — core.js
+// imports node builtins bare, index.ts reaches client.gen.ts through a .js
+// specifier, and the provisioning path uses Node's timers.
+//
+// The deno.json counterpart of updateSharedDeps. Deno resolves through its
+// import map rather than node_modules, and reads a package.json beside a
+// deno.json as "bring your own node_modules": the file: deps a node scope gets
+// would leave a Deno app expecting an install nothing runs, and its
+// `deno check` asking for an @types/node nobody declared. Nothing module-only
+// is written — no compiler import, no nodeModulesDir, no experimentalDecorators,
+// which Deno warns about on every run of an app that never uses decorators.
+//
+// coreDir "-" means the scope has no generated core any more (its last client
+// left): every alias and flag this writer owns goes, and an `imports` or
+// `unstable` emptied by that goes with them. The user's own entries and flags
+// are untouched either way.
+func updateDenoDeps(denoConfig, coreDir, clientsDir string, modules []string) (string, error) {
+	var err error
+	if coreDir != noLibAlias {
+		denoConfig, err = updateScopeAliases(denoConfig, "imports", libDir(coreDir), clientsDir, modules, false)
+		if err != nil {
+			return "", err
+		}
+		for _, flag := range denoUnstableFlags {
+			denoConfig, err = appendIfNotExists(denoConfig, "unstable", flag)
+			if err != nil {
+				return "", fmt.Errorf("append unstable %s: %w", flag, err)
+			}
+		}
+		return denoConfig, nil
+	}
+
+	denoConfig, err = removeLibAliases(denoConfig, "imports")
+	if err != nil {
+		return "", err
+	}
+	denoConfig, err = syncModuleAliases(denoConfig, "imports", clientsDir, nil, false)
+	if err != nil {
+		return "", err
+	}
+	denoConfig, err = removeUnstableFlags(denoConfig, denoUnstableFlags)
+	if err != nil {
+		return "", err
+	}
+	for _, key := range []string{"imports", "unstable"} {
+		denoConfig, err = deleteIfEmpty(denoConfig, key)
+		if err != nil {
+			return "", err
+		}
+	}
+	return denoConfig, nil
+}
+
+// removeUnstableFlags drops the given flags from the `unstable` array, keeping
+// the user's own in the order they had them.
+func removeUnstableFlags(jsonStr string, flags []string) (string, error) {
+	current := gjson.Get(jsonStr, "unstable")
+	if !current.IsArray() {
+		return jsonStr, nil
+	}
+	drop := map[string]bool{}
+	for _, flag := range flags {
+		drop[flag] = true
+	}
+	kept := []string{}
+	for _, v := range current.Array() {
+		if !drop[v.String()] {
+			kept = append(kept, v.String())
+		}
+	}
+	if len(kept) == len(current.Array()) {
+		return jsonStr, nil
+	}
+	return sjson.Set(jsonStr, "unstable", kept)
+}
+
+// deleteIfEmpty removes key when it is an empty object or array: a container
+// the removals above left holding nothing of the user's is noise in a file
+// they read and edit.
+func deleteIfEmpty(jsonStr, key string) (string, error) {
+	value := gjson.Get(jsonStr, key)
+	if (value.IsObject() && len(value.Map()) == 0) || (value.IsArray() && len(value.Array()) == 0) {
+		return sjson.Delete(jsonStr, key)
+	}
+	return jsonStr, nil
 }
 
 // setIfNotExists sets path to value only when path is absent, preserving any

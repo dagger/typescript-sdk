@@ -298,6 +298,11 @@ type Fixtures {
   let clientModule: String! = root + "/client/app"
   let clientOutput: String! = root + "/client/out"
 
+  # A Deno project — deno.json, a main.ts importing both packages — that takes
+  # a client: the one client scope wired through an import map rather than a
+  # package.json.
+  let clientDenoHost: String! = root + "/client/deno-host"
+
   # A client directory that already points @dagger.io/dagger at a local bundle;
   # regeneration must preserve it.
   let clientExisting: String! = root + "/client/existing"
