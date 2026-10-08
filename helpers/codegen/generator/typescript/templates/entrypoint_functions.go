@@ -508,7 +508,12 @@ func (c *entrypointFuncCtx) plannedImports() []importLine {
 	if c.opts.LoaderImportPath != "" {
 		loaderImport = c.opts.LoaderImportPath
 	}
-	lines = append(lines, importLine{From: "./" + loaderImport, Names: []string{"__loadObject as __loadCoreObject"}})
+	// Side-effect import as well as the named one, because the named one is not
+	// always used: a module with no object-typed argument, field or return never
+	// calls __loadCoreObject, and a type-stripping loader drops an unused named
+	// import outright. The loader is also what evaluates the compat shim that
+	// restores pre-1.0 `dag.<module>()`, so it has to be loaded either way.
+	lines = append(lines, importLine{From: "./" + loaderImport, Names: []string{"__loadObject as __loadCoreObject"}, SideEffect: true})
 	lines = append(lines, importLine{From: sdk + "/telemetry", Namespace: "* as telemetry"})
 
 	// Group user imports by file path, deduping side-effect-only files.
