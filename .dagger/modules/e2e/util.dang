@@ -290,7 +290,27 @@ type Fixtures {
   let runtimeBun: String! = ".dagger/modules/runtimes/fixtures/bun"
   let runtimeDeno: String! = ".dagger/modules/runtimes/fixtures/deno"
   let runtimeNode: String! = ".dagger/modules/runtimes/fixtures/node"
-  let runtimeFixtures: [String!]! = [runtimeBun, runtimeDeno, runtimeNode]
+
+  """
+  The pair behind `runtimes:dag-dependency-runs`: a module reaching its
+  dependency the pre-1.0 way, and the dependency it reaches. Not recorded
+  scopes — the check generates both itself, in order — but they carry a
+  dagger-module.toml, so they name an engine release like the rest.
+  """
+  let runtimeDagDep: String! = ".dagger/modules/runtimes/fixtures/dag-dep"
+  let runtimeDagDepLib: String! = ".dagger/modules/runtimes/fixtures/dep"
+
+  """
+  Every fixture the runtimes checks load, recorded scope or not.
+  """
+  let runtimeFixtures: [String!]! = [
+    runtimeBun,
+    runtimeDeno,
+    runtimeNode,
+    runtimeDagDep,
+    runtimeDagDepLib,
+  ]
+
   let configBareModule: String! = root + "/config/bare"
 
   # A client binds to client/app (which depends on client/dep) and is generated

@@ -106,19 +106,65 @@ type Runtimes {
   """
   let assertRuns(ws: Workspace!, runtime: String!, objectName: String!): Void {
     let path = fixtures + "/" + runtime
-    let staged = typescriptSdk(legacyRuntime: true, skipGenerateFilename: "")
-      .generateScope(ws.withWorkdir(path), isModule: true, name: "runtime-" + runtime, clients: [])
-      .withWorkdir(".")
+    assertLoads(generated(ws, path, "runtime-" + runtime), path, objectName, runtime + " module")
+  }
 
+  """
+  Generate one fixture scope and hand back the workspace carrying the result.
+
+  Pinned to `legacyRuntime` for the reason assertRuns gives, and threaded rather
+  than written: a module whose schema depends on another's needs that other one
+  generated first, which is what the engine does across scopes and what a check
+  generating two of them has to do itself.
+  """
+  let generated(ws: Workspace!, path: String!, name: String!): Workspace! {
+    typescriptSdk(legacyRuntime: true, skipGenerateFilename: "")
+      .generateScope(ws.withWorkdir(path), isModule: true, name: name, clients: [])
+      .withWorkdir(".")
+  }
+
+  """
+  Load a staged module and fail unless it declares the object it should.
+
+  Reading the objects is what forces execution — see assertRuns — so this is
+  both "the module loads" and "everything its entrypoint imports evaluated
+  without throwing".
+  """
+  let assertLoads(staged: Workspace!, path: String!, objectName: String!, subject: String!): Void {
     let objects = staged.moduleSource("/" + path).asModule.objects
       .{{ asObject.{{ name }} }}
       .map { o => o.asObject.name }
 
     if (objects.filter { name => name == objectName }.length == 0) {
-      raise runtime + " module did not load: expected object " + objectName +
+      raise subject + " did not load: expected object " + objectName +
         ", got [" + objects.join(", ") + "]"
     }
 
     null
+  }
+
+  """
+  A module that reaches a dependency the pre-1.0 way — `dag.<dep>()` rather than
+  the dependency's own client — should still run.
+
+  Unified clients moved every module's root fields off the core `dag` and onto a
+  client of its own, so migrated source compiles under a type-stripping loader
+  and then fails at dispatch with "dag.<dep> is not a function". The compat shim
+  puts those fields back, deprecated, and this is the check that the restored
+  call survives a real load: the fixture resolves `dag.runtimeDep()` at module
+  scope, so a shim that is missing, unimported or broken throws while the
+  entrypoint is still importing the user's source, and the module never
+  registers its object.
+
+  Two scopes, generated in order: the dependency first, because the dependent's
+  schema only loads once the dependency carries its generated files.
+  """
+  dagDependencyRunsCheck(ws: Workspace!): Void @check {
+    let depPath = fixtures + "/dep"
+    let appPath = fixtures + "/dag-dep"
+
+    let staged = generated(generated(ws, depPath, "runtime-dep"), appPath, "runtime-dag-dep")
+
+    assertLoads(staged, appPath, "RuntimeDagDep", "the module calling dag.runtimeDep()")
   }
 }
