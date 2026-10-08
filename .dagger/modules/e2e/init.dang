@@ -185,6 +185,19 @@ type InitChecks {
     )
     Asserts.stringContains(mergedDeno, "\"bare-node-builtins\"", "Dagger-required unstable flag should be appended")
 
+    # `bun init` declares the compiler as a peer dependency, so the fixture
+    # does too. Adding dependencies.typescript beside it would leave the module
+    # naming two versions of the same package — the cost is that the runtime no
+    # longer recognizes the pin and installs instead of mounting its prebuilt
+    # compiler, which is the trade the devDependencies case already takes.
+    let mergedBunPkg = bunChanges.layer.file(fixtures.existingBun + "/package.json").contents
+    Asserts.stringContains(mergedBunPkg, "\"typescript\": \"^5\"", "the user's peer typescript version should survive")
+    Asserts.stringNotContains(
+      mergedBunPkg,
+      "\"typescript\": \"5.9.3\"",
+      "a peer typescript declaration is the user's pin; the default must not be added beside it",
+    )
+
     # bun init should not overwrite or add an existing bun.lock; the fixture's
     # lockfile content is non-JSON so any "merge" would corrupt it.
     Asserts.notAdded(

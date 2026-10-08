@@ -303,13 +303,13 @@ func isScopeLocalFileRef(value string) bool {
 const defaultTypeScriptVersion = "5.9.3"
 
 // pinTypeScript adds the default typescript pin unless the module already
-// declares one, in either dependency section. devDependencies is the normal
-// place to put a compiler, so writing dependencies.typescript without looking
-// there leaves the module declaring two versions of the same package — npm
-// resolves that to the runtime one, quietly overriding the compiler the user
-// chose.
+// declares one, in any dependency section. devDependencies is the normal
+// place to put a compiler, and peerDependencies is where `bun init` puts it,
+// so writing dependencies.typescript without looking there leaves the module
+// declaring two versions of the same package — npm resolves that to the
+// runtime one, quietly overriding the compiler the user chose.
 func pinTypeScript(packageJSON string) (string, error) {
-	for _, section := range []string{"dependencies", "devDependencies"} {
+	for _, section := range []string{"dependencies", "devDependencies", "peerDependencies"} {
 		if gjson.Get(packageJSON, section+".typescript").Exists() {
 			return packageJSON, nil
 		}
