@@ -188,11 +188,7 @@ pub call(
     fnArgs: fnArgs,
   }})
   (runtime(workspace)
-    .withExec(
-      ["tsx", "--no-deprecation", "--tsconfig", "tsconfig.json", "__dagger.dispatch.ts", "engine-call"],
-      stdin: request,
-      experimentalPrivilegedNesting: true,
-    )
+    .withExec(["tsx", "--no-deprecation", "--tsconfig", "tsconfig.json", "__dagger.dispatch.ts", "engine-call"], stdin: request)
     .stdout :: JSON!)
 }
 ```
@@ -342,8 +338,9 @@ happy — any of those puts the generator back in the business of writing a
 manifest shape the builder does not model. A check that needs a loading engine
 is skipped with a comment naming #14038 instead.
 
-The `entrypoint` setting is off by default (`typescript-sdk.dang`), so nothing a
-user generates is affected either way.
+The setting is now `legacyRuntime`, off by default (`typescript-sdk.dang`): a
+module generates an entrypoint unless a user asks for the runtime back, so this
+cost is the one every generation pays and the flag is the way out of it.
 
 ### 7.2 Plumbing (post-#13992)
 

@@ -58,10 +58,15 @@ type Runtimes {
   Reading the module's objects is what forces execution: the TypeScript SDK has
   no ModuleTypes function, so type discovery goes through the runtime and the
   committed entrypoint's register().
+
+  Pinned to `legacyRuntime`, which is the path these cover: the three containers
+  are the engine's builtin runtime's, one per interpreter, and an entrypoint
+  module brings its own recipe instead — a different check, against an engine
+  that can load one.
   """
   let assertRuns(ws: Workspace!, runtime: String!, objectName: String!): Void {
     let path = fixtures + "/" + runtime
-    let staged = typescriptSdk(skipGenerateFilename: "")
+    let staged = typescriptSdk(legacyRuntime: true, skipGenerateFilename: "")
       .generateScope(ws.withWorkdir(path), isModule: true, name: "runtime-" + runtime, clients: [])
       .withWorkdir(".")
 

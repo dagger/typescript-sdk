@@ -57,11 +57,7 @@ type Entrypoint implements ModuleEntrypoint {
       fnArgs: fnArgs,
     {{"}}"}})
     (runtime(workspace)
-      .withExec(
-        {{ dangDispatchExec }},
-        stdin: request,
-        experimentalPrivilegedNesting: true,
-      )
+      .withExec({{ dangDispatchExec }}, stdin: request)
       .stdout :: JSON!)
   }
 

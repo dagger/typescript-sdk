@@ -122,8 +122,13 @@ type EngineE2e {
     let listed = playground(ws).withExec(["dagger", "sdk", "list"], disableDaggerInDagger: true)
     assert(listed.stdout.contains("typescript"), "the development TypeScript SDK was not listed")
 
+    # `--legacy-runtime` because this check's second half *calls* the module, and
+    # the engine only loads an `[entrypoint]` manifest that carries a
+    # manifestVersion the sdk-helpers builder does not emit (dagger/dagger#14038).
+    # It also covers the flag, which is the one place the CLI's flattening of
+    # that setting is exercised.
     let initialized = listed
-      .withExec(["dagger", "module", "init", "typescript", "--auto-apply", "--name", "sdk-smoke", "--path", modulePath], disableDaggerInDagger: true)
+      .withExec(["dagger", "module", "init", "typescript", "--auto-apply", "--legacy-runtime", "--name", "sdk-smoke", "--path", modulePath], disableDaggerInDagger: true)
       .withExec(["test", "-f", modulePath + "/dagger-module.toml"])
       .withExec(["test", "!", "-e", modulePath + "/dagger.json"])
       .withExec(["test", "-f", modulePath + "/package.json"])
@@ -131,8 +136,7 @@ type EngineE2e {
       .withExec(["test", "-f", modulePath + "/src/index.ts"])
       .withExec(["test", "-f", modulePath + "/sdk/client.gen.ts"])
       .withExec(["test", "-f", modulePath + "/__dagger.entrypoint.ts"])
-      # Init without `--entrypoint` declares a [runtime], and a [runtime] module
-      # gets nothing of the manifest-v2 loading path.
+      # A [runtime] module gets nothing of the manifest-v2 loading path.
       .withExec(["test", "!", "-e", modulePath + "/__dagger.dispatch.ts"])
       .withExec(["test", "!", "-e", modulePath + "/entrypoint"])
 
@@ -170,11 +174,15 @@ type EngineE2e {
   then hands the provider its declared defaults produces a module that silently
   ignores every flag the user passed. That is what this asserts against, one
   file per setting rather than the flag's presence in `--help`.
+
+  `--legacy-runtime` is passed so the files these grep are the ones the asserts
+  were written for; the other flags are what the check is about.
   """
   devSdkSettingsCheck(ws: Workspace!): Void @check {
     playground(ws)
       .withExec([
         "dagger", "module", "init", "typescript", "--auto-apply",
+        "--legacy-runtime",
         "--name", "sdk-settings",
         "--path", settingsPath,
         "--template", "empty",
@@ -188,6 +196,7 @@ type EngineE2e {
       # it gets its own module rather than another grep.
       .withExec([
         "dagger", "module", "init", "typescript", "--auto-apply",
+        "--legacy-runtime",
         "--name", "sdk-deno",
         "--path", denoPath,
         "--runtime", "deno",

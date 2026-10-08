@@ -122,6 +122,12 @@ type Gen {
   Settings are constructor arguments, so a check covering the bun runtime or the
   empty template constructs the SDK with them — which is exactly what the engine
   does with a scope's effective settings.
+
+  `legacyRuntime` is the one that does not follow the SDK's own default. These
+  checks were written against the `[runtime]` layout — sdk/ as the package, a
+  committed __dagger.entrypoint.ts — and assert it by path, so they pin the
+  path they describe rather than silently moving to the other one. A check
+  covering the entrypoint passes `legacyRuntime: false` and says so.
   """
   let scope(
     ws: Workspace!,
@@ -133,14 +139,14 @@ type Gen {
     template: String! = "default",
     packageManager: String! = "",
     baseImage: String! = "",
-    entrypoint: Boolean! = false,
+    legacyRuntime: Boolean! = true,
   ): Changeset! {
     typescriptSdk(
       runtime: runtime,
       template: template,
       packageManager: packageManager,
       baseImage: baseImage,
-      entrypoint: entrypoint,
+      legacyRuntime: legacyRuntime,
       # The fixtures carry the skip marker so `dagger generate` writes nothing
       # into them. These checks are the reason they exist, so they opt out of it
       # and generate the tree the marker protects.
