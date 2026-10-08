@@ -654,6 +654,25 @@ func TestUpdateSharedDeps(t *testing.T) {
 			expected:    `{"devDependencies":{"typescript":"5.0.0"},"type":"module","dependencies":{"@dagger.io/dagger":"file:.dagger/core/typescript"}}`,
 		},
 		{
+			// A client scope's package.json is the user's; the SDK fills "type"
+			// in only when it is missing.
+			name:        "a scope without a type gets module",
+			packageJSON: `{"name":"my-app"}`,
+			coreRel:     "./clients/dagger",
+			clients:     []string{"b=./clients/b"},
+			expected:    `{"name":"my-app","type":"module","dependencies":{"@dagger.io/dagger":"file:./clients/dagger","@dagger.io/b":"file:./clients/b","typescript":"5.9.3"}}`,
+		},
+		{
+			// An explicit value, commonjs included, is the user's choice: the
+			// generated packages carry their own "type": "module" and load as
+			// ESM regardless of what the scope's own code is.
+			name:        "an explicit type is kept",
+			packageJSON: `{"name":"my-app","type":"commonjs"}`,
+			coreRel:     "./clients/dagger",
+			clients:     []string{"b=./clients/b"},
+			expected:    `{"name":"my-app","type":"commonjs","dependencies":{"@dagger.io/dagger":"file:./clients/dagger","@dagger.io/b":"file:./clients/b","typescript":"5.9.3"}}`,
+		},
+		{
 			// A client the user installed from another scope for a self-call
 			// (a file:../ path) is theirs; regeneration must not clobber it, even
 			// though it is not one of this scope's recorded clients.

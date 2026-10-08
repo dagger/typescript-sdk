@@ -183,7 +183,12 @@ func updatePackageJSON(packageJSON string) (string, error) {
 // Non-@dagger.io dependencies, and every other key in the file, are the user's
 // and are left untouched.
 func updateSharedDeps(packageJSON, coreRel string, clientPairs []string) (string, error) {
-	packageJSON, err := sjson.Set(packageJSON, "type", "module")
+	// "type" is the user's field, so only an absent one is filled in: a scope
+	// that declares its module system — "commonjs" included — keeps it. The
+	// generated packages carry their own "type": "module", so they load as ESM
+	// whatever the scope's own code is; a module's manifest is the SDK's
+	// (updatePackageJSON) and still gets the value forced.
+	packageJSON, err := setIfNotExists(packageJSON, "type", "module")
 	if err != nil {
 		return "", fmt.Errorf("set type=module: %w", err)
 	}
