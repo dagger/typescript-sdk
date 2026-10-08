@@ -1,0 +1,13 @@
+{
+  "name": "legacy-pin-app",
+  "engineVersion": "v0.21.9",
+  "sdk": {
+    "source": "typescript"
+  },
+  "dependencies": [
+    {
+      "name": "legacypindep",
+      "source": "../dep"
+    }
+  ]
+}
