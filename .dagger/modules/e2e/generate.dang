@@ -173,6 +173,124 @@ type GenerateChecks {
   }
 
   """
+  Turning `legacyRuntime` back on moves an entrypoint module onto a `[runtime]`,
+  the same way turning it off moved it the other way.
+
+  This is the flip a user on a released engine makes: a fresh module declares
+  an `[entrypoint]`, and the `[runtime]` layout is the one every released engine
+  loads. Generating on with the entrypoint manifest left in place failed twice
+  over, neither error naming the setting — the engine resolves no `source` out
+  of an entrypoint manifest, so the module's files were looked for at the
+  workspace root (`lstat <root>/src: no such file or directory`), and with a
+  client recorded the builder refused the dependency first (`legacy runtime is
+  required when legacy fields are set`).
+
+  Asserted on the whole move rather than the manifest alone: a manifest saying
+  `[runtime]` beside the entrypoint's files is a module that loads nothing. And
+  on a third generation writing nothing, which is what says the flipped module
+  loaded during the flip — a `[runtime]` module's self client only renders when
+  it does, so a flip that left it unloadable would write the client next time.
+  """
+  generateFlipsBackToRuntimeCheck(ws: Workspace!): Void @check {
+    let path = fixtures.out + "/flip-back"
+    let name = "flip-back"
+    let entrypoint = ws.withChanges(Gen.scope(ws, path, name, template: "empty", legacyRuntime: false))
+    Asserts.assert(
+      entrypoint.directory("/" + path).exists("clients/dagger"),
+      "the scope must start as a packaged entrypoint module for the flip to mean anything",
+    )
+
+    let changes = Gen.scope(entrypoint, path, name, legacyRuntime: true)
+    let tree = entrypoint.withChanges(changes).directory("/" + path)
+    let manifest = tree.file("dagger-module.toml").contents
+
+    Asserts.stringContains(manifest, "[runtime]", "flipping back did not write the runtime table")
+    Asserts.stringContains(manifest, "source = \"typescript\"", "the runtime should be the builtin typescript one")
+    Asserts.stringContains(
+      manifest,
+      "engineVersion = \"v" + typescriptSdk.targetEngineVersion + "\"",
+      "flipping back should pin the engine release this SDK ships for",
+    )
+    Asserts.stringNotContains(manifest, "[entrypoint]", "a [runtime] module should not declare an entrypoint")
+
+    Asserts.generated(changes, path + "/__dagger.entrypoint.ts")
+    Asserts.generated(changes, path + "/sdk/client.gen.ts")
+
+    # The resulting tree rather than the changeset's removals, which is what the
+    # user is left with whichever way the workspace was loaded.
+    let kept = ", kept [" + tree.entries.join(", ") + "]"
+    Asserts.assert(tree.exists("__dagger.dispatch.ts") == false, "the entrypoint's dispatcher should go with the flip" + kept)
+    Asserts.assert(tree.exists("entrypoint") == false, "the Dang entrypoint should go with the flip" + kept)
+    Asserts.assert(tree.exists("clients") == false, "the packaged clients/ should go with the flip" + kept)
+    Asserts.stringContains(
+      tree.file("tsconfig.json").contents,
+      "./sdk/index.ts",
+      "tsconfig should alias @dagger.io/dagger to the embedded sdk again",
+    )
+    Asserts.stringNotContains(
+      tree.file("package.json").contents,
+      "file:./clients/",
+      "package.json should not link packages the flip removed",
+    )
+
+    let again = Gen.scope(entrypoint.withChanges(changes), path, name, legacyRuntime: true)
+    Asserts.assert(
+      again.isEmpty,
+      "regenerating a module flipped back should write nothing, got added [" +
+        again.addedPaths.join(", ") + "], modified [" + again.modifiedPaths.join(", ") +
+        "], removed [" + again.removedPaths.join(", ") + "]",
+    )
+
+    null
+  }
+
+  """
+  The same move for a module with a recorded client, the half that failed
+  first: the dependency a client becomes has nowhere to go in an entrypoint
+  manifest. On the fresh `[runtime]` manifest it lands as a `[[dependencies]]`
+  entry, its bindings as sdk/<target>.gen.ts — the embedded layout's place for a
+  client — and the file: link the packaged layout put in package.json goes with
+  the package it pointed at.
+  """
+  generateFlipsBackWithClientCheck(ws: Workspace!): Void @check {
+    let path = fixtures.out + "/flip-back-client"
+    let name = "flip-back-client"
+    let clients = [ws.moduleSource("/" + fixtures.clientModule)]
+    let entrypoint = ws.withChanges(
+      Gen.scope(ws, path, name, template: "empty", legacyRuntime: false, clients: clients),
+    )
+    Asserts.assert(
+      entrypoint.directory("/" + path).exists("clients/client-app"),
+      "the scope must start with a packaged client for the flip to mean anything",
+    )
+
+    let changes = Gen.scope(entrypoint, path, name, legacyRuntime: true, clients: clients)
+    let tree = entrypoint.withChanges(changes).directory("/" + path)
+    let manifest = tree.file("dagger-module.toml").contents
+
+    Asserts.stringContains(manifest, "[runtime]", "flipping back did not write the runtime table")
+    Asserts.stringContains(manifest, "[[dependencies]]", "the recorded client should come back as a dependency")
+    Asserts.stringContains(manifest, "name = \"client-app\"", "the dependency should carry the target's name")
+    Asserts.generated(changes, path + "/sdk/client-app.gen.ts")
+    Asserts.assert(
+      tree.exists("clients") == false,
+      "the packaged clients/ should go with the flip, kept [" + tree.entries.join(", ") + "]",
+    )
+    Asserts.stringContains(
+      tree.file("tsconfig.json").contents,
+      "\"./sdk/client-app.gen.ts\"",
+      "the module's tsconfig should alias the client into sdk/ again",
+    )
+    Asserts.stringNotContains(
+      tree.file("package.json").contents,
+      "\"@dagger.io/client-app\"",
+      "package.json should not link the client package the flip removed",
+    )
+
+    null
+  }
+
+  """
   An entrypoint module's call recipe should install the module's own
   dependencies, with the package manager the module actually uses.
 

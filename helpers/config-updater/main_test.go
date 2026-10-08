@@ -93,6 +93,31 @@ func TestUpdatePackageJSON(t *testing.T) {
 }`,
 		},
 		{
+			// A module moving off the entrypoint layout arrives with its clients
+			// linked as file: deps on packages this layout removes; a client the
+			// user installed from elsewhere is theirs and stays.
+			name: "entrypoint layout client links are stripped, outside installs kept",
+			packageJSON: `{
+  "type": "module",
+  "dependencies": {
+    "typescript": "5.9.3",
+    "@dagger.io/dagger": "file:./clients/dagger",
+    "@dagger.io/api": "file:./clients/api",
+    "@dagger.io/billing": "file:clients/billing",
+    "@dagger.io/shared": "file:../shared/clients/shared",
+    "@dagger.io/published": "^1.0.0"
+  }
+}`,
+			expected: `{
+  "type": "module",
+  "dependencies": {
+    "typescript": "5.9.3",
+    "@dagger.io/shared": "file:../shared/clients/shared",
+    "@dagger.io/published": "^1.0.0"
+  }
+}`,
+		},
+		{
 			name: "package.json with comments has comments stripped",
 			packageJSON: `{
   // Environment setup & latest features
