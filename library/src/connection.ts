@@ -1,6 +1,5 @@
-import { ConnectOpts } from "./session/connectOpts.js"
-import { withSession } from "./session/connect.js"
-import { withTracing } from "./telemetry/tracing.js"
+import { ConnectOpts, withSession } from "@dagger.io/session"
+import { withTracing } from "@dagger.io/telemetry"
 
 /**
  * connection executes the given function using the default global Dagger client.

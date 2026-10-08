@@ -4,25 +4,43 @@ var __getProtoOf = Object.getPrototypeOf;
 var __defProp = Object.defineProperty;
 var __getOwnPropNames = Object.getOwnPropertyNames;
 var __hasOwnProp = Object.prototype.hasOwnProperty;
+function __accessProp(key) {
+  return this[key];
+}
+var __toESMCache_node;
+var __toESMCache_esm;
 var __toESM = (mod, isNodeMode, target) => {
+  var canCache = mod != null && typeof mod === "object";
+  if (canCache) {
+    var cache = isNodeMode ? __toESMCache_node ??= new WeakMap : __toESMCache_esm ??= new WeakMap;
+    var cached = cache.get(mod);
+    if (cached)
+      return cached;
+  }
   target = mod != null ? __create(__getProtoOf(mod)) : {};
   const to = isNodeMode || !mod || !mod.__esModule ? __defProp(target, "default", { value: mod, enumerable: true }) : target;
   for (let key of __getOwnPropNames(mod))
     if (!__hasOwnProp.call(to, key))
       __defProp(to, key, {
-        get: () => mod[key],
+        get: __accessProp.bind(mod, key),
         enumerable: true
       });
+  if (canCache)
+    cache.set(mod, to);
   return to;
 };
 var __commonJS = (cb, mod) => () => (mod || cb((mod = { exports: {} }).exports, mod), mod.exports);
+var __returnValue = (v) => v;
+function __exportSetter(name, newValue) {
+  this[name] = __returnValue.bind(null, newValue);
+}
 var __export = (target, all) => {
   for (var name in all)
     __defProp(target, name, {
       get: all[name],
       enumerable: true,
       configurable: true,
-      set: (newValue) => all[name] = () => newValue
+      set: __exportSetter.bind(all, name)
     });
 };
 var __esm = (fn, res) => () => (fn && (res = fn(fn = 0)), res);
@@ -1423,9 +1441,9 @@ var require_instanceOf = __commonJS((exports) => {
   exports.instanceOf = undefined;
   var _inspect = require_inspect();
   var isProduction = globalThis.process && false;
-  var instanceOf = isProduction ? function instanceOf(value, constructor) {
+  var instanceOf = isProduction ? function instanceOf2(value, constructor) {
     return value instanceof constructor;
-  } : function instanceOf(value, constructor) {
+  } : function instanceOf2(value, constructor) {
     if (value instanceof constructor) {
       return true;
     }
@@ -16073,7 +16091,7 @@ var require_tracestate_impl = __commonJS((exports) => {
           const value = listMember.slice(i + 1, part.length);
           if ((0, tracestate_validators_1.validateKey)(key) && (0, tracestate_validators_1.validateValue)(value)) {
             agg.set(key, value);
-          } else {}
+          }
         }
         return agg;
       }, new Map);
@@ -16448,7 +16466,7 @@ var require_src = __commonJS((exports) => {
   };
 });
 
-// node_modules/@opentelemetry/core/build/src/trace/suppress-tracing.js
+// src/telemetry/node_modules/@opentelemetry/core/build/src/trace/suppress-tracing.js
 var require_suppress_tracing = __commonJS((exports) => {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.isTracingSuppressed = exports.unsuppressTracing = exports.suppressTracing = undefined;
@@ -16468,7 +16486,7 @@ var require_suppress_tracing = __commonJS((exports) => {
   exports.isTracingSuppressed = isTracingSuppressed;
 });
 
-// node_modules/@opentelemetry/core/build/src/baggage/constants.js
+// src/telemetry/node_modules/@opentelemetry/core/build/src/baggage/constants.js
 var require_constants = __commonJS((exports) => {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.BAGGAGE_MAX_TOTAL_LENGTH = exports.BAGGAGE_MAX_PER_NAME_VALUE_PAIRS = exports.BAGGAGE_MAX_NAME_VALUE_PAIRS = exports.BAGGAGE_HEADER = exports.BAGGAGE_ITEMS_SEPARATOR = exports.BAGGAGE_PROPERTIES_SEPARATOR = exports.BAGGAGE_KEY_PAIR_SEPARATOR = undefined;
@@ -16481,7 +16499,7 @@ var require_constants = __commonJS((exports) => {
   exports.BAGGAGE_MAX_TOTAL_LENGTH = 8192;
 });
 
-// node_modules/@opentelemetry/core/build/src/baggage/utils.js
+// src/telemetry/node_modules/@opentelemetry/core/build/src/baggage/utils.js
 var require_utils3 = __commonJS((exports) => {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.parseKeyPairsIntoRecord = exports.parseBaggageHeaderString = exports.parsePairKeyValue = exports.getKeyPairs = exports.serializeKeyPairs = undefined;
@@ -16571,7 +16589,7 @@ var require_utils3 = __commonJS((exports) => {
   exports.parseKeyPairsIntoRecord = parseKeyPairsIntoRecord;
 });
 
-// node_modules/@opentelemetry/core/build/src/baggage/propagation/W3CBaggagePropagator.js
+// src/telemetry/node_modules/@opentelemetry/core/build/src/baggage/propagation/W3CBaggagePropagator.js
 var require_W3CBaggagePropagator = __commonJS((exports) => {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.W3CBaggagePropagator = undefined;
@@ -16620,7 +16638,7 @@ var require_W3CBaggagePropagator = __commonJS((exports) => {
   exports.W3CBaggagePropagator = W3CBaggagePropagator;
 });
 
-// node_modules/@opentelemetry/core/build/src/common/anchored-clock.js
+// src/telemetry/node_modules/@opentelemetry/core/build/src/common/anchored-clock.js
 var require_anchored_clock = __commonJS((exports) => {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.AnchoredClock = undefined;
@@ -16642,7 +16660,7 @@ var require_anchored_clock = __commonJS((exports) => {
   exports.AnchoredClock = AnchoredClock;
 });
 
-// node_modules/@opentelemetry/core/build/src/common/attributes.js
+// src/telemetry/node_modules/@opentelemetry/core/build/src/common/attributes.js
 var require_attributes = __commonJS((exports) => {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.isAttributeValue = exports.isAttributeKey = exports.sanitizeAttributes = undefined;
@@ -16719,7 +16737,7 @@ var require_attributes = __commonJS((exports) => {
   }
 });
 
-// node_modules/@opentelemetry/core/build/src/common/logging-error-handler.js
+// src/telemetry/node_modules/@opentelemetry/core/build/src/common/logging-error-handler.js
 var require_logging_error_handler = __commonJS((exports) => {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.loggingErrorHandler = undefined;
@@ -16755,7 +16773,7 @@ var require_logging_error_handler = __commonJS((exports) => {
   }
 });
 
-// node_modules/@opentelemetry/core/build/src/common/global-error-handler.js
+// src/telemetry/node_modules/@opentelemetry/core/build/src/common/global-error-handler.js
 var require_global_error_handler = __commonJS((exports) => {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.globalErrorHandler = exports.setGlobalErrorHandler = undefined;
@@ -16773,7 +16791,7 @@ var require_global_error_handler = __commonJS((exports) => {
   exports.globalErrorHandler = globalErrorHandler;
 });
 
-// node_modules/@opentelemetry/core/build/src/platform/node/environment.js
+// src/telemetry/node_modules/@opentelemetry/core/build/src/platform/node/environment.js
 var require_environment = __commonJS((exports) => {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.getStringListFromEnv = exports.getBooleanFromEnv = exports.getStringFromEnv = exports.getNumberFromEnv = undefined;
@@ -16821,18 +16839,18 @@ var require_environment = __commonJS((exports) => {
   exports.getStringListFromEnv = getStringListFromEnv;
 });
 
-// node_modules/@opentelemetry/core/build/src/common/globalThis.js
+// src/telemetry/node_modules/@opentelemetry/core/build/src/common/globalThis.js
 var require_globalThis = __commonJS((exports) => {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports._globalThis = undefined;
   exports._globalThis = globalThis;
 });
 
-// node_modules/@opentelemetry/core/build/src/version.js
+// src/telemetry/node_modules/@opentelemetry/core/build/src/version.js
 var require_version3 = __commonJS((exports) => {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.VERSION = undefined;
-  exports.VERSION = "2.8.0";
+  exports.VERSION = "2.9.0";
 });
 
 // node_modules/@opentelemetry/semantic-conventions/build/src/internal/utils.js
@@ -18391,14 +18409,14 @@ var require_src2 = __commonJS((exports) => {
   __exportStar(require_stable_events(), exports);
 });
 
-// node_modules/@opentelemetry/core/build/src/semconv.js
+// src/telemetry/node_modules/@opentelemetry/core/build/src/semconv.js
 var require_semconv = __commonJS((exports) => {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.ATTR_PROCESS_RUNTIME_NAME = undefined;
   exports.ATTR_PROCESS_RUNTIME_NAME = "process.runtime.name";
 });
 
-// node_modules/@opentelemetry/core/build/src/platform/node/sdk-info.js
+// src/telemetry/node_modules/@opentelemetry/core/build/src/platform/node/sdk-info.js
 var require_sdk_info = __commonJS((exports) => {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.SDK_INFO = undefined;
@@ -18413,7 +18431,7 @@ var require_sdk_info = __commonJS((exports) => {
   };
 });
 
-// node_modules/@opentelemetry/core/build/src/platform/node/index.js
+// src/telemetry/node_modules/@opentelemetry/core/build/src/platform/node/index.js
 var require_node = __commonJS((exports) => {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.otperformance = exports.SDK_INFO = exports._globalThis = exports.getStringListFromEnv = exports.getNumberFromEnv = exports.getBooleanFromEnv = exports.getStringFromEnv = undefined;
@@ -18441,7 +18459,7 @@ var require_node = __commonJS((exports) => {
   exports.otperformance = performance;
 });
 
-// node_modules/@opentelemetry/core/build/src/platform/index.js
+// src/telemetry/node_modules/@opentelemetry/core/build/src/platform/index.js
 var require_platform = __commonJS((exports) => {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.getStringListFromEnv = exports.getNumberFromEnv = exports.getStringFromEnv = exports.getBooleanFromEnv = exports.otperformance = exports._globalThis = exports.SDK_INFO = undefined;
@@ -18469,7 +18487,7 @@ var require_platform = __commonJS((exports) => {
   } });
 });
 
-// node_modules/@opentelemetry/core/build/src/common/time.js
+// src/telemetry/node_modules/@opentelemetry/core/build/src/common/time.js
 var require_time = __commonJS((exports) => {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.addHrTimes = exports.isTimeInput = exports.isTimeInputHrTime = exports.hrTimeToSeconds = exports.hrTimeToMilliseconds = exports.hrTimeToMicroseconds = exports.hrTimeToNanoseconds = exports.hrTimeToTimeStamp = exports.hrTimeDuration = exports.timeInputToHrTime = exports.hrTime = exports.getTimeOrigin = exports.millisToHrTime = undefined;
@@ -18499,7 +18517,7 @@ var require_time = __commonJS((exports) => {
     if (isTimeInputHrTime(time)) {
       return time;
     } else if (typeof time === "number") {
-      if (time < platform_1.otperformance.timeOrigin) {
+      if (time < platform_1.otperformance.timeOrigin / 2) {
         return hrTime(time);
       } else {
         return millisToHrTime(time);
@@ -18564,7 +18582,7 @@ var require_time = __commonJS((exports) => {
   exports.addHrTimes = addHrTimes;
 });
 
-// node_modules/@opentelemetry/core/build/src/common/timer-util.js
+// src/telemetry/node_modules/@opentelemetry/core/build/src/common/timer-util.js
 var require_timer_util = __commonJS((exports) => {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.unrefTimer = undefined;
@@ -18576,7 +18594,7 @@ var require_timer_util = __commonJS((exports) => {
   exports.unrefTimer = unrefTimer;
 });
 
-// node_modules/@opentelemetry/core/build/src/ExportResult.js
+// src/telemetry/node_modules/@opentelemetry/core/build/src/ExportResult.js
 var require_ExportResult = __commonJS((exports) => {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.ExportResultCode = undefined;
@@ -18587,7 +18605,7 @@ var require_ExportResult = __commonJS((exports) => {
   })(ExportResultCode = exports.ExportResultCode || (exports.ExportResultCode = {}));
 });
 
-// node_modules/@opentelemetry/core/build/src/propagation/composite.js
+// src/telemetry/node_modules/@opentelemetry/core/build/src/propagation/composite.js
 var require_composite = __commonJS((exports) => {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.CompositePropagator = undefined;
@@ -18633,7 +18651,7 @@ var require_composite = __commonJS((exports) => {
   exports.CompositePropagator = CompositePropagator;
 });
 
-// node_modules/@opentelemetry/core/build/src/internal/validators.js
+// src/telemetry/node_modules/@opentelemetry/core/build/src/internal/validators.js
 var require_validators = __commonJS((exports) => {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.validateValue = exports.validateKey = undefined;
@@ -18653,7 +18671,7 @@ var require_validators = __commonJS((exports) => {
   exports.validateValue = validateValue;
 });
 
-// node_modules/@opentelemetry/core/build/src/trace/TraceState.js
+// src/telemetry/node_modules/@opentelemetry/core/build/src/trace/TraceState.js
 var require_TraceState = __commonJS((exports) => {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.TraceState = undefined;
@@ -18763,7 +18781,7 @@ var require_TraceState = __commonJS((exports) => {
   exports.TraceState = TraceState;
 });
 
-// node_modules/@opentelemetry/core/build/src/trace/W3CTraceContextPropagator.js
+// src/telemetry/node_modules/@opentelemetry/core/build/src/trace/W3CTraceContextPropagator.js
 var require_W3CTraceContextPropagator = __commonJS((exports) => {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.W3CTraceContextPropagator = exports.parseTraceParent = exports.TRACE_STATE_HEADER = exports.TRACE_PARENT_HEADER = undefined;
@@ -18828,7 +18846,7 @@ var require_W3CTraceContextPropagator = __commonJS((exports) => {
   exports.W3CTraceContextPropagator = W3CTraceContextPropagator;
 });
 
-// node_modules/@opentelemetry/core/build/src/trace/rpc-metadata.js
+// src/telemetry/node_modules/@opentelemetry/core/build/src/trace/rpc-metadata.js
 var require_rpc_metadata = __commonJS((exports) => {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.getRPCMetadata = exports.deleteRPCMetadata = exports.setRPCMetadata = exports.RPCType = undefined;
@@ -18852,7 +18870,7 @@ var require_rpc_metadata = __commonJS((exports) => {
   exports.getRPCMetadata = getRPCMetadata;
 });
 
-// node_modules/@opentelemetry/core/build/src/utils/lodash.merge.js
+// src/telemetry/node_modules/@opentelemetry/core/build/src/utils/lodash.merge.js
 var require_lodash_merge = __commonJS((exports) => {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.isPlainObject = undefined;
@@ -18910,7 +18928,7 @@ var require_lodash_merge = __commonJS((exports) => {
   }
 });
 
-// node_modules/@opentelemetry/core/build/src/utils/merge.js
+// src/telemetry/node_modules/@opentelemetry/core/build/src/utils/merge.js
 var require_merge = __commonJS((exports) => {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.merge = undefined;
@@ -19028,7 +19046,7 @@ var require_merge = __commonJS((exports) => {
   }
 });
 
-// node_modules/@opentelemetry/core/build/src/utils/timeout.js
+// src/telemetry/node_modules/@opentelemetry/core/build/src/utils/timeout.js
 var require_timeout = __commonJS((exports) => {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.callWithTimeout = exports.TimeoutError = undefined;
@@ -19058,7 +19076,7 @@ var require_timeout = __commonJS((exports) => {
   exports.callWithTimeout = callWithTimeout;
 });
 
-// node_modules/@opentelemetry/core/build/src/utils/url.js
+// src/telemetry/node_modules/@opentelemetry/core/build/src/utils/url.js
 var require_url = __commonJS((exports) => {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.isUrlIgnored = exports.urlMatches = undefined;
@@ -19084,7 +19102,7 @@ var require_url = __commonJS((exports) => {
   exports.isUrlIgnored = isUrlIgnored;
 });
 
-// node_modules/@opentelemetry/core/build/src/utils/promise.js
+// src/telemetry/node_modules/@opentelemetry/core/build/src/utils/promise.js
 var require_promise = __commonJS((exports) => {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.Deferred = undefined;
@@ -19112,7 +19130,7 @@ var require_promise = __commonJS((exports) => {
   exports.Deferred = Deferred;
 });
 
-// node_modules/@opentelemetry/core/build/src/utils/callback.js
+// src/telemetry/node_modules/@opentelemetry/core/build/src/utils/callback.js
 var require_callback = __commonJS((exports) => {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.BindOnceFuture = undefined;
@@ -19148,7 +19166,7 @@ var require_callback = __commonJS((exports) => {
   exports.BindOnceFuture = BindOnceFuture;
 });
 
-// node_modules/@opentelemetry/core/build/src/utils/configuration.js
+// src/telemetry/node_modules/@opentelemetry/core/build/src/utils/configuration.js
 var require_configuration = __commonJS((exports) => {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.diagLogLevelFromString = undefined;
@@ -19176,7 +19194,7 @@ var require_configuration = __commonJS((exports) => {
   exports.diagLogLevelFromString = diagLogLevelFromString;
 });
 
-// node_modules/@opentelemetry/core/build/src/internal/exporter.js
+// src/telemetry/node_modules/@opentelemetry/core/build/src/internal/exporter.js
 var require_exporter = __commonJS((exports) => {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports._export = undefined;
@@ -19192,7 +19210,7 @@ var require_exporter = __commonJS((exports) => {
   exports._export = _export;
 });
 
-// node_modules/@opentelemetry/core/build/src/index.js
+// src/telemetry/node_modules/@opentelemetry/core/build/src/index.js
 var require_src3 = __commonJS((exports) => {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.diagLogLevelFromString = exports.BindOnceFuture = exports.urlMatches = exports.isUrlIgnored = exports.callWithTimeout = exports.TimeoutError = exports.merge = exports.TraceState = exports.unsuppressTracing = exports.suppressTracing = exports.isTracingSuppressed = exports.setRPCMetadata = exports.getRPCMetadata = exports.deleteRPCMetadata = exports.RPCType = exports.parseTraceParent = exports.W3CTraceContextPropagator = exports.TRACE_STATE_HEADER = exports.TRACE_PARENT_HEADER = exports.CompositePropagator = exports.otperformance = exports.getStringListFromEnv = exports.getNumberFromEnv = exports.getBooleanFromEnv = exports.getStringFromEnv = exports._globalThis = exports.SDK_INFO = exports.parseKeyPairsIntoRecord = exports.ExportResultCode = exports.unrefTimer = exports.timeInputToHrTime = exports.millisToHrTime = exports.isTimeInputHrTime = exports.isTimeInput = exports.hrTimeToTimeStamp = exports.hrTimeToSeconds = exports.hrTimeToNanoseconds = exports.hrTimeToMilliseconds = exports.hrTimeToMicroseconds = exports.hrTimeDuration = exports.hrTime = exports.getTimeOrigin = exports.addHrTimes = exports.loggingErrorHandler = exports.setGlobalErrorHandler = exports.globalErrorHandler = exports.sanitizeAttributes = exports.isAttributeValue = exports.AnchoredClock = exports.W3CBaggagePropagator = undefined;
@@ -19496,6 +19514,1375 @@ var require_bounded_queue_export_promise_handler = __commonJS((exports) => {
   exports.createBoundedQueueExportPromiseHandler = createBoundedQueueExportPromiseHandler;
 });
 
+// node_modules/@opentelemetry/core/build/src/trace/suppress-tracing.js
+var require_suppress_tracing2 = __commonJS((exports) => {
+  Object.defineProperty(exports, "__esModule", { value: true });
+  exports.isTracingSuppressed = exports.unsuppressTracing = exports.suppressTracing = undefined;
+  var api_1 = require_src();
+  var SUPPRESS_TRACING_KEY = (0, api_1.createContextKey)("OpenTelemetry SDK Context Key SUPPRESS_TRACING");
+  function suppressTracing(context) {
+    return context.setValue(SUPPRESS_TRACING_KEY, true);
+  }
+  exports.suppressTracing = suppressTracing;
+  function unsuppressTracing(context) {
+    return context.deleteValue(SUPPRESS_TRACING_KEY);
+  }
+  exports.unsuppressTracing = unsuppressTracing;
+  function isTracingSuppressed(context) {
+    return context.getValue(SUPPRESS_TRACING_KEY) === true;
+  }
+  exports.isTracingSuppressed = isTracingSuppressed;
+});
+
+// node_modules/@opentelemetry/core/build/src/baggage/constants.js
+var require_constants2 = __commonJS((exports) => {
+  Object.defineProperty(exports, "__esModule", { value: true });
+  exports.BAGGAGE_MAX_TOTAL_LENGTH = exports.BAGGAGE_MAX_PER_NAME_VALUE_PAIRS = exports.BAGGAGE_MAX_NAME_VALUE_PAIRS = exports.BAGGAGE_HEADER = exports.BAGGAGE_ITEMS_SEPARATOR = exports.BAGGAGE_PROPERTIES_SEPARATOR = exports.BAGGAGE_KEY_PAIR_SEPARATOR = undefined;
+  exports.BAGGAGE_KEY_PAIR_SEPARATOR = "=";
+  exports.BAGGAGE_PROPERTIES_SEPARATOR = ";";
+  exports.BAGGAGE_ITEMS_SEPARATOR = ",";
+  exports.BAGGAGE_HEADER = "baggage";
+  exports.BAGGAGE_MAX_NAME_VALUE_PAIRS = 180;
+  exports.BAGGAGE_MAX_PER_NAME_VALUE_PAIRS = 4096;
+  exports.BAGGAGE_MAX_TOTAL_LENGTH = 8192;
+});
+
+// node_modules/@opentelemetry/core/build/src/baggage/utils.js
+var require_utils5 = __commonJS((exports) => {
+  Object.defineProperty(exports, "__esModule", { value: true });
+  exports.parseKeyPairsIntoRecord = exports.parseBaggageHeaderString = exports.parsePairKeyValue = exports.getKeyPairs = exports.serializeKeyPairs = undefined;
+  var api_1 = require_src();
+  var constants_1 = require_constants2();
+  function serializeKeyPairs(keyPairs) {
+    return keyPairs.reduce((hValue, current) => {
+      const value = `${hValue}${hValue !== "" ? constants_1.BAGGAGE_ITEMS_SEPARATOR : ""}${current}`;
+      return value.length > constants_1.BAGGAGE_MAX_TOTAL_LENGTH ? hValue : value;
+    }, "");
+  }
+  exports.serializeKeyPairs = serializeKeyPairs;
+  function getKeyPairs(baggage) {
+    return baggage.getAllEntries().map(([key, value]) => {
+      let entry = `${encodeURIComponent(key)}=${encodeURIComponent(value.value)}`;
+      if (value.metadata !== undefined) {
+        entry += constants_1.BAGGAGE_PROPERTIES_SEPARATOR + value.metadata.toString();
+      }
+      return entry;
+    });
+  }
+  exports.getKeyPairs = getKeyPairs;
+  function parsePairKeyValue(entry) {
+    if (!entry)
+      return;
+    const metadataSeparatorIndex = entry.indexOf(constants_1.BAGGAGE_PROPERTIES_SEPARATOR);
+    const keyPairPart = metadataSeparatorIndex === -1 ? entry : entry.substring(0, metadataSeparatorIndex);
+    const separatorIndex = keyPairPart.indexOf(constants_1.BAGGAGE_KEY_PAIR_SEPARATOR);
+    if (separatorIndex <= 0)
+      return;
+    const rawKey = keyPairPart.substring(0, separatorIndex).trim();
+    const rawValue = keyPairPart.substring(separatorIndex + 1).trim();
+    if (!rawKey || !rawValue)
+      return;
+    let key;
+    let value;
+    try {
+      key = decodeURIComponent(rawKey);
+      value = decodeURIComponent(rawValue);
+    } catch {
+      return;
+    }
+    let metadata;
+    if (metadataSeparatorIndex !== -1 && metadataSeparatorIndex < entry.length - 1) {
+      const metadataString = entry.substring(metadataSeparatorIndex + 1);
+      metadata = (0, api_1.baggageEntryMetadataFromString)(metadataString);
+    }
+    return { key, value, metadata };
+  }
+  exports.parsePairKeyValue = parsePairKeyValue;
+  function parseBaggageHeaderString(value, baggage, count, totalSize) {
+    let start = 0;
+    while (start < value.length && count < constants_1.BAGGAGE_MAX_NAME_VALUE_PAIRS) {
+      const end = value.indexOf(constants_1.BAGGAGE_ITEMS_SEPARATOR, start);
+      const entryEnd = end === -1 ? value.length : end;
+      const entryLength = entryEnd - start;
+      if (entryLength <= constants_1.BAGGAGE_MAX_PER_NAME_VALUE_PAIRS) {
+        const keyPair = parsePairKeyValue(value.substring(start, entryEnd));
+        if (keyPair) {
+          const entrySize = (count === 0 ? 0 : 1) + entryLength;
+          if (totalSize + entrySize > constants_1.BAGGAGE_MAX_TOTAL_LENGTH)
+            break;
+          baggage[keyPair.key] = keyPair.metadata ? { value: keyPair.value, metadata: keyPair.metadata } : { value: keyPair.value };
+          count++;
+          totalSize += entrySize;
+        }
+      }
+      if (end === -1)
+        break;
+      start = end + 1;
+    }
+    return [count, totalSize];
+  }
+  exports.parseBaggageHeaderString = parseBaggageHeaderString;
+  function parseKeyPairsIntoRecord(value) {
+    const result = {};
+    if (typeof value === "string" && value.length > 0) {
+      value.split(constants_1.BAGGAGE_ITEMS_SEPARATOR).forEach((entry) => {
+        const keyPair = parsePairKeyValue(entry);
+        if (keyPair !== undefined && keyPair.value.length > 0) {
+          result[keyPair.key] = keyPair.value;
+        }
+      });
+    }
+    return result;
+  }
+  exports.parseKeyPairsIntoRecord = parseKeyPairsIntoRecord;
+});
+
+// node_modules/@opentelemetry/core/build/src/baggage/propagation/W3CBaggagePropagator.js
+var require_W3CBaggagePropagator2 = __commonJS((exports) => {
+  Object.defineProperty(exports, "__esModule", { value: true });
+  exports.W3CBaggagePropagator = undefined;
+  var api_1 = require_src();
+  var suppress_tracing_1 = require_suppress_tracing2();
+  var constants_1 = require_constants2();
+  var utils_1 = require_utils5();
+
+  class W3CBaggagePropagator {
+    inject(context, carrier, setter) {
+      const baggage = api_1.propagation.getBaggage(context);
+      if (!baggage || (0, suppress_tracing_1.isTracingSuppressed)(context))
+        return;
+      const keyPairs = (0, utils_1.getKeyPairs)(baggage).filter((pair) => {
+        return pair.length <= constants_1.BAGGAGE_MAX_PER_NAME_VALUE_PAIRS;
+      }).slice(0, constants_1.BAGGAGE_MAX_NAME_VALUE_PAIRS);
+      const headerValue = (0, utils_1.serializeKeyPairs)(keyPairs);
+      if (headerValue.length > 0) {
+        setter.set(carrier, constants_1.BAGGAGE_HEADER, headerValue);
+      }
+    }
+    extract(context, carrier, getter) {
+      const headerValue = getter.get(carrier, constants_1.BAGGAGE_HEADER);
+      if (!headerValue) {
+        return context;
+      }
+      const baggage = {};
+      let count = 0;
+      let totalSize = 0;
+      if (Array.isArray(headerValue)) {
+        for (let i = 0;i < headerValue.length; i++) {
+          [count, totalSize] = (0, utils_1.parseBaggageHeaderString)(headerValue[i], baggage, count, totalSize);
+        }
+      } else {
+        [count] = (0, utils_1.parseBaggageHeaderString)(headerValue, baggage, count, totalSize);
+      }
+      if (count === 0) {
+        return context;
+      }
+      return api_1.propagation.setBaggage(context, api_1.propagation.createBaggage(baggage));
+    }
+    fields() {
+      return [constants_1.BAGGAGE_HEADER];
+    }
+  }
+  exports.W3CBaggagePropagator = W3CBaggagePropagator;
+});
+
+// node_modules/@opentelemetry/core/build/src/common/anchored-clock.js
+var require_anchored_clock2 = __commonJS((exports) => {
+  Object.defineProperty(exports, "__esModule", { value: true });
+  exports.AnchoredClock = undefined;
+
+  class AnchoredClock {
+    _monotonicClock;
+    _epochMillis;
+    _performanceMillis;
+    constructor(systemClock, monotonicClock) {
+      this._monotonicClock = monotonicClock;
+      this._epochMillis = systemClock.now();
+      this._performanceMillis = monotonicClock.now();
+    }
+    now() {
+      const delta = this._monotonicClock.now() - this._performanceMillis;
+      return this._epochMillis + delta;
+    }
+  }
+  exports.AnchoredClock = AnchoredClock;
+});
+
+// node_modules/@opentelemetry/core/build/src/common/attributes.js
+var require_attributes2 = __commonJS((exports) => {
+  Object.defineProperty(exports, "__esModule", { value: true });
+  exports.isAttributeValue = exports.isAttributeKey = exports.sanitizeAttributes = undefined;
+  var api_1 = require_src();
+  function sanitizeAttributes(attributes) {
+    const out = {};
+    if (typeof attributes !== "object" || attributes == null) {
+      return out;
+    }
+    for (const key in attributes) {
+      if (!Object.prototype.hasOwnProperty.call(attributes, key)) {
+        continue;
+      }
+      if (!isAttributeKey(key)) {
+        api_1.diag.warn(`Invalid attribute key: ${key}`);
+        continue;
+      }
+      const val = attributes[key];
+      if (!isAttributeValue(val)) {
+        api_1.diag.warn(`Invalid attribute value set for key: ${key}`);
+        continue;
+      }
+      if (Array.isArray(val)) {
+        out[key] = val.slice();
+      } else {
+        out[key] = val;
+      }
+    }
+    return out;
+  }
+  exports.sanitizeAttributes = sanitizeAttributes;
+  function isAttributeKey(key) {
+    return typeof key === "string" && key !== "";
+  }
+  exports.isAttributeKey = isAttributeKey;
+  function isAttributeValue(val) {
+    if (val == null) {
+      return true;
+    }
+    if (Array.isArray(val)) {
+      return isHomogeneousAttributeValueArray(val);
+    }
+    return isValidPrimitiveAttributeValueType(typeof val);
+  }
+  exports.isAttributeValue = isAttributeValue;
+  function isHomogeneousAttributeValueArray(arr) {
+    let type;
+    for (const element of arr) {
+      if (element == null)
+        continue;
+      const elementType = typeof element;
+      if (elementType === type) {
+        continue;
+      }
+      if (!type) {
+        if (isValidPrimitiveAttributeValueType(elementType)) {
+          type = elementType;
+          continue;
+        }
+        return false;
+      }
+      return false;
+    }
+    return true;
+  }
+  function isValidPrimitiveAttributeValueType(valType) {
+    switch (valType) {
+      case "number":
+      case "boolean":
+      case "string":
+        return true;
+    }
+    return false;
+  }
+});
+
+// node_modules/@opentelemetry/core/build/src/common/logging-error-handler.js
+var require_logging_error_handler2 = __commonJS((exports) => {
+  Object.defineProperty(exports, "__esModule", { value: true });
+  exports.loggingErrorHandler = undefined;
+  var api_1 = require_src();
+  function loggingErrorHandler() {
+    return (ex) => {
+      api_1.diag.error(stringifyException(ex));
+    };
+  }
+  exports.loggingErrorHandler = loggingErrorHandler;
+  function stringifyException(ex) {
+    if (typeof ex === "string") {
+      return ex;
+    } else {
+      return JSON.stringify(flattenException(ex));
+    }
+  }
+  function flattenException(ex) {
+    const result = {};
+    let current = ex;
+    while (current !== null) {
+      Object.getOwnPropertyNames(current).forEach((propertyName) => {
+        if (result[propertyName])
+          return;
+        const value = current[propertyName];
+        if (value) {
+          result[propertyName] = String(value);
+        }
+      });
+      current = Object.getPrototypeOf(current);
+    }
+    return result;
+  }
+});
+
+// node_modules/@opentelemetry/core/build/src/common/global-error-handler.js
+var require_global_error_handler2 = __commonJS((exports) => {
+  Object.defineProperty(exports, "__esModule", { value: true });
+  exports.globalErrorHandler = exports.setGlobalErrorHandler = undefined;
+  var logging_error_handler_1 = require_logging_error_handler2();
+  var delegateHandler = (0, logging_error_handler_1.loggingErrorHandler)();
+  function setGlobalErrorHandler(handler) {
+    delegateHandler = handler;
+  }
+  exports.setGlobalErrorHandler = setGlobalErrorHandler;
+  function globalErrorHandler(ex) {
+    try {
+      delegateHandler(ex);
+    } catch {}
+  }
+  exports.globalErrorHandler = globalErrorHandler;
+});
+
+// node_modules/@opentelemetry/core/build/src/platform/node/environment.js
+var require_environment2 = __commonJS((exports) => {
+  Object.defineProperty(exports, "__esModule", { value: true });
+  exports.getStringListFromEnv = exports.getBooleanFromEnv = exports.getStringFromEnv = exports.getNumberFromEnv = undefined;
+  var api_1 = require_src();
+  var util_1 = __require("util");
+  function getNumberFromEnv(key) {
+    const raw = process.env[key];
+    if (raw == null || raw.trim() === "") {
+      return;
+    }
+    const value = Number(raw);
+    if (isNaN(value)) {
+      api_1.diag.warn(`Unknown value ${(0, util_1.inspect)(raw)} for ${key}, expected a number, using defaults`);
+      return;
+    }
+    return value;
+  }
+  exports.getNumberFromEnv = getNumberFromEnv;
+  function getStringFromEnv(key) {
+    const raw = process.env[key];
+    if (raw == null || raw.trim() === "") {
+      return;
+    }
+    return raw;
+  }
+  exports.getStringFromEnv = getStringFromEnv;
+  function getBooleanFromEnv(key) {
+    const raw = process.env[key]?.trim().toLowerCase();
+    if (raw == null || raw === "") {
+      return false;
+    }
+    if (raw === "true") {
+      return true;
+    } else if (raw === "false") {
+      return false;
+    } else {
+      api_1.diag.warn(`Unknown value ${(0, util_1.inspect)(raw)} for ${key}, expected 'true' or 'false', falling back to 'false' (default)`);
+      return false;
+    }
+  }
+  exports.getBooleanFromEnv = getBooleanFromEnv;
+  function getStringListFromEnv(key) {
+    return getStringFromEnv(key)?.split(",").map((v) => v.trim()).filter((s) => s !== "");
+  }
+  exports.getStringListFromEnv = getStringListFromEnv;
+});
+
+// node_modules/@opentelemetry/core/build/src/common/globalThis.js
+var require_globalThis2 = __commonJS((exports) => {
+  Object.defineProperty(exports, "__esModule", { value: true });
+  exports._globalThis = undefined;
+  exports._globalThis = globalThis;
+});
+
+// node_modules/@opentelemetry/core/build/src/version.js
+var require_version4 = __commonJS((exports) => {
+  Object.defineProperty(exports, "__esModule", { value: true });
+  exports.VERSION = undefined;
+  exports.VERSION = "2.8.0";
+});
+
+// node_modules/@opentelemetry/core/build/src/semconv.js
+var require_semconv2 = __commonJS((exports) => {
+  Object.defineProperty(exports, "__esModule", { value: true });
+  exports.ATTR_PROCESS_RUNTIME_NAME = undefined;
+  exports.ATTR_PROCESS_RUNTIME_NAME = "process.runtime.name";
+});
+
+// node_modules/@opentelemetry/core/build/src/platform/node/sdk-info.js
+var require_sdk_info2 = __commonJS((exports) => {
+  Object.defineProperty(exports, "__esModule", { value: true });
+  exports.SDK_INFO = undefined;
+  var version_1 = require_version4();
+  var semantic_conventions_1 = require_src2();
+  var semconv_1 = require_semconv2();
+  exports.SDK_INFO = {
+    [semantic_conventions_1.ATTR_TELEMETRY_SDK_NAME]: "opentelemetry",
+    [semconv_1.ATTR_PROCESS_RUNTIME_NAME]: "node",
+    [semantic_conventions_1.ATTR_TELEMETRY_SDK_LANGUAGE]: semantic_conventions_1.TELEMETRY_SDK_LANGUAGE_VALUE_NODEJS,
+    [semantic_conventions_1.ATTR_TELEMETRY_SDK_VERSION]: version_1.VERSION
+  };
+});
+
+// node_modules/@opentelemetry/core/build/src/platform/node/index.js
+var require_node2 = __commonJS((exports) => {
+  Object.defineProperty(exports, "__esModule", { value: true });
+  exports.otperformance = exports.SDK_INFO = exports._globalThis = exports.getStringListFromEnv = exports.getNumberFromEnv = exports.getBooleanFromEnv = exports.getStringFromEnv = undefined;
+  var environment_1 = require_environment2();
+  Object.defineProperty(exports, "getStringFromEnv", { enumerable: true, get: function() {
+    return environment_1.getStringFromEnv;
+  } });
+  Object.defineProperty(exports, "getBooleanFromEnv", { enumerable: true, get: function() {
+    return environment_1.getBooleanFromEnv;
+  } });
+  Object.defineProperty(exports, "getNumberFromEnv", { enumerable: true, get: function() {
+    return environment_1.getNumberFromEnv;
+  } });
+  Object.defineProperty(exports, "getStringListFromEnv", { enumerable: true, get: function() {
+    return environment_1.getStringListFromEnv;
+  } });
+  var globalThis_1 = require_globalThis2();
+  Object.defineProperty(exports, "_globalThis", { enumerable: true, get: function() {
+    return globalThis_1._globalThis;
+  } });
+  var sdk_info_1 = require_sdk_info2();
+  Object.defineProperty(exports, "SDK_INFO", { enumerable: true, get: function() {
+    return sdk_info_1.SDK_INFO;
+  } });
+  exports.otperformance = performance;
+});
+
+// node_modules/@opentelemetry/core/build/src/platform/index.js
+var require_platform2 = __commonJS((exports) => {
+  Object.defineProperty(exports, "__esModule", { value: true });
+  exports.getStringListFromEnv = exports.getNumberFromEnv = exports.getStringFromEnv = exports.getBooleanFromEnv = exports.otperformance = exports._globalThis = exports.SDK_INFO = undefined;
+  var node_1 = require_node2();
+  Object.defineProperty(exports, "SDK_INFO", { enumerable: true, get: function() {
+    return node_1.SDK_INFO;
+  } });
+  Object.defineProperty(exports, "_globalThis", { enumerable: true, get: function() {
+    return node_1._globalThis;
+  } });
+  Object.defineProperty(exports, "otperformance", { enumerable: true, get: function() {
+    return node_1.otperformance;
+  } });
+  Object.defineProperty(exports, "getBooleanFromEnv", { enumerable: true, get: function() {
+    return node_1.getBooleanFromEnv;
+  } });
+  Object.defineProperty(exports, "getStringFromEnv", { enumerable: true, get: function() {
+    return node_1.getStringFromEnv;
+  } });
+  Object.defineProperty(exports, "getNumberFromEnv", { enumerable: true, get: function() {
+    return node_1.getNumberFromEnv;
+  } });
+  Object.defineProperty(exports, "getStringListFromEnv", { enumerable: true, get: function() {
+    return node_1.getStringListFromEnv;
+  } });
+});
+
+// node_modules/@opentelemetry/core/build/src/common/time.js
+var require_time2 = __commonJS((exports) => {
+  Object.defineProperty(exports, "__esModule", { value: true });
+  exports.addHrTimes = exports.isTimeInput = exports.isTimeInputHrTime = exports.hrTimeToSeconds = exports.hrTimeToMilliseconds = exports.hrTimeToMicroseconds = exports.hrTimeToNanoseconds = exports.hrTimeToTimeStamp = exports.hrTimeDuration = exports.timeInputToHrTime = exports.hrTime = exports.getTimeOrigin = exports.millisToHrTime = undefined;
+  var platform_1 = require_platform2();
+  var NANOSECOND_DIGITS = 9;
+  var NANOSECOND_DIGITS_IN_MILLIS = 6;
+  var MILLISECONDS_TO_NANOSECONDS = Math.pow(10, NANOSECOND_DIGITS_IN_MILLIS);
+  var SECOND_TO_NANOSECONDS = Math.pow(10, NANOSECOND_DIGITS);
+  function millisToHrTime(epochMillis) {
+    const epochSeconds = epochMillis / 1000;
+    const seconds = Math.trunc(epochSeconds);
+    const nanos = Math.round(epochMillis % 1000 * MILLISECONDS_TO_NANOSECONDS);
+    return [seconds, nanos];
+  }
+  exports.millisToHrTime = millisToHrTime;
+  function getTimeOrigin() {
+    return platform_1.otperformance.timeOrigin;
+  }
+  exports.getTimeOrigin = getTimeOrigin;
+  function hrTime(performanceNow) {
+    const timeOrigin = millisToHrTime(platform_1.otperformance.timeOrigin);
+    const now = millisToHrTime(typeof performanceNow === "number" ? performanceNow : platform_1.otperformance.now());
+    return addHrTimes(timeOrigin, now);
+  }
+  exports.hrTime = hrTime;
+  function timeInputToHrTime(time) {
+    if (isTimeInputHrTime(time)) {
+      return time;
+    } else if (typeof time === "number") {
+      if (time < platform_1.otperformance.timeOrigin) {
+        return hrTime(time);
+      } else {
+        return millisToHrTime(time);
+      }
+    } else if (time instanceof Date) {
+      return millisToHrTime(time.getTime());
+    } else {
+      throw TypeError("Invalid input type");
+    }
+  }
+  exports.timeInputToHrTime = timeInputToHrTime;
+  function hrTimeDuration(startTime, endTime) {
+    let seconds = endTime[0] - startTime[0];
+    let nanos = endTime[1] - startTime[1];
+    if (nanos < 0) {
+      seconds -= 1;
+      nanos += SECOND_TO_NANOSECONDS;
+    }
+    return [seconds, nanos];
+  }
+  exports.hrTimeDuration = hrTimeDuration;
+  function hrTimeToTimeStamp(time) {
+    const precision = NANOSECOND_DIGITS;
+    const tmp = `${"0".repeat(precision)}${time[1]}Z`;
+    const nanoString = tmp.substring(tmp.length - precision - 1);
+    const date = new Date(time[0] * 1000).toISOString();
+    return date.replace("000Z", nanoString);
+  }
+  exports.hrTimeToTimeStamp = hrTimeToTimeStamp;
+  function hrTimeToNanoseconds(time) {
+    return time[0] * SECOND_TO_NANOSECONDS + time[1];
+  }
+  exports.hrTimeToNanoseconds = hrTimeToNanoseconds;
+  function hrTimeToMicroseconds(time) {
+    return time[0] * 1e6 + time[1] / 1000;
+  }
+  exports.hrTimeToMicroseconds = hrTimeToMicroseconds;
+  function hrTimeToMilliseconds(time) {
+    return time[0] * 1000 + time[1] / 1e6;
+  }
+  exports.hrTimeToMilliseconds = hrTimeToMilliseconds;
+  function hrTimeToSeconds(time) {
+    return time[0] + time[1] / SECOND_TO_NANOSECONDS;
+  }
+  exports.hrTimeToSeconds = hrTimeToSeconds;
+  function isTimeInputHrTime(value) {
+    return Array.isArray(value) && value.length === 2 && typeof value[0] === "number" && typeof value[1] === "number";
+  }
+  exports.isTimeInputHrTime = isTimeInputHrTime;
+  function isTimeInput(value) {
+    return isTimeInputHrTime(value) || typeof value === "number" || value instanceof Date;
+  }
+  exports.isTimeInput = isTimeInput;
+  function addHrTimes(time1, time2) {
+    const out = [time1[0] + time2[0], time1[1] + time2[1]];
+    if (out[1] >= SECOND_TO_NANOSECONDS) {
+      out[1] -= SECOND_TO_NANOSECONDS;
+      out[0] += 1;
+    }
+    return out;
+  }
+  exports.addHrTimes = addHrTimes;
+});
+
+// node_modules/@opentelemetry/core/build/src/common/timer-util.js
+var require_timer_util2 = __commonJS((exports) => {
+  Object.defineProperty(exports, "__esModule", { value: true });
+  exports.unrefTimer = undefined;
+  function unrefTimer(timer) {
+    if (typeof timer !== "number") {
+      timer.unref();
+    }
+  }
+  exports.unrefTimer = unrefTimer;
+});
+
+// node_modules/@opentelemetry/core/build/src/ExportResult.js
+var require_ExportResult2 = __commonJS((exports) => {
+  Object.defineProperty(exports, "__esModule", { value: true });
+  exports.ExportResultCode = undefined;
+  var ExportResultCode;
+  (function(ExportResultCode2) {
+    ExportResultCode2[ExportResultCode2["SUCCESS"] = 0] = "SUCCESS";
+    ExportResultCode2[ExportResultCode2["FAILED"] = 1] = "FAILED";
+  })(ExportResultCode = exports.ExportResultCode || (exports.ExportResultCode = {}));
+});
+
+// node_modules/@opentelemetry/core/build/src/propagation/composite.js
+var require_composite2 = __commonJS((exports) => {
+  Object.defineProperty(exports, "__esModule", { value: true });
+  exports.CompositePropagator = undefined;
+  var api_1 = require_src();
+
+  class CompositePropagator {
+    _propagators;
+    _fields;
+    constructor(config = {}) {
+      this._propagators = config.propagators ?? [];
+      const fields = new Set;
+      for (const propagator of this._propagators) {
+        const propagatorFields = typeof propagator.fields === "function" ? propagator.fields() : [];
+        for (const field of propagatorFields) {
+          fields.add(field);
+        }
+      }
+      this._fields = Array.from(fields);
+    }
+    inject(context, carrier, setter) {
+      for (const propagator of this._propagators) {
+        try {
+          propagator.inject(context, carrier, setter);
+        } catch (err) {
+          api_1.diag.warn(`Failed to inject with ${propagator.constructor.name}. Err: ${err.message}`);
+        }
+      }
+    }
+    extract(context, carrier, getter) {
+      return this._propagators.reduce((ctx, propagator) => {
+        try {
+          return propagator.extract(ctx, carrier, getter);
+        } catch (err) {
+          api_1.diag.warn(`Failed to extract with ${propagator.constructor.name}. Err: ${err.message}`);
+        }
+        return ctx;
+      }, context);
+    }
+    fields() {
+      return this._fields.slice();
+    }
+  }
+  exports.CompositePropagator = CompositePropagator;
+});
+
+// node_modules/@opentelemetry/core/build/src/internal/validators.js
+var require_validators2 = __commonJS((exports) => {
+  Object.defineProperty(exports, "__esModule", { value: true });
+  exports.validateValue = exports.validateKey = undefined;
+  var VALID_KEY_CHAR_RANGE = "[_0-9a-z-*/]";
+  var VALID_KEY = `[a-z]${VALID_KEY_CHAR_RANGE}{0,255}`;
+  var VALID_VENDOR_KEY = `[a-z0-9]${VALID_KEY_CHAR_RANGE}{0,240}@[a-z]${VALID_KEY_CHAR_RANGE}{0,13}`;
+  var VALID_KEY_REGEX = new RegExp(`^(?:${VALID_KEY}|${VALID_VENDOR_KEY})$`);
+  var VALID_VALUE_BASE_REGEX = /^[ -~]{0,255}[!-~]$/;
+  var INVALID_VALUE_COMMA_EQUAL_REGEX = /,|=/;
+  function validateKey(key) {
+    return VALID_KEY_REGEX.test(key);
+  }
+  exports.validateKey = validateKey;
+  function validateValue(value) {
+    return VALID_VALUE_BASE_REGEX.test(value) && !INVALID_VALUE_COMMA_EQUAL_REGEX.test(value);
+  }
+  exports.validateValue = validateValue;
+});
+
+// node_modules/@opentelemetry/core/build/src/trace/TraceState.js
+var require_TraceState2 = __commonJS((exports) => {
+  Object.defineProperty(exports, "__esModule", { value: true });
+  exports.TraceState = undefined;
+  var validators_1 = require_validators2();
+  var MAX_TRACE_STATE_ITEMS = 32;
+  var MAX_TRACE_STATE_LEN = 512;
+  var LIST_MEMBERS_SEPARATOR = ",";
+  var LIST_MEMBER_KEY_VALUE_SPLITTER = "=";
+
+  class TraceState {
+    _length;
+    _rawTraceState;
+    _internalState;
+    constructor(rawTraceState) {
+      this._rawTraceState = typeof rawTraceState === "string" ? rawTraceState : "";
+      this._length = this._rawTraceState.length;
+    }
+    set(key, value) {
+      if (!(0, validators_1.validateKey)(key) || !(0, validators_1.validateValue)(value)) {
+        return this;
+      }
+      const currState = this._getState();
+      const currValue = currState.get(key);
+      let newLength = this._length;
+      if (typeof currValue === "string") {
+        newLength += value.length - currValue.length;
+      } else {
+        newLength += key.length + value.length + (currState.size > 0 ? 2 : 1);
+      }
+      if (newLength > MAX_TRACE_STATE_LEN) {
+        return this;
+      }
+      const newState = new Map(currState);
+      newState.delete(key);
+      newState.set(key, value);
+      return this._fromState(newState, newLength);
+    }
+    unset(key) {
+      const currState = this._getState();
+      const currValue = currState.get(key);
+      if (typeof currValue !== "string") {
+        return this;
+      }
+      let newLength = this._length - (key.length + currValue.length + 1);
+      if (currState.size > 1) {
+        newLength = newLength - 1;
+      }
+      const newState = new Map(currState);
+      newState.delete(key);
+      return this._fromState(newState, newLength);
+    }
+    get(key) {
+      const currState = this._getState();
+      return currState.get(key);
+    }
+    serialize() {
+      let serialized = "";
+      let index = 0;
+      for (const entry of this._getState()) {
+        if (index > 0) {
+          serialized = LIST_MEMBERS_SEPARATOR + serialized;
+        }
+        serialized = `${entry[0]}${LIST_MEMBER_KEY_VALUE_SPLITTER}${entry[1]}` + serialized;
+        index++;
+      }
+      return serialized;
+    }
+    _getState() {
+      if (this._internalState) {
+        return this._internalState;
+      }
+      const vendorMembers = this._rawTraceState.split(LIST_MEMBERS_SEPARATOR);
+      const vendorEntries = new Map;
+      let currentLength = 0;
+      for (const member of vendorMembers) {
+        const m = member.trim();
+        const idx = m.indexOf(LIST_MEMBER_KEY_VALUE_SPLITTER);
+        if (idx === -1) {
+          continue;
+        }
+        const key = m.slice(0, idx);
+        const value = m.slice(idx + 1);
+        if (!(0, validators_1.validateKey)(key) || !(0, validators_1.validateValue)(value)) {
+          continue;
+        }
+        const futureLength = currentLength + m.length + (vendorEntries.size > 0 ? 1 : 0);
+        if (futureLength > MAX_TRACE_STATE_LEN) {
+          continue;
+        }
+        vendorEntries.set(key, value);
+        currentLength = futureLength;
+        if (vendorEntries.size >= MAX_TRACE_STATE_ITEMS) {
+          break;
+        }
+      }
+      this._length = currentLength;
+      this._internalState = new Map(Array.from(vendorEntries.entries()).reverse());
+      return this._internalState;
+    }
+    _fromState(state, length) {
+      const traceState = Object.create(TraceState.prototype);
+      traceState._internalState = state;
+      traceState._length = length;
+      return traceState;
+    }
+  }
+  exports.TraceState = TraceState;
+});
+
+// node_modules/@opentelemetry/core/build/src/trace/W3CTraceContextPropagator.js
+var require_W3CTraceContextPropagator2 = __commonJS((exports) => {
+  Object.defineProperty(exports, "__esModule", { value: true });
+  exports.W3CTraceContextPropagator = exports.parseTraceParent = exports.TRACE_STATE_HEADER = exports.TRACE_PARENT_HEADER = undefined;
+  var api_1 = require_src();
+  var suppress_tracing_1 = require_suppress_tracing2();
+  var TraceState_1 = require_TraceState2();
+  exports.TRACE_PARENT_HEADER = "traceparent";
+  exports.TRACE_STATE_HEADER = "tracestate";
+  var VERSION = "00";
+  var VERSION_PART = "(?!ff)[\\da-f]{2}";
+  var TRACE_ID_PART = "(?![0]{32})[\\da-f]{32}";
+  var PARENT_ID_PART = "(?![0]{16})[\\da-f]{16}";
+  var FLAGS_PART = "[\\da-f]{2}";
+  var TRACE_PARENT_REGEX = new RegExp(`^\\s?(${VERSION_PART})-(${TRACE_ID_PART})-(${PARENT_ID_PART})-(${FLAGS_PART})(-.*)?\\s?$`);
+  function parseTraceParent(traceParent) {
+    const match = TRACE_PARENT_REGEX.exec(traceParent);
+    if (!match)
+      return null;
+    if (match[1] === "00" && match[5])
+      return null;
+    return {
+      traceId: match[2],
+      spanId: match[3],
+      traceFlags: parseInt(match[4], 16)
+    };
+  }
+  exports.parseTraceParent = parseTraceParent;
+
+  class W3CTraceContextPropagator {
+    inject(context, carrier, setter) {
+      const spanContext = api_1.trace.getSpanContext(context);
+      if (!spanContext || (0, suppress_tracing_1.isTracingSuppressed)(context) || !(0, api_1.isSpanContextValid)(spanContext))
+        return;
+      const traceParent = `${VERSION}-${spanContext.traceId}-${spanContext.spanId}-0${Number(spanContext.traceFlags || api_1.TraceFlags.NONE).toString(16)}`;
+      setter.set(carrier, exports.TRACE_PARENT_HEADER, traceParent);
+      if (spanContext.traceState) {
+        setter.set(carrier, exports.TRACE_STATE_HEADER, spanContext.traceState.serialize());
+      }
+    }
+    extract(context, carrier, getter) {
+      const traceParentHeader = getter.get(carrier, exports.TRACE_PARENT_HEADER);
+      if (!traceParentHeader)
+        return context;
+      const traceParent = Array.isArray(traceParentHeader) ? traceParentHeader[0] : traceParentHeader;
+      if (typeof traceParent !== "string")
+        return context;
+      const spanContext = parseTraceParent(traceParent);
+      if (!spanContext)
+        return context;
+      spanContext.isRemote = true;
+      const traceStateHeader = getter.get(carrier, exports.TRACE_STATE_HEADER);
+      if (traceStateHeader) {
+        const state = Array.isArray(traceStateHeader) ? traceStateHeader.join(",") : traceStateHeader;
+        spanContext.traceState = new TraceState_1.TraceState(typeof state === "string" ? state : undefined);
+      }
+      return api_1.trace.setSpanContext(context, spanContext);
+    }
+    fields() {
+      return [exports.TRACE_PARENT_HEADER, exports.TRACE_STATE_HEADER];
+    }
+  }
+  exports.W3CTraceContextPropagator = W3CTraceContextPropagator;
+});
+
+// node_modules/@opentelemetry/core/build/src/trace/rpc-metadata.js
+var require_rpc_metadata2 = __commonJS((exports) => {
+  Object.defineProperty(exports, "__esModule", { value: true });
+  exports.getRPCMetadata = exports.deleteRPCMetadata = exports.setRPCMetadata = exports.RPCType = undefined;
+  var api_1 = require_src();
+  var RPC_METADATA_KEY = (0, api_1.createContextKey)("OpenTelemetry SDK Context Key RPC_METADATA");
+  var RPCType;
+  (function(RPCType2) {
+    RPCType2["HTTP"] = "http";
+  })(RPCType = exports.RPCType || (exports.RPCType = {}));
+  function setRPCMetadata(context, meta) {
+    return context.setValue(RPC_METADATA_KEY, meta);
+  }
+  exports.setRPCMetadata = setRPCMetadata;
+  function deleteRPCMetadata(context) {
+    return context.deleteValue(RPC_METADATA_KEY);
+  }
+  exports.deleteRPCMetadata = deleteRPCMetadata;
+  function getRPCMetadata(context) {
+    return context.getValue(RPC_METADATA_KEY);
+  }
+  exports.getRPCMetadata = getRPCMetadata;
+});
+
+// node_modules/@opentelemetry/core/build/src/utils/lodash.merge.js
+var require_lodash_merge2 = __commonJS((exports) => {
+  Object.defineProperty(exports, "__esModule", { value: true });
+  exports.isPlainObject = undefined;
+  var objectTag = "[object Object]";
+  var nullTag = "[object Null]";
+  var undefinedTag = "[object Undefined]";
+  var funcProto = Function.prototype;
+  var funcToString = funcProto.toString;
+  var objectCtorString = funcToString.call(Object);
+  var getPrototypeOf = Object.getPrototypeOf;
+  var objectProto = Object.prototype;
+  var hasOwnProperty = objectProto.hasOwnProperty;
+  var symToStringTag = Symbol ? Symbol.toStringTag : undefined;
+  var nativeObjectToString = objectProto.toString;
+  function isPlainObject2(value) {
+    if (!isObjectLike(value) || baseGetTag(value) !== objectTag) {
+      return false;
+    }
+    const proto = getPrototypeOf(value);
+    if (proto === null) {
+      return true;
+    }
+    const Ctor = hasOwnProperty.call(proto, "constructor") && proto.constructor;
+    return typeof Ctor == "function" && Ctor instanceof Ctor && funcToString.call(Ctor) === objectCtorString;
+  }
+  exports.isPlainObject = isPlainObject2;
+  function isObjectLike(value) {
+    return value != null && typeof value == "object";
+  }
+  function baseGetTag(value) {
+    if (value == null) {
+      return value === undefined ? undefinedTag : nullTag;
+    }
+    return symToStringTag && symToStringTag in Object(value) ? getRawTag(value) : objectToString(value);
+  }
+  function getRawTag(value) {
+    const isOwn = hasOwnProperty.call(value, symToStringTag), tag = value[symToStringTag];
+    let unmasked = false;
+    try {
+      value[symToStringTag] = undefined;
+      unmasked = true;
+    } catch {}
+    const result = nativeObjectToString.call(value);
+    if (unmasked) {
+      if (isOwn) {
+        value[symToStringTag] = tag;
+      } else {
+        delete value[symToStringTag];
+      }
+    }
+    return result;
+  }
+  function objectToString(value) {
+    return nativeObjectToString.call(value);
+  }
+});
+
+// node_modules/@opentelemetry/core/build/src/utils/merge.js
+var require_merge2 = __commonJS((exports) => {
+  Object.defineProperty(exports, "__esModule", { value: true });
+  exports.merge = undefined;
+  var lodash_merge_1 = require_lodash_merge2();
+  var MAX_LEVEL = 20;
+  function merge(...args) {
+    let result = args.shift();
+    const objects = new WeakMap;
+    while (args.length > 0) {
+      result = mergeTwoObjects(result, args.shift(), 0, objects);
+    }
+    return result;
+  }
+  exports.merge = merge;
+  function takeValue(value) {
+    if (isArray(value)) {
+      return value.slice();
+    }
+    return value;
+  }
+  function mergeTwoObjects(one, two, level = 0, objects) {
+    let result;
+    if (level > MAX_LEVEL) {
+      return;
+    }
+    level++;
+    if (isPrimitive(one) || isPrimitive(two) || isFunction(two)) {
+      result = takeValue(two);
+    } else if (isArray(one)) {
+      result = one.slice();
+      if (isArray(two)) {
+        for (let i = 0, j = two.length;i < j; i++) {
+          result.push(takeValue(two[i]));
+        }
+      } else if (isObject(two)) {
+        const keys = Object.keys(two);
+        for (let i = 0, j = keys.length;i < j; i++) {
+          const key = keys[i];
+          if (key === "__proto__" || key === "constructor" || key === "prototype") {
+            continue;
+          }
+          result[key] = takeValue(two[key]);
+        }
+      }
+    } else if (isObject(one)) {
+      if (isObject(two)) {
+        if (!shouldMerge(one, two)) {
+          return two;
+        }
+        result = Object.assign({}, one);
+        const keys = Object.keys(two);
+        for (let i = 0, j = keys.length;i < j; i++) {
+          const key = keys[i];
+          if (key === "__proto__" || key === "constructor" || key === "prototype") {
+            continue;
+          }
+          const twoValue = two[key];
+          if (isPrimitive(twoValue)) {
+            if (typeof twoValue === "undefined") {
+              delete result[key];
+            } else {
+              result[key] = twoValue;
+            }
+          } else {
+            const obj1 = result[key];
+            const obj2 = twoValue;
+            if (wasObjectReferenced(one, key, objects) || wasObjectReferenced(two, key, objects)) {
+              delete result[key];
+            } else {
+              if (isObject(obj1) && isObject(obj2)) {
+                const arr1 = objects.get(obj1) || [];
+                const arr2 = objects.get(obj2) || [];
+                arr1.push({ obj: one, key });
+                arr2.push({ obj: two, key });
+                objects.set(obj1, arr1);
+                objects.set(obj2, arr2);
+              }
+              result[key] = mergeTwoObjects(result[key], twoValue, level, objects);
+            }
+          }
+        }
+      } else {
+        result = two;
+      }
+    }
+    return result;
+  }
+  function wasObjectReferenced(obj, key, objects) {
+    const arr = objects.get(obj[key]) || [];
+    for (let i = 0, j = arr.length;i < j; i++) {
+      const info = arr[i];
+      if (info.key === key && info.obj === obj) {
+        return true;
+      }
+    }
+    return false;
+  }
+  function isArray(value) {
+    return Array.isArray(value);
+  }
+  function isFunction(value) {
+    return typeof value === "function";
+  }
+  function isObject(value) {
+    return !isPrimitive(value) && !isArray(value) && !isFunction(value) && typeof value === "object";
+  }
+  function isPrimitive(value) {
+    return typeof value === "string" || typeof value === "number" || typeof value === "boolean" || typeof value === "undefined" || value instanceof Date || value instanceof RegExp || value === null;
+  }
+  function shouldMerge(one, two) {
+    if (!(0, lodash_merge_1.isPlainObject)(one) || !(0, lodash_merge_1.isPlainObject)(two)) {
+      return false;
+    }
+    return true;
+  }
+});
+
+// node_modules/@opentelemetry/core/build/src/utils/timeout.js
+var require_timeout2 = __commonJS((exports) => {
+  Object.defineProperty(exports, "__esModule", { value: true });
+  exports.callWithTimeout = exports.TimeoutError = undefined;
+
+  class TimeoutError extends Error {
+    constructor(message) {
+      super(message);
+      Object.setPrototypeOf(this, TimeoutError.prototype);
+    }
+  }
+  exports.TimeoutError = TimeoutError;
+  function callWithTimeout(promise, timeout) {
+    let timeoutHandle;
+    const timeoutPromise = new Promise(function timeoutFunction(_resolve, reject) {
+      timeoutHandle = setTimeout(function timeoutHandler() {
+        reject(new TimeoutError("Operation timed out."));
+      }, timeout);
+    });
+    return Promise.race([promise, timeoutPromise]).then((result) => {
+      clearTimeout(timeoutHandle);
+      return result;
+    }, (reason) => {
+      clearTimeout(timeoutHandle);
+      throw reason;
+    });
+  }
+  exports.callWithTimeout = callWithTimeout;
+});
+
+// node_modules/@opentelemetry/core/build/src/utils/url.js
+var require_url2 = __commonJS((exports) => {
+  Object.defineProperty(exports, "__esModule", { value: true });
+  exports.isUrlIgnored = exports.urlMatches = undefined;
+  function urlMatches(url, urlToMatch) {
+    if (typeof urlToMatch === "string") {
+      return url === urlToMatch;
+    } else {
+      return !!url.match(urlToMatch);
+    }
+  }
+  exports.urlMatches = urlMatches;
+  function isUrlIgnored(url, ignoredUrls) {
+    if (!ignoredUrls) {
+      return false;
+    }
+    for (const ignoreUrl of ignoredUrls) {
+      if (urlMatches(url, ignoreUrl)) {
+        return true;
+      }
+    }
+    return false;
+  }
+  exports.isUrlIgnored = isUrlIgnored;
+});
+
+// node_modules/@opentelemetry/core/build/src/utils/promise.js
+var require_promise2 = __commonJS((exports) => {
+  Object.defineProperty(exports, "__esModule", { value: true });
+  exports.Deferred = undefined;
+
+  class Deferred {
+    _promise;
+    _resolve;
+    _reject;
+    constructor() {
+      this._promise = new Promise((resolve, reject) => {
+        this._resolve = resolve;
+        this._reject = reject;
+      });
+    }
+    get promise() {
+      return this._promise;
+    }
+    resolve(val) {
+      this._resolve(val);
+    }
+    reject(err) {
+      this._reject(err);
+    }
+  }
+  exports.Deferred = Deferred;
+});
+
+// node_modules/@opentelemetry/core/build/src/utils/callback.js
+var require_callback2 = __commonJS((exports) => {
+  Object.defineProperty(exports, "__esModule", { value: true });
+  exports.BindOnceFuture = undefined;
+  var promise_1 = require_promise2();
+
+  class BindOnceFuture {
+    _isCalled = false;
+    _deferred = new promise_1.Deferred;
+    _callback;
+    _that;
+    constructor(callback, that) {
+      this._callback = callback;
+      this._that = that;
+    }
+    get isCalled() {
+      return this._isCalled;
+    }
+    get promise() {
+      return this._deferred.promise;
+    }
+    call(...args) {
+      if (!this._isCalled) {
+        this._isCalled = true;
+        try {
+          Promise.resolve(this._callback.call(this._that, ...args)).then((val) => this._deferred.resolve(val), (err) => this._deferred.reject(err));
+        } catch (err) {
+          this._deferred.reject(err);
+        }
+      }
+      return this._deferred.promise;
+    }
+  }
+  exports.BindOnceFuture = BindOnceFuture;
+});
+
+// node_modules/@opentelemetry/core/build/src/utils/configuration.js
+var require_configuration2 = __commonJS((exports) => {
+  Object.defineProperty(exports, "__esModule", { value: true });
+  exports.diagLogLevelFromString = undefined;
+  var api_1 = require_src();
+  var logLevelMap = {
+    ALL: api_1.DiagLogLevel.ALL,
+    VERBOSE: api_1.DiagLogLevel.VERBOSE,
+    DEBUG: api_1.DiagLogLevel.DEBUG,
+    INFO: api_1.DiagLogLevel.INFO,
+    WARN: api_1.DiagLogLevel.WARN,
+    ERROR: api_1.DiagLogLevel.ERROR,
+    NONE: api_1.DiagLogLevel.NONE
+  };
+  function diagLogLevelFromString(value) {
+    if (value == null) {
+      return;
+    }
+    const resolvedLogLevel = logLevelMap[value.toUpperCase()];
+    if (resolvedLogLevel == null) {
+      api_1.diag.warn(`Unknown log level "${value}", expected one of ${Object.keys(logLevelMap)}, using default`);
+      return api_1.DiagLogLevel.INFO;
+    }
+    return resolvedLogLevel;
+  }
+  exports.diagLogLevelFromString = diagLogLevelFromString;
+});
+
+// node_modules/@opentelemetry/core/build/src/internal/exporter.js
+var require_exporter2 = __commonJS((exports) => {
+  Object.defineProperty(exports, "__esModule", { value: true });
+  exports._export = undefined;
+  var api_1 = require_src();
+  var suppress_tracing_1 = require_suppress_tracing2();
+  function _export(exporter, arg) {
+    return new Promise((resolve) => {
+      api_1.context.with((0, suppress_tracing_1.suppressTracing)(api_1.context.active()), () => {
+        exporter.export(arg, resolve);
+      });
+    });
+  }
+  exports._export = _export;
+});
+
+// node_modules/@opentelemetry/core/build/src/index.js
+var require_src4 = __commonJS((exports) => {
+  Object.defineProperty(exports, "__esModule", { value: true });
+  exports.diagLogLevelFromString = exports.BindOnceFuture = exports.urlMatches = exports.isUrlIgnored = exports.callWithTimeout = exports.TimeoutError = exports.merge = exports.TraceState = exports.unsuppressTracing = exports.suppressTracing = exports.isTracingSuppressed = exports.setRPCMetadata = exports.getRPCMetadata = exports.deleteRPCMetadata = exports.RPCType = exports.parseTraceParent = exports.W3CTraceContextPropagator = exports.TRACE_STATE_HEADER = exports.TRACE_PARENT_HEADER = exports.CompositePropagator = exports.otperformance = exports.getStringListFromEnv = exports.getNumberFromEnv = exports.getBooleanFromEnv = exports.getStringFromEnv = exports._globalThis = exports.SDK_INFO = exports.parseKeyPairsIntoRecord = exports.ExportResultCode = exports.unrefTimer = exports.timeInputToHrTime = exports.millisToHrTime = exports.isTimeInputHrTime = exports.isTimeInput = exports.hrTimeToTimeStamp = exports.hrTimeToSeconds = exports.hrTimeToNanoseconds = exports.hrTimeToMilliseconds = exports.hrTimeToMicroseconds = exports.hrTimeDuration = exports.hrTime = exports.getTimeOrigin = exports.addHrTimes = exports.loggingErrorHandler = exports.setGlobalErrorHandler = exports.globalErrorHandler = exports.sanitizeAttributes = exports.isAttributeValue = exports.AnchoredClock = exports.W3CBaggagePropagator = undefined;
+  exports.internal = undefined;
+  var W3CBaggagePropagator_1 = require_W3CBaggagePropagator2();
+  Object.defineProperty(exports, "W3CBaggagePropagator", { enumerable: true, get: function() {
+    return W3CBaggagePropagator_1.W3CBaggagePropagator;
+  } });
+  var anchored_clock_1 = require_anchored_clock2();
+  Object.defineProperty(exports, "AnchoredClock", { enumerable: true, get: function() {
+    return anchored_clock_1.AnchoredClock;
+  } });
+  var attributes_1 = require_attributes2();
+  Object.defineProperty(exports, "isAttributeValue", { enumerable: true, get: function() {
+    return attributes_1.isAttributeValue;
+  } });
+  Object.defineProperty(exports, "sanitizeAttributes", { enumerable: true, get: function() {
+    return attributes_1.sanitizeAttributes;
+  } });
+  var global_error_handler_1 = require_global_error_handler2();
+  Object.defineProperty(exports, "globalErrorHandler", { enumerable: true, get: function() {
+    return global_error_handler_1.globalErrorHandler;
+  } });
+  Object.defineProperty(exports, "setGlobalErrorHandler", { enumerable: true, get: function() {
+    return global_error_handler_1.setGlobalErrorHandler;
+  } });
+  var logging_error_handler_1 = require_logging_error_handler2();
+  Object.defineProperty(exports, "loggingErrorHandler", { enumerable: true, get: function() {
+    return logging_error_handler_1.loggingErrorHandler;
+  } });
+  var time_1 = require_time2();
+  Object.defineProperty(exports, "addHrTimes", { enumerable: true, get: function() {
+    return time_1.addHrTimes;
+  } });
+  Object.defineProperty(exports, "getTimeOrigin", { enumerable: true, get: function() {
+    return time_1.getTimeOrigin;
+  } });
+  Object.defineProperty(exports, "hrTime", { enumerable: true, get: function() {
+    return time_1.hrTime;
+  } });
+  Object.defineProperty(exports, "hrTimeDuration", { enumerable: true, get: function() {
+    return time_1.hrTimeDuration;
+  } });
+  Object.defineProperty(exports, "hrTimeToMicroseconds", { enumerable: true, get: function() {
+    return time_1.hrTimeToMicroseconds;
+  } });
+  Object.defineProperty(exports, "hrTimeToMilliseconds", { enumerable: true, get: function() {
+    return time_1.hrTimeToMilliseconds;
+  } });
+  Object.defineProperty(exports, "hrTimeToNanoseconds", { enumerable: true, get: function() {
+    return time_1.hrTimeToNanoseconds;
+  } });
+  Object.defineProperty(exports, "hrTimeToSeconds", { enumerable: true, get: function() {
+    return time_1.hrTimeToSeconds;
+  } });
+  Object.defineProperty(exports, "hrTimeToTimeStamp", { enumerable: true, get: function() {
+    return time_1.hrTimeToTimeStamp;
+  } });
+  Object.defineProperty(exports, "isTimeInput", { enumerable: true, get: function() {
+    return time_1.isTimeInput;
+  } });
+  Object.defineProperty(exports, "isTimeInputHrTime", { enumerable: true, get: function() {
+    return time_1.isTimeInputHrTime;
+  } });
+  Object.defineProperty(exports, "millisToHrTime", { enumerable: true, get: function() {
+    return time_1.millisToHrTime;
+  } });
+  Object.defineProperty(exports, "timeInputToHrTime", { enumerable: true, get: function() {
+    return time_1.timeInputToHrTime;
+  } });
+  var timer_util_1 = require_timer_util2();
+  Object.defineProperty(exports, "unrefTimer", { enumerable: true, get: function() {
+    return timer_util_1.unrefTimer;
+  } });
+  var ExportResult_1 = require_ExportResult2();
+  Object.defineProperty(exports, "ExportResultCode", { enumerable: true, get: function() {
+    return ExportResult_1.ExportResultCode;
+  } });
+  var utils_1 = require_utils5();
+  Object.defineProperty(exports, "parseKeyPairsIntoRecord", { enumerable: true, get: function() {
+    return utils_1.parseKeyPairsIntoRecord;
+  } });
+  var platform_1 = require_platform2();
+  Object.defineProperty(exports, "SDK_INFO", { enumerable: true, get: function() {
+    return platform_1.SDK_INFO;
+  } });
+  Object.defineProperty(exports, "_globalThis", { enumerable: true, get: function() {
+    return platform_1._globalThis;
+  } });
+  Object.defineProperty(exports, "getStringFromEnv", { enumerable: true, get: function() {
+    return platform_1.getStringFromEnv;
+  } });
+  Object.defineProperty(exports, "getBooleanFromEnv", { enumerable: true, get: function() {
+    return platform_1.getBooleanFromEnv;
+  } });
+  Object.defineProperty(exports, "getNumberFromEnv", { enumerable: true, get: function() {
+    return platform_1.getNumberFromEnv;
+  } });
+  Object.defineProperty(exports, "getStringListFromEnv", { enumerable: true, get: function() {
+    return platform_1.getStringListFromEnv;
+  } });
+  Object.defineProperty(exports, "otperformance", { enumerable: true, get: function() {
+    return platform_1.otperformance;
+  } });
+  var composite_1 = require_composite2();
+  Object.defineProperty(exports, "CompositePropagator", { enumerable: true, get: function() {
+    return composite_1.CompositePropagator;
+  } });
+  var W3CTraceContextPropagator_1 = require_W3CTraceContextPropagator2();
+  Object.defineProperty(exports, "TRACE_PARENT_HEADER", { enumerable: true, get: function() {
+    return W3CTraceContextPropagator_1.TRACE_PARENT_HEADER;
+  } });
+  Object.defineProperty(exports, "TRACE_STATE_HEADER", { enumerable: true, get: function() {
+    return W3CTraceContextPropagator_1.TRACE_STATE_HEADER;
+  } });
+  Object.defineProperty(exports, "W3CTraceContextPropagator", { enumerable: true, get: function() {
+    return W3CTraceContextPropagator_1.W3CTraceContextPropagator;
+  } });
+  Object.defineProperty(exports, "parseTraceParent", { enumerable: true, get: function() {
+    return W3CTraceContextPropagator_1.parseTraceParent;
+  } });
+  var rpc_metadata_1 = require_rpc_metadata2();
+  Object.defineProperty(exports, "RPCType", { enumerable: true, get: function() {
+    return rpc_metadata_1.RPCType;
+  } });
+  Object.defineProperty(exports, "deleteRPCMetadata", { enumerable: true, get: function() {
+    return rpc_metadata_1.deleteRPCMetadata;
+  } });
+  Object.defineProperty(exports, "getRPCMetadata", { enumerable: true, get: function() {
+    return rpc_metadata_1.getRPCMetadata;
+  } });
+  Object.defineProperty(exports, "setRPCMetadata", { enumerable: true, get: function() {
+    return rpc_metadata_1.setRPCMetadata;
+  } });
+  var suppress_tracing_1 = require_suppress_tracing2();
+  Object.defineProperty(exports, "isTracingSuppressed", { enumerable: true, get: function() {
+    return suppress_tracing_1.isTracingSuppressed;
+  } });
+  Object.defineProperty(exports, "suppressTracing", { enumerable: true, get: function() {
+    return suppress_tracing_1.suppressTracing;
+  } });
+  Object.defineProperty(exports, "unsuppressTracing", { enumerable: true, get: function() {
+    return suppress_tracing_1.unsuppressTracing;
+  } });
+  var TraceState_1 = require_TraceState2();
+  Object.defineProperty(exports, "TraceState", { enumerable: true, get: function() {
+    return TraceState_1.TraceState;
+  } });
+  var merge_1 = require_merge2();
+  Object.defineProperty(exports, "merge", { enumerable: true, get: function() {
+    return merge_1.merge;
+  } });
+  var timeout_1 = require_timeout2();
+  Object.defineProperty(exports, "TimeoutError", { enumerable: true, get: function() {
+    return timeout_1.TimeoutError;
+  } });
+  Object.defineProperty(exports, "callWithTimeout", { enumerable: true, get: function() {
+    return timeout_1.callWithTimeout;
+  } });
+  var url_1 = require_url2();
+  Object.defineProperty(exports, "isUrlIgnored", { enumerable: true, get: function() {
+    return url_1.isUrlIgnored;
+  } });
+  Object.defineProperty(exports, "urlMatches", { enumerable: true, get: function() {
+    return url_1.urlMatches;
+  } });
+  var callback_1 = require_callback2();
+  Object.defineProperty(exports, "BindOnceFuture", { enumerable: true, get: function() {
+    return callback_1.BindOnceFuture;
+  } });
+  var configuration_1 = require_configuration2();
+  Object.defineProperty(exports, "diagLogLevelFromString", { enumerable: true, get: function() {
+    return configuration_1.diagLogLevelFromString;
+  } });
+  var exporter_1 = require_exporter2();
+  exports.internal = {
+    _export: exporter_1._export
+  };
+});
+
 // node_modules/@opentelemetry/otlp-exporter-base/build/src/logging-response-handler.js
 var require_logging_response_handler = __commonJS((exports) => {
   Object.defineProperty(exports, "__esModule", { value: true });
@@ -19521,7 +20908,7 @@ var require_logging_response_handler = __commonJS((exports) => {
 var require_otlp_export_delegate = __commonJS((exports) => {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.createOtlpExportDelegate = undefined;
-  var core_1 = require_src3();
+  var core_1 = require_src4();
   var types_1 = require_types2();
   var logging_response_handler_1 = require_logging_response_handler();
   var api_1 = require_src();
@@ -19627,7 +21014,7 @@ var require_otlp_network_export_delegate = __commonJS((exports) => {
 });
 
 // node_modules/@opentelemetry/otlp-exporter-base/build/src/index.js
-var require_src4 = __commonJS((exports) => {
+var require_src5 = __commonJS((exports) => {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.createOtlpNetworkExportDelegate = exports.CompressionAlgorithm = exports.getSharedConfigurationDefaults = exports.mergeOtlpSharedConfigurationWithDefaults = exports.OTLPExporterError = exports.OTLPExporterBase = undefined;
   var OTLPExporterBase_1 = require_OTLPExporterBase();
@@ -19656,7 +21043,7 @@ var require_src4 = __commonJS((exports) => {
 });
 
 // node_modules/@opentelemetry/otlp-transformer/build/src/common/protobuf/utils.js
-var require_utils5 = __commonJS((exports) => {
+var require_utils6 = __commonJS((exports) => {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.estimateVarintSize = undefined;
   function estimateVarintSize(v) {
@@ -19688,7 +21075,7 @@ var require_protobuf_writer = __commonJS((exports) => {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.ProtobufWriter = exports.GROWING_BUFFER_DEBUG_MESSAGE = undefined;
   var api_1 = require_src();
-  var utils_1 = require_utils5();
+  var utils_1 = require_utils6();
   exports.GROWING_BUFFER_DEBUG_MESSAGE = "ProtobufWriter: estimated size was too small, growing buffer.";
   var RESERVED_LENGTH_BYTES = 1;
 
@@ -20083,7 +21470,7 @@ var require_logs = __commonJS((exports) => {
 });
 
 // node_modules/@opentelemetry/api-logs/build/src/index.js
-var require_src5 = __commonJS((exports) => {
+var require_src6 = __commonJS((exports) => {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.logs = exports.createNoopLogger = exports.SeverityNumber = undefined;
   var LogRecord_1 = require_LogRecord();
@@ -20243,7 +21630,7 @@ var require_common_serializer = __commonJS((exports) => {
 var require_protobuf_size_estimator = __commonJS((exports) => {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.ProtobufSizeEstimator = undefined;
-  var utils_1 = require_utils5();
+  var utils_1 = require_utils6();
   function utf8ByteLength(str) {
     const len = str.length;
     let byteLen = 0;
@@ -20311,7 +21698,7 @@ var require_logs_serializer = __commonJS((exports) => {
   exports.serializeLogsExportRequest = undefined;
   var protobuf_writer_1 = require_protobuf_writer();
   var hex_to_binary_1 = require_hex_to_binary();
-  var api_logs_1 = require_src5();
+  var api_logs_1 = require_src6();
   var common_serializer_1 = require_common_serializer();
   var protobuf_size_estimator_1 = require_protobuf_size_estimator();
   function serializeLogRecord(writer, logRecord) {
@@ -20612,7 +21999,7 @@ var require_MetricData = __commonJS((exports) => {
 });
 
 // node_modules/@opentelemetry/sdk-metrics/build/src/utils.js
-var require_utils6 = __commonJS((exports) => {
+var require_utils7 = __commonJS((exports) => {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.equalsCaseInsensitive = exports.binarySearchUB = exports.setEquals = exports.callWithTimeout = exports.TimeoutError = exports.instrumentationScopeId = exports.hashAttributes = undefined;
   function hashAttributes(attributes) {
@@ -20729,7 +22116,7 @@ var require_Histogram = __commonJS((exports) => {
   exports.HistogramAggregator = exports.HistogramAccumulation = undefined;
   var types_1 = require_types3();
   var MetricData_1 = require_MetricData();
-  var utils_1 = require_utils6();
+  var utils_1 = require_utils7();
   function createNewEmptyCheckpoint(boundaries) {
     const counts = boundaries.map(() => 0);
     counts.push(0);
@@ -21583,7 +22970,7 @@ var require_LastValue = __commonJS((exports) => {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.LastValueAggregator = exports.LastValueAccumulation = undefined;
   var types_1 = require_types3();
-  var core_1 = require_src3();
+  var core_1 = require_src4();
   var MetricData_1 = require_MetricData();
 
   class LastValueAccumulation {
@@ -21938,7 +23325,7 @@ var require_AggregationSelector = __commonJS((exports) => {
 });
 
 // node_modules/@opentelemetry/sdk-metrics/build/src/semconv.js
-var require_semconv2 = __commonJS((exports) => {
+var require_semconv3 = __commonJS((exports) => {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.ATTR_ERROR_TYPE = exports.METRIC_OTEL_SDK_METRIC_READER_COLLECTION_DURATION = exports.OTEL_COMPONENT_TYPE_VALUE_PERIODIC_METRIC_READER = exports.ATTR_OTEL_COMPONENT_TYPE = exports.ATTR_OTEL_COMPONENT_NAME = undefined;
   exports.ATTR_OTEL_COMPONENT_NAME = "otel.component.name";
@@ -21952,7 +23339,7 @@ var require_semconv2 = __commonJS((exports) => {
 var require_MetricReaderMetrics = __commonJS((exports) => {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.MetricReaderMetrics = undefined;
-  var semconv_1 = require_semconv2();
+  var semconv_1 = require_semconv3();
   var componentCounter = new Map;
 
   class MetricReaderMetrics {
@@ -21982,7 +23369,7 @@ var require_MetricReaderMetrics = __commonJS((exports) => {
 });
 
 // node_modules/@opentelemetry/sdk-metrics/build/src/version.js
-var require_version4 = __commonJS((exports) => {
+var require_version5 = __commonJS((exports) => {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.VERSION = undefined;
   exports.VERSION = "2.8.0";
@@ -21993,11 +23380,11 @@ var require_MetricReader = __commonJS((exports) => {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.MetricReader = undefined;
   var api = require_src();
-  var utils_1 = require_utils6();
+  var utils_1 = require_utils7();
   var AggregationSelector_1 = require_AggregationSelector();
   var MetricReaderMetrics_1 = require_MetricReaderMetrics();
-  var version_1 = require_version4();
-  var core_1 = require_src3();
+  var version_1 = require_version5();
+  var core_1 = require_src4();
 
   class MetricReader {
     _shutdown = false;
@@ -22099,11 +23486,11 @@ var require_PeriodicExportingMetricReader = __commonJS((exports) => {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.PeriodicExportingMetricReader = undefined;
   var api = require_src();
-  var core_1 = require_src3();
+  var core_1 = require_src4();
   var MetricReader_1 = require_MetricReader();
-  var utils_1 = require_utils6();
+  var utils_1 = require_utils7();
   var MetricData_1 = require_MetricData();
-  var semconv_1 = require_semconv2();
+  var semconv_1 = require_semconv3();
 
   class PeriodicExportingMetricReader extends MetricReader_1.MetricReader {
     _interval;
@@ -22222,7 +23609,7 @@ var require_PeriodicExportingMetricReader = __commonJS((exports) => {
 var require_InMemoryMetricExporter = __commonJS((exports) => {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.InMemoryMetricExporter = undefined;
-  var core_1 = require_src3();
+  var core_1 = require_src4();
 
   class InMemoryMetricExporter {
     _shutdown = false;
@@ -22263,7 +23650,7 @@ var require_InMemoryMetricExporter = __commonJS((exports) => {
 var require_ConsoleMetricExporter = __commonJS((exports) => {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.ConsoleMetricExporter = undefined;
-  var core_1 = require_src3();
+  var core_1 = require_src4();
   var AggregationSelector_1 = require_AggregationSelector();
 
   class ConsoleMetricExporter {
@@ -22329,7 +23716,7 @@ var require_default_service_name = __commonJS((exports) => {
 });
 
 // node_modules/@opentelemetry/resources/build/src/utils.js
-var require_utils7 = __commonJS((exports) => {
+var require_utils8 = __commonJS((exports) => {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.isPromiseLike = undefined;
   var isPromiseLike = (val) => {
@@ -22343,10 +23730,10 @@ var require_ResourceImpl = __commonJS((exports) => {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.defaultResource = exports.emptyResource = exports.resourceFromDetectedResource = exports.resourceFromAttributes = undefined;
   var api_1 = require_src();
-  var core_1 = require_src3();
+  var core_1 = require_src4();
   var semantic_conventions_1 = require_src2();
   var default_service_name_1 = require_default_service_name();
-  var utils_1 = require_utils7();
+  var utils_1 = require_utils8();
 
   class ResourceImpl {
     _rawAttributes;
@@ -22508,7 +23895,7 @@ var require_EnvDetector = __commonJS((exports) => {
   exports.envDetector = undefined;
   var api_1 = require_src();
   var semantic_conventions_1 = require_src2();
-  var core_1 = require_src3();
+  var core_1 = require_src4();
 
   class EnvDetector {
     _MAX_LENGTH = 255;
@@ -22570,7 +23957,7 @@ var require_EnvDetector = __commonJS((exports) => {
 });
 
 // node_modules/@opentelemetry/resources/build/src/semconv.js
-var require_semconv3 = __commonJS((exports) => {
+var require_semconv4 = __commonJS((exports) => {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.ATTR_WEBENGINE_VERSION = exports.ATTR_WEBENGINE_NAME = exports.ATTR_WEBENGINE_DESCRIPTION = exports.ATTR_SERVICE_NAMESPACE = exports.ATTR_SERVICE_INSTANCE_ID = exports.ATTR_PROCESS_RUNTIME_VERSION = exports.ATTR_PROCESS_RUNTIME_NAME = exports.ATTR_PROCESS_RUNTIME_DESCRIPTION = exports.ATTR_PROCESS_PID = exports.ATTR_PROCESS_OWNER = exports.ATTR_PROCESS_EXECUTABLE_PATH = exports.ATTR_PROCESS_EXECUTABLE_NAME = exports.ATTR_PROCESS_COMMAND_ARGS = exports.ATTR_PROCESS_COMMAND = exports.ATTR_OS_VERSION = exports.ATTR_OS_TYPE = exports.ATTR_K8S_POD_NAME = exports.ATTR_K8S_NAMESPACE_NAME = exports.ATTR_K8S_DEPLOYMENT_NAME = exports.ATTR_K8S_CLUSTER_NAME = exports.ATTR_HOST_TYPE = exports.ATTR_HOST_NAME = exports.ATTR_HOST_IMAGE_VERSION = exports.ATTR_HOST_IMAGE_NAME = exports.ATTR_HOST_IMAGE_ID = exports.ATTR_HOST_ID = exports.ATTR_HOST_ARCH = exports.ATTR_CONTAINER_NAME = exports.ATTR_CONTAINER_IMAGE_TAGS = exports.ATTR_CONTAINER_IMAGE_NAME = exports.ATTR_CONTAINER_ID = exports.ATTR_CLOUD_REGION = exports.ATTR_CLOUD_PROVIDER = exports.ATTR_CLOUD_AVAILABILITY_ZONE = exports.ATTR_CLOUD_ACCOUNT_ID = undefined;
   exports.ATTR_CLOUD_ACCOUNT_ID = "cloud.account.id";
@@ -22740,19 +24127,19 @@ var require_getMachineId = __commonJS((exports) => {
     if (!getMachineIdImpl) {
       switch (process2.platform) {
         case "darwin":
-          getMachineIdImpl = (await Promise.resolve().then(() => __toESM(require_getMachineId_darwin(), 1))).getMachineId;
+          getMachineIdImpl = (await Promise.resolve().then(() => __toESM(require_getMachineId_darwin()))).getMachineId;
           break;
         case "linux":
-          getMachineIdImpl = (await Promise.resolve().then(() => __toESM(require_getMachineId_linux(), 1))).getMachineId;
+          getMachineIdImpl = (await Promise.resolve().then(() => __toESM(require_getMachineId_linux()))).getMachineId;
           break;
         case "freebsd":
-          getMachineIdImpl = (await Promise.resolve().then(() => __toESM(require_getMachineId_bsd(), 1))).getMachineId;
+          getMachineIdImpl = (await Promise.resolve().then(() => __toESM(require_getMachineId_bsd()))).getMachineId;
           break;
         case "win32":
-          getMachineIdImpl = (await Promise.resolve().then(() => __toESM(require_getMachineId_win(), 1))).getMachineId;
+          getMachineIdImpl = (await Promise.resolve().then(() => __toESM(require_getMachineId_win()))).getMachineId;
           break;
         default:
-          getMachineIdImpl = (await Promise.resolve().then(() => __toESM(require_getMachineId_unsupported(), 1))).getMachineId;
+          getMachineIdImpl = (await Promise.resolve().then(() => __toESM(require_getMachineId_unsupported()))).getMachineId;
           break;
       }
     }
@@ -22762,7 +24149,7 @@ var require_getMachineId = __commonJS((exports) => {
 });
 
 // node_modules/@opentelemetry/resources/build/src/detectors/platform/node/utils.js
-var require_utils8 = __commonJS((exports) => {
+var require_utils9 = __commonJS((exports) => {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.normalizeType = exports.normalizeArch = undefined;
   var normalizeArch = (nodeArchString) => {
@@ -22795,10 +24182,10 @@ var require_utils8 = __commonJS((exports) => {
 var require_HostDetector = __commonJS((exports) => {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.hostDetector = undefined;
-  var semconv_1 = require_semconv3();
+  var semconv_1 = require_semconv4();
   var os_1 = __require("os");
   var getMachineId_1 = require_getMachineId();
-  var utils_1 = require_utils8();
+  var utils_1 = require_utils9();
 
   class HostDetector {
     detect(_config) {
@@ -22817,9 +24204,9 @@ var require_HostDetector = __commonJS((exports) => {
 var require_OSDetector = __commonJS((exports) => {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.osDetector = undefined;
-  var semconv_1 = require_semconv3();
+  var semconv_1 = require_semconv4();
   var os_1 = __require("os");
-  var utils_1 = require_utils8();
+  var utils_1 = require_utils9();
 
   class OSDetector {
     detect(_config) {
@@ -22838,7 +24225,7 @@ var require_ProcessDetector = __commonJS((exports) => {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.processDetector = undefined;
   var api_1 = require_src();
-  var semconv_1 = require_semconv3();
+  var semconv_1 = require_semconv4();
   var os = __require("os");
 
   class ProcessDetector {
@@ -22875,7 +24262,7 @@ var require_ProcessDetector = __commonJS((exports) => {
 var require_ServiceInstanceIdDetector = __commonJS((exports) => {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.serviceInstanceIdDetector = undefined;
-  var semconv_1 = require_semconv3();
+  var semconv_1 = require_semconv4();
   var crypto_1 = __require("crypto");
 
   class ServiceInstanceIdDetector {
@@ -22891,7 +24278,7 @@ var require_ServiceInstanceIdDetector = __commonJS((exports) => {
 });
 
 // node_modules/@opentelemetry/resources/build/src/detectors/platform/node/index.js
-var require_node2 = __commonJS((exports) => {
+var require_node3 = __commonJS((exports) => {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.serviceInstanceIdDetector = exports.processDetector = exports.osDetector = exports.hostDetector = undefined;
   var HostDetector_1 = require_HostDetector();
@@ -22913,10 +24300,10 @@ var require_node2 = __commonJS((exports) => {
 });
 
 // node_modules/@opentelemetry/resources/build/src/detectors/platform/index.js
-var require_platform2 = __commonJS((exports) => {
+var require_platform3 = __commonJS((exports) => {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.serviceInstanceIdDetector = exports.processDetector = exports.osDetector = exports.hostDetector = undefined;
-  var node_1 = require_node2();
+  var node_1 = require_node3();
   Object.defineProperty(exports, "hostDetector", { enumerable: true, get: function() {
     return node_1.hostDetector;
   } });
@@ -22955,7 +24342,7 @@ var require_detectors = __commonJS((exports) => {
   Object.defineProperty(exports, "envDetector", { enumerable: true, get: function() {
     return EnvDetector_1.envDetector;
   } });
-  var platform_1 = require_platform2();
+  var platform_1 = require_platform3();
   Object.defineProperty(exports, "hostDetector", { enumerable: true, get: function() {
     return platform_1.hostDetector;
   } });
@@ -22975,7 +24362,7 @@ var require_detectors = __commonJS((exports) => {
 });
 
 // node_modules/@opentelemetry/resources/build/src/index.js
-var require_src6 = __commonJS((exports) => {
+var require_src7 = __commonJS((exports) => {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.defaultServiceName = exports.emptyResource = exports.defaultResource = exports.resourceFromAttributes = exports.serviceInstanceIdDetector = exports.processDetector = exports.osDetector = exports.hostDetector = exports.envDetector = exports.detectResources = undefined;
   var detect_resources_1 = require_detect_resources();
@@ -23045,7 +24432,7 @@ var require_InstrumentDescriptor = __commonJS((exports) => {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.isValidName = exports.isDescriptorCompatibleWith = exports.createInstrumentDescriptorWithView = exports.createInstrumentDescriptor = undefined;
   var api_1 = require_src();
-  var utils_1 = require_utils6();
+  var utils_1 = require_utils7();
   function createInstrumentDescriptor(name, type, options) {
     if (!isValidName(name)) {
       api_1.diag.warn(`Invalid metric name: "${name}". The metric name should be a ASCII string with a length no greater than 255 characters.`);
@@ -23087,7 +24474,7 @@ var require_Instruments = __commonJS((exports) => {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.isObservableInstrument = exports.ObservableUpDownCounterInstrument = exports.ObservableGaugeInstrument = exports.ObservableCounterInstrument = exports.ObservableInstrument = exports.HistogramInstrument = exports.GaugeInstrument = exports.CounterInstrument = exports.UpDownCounterInstrument = exports.SyncInstrument = undefined;
   var api_1 = require_src();
-  var core_1 = require_src3();
+  var core_1 = require_src4();
 
   class SyncInstrument {
     _writableMetricStorage;
@@ -23272,7 +24659,7 @@ var require_MetricStorage = __commonJS((exports) => {
 var require_HashMap = __commonJS((exports) => {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.AttributeHashMap = exports.HashMap = undefined;
-  var utils_1 = require_utils6();
+  var utils_1 = require_utils7();
 
   class HashMap {
     _valueMap = new Map;
@@ -23342,7 +24729,7 @@ var require_HashMap = __commonJS((exports) => {
 var require_DeltaMetricProcessor = __commonJS((exports) => {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.DeltaMetricProcessor = undefined;
-  var utils_1 = require_utils6();
+  var utils_1 = require_utils7();
   var HashMap_1 = require_HashMap();
 
   class DeltaMetricProcessor {
@@ -23796,7 +25183,7 @@ var require_ObservableRegistry = __commonJS((exports) => {
   var api_1 = require_src();
   var Instruments_1 = require_Instruments();
   var ObservableResult_1 = require_ObservableResult();
-  var utils_1 = require_utils6();
+  var utils_1 = require_utils7();
 
   class ObservableRegistry {
     _callbacks = [];
@@ -24095,7 +25482,7 @@ var require_MeterSharedState = __commonJS((exports) => {
 var require_MeterProviderSharedState = __commonJS((exports) => {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.MeterProviderSharedState = undefined;
-  var utils_1 = require_utils6();
+  var utils_1 = require_utils7();
   var ViewRegistry_1 = require_ViewRegistry();
   var MeterSharedState_1 = require_MeterSharedState();
   var AggregationOption_1 = require_AggregationOption();
@@ -24135,7 +25522,7 @@ var require_MeterProviderSharedState = __commonJS((exports) => {
 var require_MetricCollector = __commonJS((exports) => {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.MetricCollector = undefined;
-  var core_1 = require_src3();
+  var core_1 = require_src4();
 
   class MetricCollector {
     _sharedState;
@@ -24354,7 +25741,7 @@ var require_MeterProvider = __commonJS((exports) => {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.MeterProvider = undefined;
   var api_1 = require_src();
-  var resources_1 = require_src6();
+  var resources_1 = require_src7();
   var MetricReader_1 = require_MetricReader();
   var MeterProviderSharedState_1 = require_MeterProviderSharedState();
   var MetricCollector_1 = require_MetricCollector();
@@ -24416,7 +25803,7 @@ var require_MeterProvider = __commonJS((exports) => {
 });
 
 // node_modules/@opentelemetry/sdk-metrics/build/src/index.js
-var require_src7 = __commonJS((exports) => {
+var require_src8 = __commonJS((exports) => {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.TimeoutError = exports.createDenyListAttributesProcessor = exports.createAllowListAttributesProcessor = exports.AggregationType = exports.MeterProvider = exports.ConsoleMetricExporter = exports.InMemoryMetricExporter = exports.PeriodicExportingMetricReader = exports.MetricReader = exports.InstrumentType = exports.DataPointType = exports.AggregationTemporality = undefined;
   var AggregationTemporality_1 = require_AggregationTemporality();
@@ -24461,7 +25848,7 @@ var require_src7 = __commonJS((exports) => {
   Object.defineProperty(exports, "createDenyListAttributesProcessor", { enumerable: true, get: function() {
     return AttributesProcessor_1.createDenyListAttributesProcessor;
   } });
-  var utils_1 = require_utils6();
+  var utils_1 = require_utils7();
   Object.defineProperty(exports, "TimeoutError", { enumerable: true, get: function() {
     return utils_1.TimeoutError;
   } });
@@ -24472,7 +25859,7 @@ var require_metrics_serializer = __commonJS((exports) => {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.serializeMetricsExportRequest = undefined;
   var api_1 = require_src();
-  var sdk_metrics_1 = require_src7();
+  var sdk_metrics_1 = require_src8();
   var common_serializer_1 = require_common_serializer();
   var protobuf_size_estimator_1 = require_protobuf_size_estimator();
   var protobuf_writer_1 = require_protobuf_writer();
@@ -25225,10 +26612,10 @@ var require_internal2 = __commonJS((exports) => {
 });
 
 // node_modules/@opentelemetry/otlp-transformer/build/src/common/utils.js
-var require_utils9 = __commonJS((exports) => {
+var require_utils10 = __commonJS((exports) => {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.JSON_ENCODER = exports.PROTOBUF_ENCODER = exports.encodeAsString = exports.encodeAsLongBits = exports.toLongBits = exports.hrTimeToNanos = undefined;
-  var core_1 = require_src3();
+  var core_1 = require_src4();
   var hex_to_binary_1 = require_hex_to_binary();
   function hrTimeToNanos(hrTime) {
     const NANOSECONDS = BigInt(1e9);
@@ -25288,7 +26675,7 @@ var require_logs3 = __commonJS((exports) => {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.JsonLogsSerializer = undefined;
   var internal_1 = require_internal2();
-  var utils_1 = require_utils9();
+  var utils_1 = require_utils10();
   var api_1 = require_src();
   exports.JsonLogsSerializer = {
     serializeRequest: (arg) => {
@@ -25338,7 +26725,7 @@ var require_internal3 = __commonJS((exports) => {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.createExportMetricsServiceRequest = exports.toMetric = exports.toScopeMetrics = exports.toResourceMetrics = undefined;
   var api_1 = require_src();
-  var sdk_metrics_1 = require_src7();
+  var sdk_metrics_1 = require_src8();
   var internal_types_1 = require_internal_types();
   var internal_1 = require_internal();
   function toResourceMetrics(resourceMetrics, encoder) {
@@ -25476,7 +26863,7 @@ var require_metrics3 = __commonJS((exports) => {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.JsonMetricsSerializer = undefined;
   var internal_1 = require_internal3();
-  var utils_1 = require_utils9();
+  var utils_1 = require_utils10();
   var api_1 = require_src();
   exports.JsonMetricsSerializer = {
     serializeRequest: (arg) => {
@@ -25634,7 +27021,7 @@ var require_trace4 = __commonJS((exports) => {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.JsonTraceSerializer = undefined;
   var internal_1 = require_internal4();
-  var utils_1 = require_utils9();
+  var utils_1 = require_utils10();
   var api_1 = require_src();
   exports.JsonTraceSerializer = {
     serializeRequest: (arg) => {
@@ -25668,7 +27055,7 @@ var require_json3 = __commonJS((exports) => {
 });
 
 // node_modules/@opentelemetry/otlp-transformer/build/src/index.js
-var require_src8 = __commonJS((exports) => {
+var require_src9 = __commonJS((exports) => {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.JsonTraceSerializer = exports.JsonMetricsSerializer = exports.JsonLogsSerializer = exports.ProtobufTraceSerializer = exports.ProtobufMetricsSerializer = exports.ProtobufLogsSerializer = undefined;
   var protobuf_1 = require_protobuf();
@@ -25827,7 +27214,7 @@ var require_is_export_retryable = __commonJS((exports) => {
 });
 
 // node_modules/@opentelemetry/otlp-exporter-base/build/src/version.js
-var require_version5 = __commonJS((exports) => {
+var require_version6 = __commonJS((exports) => {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.VERSION = undefined;
   exports.VERSION = "0.219.0";
@@ -25841,7 +27228,7 @@ var require_http_transport_utils = __commonJS((exports) => {
   var stream_1 = __require("stream");
   var is_export_retryable_1 = require_is_export_retryable();
   var types_1 = require_types2();
-  var version_1 = require_version5();
+  var version_1 = require_version6();
   var DEFAULT_USER_AGENT = `OTel-OTLP-Exporter-JavaScript/${version_1.VERSION}`;
   exports.MAX_RESPONSE_BODY_SIZE = 4 * 1024 * 1024;
   function sendWithHttp(request2, url, headers, compression, userAgent, agent, data, timeoutMillis) {
@@ -26099,7 +27486,7 @@ var require_otlp_http_export_delegate = __commonJS((exports) => {
 var require_shared_env_configuration = __commonJS((exports) => {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.getSharedConfigurationFromEnvironment = undefined;
-  var core_1 = require_src3();
+  var core_1 = require_src4();
   var api_1 = require_src();
   function parseAndValidateTimeoutFromEnv(timeoutEnvVar) {
     const envTimeout = (0, core_1.getNumberFromEnv)(timeoutEnvVar);
@@ -26144,7 +27531,7 @@ var require_otlp_node_http_env_configuration = __commonJS((exports) => {
   exports.getNodeHttpConfigurationFromEnvironment = undefined;
   var fs = __require("fs");
   var path = __require("path");
-  var core_1 = require_src3();
+  var core_1 = require_src4();
   var api_1 = require_src();
   var shared_env_configuration_1 = require_shared_env_configuration();
   var shared_configuration_1 = require_shared_configuration();
@@ -26321,8 +27708,8 @@ var require_index_node_http = __commonJS((exports) => {
 var require_OTLPTraceExporter = __commonJS((exports) => {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.OTLPTraceExporter = undefined;
-  var otlp_exporter_base_1 = require_src4();
-  var otlp_transformer_1 = require_src8();
+  var otlp_exporter_base_1 = require_src5();
+  var otlp_transformer_1 = require_src9();
   var node_http_1 = require_index_node_http();
 
   class OTLPTraceExporter extends otlp_exporter_base_1.OTLPExporterBase {
@@ -26336,7 +27723,7 @@ var require_OTLPTraceExporter = __commonJS((exports) => {
 });
 
 // node_modules/@opentelemetry/exporter-trace-otlp-proto/build/src/platform/node/index.js
-var require_node3 = __commonJS((exports) => {
+var require_node4 = __commonJS((exports) => {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.OTLPTraceExporter = undefined;
   var OTLPTraceExporter_1 = require_OTLPTraceExporter();
@@ -26346,20 +27733,20 @@ var require_node3 = __commonJS((exports) => {
 });
 
 // node_modules/@opentelemetry/exporter-trace-otlp-proto/build/src/platform/index.js
-var require_platform3 = __commonJS((exports) => {
+var require_platform4 = __commonJS((exports) => {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.OTLPTraceExporter = undefined;
-  var node_1 = require_node3();
+  var node_1 = require_node4();
   Object.defineProperty(exports, "OTLPTraceExporter", { enumerable: true, get: function() {
     return node_1.OTLPTraceExporter;
   } });
 });
 
 // node_modules/@opentelemetry/exporter-trace-otlp-proto/build/src/index.js
-var require_src9 = __commonJS((exports) => {
+var require_src10 = __commonJS((exports) => {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.OTLPTraceExporter = undefined;
-  var platform_1 = require_platform3();
+  var platform_1 = require_platform4();
   Object.defineProperty(exports, "OTLPTraceExporter", { enumerable: true, get: function() {
     return platform_1.OTLPTraceExporter;
   } });
@@ -26481,7 +27868,7 @@ var require_validation2 = __commonJS((exports) => {
         droppedAttributesCount += 1;
       } else if (decision === AddAttributeDecision.DROP_LIMIT_REACHED) {
         droppedAttributesCount += 1;
-      } else {}
+      }
     }
     return {
       attributes: currentAttributesCount > 0 ? normalizedAttributes : undefined,
@@ -26496,7 +27883,7 @@ var require_LogRecordImpl = __commonJS((exports) => {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.LogRecordImpl = undefined;
   var api = require_src();
-  var core_1 = require_src3();
+  var core_1 = require_src4();
   var semantic_conventions_1 = require_src2();
   var validation_1 = require_validation2();
 
@@ -26668,7 +28055,7 @@ var require_LogRecordImpl = __commonJS((exports) => {
 var require_Logger = __commonJS((exports) => {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.Logger = undefined;
-  var api_logs_1 = require_src5();
+  var api_logs_1 = require_src6();
   var api_1 = require_src();
   var LogRecordImpl_1 = require_LogRecordImpl();
 
@@ -26754,7 +28141,7 @@ var require_NoopLogRecordProcessor = __commonJS((exports) => {
 var require_MultiLogRecordProcessor = __commonJS((exports) => {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.MultiLogRecordProcessor = undefined;
-  var core_1 = require_src3();
+  var core_1 = require_src4();
 
   class MultiLogRecordProcessor {
     processors;
@@ -26786,7 +28173,7 @@ var require_MultiLogRecordProcessor = __commonJS((exports) => {
 });
 
 // node_modules/@opentelemetry/sdk-logs/build/src/internal/utils.js
-var require_utils10 = __commonJS((exports) => {
+var require_utils11 = __commonJS((exports) => {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.getInstrumentationScopeKey = undefined;
   function normalizeAnyValue(value) {
@@ -26838,7 +28225,7 @@ var require_utils10 = __commonJS((exports) => {
 });
 
 // node_modules/@opentelemetry/sdk-logs/build/src/semconv.js
-var require_semconv4 = __commonJS((exports) => {
+var require_semconv5 = __commonJS((exports) => {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.METRIC_OTEL_SDK_LOG_CREATED = undefined;
   exports.METRIC_OTEL_SDK_LOG_CREATED = "otel.sdk.log.created";
@@ -26848,7 +28235,7 @@ var require_semconv4 = __commonJS((exports) => {
 var require_LoggerMetrics = __commonJS((exports) => {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.LoggerMetrics = undefined;
-  var semconv_1 = require_semconv4();
+  var semconv_1 = require_semconv5();
 
   class LoggerMetrics {
     createdLogs;
@@ -26866,7 +28253,7 @@ var require_LoggerMetrics = __commonJS((exports) => {
 });
 
 // node_modules/@opentelemetry/sdk-logs/build/src/version.js
-var require_version6 = __commonJS((exports) => {
+var require_version7 = __commonJS((exports) => {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.VERSION = undefined;
   exports.VERSION = "0.219.0";
@@ -26877,12 +28264,12 @@ var require_LoggerProviderSharedState = __commonJS((exports) => {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.LoggerProviderSharedState = exports.DEFAULT_LOGGER_CONFIGURATOR = undefined;
   var api_1 = require_src();
-  var api_logs_1 = require_src5();
+  var api_logs_1 = require_src6();
   var NoopLogRecordProcessor_1 = require_NoopLogRecordProcessor();
   var MultiLogRecordProcessor_1 = require_MultiLogRecordProcessor();
-  var utils_1 = require_utils10();
+  var utils_1 = require_utils11();
   var LoggerMetrics_1 = require_LoggerMetrics();
-  var version_1 = require_version6();
+  var version_1 = require_version7();
   var DEFAULT_LOGGER_CONFIG = {
     disabled: false,
     minimumSeverity: api_logs_1.SeverityNumber.UNSPECIFIED,
@@ -26938,12 +28325,12 @@ var require_LoggerProvider = __commonJS((exports) => {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.LoggerProvider = exports.DEFAULT_LOGGER_NAME = undefined;
   var api_1 = require_src();
-  var api_logs_1 = require_src5();
-  var resources_1 = require_src6();
-  var core_1 = require_src3();
+  var api_logs_1 = require_src6();
+  var resources_1 = require_src7();
+  var core_1 = require_src4();
   var Logger_1 = require_Logger();
   var LoggerProviderSharedState_1 = require_LoggerProviderSharedState();
-  var utils_1 = require_utils10();
+  var utils_1 = require_utils11();
   var validation_1 = require_validation2();
   exports.DEFAULT_LOGGER_NAME = "unknown";
 
@@ -27011,7 +28398,7 @@ var require_LoggerProvider = __commonJS((exports) => {
 var require_ConsoleLogRecordExporter = __commonJS((exports) => {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.ConsoleLogRecordExporter = undefined;
-  var core_1 = require_src3();
+  var core_1 = require_src4();
 
   class ConsoleLogRecordExporter {
     export(logs, resultCallback) {
@@ -27050,7 +28437,7 @@ var require_ConsoleLogRecordExporter = __commonJS((exports) => {
 var require_SimpleLogRecordProcessor = __commonJS((exports) => {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.SimpleLogRecordProcessor = undefined;
-  var core_1 = require_src3();
+  var core_1 = require_src4();
 
   class SimpleLogRecordProcessor {
     _exporter;
@@ -27099,7 +28486,7 @@ var require_SimpleLogRecordProcessor = __commonJS((exports) => {
 var require_InMemoryLogRecordExporter = __commonJS((exports) => {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.InMemoryLogRecordExporter = undefined;
-  var core_1 = require_src3();
+  var core_1 = require_src4();
 
   class InMemoryLogRecordExporter {
     _finishedLogRecords = [];
@@ -27134,7 +28521,7 @@ var require_BatchLogRecordProcessorBase = __commonJS((exports) => {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.BatchLogRecordProcessorBase = undefined;
   var api_1 = require_src();
-  var core_1 = require_src3();
+  var core_1 = require_src4();
   async function waitForResources(logRecords) {
     const pendingResources = [];
     for (let i = 0, len = logRecords.length;i < len; i++) {
@@ -27360,7 +28747,7 @@ var require_BatchLogRecordProcessor = __commonJS((exports) => {
 });
 
 // node_modules/@opentelemetry/sdk-logs/build/src/platform/node/index.js
-var require_node4 = __commonJS((exports) => {
+var require_node5 = __commonJS((exports) => {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.BatchLogRecordProcessor = undefined;
   var BatchLogRecordProcessor_1 = require_BatchLogRecordProcessor();
@@ -27370,10 +28757,10 @@ var require_node4 = __commonJS((exports) => {
 });
 
 // node_modules/@opentelemetry/sdk-logs/build/src/platform/index.js
-var require_platform4 = __commonJS((exports) => {
+var require_platform5 = __commonJS((exports) => {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.BatchLogRecordProcessor = undefined;
-  var node_1 = require_node4();
+  var node_1 = require_node5();
   Object.defineProperty(exports, "BatchLogRecordProcessor", { enumerable: true, get: function() {
     return node_1.BatchLogRecordProcessor;
   } });
@@ -27383,7 +28770,7 @@ var require_platform4 = __commonJS((exports) => {
 var require_LoggerConfigurators = __commonJS((exports) => {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.createLoggerConfigurator = undefined;
-  var api_logs_1 = require_src5();
+  var api_logs_1 = require_src6();
   var DEFAULT_LOGGER_CONFIG = {
     disabled: false,
     minimumSeverity: api_logs_1.SeverityNumber.UNSPECIFIED,
@@ -27419,7 +28806,7 @@ var require_LoggerConfigurators = __commonJS((exports) => {
 });
 
 // node_modules/@opentelemetry/sdk-logs/build/src/index.js
-var require_src10 = __commonJS((exports) => {
+var require_src11 = __commonJS((exports) => {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.createLoggerConfigurator = exports.BatchLogRecordProcessor = exports.InMemoryLogRecordExporter = exports.SimpleLogRecordProcessor = exports.ConsoleLogRecordExporter = exports.LoggerProvider = undefined;
   var LoggerProvider_1 = require_LoggerProvider();
@@ -27438,7 +28825,7 @@ var require_src10 = __commonJS((exports) => {
   Object.defineProperty(exports, "InMemoryLogRecordExporter", { enumerable: true, get: function() {
     return InMemoryLogRecordExporter_1.InMemoryLogRecordExporter;
   } });
-  var platform_1 = require_platform4();
+  var platform_1 = require_platform5();
   Object.defineProperty(exports, "BatchLogRecordProcessor", { enumerable: true, get: function() {
     return platform_1.BatchLogRecordProcessor;
   } });
@@ -27675,7 +29062,7 @@ var require_AsyncLocalStorageContextManager = __commonJS((exports) => {
 });
 
 // node_modules/@opentelemetry/context-async-hooks/build/src/index.js
-var require_src11 = __commonJS((exports) => {
+var require_src12 = __commonJS((exports) => {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.AsyncLocalStorageContextManager = exports.AsyncHooksContextManager = undefined;
   var AsyncHooksContextManager_1 = require_AsyncHooksContextManager();
@@ -27735,7 +29122,7 @@ var require_Span = __commonJS((exports) => {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.SpanImpl = undefined;
   var api_1 = require_src();
-  var core_1 = require_src3();
+  var core_1 = require_src4();
   var semantic_conventions_1 = require_src2();
   var enums_1 = require_enums();
   var inspect_1 = require_inspect2();
@@ -28140,7 +29527,7 @@ var require_ParentBasedSampler = __commonJS((exports) => {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.ParentBasedSampler = undefined;
   var api_1 = require_src();
-  var core_1 = require_src3();
+  var core_1 = require_src4();
   var AlwaysOffSampler_1 = require_AlwaysOffSampler();
   var AlwaysOnSampler_1 = require_AlwaysOnSampler();
 
@@ -28233,7 +29620,7 @@ var require_config = __commonJS((exports) => {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.buildSamplerFromEnv = exports.loadDefaultConfig = undefined;
   var api_1 = require_src();
-  var core_1 = require_src3();
+  var core_1 = require_src4();
   var AlwaysOffSampler_1 = require_AlwaysOffSampler();
   var AlwaysOnSampler_1 = require_AlwaysOnSampler();
   var ParentBasedSampler_1 = require_ParentBasedSampler();
@@ -28315,7 +29702,7 @@ var require_utility = __commonJS((exports) => {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.reconfigureLimits = exports.mergeConfig = exports.DEFAULT_ATTRIBUTE_VALUE_LENGTH_LIMIT = exports.DEFAULT_ATTRIBUTE_COUNT_LIMIT = undefined;
   var config_1 = require_config();
-  var core_1 = require_src3();
+  var core_1 = require_src4();
   exports.DEFAULT_ATTRIBUTE_COUNT_LIMIT = 128;
   exports.DEFAULT_ATTRIBUTE_VALUE_LENGTH_LIMIT = Infinity;
   function mergeConfig(userConfig) {
@@ -28343,7 +29730,7 @@ var require_BatchSpanProcessorBase = __commonJS((exports) => {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.BatchSpanProcessorBase = undefined;
   var api_1 = require_src();
-  var core_1 = require_src3();
+  var core_1 = require_src4();
 
   class BatchSpanProcessorBase {
     _maxExportBatchSize;
@@ -28546,7 +29933,7 @@ var require_RandomIdGenerator = __commonJS((exports) => {
 });
 
 // node_modules/@opentelemetry/sdk-trace-base/build/src/platform/node/index.js
-var require_node5 = __commonJS((exports) => {
+var require_node6 = __commonJS((exports) => {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.RandomIdGenerator = exports.BatchSpanProcessor = undefined;
   var BatchSpanProcessor_1 = require_BatchSpanProcessor();
@@ -28560,10 +29947,10 @@ var require_node5 = __commonJS((exports) => {
 });
 
 // node_modules/@opentelemetry/sdk-trace-base/build/src/platform/index.js
-var require_platform5 = __commonJS((exports) => {
+var require_platform6 = __commonJS((exports) => {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.RandomIdGenerator = exports.BatchSpanProcessor = undefined;
-  var node_1 = require_node5();
+  var node_1 = require_node6();
   Object.defineProperty(exports, "BatchSpanProcessor", { enumerable: true, get: function() {
     return node_1.BatchSpanProcessor;
   } });
@@ -28573,7 +29960,7 @@ var require_platform5 = __commonJS((exports) => {
 });
 
 // node_modules/@opentelemetry/sdk-trace-base/build/src/semconv.js
-var require_semconv5 = __commonJS((exports) => {
+var require_semconv6 = __commonJS((exports) => {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.METRIC_OTEL_SDK_SPAN_STARTED = exports.METRIC_OTEL_SDK_SPAN_LIVE = exports.ATTR_OTEL_SPAN_SAMPLING_RESULT = exports.ATTR_OTEL_SPAN_PARENT_ORIGIN = undefined;
   exports.ATTR_OTEL_SPAN_PARENT_ORIGIN = "otel.span.parent.origin";
@@ -28587,7 +29974,7 @@ var require_TracerMetrics = __commonJS((exports) => {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.TracerMetrics = undefined;
   var Sampler_1 = require_Sampler();
-  var semconv_1 = require_semconv5();
+  var semconv_1 = require_semconv6();
 
   class TracerMetrics {
     startedSpans;
@@ -28643,7 +30030,7 @@ var require_TracerMetrics = __commonJS((exports) => {
 });
 
 // node_modules/@opentelemetry/sdk-trace-base/build/src/version.js
-var require_version7 = __commonJS((exports) => {
+var require_version8 = __commonJS((exports) => {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.VERSION = undefined;
   exports.VERSION = "2.8.0";
@@ -28654,12 +30041,12 @@ var require_Tracer = __commonJS((exports) => {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.Tracer = undefined;
   var api = require_src();
-  var core_1 = require_src3();
+  var core_1 = require_src4();
   var Span_1 = require_Span();
   var utility_1 = require_utility();
-  var platform_1 = require_platform5();
+  var platform_1 = require_platform6();
   var TracerMetrics_1 = require_TracerMetrics();
-  var version_1 = require_version7();
+  var version_1 = require_version8();
   var inspect_1 = require_inspect2();
 
   class Tracer {
@@ -28785,7 +30172,7 @@ var require_Tracer = __commonJS((exports) => {
 var require_MultiSpanProcessor = __commonJS((exports) => {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.MultiSpanProcessor = undefined;
-  var core_1 = require_src3();
+  var core_1 = require_src4();
 
   class MultiSpanProcessor {
     _spanProcessors;
@@ -28842,8 +30229,8 @@ var require_MultiSpanProcessor = __commonJS((exports) => {
 var require_BasicTracerProvider = __commonJS((exports) => {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.BasicTracerProvider = exports.ForceFlushState = undefined;
-  var core_1 = require_src3();
-  var resources_1 = require_src6();
+  var core_1 = require_src4();
+  var resources_1 = require_src7();
   var Tracer_1 = require_Tracer();
   var config_1 = require_config();
   var MultiSpanProcessor_1 = require_MultiSpanProcessor();
@@ -28934,7 +30321,7 @@ var require_BasicTracerProvider = __commonJS((exports) => {
 var require_ConsoleSpanExporter = __commonJS((exports) => {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.ConsoleSpanExporter = undefined;
-  var core_1 = require_src3();
+  var core_1 = require_src4();
 
   class ConsoleSpanExporter {
     export(spans, resultCallback) {
@@ -28983,7 +30370,7 @@ var require_ConsoleSpanExporter = __commonJS((exports) => {
 var require_InMemorySpanExporter = __commonJS((exports) => {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.InMemorySpanExporter = undefined;
-  var core_1 = require_src3();
+  var core_1 = require_src4();
 
   class InMemorySpanExporter {
     _finishedSpans = [];
@@ -29020,7 +30407,7 @@ var require_SimpleSpanProcessor = __commonJS((exports) => {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.SimpleSpanProcessor = undefined;
   var api_1 = require_src();
-  var core_1 = require_src3();
+  var core_1 = require_src4();
 
   class SimpleSpanProcessor {
     _exporter;
@@ -29087,14 +30474,14 @@ var require_NoopSpanProcessor = __commonJS((exports) => {
 });
 
 // node_modules/@opentelemetry/sdk-trace-base/build/src/index.js
-var require_src12 = __commonJS((exports) => {
+var require_src13 = __commonJS((exports) => {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.SamplingDecision = exports.TraceIdRatioBasedSampler = exports.ParentBasedSampler = exports.AlwaysOnSampler = exports.AlwaysOffSampler = exports.NoopSpanProcessor = exports.SimpleSpanProcessor = exports.InMemorySpanExporter = exports.ConsoleSpanExporter = exports.RandomIdGenerator = exports.BatchSpanProcessor = exports.BasicTracerProvider = undefined;
   var BasicTracerProvider_1 = require_BasicTracerProvider();
   Object.defineProperty(exports, "BasicTracerProvider", { enumerable: true, get: function() {
     return BasicTracerProvider_1.BasicTracerProvider;
   } });
-  var platform_1 = require_platform5();
+  var platform_1 = require_platform6();
   Object.defineProperty(exports, "BatchSpanProcessor", { enumerable: true, get: function() {
     return platform_1.BatchSpanProcessor;
   } });
@@ -29143,10 +30530,10 @@ var require_src12 = __commonJS((exports) => {
 var require_NodeTracerProvider = __commonJS((exports) => {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.NodeTracerProvider = undefined;
-  var context_async_hooks_1 = require_src11();
-  var sdk_trace_base_1 = require_src12();
+  var context_async_hooks_1 = require_src12();
+  var sdk_trace_base_1 = require_src13();
   var api_1 = require_src();
-  var core_1 = require_src3();
+  var core_1 = require_src4();
   function setupContextManager(contextManager) {
     if (contextManager === null) {
       return;
@@ -29190,14 +30577,14 @@ var require_NodeTracerProvider = __commonJS((exports) => {
 });
 
 // node_modules/@opentelemetry/sdk-trace-node/build/src/index.js
-var require_src13 = __commonJS((exports) => {
+var require_src14 = __commonJS((exports) => {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.TraceIdRatioBasedSampler = exports.SimpleSpanProcessor = exports.SamplingDecision = exports.RandomIdGenerator = exports.ParentBasedSampler = exports.NoopSpanProcessor = exports.InMemorySpanExporter = exports.ConsoleSpanExporter = exports.BatchSpanProcessor = exports.BasicTracerProvider = exports.AlwaysOnSampler = exports.AlwaysOffSampler = exports.NodeTracerProvider = undefined;
   var NodeTracerProvider_1 = require_NodeTracerProvider();
   Object.defineProperty(exports, "NodeTracerProvider", { enumerable: true, get: function() {
     return NodeTracerProvider_1.NodeTracerProvider;
   } });
-  var sdk_trace_base_1 = require_src12();
+  var sdk_trace_base_1 = require_src13();
   Object.defineProperty(exports, "AlwaysOffSampler", { enumerable: true, get: function() {
     return sdk_trace_base_1.AlwaysOffSampler;
   } });
@@ -29269,7 +30656,7 @@ var require_autoLoader = __commonJS((exports) => {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.registerInstrumentations = undefined;
   var api_1 = require_src();
-  var api_logs_1 = require_src5();
+  var api_logs_1 = require_src6();
   var autoLoaderUtils_1 = require_autoLoaderUtils();
   function registerInstrumentations(options) {
     const tracerProvider = options.tracerProvider || api_1.trace.getTracerProvider();
@@ -29765,7 +31152,7 @@ var require_instrumentation = __commonJS((exports) => {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.InstrumentationAbstract = undefined;
   var api_1 = require_src();
-  var api_logs_1 = require_src5();
+  var api_logs_1 = require_src6();
   var shimmer = require_shimmer();
 
   class InstrumentationAbstract {
@@ -30411,7 +31798,7 @@ var require_supports_color = __commonJS((exports, module) => {
 });
 
 // node_modules/debug/src/node.js
-var require_node6 = __commonJS((exports, module) => {
+var require_node7 = __commonJS((exports, module) => {
   var tty = __require("tty");
   var util = __require("util");
   exports.init = init;
@@ -30582,11 +31969,11 @@ var require_node6 = __commonJS((exports, module) => {
 });
 
 // node_modules/debug/src/index.js
-var require_src14 = __commonJS((exports, module) => {
+var require_src15 = __commonJS((exports, module) => {
   if (typeof process === "undefined" || process.type === "renderer" || false || process.__nwjs) {
     module.exports = require_browser();
   } else {
-    module.exports = require_node6();
+    module.exports = require_node7();
   }
 });
 
@@ -30615,7 +32002,7 @@ var require_module_details_from_path = __commonJS((exports, module) => {
 var require_require_in_the_middle = __commonJS((exports, module) => {
   var path = __require("path");
   var Module = __require("module");
-  var debug = require_src14()("require-in-the-middle");
+  var debug = require_src15()("require-in-the-middle");
   var moduleDetailsFromPath = require_module_details_from_path();
   module.exports = Hook;
   module.exports.Hook = Hook;
@@ -31180,7 +32567,7 @@ var require_import_in_the_middle = __commonJS((exports, module) => {
 });
 
 // node_modules/@opentelemetry/instrumentation/build/src/utils.js
-var require_utils11 = __commonJS((exports) => {
+var require_utils12 = __commonJS((exports) => {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.isWrapped = exports.safeExecuteInTheMiddleAsync = exports.safeExecuteInTheMiddle = undefined;
   function safeExecuteInTheMiddle(execute, onFinish, preventThrowingError) {
@@ -31235,7 +32622,7 @@ var require_instrumentation2 = __commonJS((exports) => {
   var api_1 = require_src();
   var require_in_the_middle_1 = require_require_in_the_middle();
   var fs_1 = __require("fs");
-  var utils_1 = require_utils11();
+  var utils_1 = require_utils12();
 
   class InstrumentationBase extends instrumentation_1.InstrumentationAbstract {
     _modules;
@@ -31481,7 +32868,7 @@ var require_normalize = __commonJS((exports) => {
 });
 
 // node_modules/@opentelemetry/instrumentation/build/src/platform/node/index.js
-var require_node7 = __commonJS((exports) => {
+var require_node8 = __commonJS((exports) => {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.normalize = exports.InstrumentationBase = undefined;
   var instrumentation_1 = require_instrumentation2();
@@ -31495,10 +32882,10 @@ var require_node7 = __commonJS((exports) => {
 });
 
 // node_modules/@opentelemetry/instrumentation/build/src/platform/index.js
-var require_platform6 = __commonJS((exports) => {
+var require_platform7 = __commonJS((exports) => {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.normalize = exports.InstrumentationBase = undefined;
-  var node_1 = require_node7();
+  var node_1 = require_node8();
   Object.defineProperty(exports, "InstrumentationBase", { enumerable: true, get: function() {
     return node_1.InstrumentationBase;
   } });
@@ -31533,7 +32920,7 @@ var require_instrumentationNodeModuleDefinition = __commonJS((exports) => {
 var require_instrumentationNodeModuleFile = __commonJS((exports) => {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.InstrumentationNodeModuleFile = undefined;
-  var index_1 = require_platform6();
+  var index_1 = require_platform7();
 
   class InstrumentationNodeModuleFile {
     name;
@@ -31577,14 +32964,14 @@ var require_semconvStability = __commonJS((exports) => {
 });
 
 // node_modules/@opentelemetry/instrumentation/build/src/index.js
-var require_src15 = __commonJS((exports) => {
+var require_src16 = __commonJS((exports) => {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.semconvStabilityFromStr = exports.SemconvStability = exports.safeExecuteInTheMiddleAsync = exports.safeExecuteInTheMiddle = exports.isWrapped = exports.InstrumentationNodeModuleFile = exports.InstrumentationNodeModuleDefinition = exports.InstrumentationBase = exports.registerInstrumentations = undefined;
   var autoLoader_1 = require_autoLoader();
   Object.defineProperty(exports, "registerInstrumentations", { enumerable: true, get: function() {
     return autoLoader_1.registerInstrumentations;
   } });
-  var index_1 = require_platform6();
+  var index_1 = require_platform7();
   Object.defineProperty(exports, "InstrumentationBase", { enumerable: true, get: function() {
     return index_1.InstrumentationBase;
   } });
@@ -31596,7 +32983,7 @@ var require_src15 = __commonJS((exports) => {
   Object.defineProperty(exports, "InstrumentationNodeModuleFile", { enumerable: true, get: function() {
     return instrumentationNodeModuleFile_1.InstrumentationNodeModuleFile;
   } });
-  var utils_1 = require_utils11();
+  var utils_1 = require_utils12();
   Object.defineProperty(exports, "isWrapped", { enumerable: true, get: function() {
     return utils_1.isWrapped;
   } });
@@ -31619,8 +33006,8 @@ var require_src15 = __commonJS((exports) => {
 var require_OTLPLogExporter = __commonJS((exports) => {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.OTLPLogExporter = undefined;
-  var otlp_exporter_base_1 = require_src4();
-  var otlp_transformer_1 = require_src8();
+  var otlp_exporter_base_1 = require_src5();
+  var otlp_transformer_1 = require_src9();
   var node_http_1 = require_index_node_http();
 
   class OTLPLogExporter extends otlp_exporter_base_1.OTLPExporterBase {
@@ -31634,7 +33021,7 @@ var require_OTLPLogExporter = __commonJS((exports) => {
 });
 
 // node_modules/@opentelemetry/exporter-logs-otlp-http/build/src/platform/node/index.js
-var require_node8 = __commonJS((exports) => {
+var require_node9 = __commonJS((exports) => {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.OTLPLogExporter = undefined;
   var OTLPLogExporter_1 = require_OTLPLogExporter();
@@ -31644,34 +33031,34 @@ var require_node8 = __commonJS((exports) => {
 });
 
 // node_modules/@opentelemetry/exporter-logs-otlp-http/build/src/platform/index.js
-var require_platform7 = __commonJS((exports) => {
+var require_platform8 = __commonJS((exports) => {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.OTLPLogExporter = undefined;
-  var node_1 = require_node8();
+  var node_1 = require_node9();
   Object.defineProperty(exports, "OTLPLogExporter", { enumerable: true, get: function() {
     return node_1.OTLPLogExporter;
   } });
 });
 
 // node_modules/@opentelemetry/exporter-logs-otlp-http/build/src/index.js
-var require_src16 = __commonJS((exports) => {
+var require_src17 = __commonJS((exports) => {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.OTLPLogExporter = undefined;
-  var platform_1 = require_platform7();
+  var platform_1 = require_platform8();
   Object.defineProperty(exports, "OTLPLogExporter", { enumerable: true, get: function() {
     return platform_1.OTLPLogExporter;
   } });
 });
 
 // node_modules/@opentelemetry/otlp-grpc-exporter-base/build/src/version.js
-var require_version8 = __commonJS((exports) => {
+var require_version9 = __commonJS((exports) => {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.VERSION = undefined;
   exports.VERSION = "0.219.0";
 });
 
 // node_modules/@grpc/grpc-js/build/src/constants.js
-var require_constants2 = __commonJS((exports) => {
+var require_constants3 = __commonJS((exports) => {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.DEFAULT_MAX_RECEIVE_MESSAGE_LENGTH = exports.DEFAULT_MAX_SEND_MESSAGE_LENGTH = exports.Propagate = exports.LogVerbosity = exports.Status = undefined;
   var Status;
@@ -31816,7 +33203,7 @@ var require_logging = __commonJS((exports) => {
   exports.log = exports.setLoggerVerbosity = exports.setLogger = exports.getLogger = undefined;
   exports.trace = trace;
   exports.isTracerEnabled = isTracerEnabled;
-  var constants_1 = require_constants2();
+  var constants_1 = require_constants3();
   var process_1 = __require("process");
   var clientVersion = require_package().version;
   var DEFAULT_LOGGER = {
@@ -31930,7 +33317,7 @@ var require_metadata = __commonJS((exports) => {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.Metadata = undefined;
   var logging_1 = require_logging();
-  var constants_1 = require_constants2();
+  var constants_1 = require_constants3();
   var error_1 = require_error2();
   var LEGAL_KEY_REGEX = /^[:0-9a-z_.-]+$/;
   var LEGAL_NON_BINARY_VALUE_REGEX = /^[ -~]*$/;
@@ -32396,7 +33783,7 @@ var require_channel_credentials = __commonJS((exports) => {
   var uri_parser_1 = require_uri_parser();
   var resolver_1 = require_resolver();
   var logging_1 = require_logging();
-  var constants_1 = require_constants2();
+  var constants_1 = require_constants3();
   function verifyIsBufferOrNull(obj, friendlyName) {
     if (obj && !(obj instanceof Buffer)) {
       throw new TypeError(`${friendlyName}, if provided, must be a Buffer.`);
@@ -32766,7 +34153,7 @@ var require_load_balancer = __commonJS((exports) => {
   exports.getDefaultConfig = getDefaultConfig;
   exports.selectLbConfigFromList = selectLbConfigFromList;
   var logging_1 = require_logging();
-  var constants_1 = require_constants2();
+  var constants_1 = require_constants3();
   function createChildChannelControlHelper(parent, overrides) {
     var _a, _b, _c, _d, _e, _f, _g, _h, _j, _k;
     return {
@@ -32849,7 +34236,7 @@ var require_service_config = __commonJS((exports) => {
   exports.validateServiceConfig = validateServiceConfig;
   exports.extractAndSelectServiceConfig = extractAndSelectServiceConfig;
   var os = __require("os");
-  var constants_1 = require_constants2();
+  var constants_1 = require_constants3();
   var DURATION_REGEX = /^\d+(\.\d{1,9})?s$/;
   var CLIENT_LANGUAGE_STRING = "node";
   function validateName(obj) {
@@ -33201,7 +34588,7 @@ var require_picker = __commonJS((exports) => {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.QueuePicker = exports.UnavailablePicker = exports.PickResultType = undefined;
   var metadata_1 = require_metadata();
-  var constants_1 = require_constants2();
+  var constants_1 = require_constants3();
   var PickResultType;
   (function(PickResultType2) {
     PickResultType2[PickResultType2["COMPLETE"] = 0] = "COMPLETE";
@@ -33259,7 +34646,7 @@ var require_picker = __commonJS((exports) => {
 var require_backoff_timeout = __commonJS((exports) => {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.BackoffTimeout = undefined;
-  var constants_1 = require_constants2();
+  var constants_1 = require_constants3();
   var logging = require_logging();
   var TRACER_NAME = "backoff";
   var INITIAL_BACKOFF_MS = 1000;
@@ -33504,10 +34891,10 @@ var require_resolving_load_balancer = __commonJS((exports) => {
   var resolver_1 = require_resolver();
   var picker_1 = require_picker();
   var backoff_timeout_1 = require_backoff_timeout();
-  var constants_1 = require_constants2();
+  var constants_1 = require_constants3();
   var metadata_1 = require_metadata();
   var logging = require_logging();
-  var constants_2 = require_constants2();
+  var constants_2 = require_constants3();
   var uri_parser_1 = require_uri_parser();
   var load_balancer_child_handler_1 = require_load_balancer_child_handler();
   var TRACER_NAME = "resolving_load_balancer";
@@ -34825,7 +36212,7 @@ var require_call = __commonJS((exports) => {
   exports.callErrorFromStatus = callErrorFromStatus;
   var events_1 = __require("events");
   var stream_1 = __require("stream");
-  var constants_1 = require_constants2();
+  var constants_1 = require_constants3();
   function callErrorFromStatus(status, callerStack) {
     const message = `${status.code} ${constants_1.Status[status.code]}: ${status.details}`;
     const error = new Error(message);
@@ -35044,7 +36431,7 @@ var require_client_interceptors = __commonJS((exports) => {
   exports.getInterceptingCall = getInterceptingCall;
   var metadata_1 = require_metadata();
   var call_interface_1 = require_call_interface();
-  var constants_1 = require_constants2();
+  var constants_1 = require_constants3();
   var error_1 = require_error2();
 
   class InterceptorConfigurationError extends Error {
@@ -35391,7 +36778,7 @@ var require_client = __commonJS((exports) => {
   var call_1 = require_call();
   var channel_1 = require_channel();
   var connectivity_state_1 = require_connectivity_state();
-  var constants_1 = require_constants2();
+  var constants_1 = require_constants3();
   var metadata_1 = require_metadata();
   var client_interceptors_1 = require_client_interceptors();
   var CHANNEL_SYMBOL = Symbol();
@@ -37895,7 +39282,7 @@ var require_writer = __commonJS((exports, module) => {
     this.tail = this.head;
     this.states = null;
   }
-  var create = function create() {
+  var create = function create2() {
     return util.Buffer ? function create_buffer_setup() {
       return (Writer.create = function create_buffer() {
         return new BufferWriter;
@@ -38120,12 +39507,12 @@ var require_reader = __commonJS((exports, module) => {
     if (buffer instanceof Uint8Array || Array.isArray(buffer))
       return new Reader(buffer);
     throw Error("illegal buffer");
-  } : function create_array(buffer) {
+  } : function create_array2(buffer) {
     if (Array.isArray(buffer))
       return new Reader(buffer);
     throw Error("illegal buffer");
   };
-  var create = function create() {
+  var create = function create2() {
     return util.Buffer ? function create_buffer_setup(buffer) {
       return (Reader.create = function create_buffer(buffer2) {
         return util.Buffer.isBuffer(buffer2) ? new BufferReader(buffer2) : create_array(buffer2);
@@ -38577,10 +39964,10 @@ var require_fetch = __commonJS((exports, module) => {
 // node_modules/@protobufjs/path/index.js
 var require_path = __commonJS((exports) => {
   var path = exports;
-  var isAbsolute = path.isAbsolute = function isAbsolute(path2) {
+  var isAbsolute = path.isAbsolute = function isAbsolute2(path2) {
     return /^(?:\/|\w+:)/.test(path2);
   };
-  var normalize = path.normalize = function normalize(path2) {
+  var normalize = path.normalize = function normalize2(path2) {
     path2 = path2.replace(/\\/g, "/").replace(/\/{2,}/g, "/");
     var parts = path2.split("/"), absolute = isAbsolute(path2), prefix = "";
     if (absolute)
@@ -38768,7 +40155,7 @@ var require_namespace = __commonJS((exports, module) => {
     object.onRemove(this);
     return clearCache(this);
   };
-  Namespace.prototype.define = function define(path, json) {
+  Namespace.prototype.define = function define2(path, json) {
     if (util.isString(path))
       path = path.split(".");
     else if (!Array.isArray(path))
@@ -42214,7 +43601,7 @@ var require_common2 = __commonJS((exports, module) => {
 });
 
 // node_modules/protobufjs/src/index.js
-var require_src17 = __commonJS((exports, module) => {
+var require_src18 = __commonJS((exports, module) => {
   var protobuf = module.exports = require_index_light();
   protobuf.build = "full";
   protobuf.tokenize = require_tokenize();
@@ -43611,7 +44998,7 @@ var require_descriptor = __commonJS((exports, module) => {
 
 // node_modules/protobufjs/ext/descriptor/index.js
 var require_descriptor2 = __commonJS((exports, module) => {
-  var $protobuf = require_src17();
+  var $protobuf = require_src18();
   module.exports = exports = $protobuf.descriptor = $protobuf.Root.fromJSON(require_descriptor()).lookup(".google.protobuf");
   var Namespace = $protobuf.Namespace;
   var Root = $protobuf.Root;
@@ -44514,7 +45901,7 @@ var require_util4 = __commonJS((exports) => {
   exports.addCommonProtos = exports.loadProtosWithOptionsSync = exports.loadProtosWithOptions = undefined;
   var fs = __require("fs");
   var path = __require("path");
-  var Protobuf = require_src17();
+  var Protobuf = require_src18();
   function addIncludePathResolver(root, includePaths) {
     const originalResolvePath = root.resolvePath;
     root.resolvePath = (origin, target) => {
@@ -45150,11 +46537,11 @@ var require_umd2 = __commonJS((exports, module) => {
 });
 
 // node_modules/@grpc/proto-loader/build/src/index.js
-var require_src18 = __commonJS((exports) => {
+var require_src19 = __commonJS((exports) => {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.loadFileDescriptorSetFromObject = exports.loadFileDescriptorSetFromBuffer = exports.fromJSON = exports.loadSync = exports.load = exports.IdempotencyLevel = exports.isAnyExtension = exports.Long = undefined;
   var camelCase = require_lodash();
-  var Protobuf = require_src17();
+  var Protobuf = require_src18();
   var descriptor = require_descriptor2();
   var util_1 = require_util4();
   var Long = require_umd2();
@@ -45347,7 +46734,7 @@ var require_channelz = __commonJS((exports) => {
   var net_1 = __require("net");
   var ordered_map_1 = require_cjs();
   var connectivity_state_1 = require_connectivity_state();
-  var constants_1 = require_constants2();
+  var constants_1 = require_constants3();
   var subchannel_address_1 = require_subchannel_address();
   var admin_1 = require_admin();
   var make_client_1 = require_make_client();
@@ -45845,7 +47232,7 @@ var require_channelz = __commonJS((exports) => {
     if (loadedChannelzDefinition) {
       return loadedChannelzDefinition;
     }
-    const loaderLoadSync = require_src18().loadSync;
+    const loaderLoadSync = require_src19().loadSync;
     const loadedProto = loaderLoadSync("channelz.proto", {
       keepCase: true,
       longs: String,
@@ -45916,7 +47303,7 @@ var require_compression_filter = __commonJS((exports) => {
   exports.CompressionFilterFactory = exports.CompressionFilter = undefined;
   var zlib = __require("zlib");
   var compression_algorithms_1 = require_compression_algorithms();
-  var constants_1 = require_constants2();
+  var constants_1 = require_constants3();
   var filter_1 = require_filter();
   var logging = require_logging();
   var isCompressionAlgorithmKey = (key) => {
@@ -46178,7 +47565,7 @@ var require_compression_filter = __commonJS((exports) => {
 var require_control_plane_status = __commonJS((exports) => {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.restrictControlPlaneStatusCode = restrictControlPlaneStatusCode;
-  var constants_1 = require_constants2();
+  var constants_1 = require_constants3();
   var INAPPROPRIATE_CONTROL_PLANE_CODES = [
     constants_1.Status.OK,
     constants_1.Status.INVALID_ARGUMENT,
@@ -46347,7 +47734,7 @@ var require_single_subchannel_channel = __commonJS((exports) => {
   var channelz_1 = require_channelz();
   var compression_filter_1 = require_compression_filter();
   var connectivity_state_1 = require_connectivity_state();
-  var constants_1 = require_constants2();
+  var constants_1 = require_constants3();
   var control_plane_status_1 = require_control_plane_status();
   var deadline_1 = require_deadline();
   var filter_stack_1 = require_filter_stack();
@@ -46565,7 +47952,7 @@ var require_subchannel = __commonJS((exports) => {
   var connectivity_state_1 = require_connectivity_state();
   var backoff_timeout_1 = require_backoff_timeout();
   var logging = require_logging();
-  var constants_1 = require_constants2();
+  var constants_1 = require_constants3();
   var uri_parser_1 = require_uri_parser();
   var subchannel_address_1 = require_subchannel_address();
   var channelz_1 = require_channelz();
@@ -46841,7 +48228,7 @@ var require_subchannel = __commonJS((exports) => {
 });
 
 // node_modules/@grpc/grpc-js/build/src/environment.js
-var require_environment2 = __commonJS((exports) => {
+var require_environment3 = __commonJS((exports) => {
   var _a;
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.GRPC_NODE_USE_ALTERNATIVE_RESOLVER = undefined;
@@ -46856,15 +48243,15 @@ var require_resolver_dns = __commonJS((exports) => {
   var resolver_1 = require_resolver();
   var dns_1 = __require("dns");
   var service_config_1 = require_service_config();
-  var constants_1 = require_constants2();
+  var constants_1 = require_constants3();
   var call_interface_1 = require_call_interface();
   var metadata_1 = require_metadata();
   var logging = require_logging();
-  var constants_2 = require_constants2();
+  var constants_2 = require_constants3();
   var uri_parser_1 = require_uri_parser();
   var net_1 = __require("net");
   var backoff_timeout_1 = require_backoff_timeout();
-  var environment_1 = require_environment2();
+  var environment_1 = require_environment3();
   var TRACER_NAME = "dns_resolver";
   function trace(text) {
     logging.trace(constants_2.LogVerbosity.DEBUG, TRACER_NAME, text);
@@ -47119,7 +48506,7 @@ var require_http_proxy = __commonJS((exports) => {
   exports.mapProxyName = mapProxyName;
   exports.getProxiedConnection = getProxiedConnection;
   var logging_1 = require_logging();
-  var constants_1 = require_constants2();
+  var constants_1 = require_constants3();
   var net_1 = __require("net");
   var http = __require("http");
   var logging = require_logging();
@@ -47417,11 +48804,11 @@ var require_subchannel_call = __commonJS((exports) => {
   exports.Http2SubchannelCall = undefined;
   var http2 = __require("http2");
   var os = __require("os");
-  var constants_1 = require_constants2();
+  var constants_1 = require_constants3();
   var metadata_1 = require_metadata();
   var stream_decoder_1 = require_stream_decoder();
   var logging = require_logging();
-  var constants_2 = require_constants2();
+  var constants_2 = require_constants3();
   var TRACER_NAME = "subchannel_call";
   function getSystemErrorName(errno) {
     for (const [name, num] of Object.entries(os.constants.errno)) {
@@ -47820,7 +49207,7 @@ var require_transport = __commonJS((exports) => {
   var http2 = __require("http2");
   var tls_1 = __require("tls");
   var channelz_1 = require_channelz();
-  var constants_1 = require_constants2();
+  var constants_1 = require_constants3();
   var http_proxy_1 = require_http_proxy();
   var logging = require_logging();
   var resolver_1 = require_resolver();
@@ -48396,7 +49783,7 @@ var require_load_balancing_call = __commonJS((exports) => {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.LoadBalancingCall = undefined;
   var connectivity_state_1 = require_connectivity_state();
-  var constants_1 = require_constants2();
+  var constants_1 = require_constants3();
   var deadline_1 = require_deadline();
   var metadata_1 = require_metadata();
   var picker_1 = require_picker();
@@ -48637,7 +50024,7 @@ var require_resolving_call = __commonJS((exports) => {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.ResolvingCall = undefined;
   var call_credentials_1 = require_call_credentials();
-  var constants_1 = require_constants2();
+  var constants_1 = require_constants3();
   var deadline_1 = require_deadline();
   var metadata_1 = require_metadata();
   var logging = require_logging();
@@ -48918,7 +50305,7 @@ var require_resolving_call = __commonJS((exports) => {
 var require_retrying_call = __commonJS((exports) => {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.RetryingCall = exports.MessageBufferTracker = exports.RetryThrottler = undefined;
-  var constants_1 = require_constants2();
+  var constants_1 = require_constants3();
   var deadline_1 = require_deadline();
   var metadata_1 = require_metadata();
   var logging = require_logging();
@@ -49646,7 +51033,7 @@ var require_internal_channel = __commonJS((exports) => {
   var subchannel_pool_1 = require_subchannel_pool();
   var picker_1 = require_picker();
   var metadata_1 = require_metadata();
-  var constants_1 = require_constants2();
+  var constants_1 = require_constants3();
   var filter_stack_1 = require_filter_stack();
   var compression_filter_1 = require_compression_filter();
   var resolver_1 = require_resolver();
@@ -50205,7 +51592,7 @@ var require_server_call = __commonJS((exports) => {
   exports.serverErrorToStatus = serverErrorToStatus;
   var events_1 = __require("events");
   var stream_1 = __require("stream");
-  var constants_1 = require_constants2();
+  var constants_1 = require_constants3();
   var metadata_1 = require_metadata();
   function serverErrorToStatus(error, overrideTrailers) {
     var _a;
@@ -50761,7 +52148,7 @@ var require_orca = __commonJS((exports) => {
   var duration_1 = require_duration();
   var channel_credentials_1 = require_channel_credentials();
   var subchannel_interface_1 = require_subchannel_interface();
-  var constants_1 = require_constants2();
+  var constants_1 = require_constants3();
   var backoff_timeout_1 = require_backoff_timeout();
   var connectivity_state_1 = require_connectivity_state();
   var loadedOrcaProto = null;
@@ -50769,7 +52156,7 @@ var require_orca = __commonJS((exports) => {
     if (loadedOrcaProto) {
       return loadedOrcaProto;
     }
-    const loaderLoadSync = require_src18().loadSync;
+    const loaderLoadSync = require_src19().loadSync;
     const loadedProto = loaderLoadSync("xds/service/orca/v3/orca.proto", {
       keepCase: true,
       longs: String,
@@ -51020,7 +52407,7 @@ var require_server_interceptors = __commonJS((exports) => {
   exports.isInterceptingServerListener = isInterceptingServerListener;
   exports.getServerInterceptingCall = getServerInterceptingCall;
   var metadata_1 = require_metadata();
-  var constants_1 = require_constants2();
+  var constants_1 = require_constants3();
   var http2 = __require("http2");
   var error_1 = require_error2();
   var zlib = __require("zlib");
@@ -51811,7 +53198,7 @@ var require_server = __commonJS((exports) => {
   exports.Server = undefined;
   var http2 = __require("http2");
   var util = __require("util");
-  var constants_1 = require_constants2();
+  var constants_1 = require_constants3();
   var server_call_1 = require_server_call();
   var server_credentials_1 = require_server_credentials();
   var resolver_1 = require_resolver();
@@ -53225,7 +54612,7 @@ var require_load_balancer_pick_first = __commonJS((exports) => {
   var picker_1 = require_picker();
   var subchannel_address_1 = require_subchannel_address();
   var logging = require_logging();
-  var constants_1 = require_constants2();
+  var constants_1 = require_constants3();
   var subchannel_address_2 = require_subchannel_address();
   var net_1 = __require("net");
   var call_interface_1 = require_call_interface();
@@ -53613,7 +55000,7 @@ var require_certificate_provider = __commonJS((exports) => {
   exports.FileWatcherCertificateProvider = undefined;
   var fs = __require("fs");
   var logging = require_logging();
-  var constants_1 = require_constants2();
+  var constants_1 = require_constants3();
   var util_1 = __require("util");
   var TRACER_NAME = "certificate_provider";
   function trace(text) {
@@ -53902,7 +55289,7 @@ var require_resolver_ip = __commonJS((exports) => {
   exports.setup = setup;
   var net_1 = __require("net");
   var call_interface_1 = require_call_interface();
-  var constants_1 = require_constants2();
+  var constants_1 = require_constants3();
   var metadata_1 = require_metadata();
   var resolver_1 = require_resolver();
   var subchannel_address_1 = require_subchannel_address();
@@ -53994,7 +55381,7 @@ var require_load_balancer_round_robin = __commonJS((exports) => {
   var connectivity_state_1 = require_connectivity_state();
   var picker_1 = require_picker();
   var logging = require_logging();
-  var constants_1 = require_constants2();
+  var constants_1 = require_constants3();
   var subchannel_address_1 = require_subchannel_address();
   var load_balancer_pick_first_1 = require_load_balancer_pick_first();
   var TRACER_NAME = "round_robin";
@@ -54158,7 +55545,7 @@ var require_load_balancer_outlier_detection = __commonJS((exports) => {
   exports.OutlierDetectionLoadBalancer = exports.OutlierDetectionLoadBalancingConfig = undefined;
   exports.setup = setup;
   var connectivity_state_1 = require_connectivity_state();
-  var constants_1 = require_constants2();
+  var constants_1 = require_constants3();
   var duration_1 = require_duration();
   var experimental_1 = require_experimental();
   var load_balancer_1 = require_load_balancer();
@@ -54726,7 +56113,7 @@ var require_load_balancer_weighted_round_robin = __commonJS((exports) => {
   exports.WeightedRoundRobinLoadBalancingConfig = undefined;
   exports.setup = setup;
   var connectivity_state_1 = require_connectivity_state();
-  var constants_1 = require_constants2();
+  var constants_1 = require_constants3();
   var duration_1 = require_duration();
   var load_balancer_1 = require_load_balancer();
   var load_balancer_pick_first_1 = require_load_balancer_pick_first();
@@ -55071,7 +56458,7 @@ var require_load_balancer_weighted_round_robin = __commonJS((exports) => {
 });
 
 // node_modules/@grpc/grpc-js/build/src/index.js
-var require_src19 = __commonJS((exports) => {
+var require_src20 = __commonJS((exports) => {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.experimental = exports.ServerMetricRecorder = exports.ServerInterceptingCall = exports.ResponderBuilder = exports.ServerListenerBuilder = exports.addAdminServicesToServer = exports.getChannelzHandlers = exports.getChannelzServiceDefinition = exports.InterceptorConfigurationError = exports.InterceptingCall = exports.RequesterBuilder = exports.ListenerBuilder = exports.StatusBuilder = exports.getClientChannel = exports.ServerCredentials = exports.Server = exports.setLogVerbosity = exports.setLogger = exports.load = exports.loadObject = exports.CallCredentials = exports.ChannelCredentials = exports.waitForClientReady = exports.closeClient = exports.Channel = exports.makeGenericClientConstructor = exports.makeClientConstructor = exports.loadPackageDefinition = exports.Client = exports.compressionAlgorithms = exports.propagate = exports.connectivityState = exports.status = exports.logVerbosity = exports.Metadata = exports.credentials = undefined;
   var call_credentials_1 = require_call_credentials();
@@ -55098,7 +56485,7 @@ var require_src19 = __commonJS((exports) => {
   Object.defineProperty(exports, "Client", { enumerable: true, get: function() {
     return client_1.Client;
   } });
-  var constants_1 = require_constants2();
+  var constants_1 = require_constants3();
   Object.defineProperty(exports, "logVerbosity", { enumerable: true, get: function() {
     return constants_1.LogVerbosity;
   } });
@@ -55237,7 +56624,7 @@ var require_src19 = __commonJS((exports) => {
 var require_create_service_client_constructor = __commonJS((exports) => {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.createServiceClientConstructor = undefined;
-  var grpc = require_src19();
+  var grpc = require_src20();
   function createServiceClientConstructor(path, name) {
     const serviceDefinition = {
       export: {
@@ -55267,7 +56654,7 @@ var require_create_service_client_constructor = __commonJS((exports) => {
 var require_grpc_exporter_transport = __commonJS((exports) => {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.createOtlpGrpcExporterTransport = exports.GrpcExporterTransport = exports.createEmptyMetadata = exports.createSslCredentials = exports.createInsecureCredentials = undefined;
-  var version_1 = require_version8();
+  var version_1 = require_version9();
   var DEFAULT_USER_AGENT = `OTel-OTLP-Exporter-JavaScript/${version_1.VERSION}`;
   function createUserAgent(userAgent) {
     if (userAgent) {
@@ -55285,21 +56672,21 @@ var require_grpc_exporter_transport = __commonJS((exports) => {
   function createInsecureCredentials() {
     const {
       credentials
-    } = require_src19();
+    } = require_src20();
     return credentials.createInsecure();
   }
   exports.createInsecureCredentials = createInsecureCredentials;
   function createSslCredentials(rootCert, privateKey, certChain) {
     const {
       credentials
-    } = require_src19();
+    } = require_src20();
     return credentials.createSsl(rootCert, privateKey, certChain);
   }
   exports.createSslCredentials = createSslCredentials;
   function createEmptyMetadata() {
     const {
       Metadata
-    } = require_src19();
+    } = require_src20();
     return new Metadata;
   }
   exports.createEmptyMetadata = createEmptyMetadata;
@@ -55387,7 +56774,7 @@ var require_grpc_exporter_transport = __commonJS((exports) => {
 var require_otlp_grpc_configuration = __commonJS((exports) => {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.getOtlpGrpcDefaultConfiguration = exports.mergeOtlpGrpcConfigurationWithDefaults = exports.validateAndNormalizeUrl = undefined;
-  var otlp_exporter_base_1 = require_src4();
+  var otlp_exporter_base_1 = require_src5();
   var grpc_exporter_transport_1 = require_grpc_exporter_transport();
   var url_1 = __require("url");
   var api_1 = require_src();
@@ -55454,7 +56841,7 @@ var require_otlp_grpc_configuration = __commonJS((exports) => {
 var require_otlp_grpc_env_configuration = __commonJS((exports) => {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.getOtlpGrpcConfigurationFromEnv = undefined;
-  var core_1 = require_src3();
+  var core_1 = require_src4();
   var grpc_exporter_transport_1 = require_grpc_exporter_transport();
   var node_http_1 = require_index_node_http();
   var fs = __require("fs");
@@ -55594,7 +56981,7 @@ var require_convert_legacy_otlp_grpc_options = __commonJS((exports) => {
 var require_otlp_grpc_export_delegate = __commonJS((exports) => {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.createOtlpGrpcExportDelegate = undefined;
-  var otlp_exporter_base_1 = require_src4();
+  var otlp_exporter_base_1 = require_src5();
   var grpc_exporter_transport_1 = require_grpc_exporter_transport();
   function createOtlpGrpcExportDelegate(options, serializer, grpcName, grpcPath) {
     return (0, otlp_exporter_base_1.createOtlpNetworkExportDelegate)(options, serializer, (0, grpc_exporter_transport_1.createOtlpGrpcExporterTransport)({
@@ -55611,7 +56998,7 @@ var require_otlp_grpc_export_delegate = __commonJS((exports) => {
 });
 
 // node_modules/@opentelemetry/otlp-grpc-exporter-base/build/src/index.js
-var require_src20 = __commonJS((exports) => {
+var require_src21 = __commonJS((exports) => {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.createSslCredentials = exports.createInsecureCredentials = exports.createEmptyMetadata = exports.createOtlpGrpcExportDelegate = exports.convertLegacyOtlpGrpcOptions = undefined;
   var convert_legacy_otlp_grpc_options_1 = require_convert_legacy_otlp_grpc_options();
@@ -55638,9 +57025,9 @@ var require_src20 = __commonJS((exports) => {
 var require_OTLPLogExporter2 = __commonJS((exports) => {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.OTLPLogExporter = undefined;
-  var otlp_grpc_exporter_base_1 = require_src20();
-  var otlp_transformer_1 = require_src8();
-  var otlp_exporter_base_1 = require_src4();
+  var otlp_grpc_exporter_base_1 = require_src21();
+  var otlp_transformer_1 = require_src9();
+  var otlp_exporter_base_1 = require_src5();
 
   class OTLPLogExporter extends otlp_exporter_base_1.OTLPExporterBase {
     constructor(config = {}) {
@@ -55651,7 +57038,7 @@ var require_OTLPLogExporter2 = __commonJS((exports) => {
 });
 
 // node_modules/@opentelemetry/exporter-logs-otlp-grpc/build/src/index.js
-var require_src21 = __commonJS((exports) => {
+var require_src22 = __commonJS((exports) => {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.OTLPLogExporter = undefined;
   var OTLPLogExporter_1 = require_OTLPLogExporter2();
@@ -55664,8 +57051,8 @@ var require_src21 = __commonJS((exports) => {
 var require_OTLPLogExporter3 = __commonJS((exports) => {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.OTLPLogExporter = undefined;
-  var otlp_exporter_base_1 = require_src4();
-  var otlp_transformer_1 = require_src8();
+  var otlp_exporter_base_1 = require_src5();
+  var otlp_transformer_1 = require_src9();
   var node_http_1 = require_index_node_http();
 
   class OTLPLogExporter extends otlp_exporter_base_1.OTLPExporterBase {
@@ -55679,7 +57066,7 @@ var require_OTLPLogExporter3 = __commonJS((exports) => {
 });
 
 // node_modules/@opentelemetry/exporter-logs-otlp-proto/build/src/platform/node/index.js
-var require_node9 = __commonJS((exports) => {
+var require_node10 = __commonJS((exports) => {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.OTLPLogExporter = undefined;
   var OTLPLogExporter_1 = require_OTLPLogExporter3();
@@ -55689,20 +57076,20 @@ var require_node9 = __commonJS((exports) => {
 });
 
 // node_modules/@opentelemetry/exporter-logs-otlp-proto/build/src/platform/index.js
-var require_platform8 = __commonJS((exports) => {
+var require_platform9 = __commonJS((exports) => {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.OTLPLogExporter = undefined;
-  var node_1 = require_node9();
+  var node_1 = require_node10();
   Object.defineProperty(exports, "OTLPLogExporter", { enumerable: true, get: function() {
     return node_1.OTLPLogExporter;
   } });
 });
 
 // node_modules/@opentelemetry/exporter-logs-otlp-proto/build/src/index.js
-var require_src22 = __commonJS((exports) => {
+var require_src23 = __commonJS((exports) => {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.OTLPLogExporter = undefined;
-  var platform_1 = require_platform8();
+  var platform_1 = require_platform9();
   Object.defineProperty(exports, "OTLPLogExporter", { enumerable: true, get: function() {
     return platform_1.OTLPLogExporter;
   } });
@@ -55713,8 +57100,8 @@ var require_PrometheusSerializer = __commonJS((exports) => {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.PrometheusSerializer = undefined;
   var api_1 = require_src();
-  var sdk_metrics_1 = require_src7();
-  var core_1 = require_src3();
+  var sdk_metrics_1 = require_src8();
+  var core_1 = require_src4();
   var semantic_conventions_1 = require_src2();
   var ATTR_OTEL_SCOPE_SCHEMA_URL = "otel.scope.schema_url";
   function escapeString(str) {
@@ -55939,7 +57326,7 @@ ${results}
 });
 
 // node_modules/@opentelemetry/exporter-prometheus/build/src/semconv.js
-var require_semconv6 = __commonJS((exports) => {
+var require_semconv7 = __commonJS((exports) => {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.OTEL_COMPONENT_TYPE_VALUE_PROMETHEUS_HTTP_TEXT_METRIC_EXPORTER = undefined;
   exports.OTEL_COMPONENT_TYPE_VALUE_PROMETHEUS_HTTP_TEXT_METRIC_EXPORTER = "prometheus_http_text_metric_exporter";
@@ -55950,11 +57337,11 @@ var require_PrometheusExporter = __commonJS((exports) => {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.PrometheusExporter = undefined;
   var api_1 = require_src();
-  var core_1 = require_src3();
-  var sdk_metrics_1 = require_src7();
+  var core_1 = require_src4();
+  var sdk_metrics_1 = require_src8();
   var http_1 = __require("http");
   var PrometheusSerializer_1 = require_PrometheusSerializer();
-  var semconv_1 = require_semconv6();
+  var semconv_1 = require_semconv7();
   var url_1 = __require("url");
 
   class PrometheusExporter extends sdk_metrics_1.MetricReader {
@@ -56086,7 +57473,7 @@ var require_PrometheusExporter = __commonJS((exports) => {
 });
 
 // node_modules/@opentelemetry/exporter-prometheus/build/src/index.js
-var require_src23 = __commonJS((exports) => {
+var require_src24 = __commonJS((exports) => {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.PrometheusSerializer = exports.PrometheusExporter = undefined;
   var PrometheusExporter_1 = require_PrometheusExporter();
@@ -56103,8 +57490,8 @@ var require_src23 = __commonJS((exports) => {
 var require_OTLPTraceExporter2 = __commonJS((exports) => {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.OTLPTraceExporter = undefined;
-  var otlp_exporter_base_1 = require_src4();
-  var otlp_transformer_1 = require_src8();
+  var otlp_exporter_base_1 = require_src5();
+  var otlp_transformer_1 = require_src9();
   var node_http_1 = require_index_node_http();
 
   class OTLPTraceExporter extends otlp_exporter_base_1.OTLPExporterBase {
@@ -56118,7 +57505,7 @@ var require_OTLPTraceExporter2 = __commonJS((exports) => {
 });
 
 // node_modules/@opentelemetry/exporter-trace-otlp-http/build/src/platform/node/index.js
-var require_node10 = __commonJS((exports) => {
+var require_node11 = __commonJS((exports) => {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.OTLPTraceExporter = undefined;
   var OTLPTraceExporter_1 = require_OTLPTraceExporter2();
@@ -56128,20 +57515,20 @@ var require_node10 = __commonJS((exports) => {
 });
 
 // node_modules/@opentelemetry/exporter-trace-otlp-http/build/src/platform/index.js
-var require_platform9 = __commonJS((exports) => {
+var require_platform10 = __commonJS((exports) => {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.OTLPTraceExporter = undefined;
-  var node_1 = require_node10();
+  var node_1 = require_node11();
   Object.defineProperty(exports, "OTLPTraceExporter", { enumerable: true, get: function() {
     return node_1.OTLPTraceExporter;
   } });
 });
 
 // node_modules/@opentelemetry/exporter-trace-otlp-http/build/src/index.js
-var require_src24 = __commonJS((exports) => {
+var require_src25 = __commonJS((exports) => {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.OTLPTraceExporter = undefined;
-  var platform_1 = require_platform9();
+  var platform_1 = require_platform10();
   Object.defineProperty(exports, "OTLPTraceExporter", { enumerable: true, get: function() {
     return platform_1.OTLPTraceExporter;
   } });
@@ -56151,9 +57538,9 @@ var require_src24 = __commonJS((exports) => {
 var require_OTLPTraceExporter3 = __commonJS((exports) => {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.OTLPTraceExporter = undefined;
-  var otlp_grpc_exporter_base_1 = require_src20();
-  var otlp_transformer_1 = require_src8();
-  var otlp_exporter_base_1 = require_src4();
+  var otlp_grpc_exporter_base_1 = require_src21();
+  var otlp_transformer_1 = require_src9();
+  var otlp_exporter_base_1 = require_src5();
 
   class OTLPTraceExporter extends otlp_exporter_base_1.OTLPExporterBase {
     constructor(config = {}) {
@@ -56164,7 +57551,7 @@ var require_OTLPTraceExporter3 = __commonJS((exports) => {
 });
 
 // node_modules/@opentelemetry/exporter-trace-otlp-grpc/build/src/index.js
-var require_src25 = __commonJS((exports) => {
+var require_src26 = __commonJS((exports) => {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.OTLPTraceExporter = undefined;
   var OTLPTraceExporter_1 = require_OTLPTraceExporter3();
@@ -56178,7 +57565,7 @@ var require_util5 = __commonJS((exports) => {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.prepareSend = undefined;
   var api_1 = require_src();
-  var core_1 = require_src3();
+  var core_1 = require_src4();
   var http = __require("http");
   var https = __require("https");
   function prepareSend(urlStr, headers) {
@@ -56230,7 +57617,7 @@ var require_util5 = __commonJS((exports) => {
 });
 
 // node_modules/@opentelemetry/exporter-zipkin/build/src/platform/node/index.js
-var require_node11 = __commonJS((exports) => {
+var require_node12 = __commonJS((exports) => {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.prepareSend = undefined;
   var util_1 = require_util5();
@@ -56240,10 +57627,10 @@ var require_node11 = __commonJS((exports) => {
 });
 
 // node_modules/@opentelemetry/exporter-zipkin/build/src/platform/index.js
-var require_platform10 = __commonJS((exports) => {
+var require_platform11 = __commonJS((exports) => {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.prepareSend = undefined;
-  var node_1 = require_node11();
+  var node_1 = require_node12();
   Object.defineProperty(exports, "prepareSend", { enumerable: true, get: function() {
     return node_1.prepareSend;
   } });
@@ -56267,7 +57654,7 @@ var require_transform = __commonJS((exports) => {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports._toZipkinAnnotations = exports._toZipkinTags = exports.toZipkinSpan = exports.defaultStatusErrorTagName = exports.defaultStatusCodeTagName = undefined;
   var api = require_src();
-  var core_1 = require_src3();
+  var core_1 = require_src4();
   var zipkinTypes = require_types6();
   var ZIPKIN_SPAN_KIND_MAPPING = {
     [api.SpanKind.CLIENT]: zipkinTypes.SpanKind.CLIENT,
@@ -56328,7 +57715,7 @@ var require_transform = __commonJS((exports) => {
 });
 
 // node_modules/@opentelemetry/exporter-zipkin/build/src/utils.js
-var require_utils12 = __commonJS((exports) => {
+var require_utils13 = __commonJS((exports) => {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.prepareGetHeaders = undefined;
   function prepareGetHeaders(getExportRequestHeaders) {
@@ -56344,11 +57731,11 @@ var require_zipkin = __commonJS((exports) => {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.ZipkinExporter = undefined;
   var api_1 = require_src();
-  var core_1 = require_src3();
-  var index_1 = require_platform10();
+  var core_1 = require_src4();
+  var index_1 = require_platform11();
   var transform_1 = require_transform();
   var semantic_conventions_1 = require_src2();
-  var utils_1 = require_utils12();
+  var utils_1 = require_utils13();
 
   class ZipkinExporter {
     DEFAULT_SERVICE_NAME = "OpenTelemetry Service";
@@ -56427,10 +57814,10 @@ var require_zipkin = __commonJS((exports) => {
 });
 
 // node_modules/@opentelemetry/exporter-zipkin/build/src/index.js
-var require_src26 = __commonJS((exports) => {
+var require_src27 = __commonJS((exports) => {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.ZipkinExporter = exports.prepareSend = undefined;
-  var platform_1 = require_platform10();
+  var platform_1 = require_platform11();
   Object.defineProperty(exports, "prepareSend", { enumerable: true, get: function() {
     return platform_1.prepareSend;
   } });
@@ -56449,7 +57836,7 @@ var require_common3 = __commonJS((exports) => {
 });
 
 // node_modules/@opentelemetry/propagator-b3/build/src/constants.js
-var require_constants3 = __commonJS((exports) => {
+var require_constants4 = __commonJS((exports) => {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.X_B3_FLAGS = exports.X_B3_PARENT_SPAN_ID = exports.X_B3_SAMPLED = exports.X_B3_SPAN_ID = exports.X_B3_TRACE_ID = exports.B3_CONTEXT_HEADER = undefined;
   exports.B3_CONTEXT_HEADER = "b3";
@@ -56465,9 +57852,9 @@ var require_B3MultiPropagator = __commonJS((exports) => {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.B3MultiPropagator = undefined;
   var api_1 = require_src();
-  var core_1 = require_src3();
+  var core_1 = require_src4();
   var common_1 = require_common3();
-  var constants_1 = require_constants3();
+  var constants_1 = require_constants4();
   var VALID_SAMPLED_VALUES = new Set([true, "true", "True", "1", 1]);
   var VALID_UNSAMPLED_VALUES = new Set([false, "false", "False", "0", 0]);
   function isValidSampledValue(sampled) {
@@ -56558,9 +57945,9 @@ var require_B3SinglePropagator = __commonJS((exports) => {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.B3SinglePropagator = undefined;
   var api_1 = require_src();
-  var core_1 = require_src3();
+  var core_1 = require_src4();
   var common_1 = require_common3();
-  var constants_1 = require_constants3();
+  var constants_1 = require_constants4();
   var B3_CONTEXT_REGEX = /((?:[0-9a-f]{16}){1,2})-([0-9a-f]{16})(?:-([01d](?![0-9a-f])))?(?:-([0-9a-f]{16}))?/;
   var PADDING = "0".repeat(16);
   var SAMPLED_VALUES = new Set(["d", "1"]);
@@ -56629,10 +58016,10 @@ var require_types7 = __commonJS((exports) => {
 var require_B3Propagator = __commonJS((exports) => {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.B3Propagator = undefined;
-  var core_1 = require_src3();
+  var core_1 = require_src4();
   var B3MultiPropagator_1 = require_B3MultiPropagator();
   var B3SinglePropagator_1 = require_B3SinglePropagator();
-  var constants_1 = require_constants3();
+  var constants_1 = require_constants4();
   var types_1 = require_types7();
 
   class B3Propagator {
@@ -56672,14 +58059,14 @@ var require_B3Propagator = __commonJS((exports) => {
 });
 
 // node_modules/@opentelemetry/propagator-b3/build/src/index.js
-var require_src27 = __commonJS((exports) => {
+var require_src28 = __commonJS((exports) => {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.B3InjectEncoding = exports.X_B3_TRACE_ID = exports.X_B3_SPAN_ID = exports.X_B3_SAMPLED = exports.X_B3_PARENT_SPAN_ID = exports.X_B3_FLAGS = exports.B3_CONTEXT_HEADER = exports.B3Propagator = undefined;
   var B3Propagator_1 = require_B3Propagator();
   Object.defineProperty(exports, "B3Propagator", { enumerable: true, get: function() {
     return B3Propagator_1.B3Propagator;
   } });
-  var constants_1 = require_constants3();
+  var constants_1 = require_constants4();
   Object.defineProperty(exports, "B3_CONTEXT_HEADER", { enumerable: true, get: function() {
     return constants_1.B3_CONTEXT_HEADER;
   } });
@@ -56705,7 +58092,7 @@ var require_src27 = __commonJS((exports) => {
 });
 
 // node_modules/@opentelemetry/propagator-jaeger/node_modules/@opentelemetry/core/build/src/trace/suppress-tracing.js
-var require_suppress_tracing2 = __commonJS((exports) => {
+var require_suppress_tracing3 = __commonJS((exports) => {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.isTracingSuppressed = exports.unsuppressTracing = exports.suppressTracing = undefined;
   var api_1 = require_src();
@@ -56725,7 +58112,7 @@ var require_suppress_tracing2 = __commonJS((exports) => {
 });
 
 // node_modules/@opentelemetry/propagator-jaeger/node_modules/@opentelemetry/core/build/src/baggage/constants.js
-var require_constants4 = __commonJS((exports) => {
+var require_constants5 = __commonJS((exports) => {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.BAGGAGE_MAX_TOTAL_LENGTH = exports.BAGGAGE_MAX_PER_NAME_VALUE_PAIRS = exports.BAGGAGE_MAX_NAME_VALUE_PAIRS = exports.BAGGAGE_HEADER = exports.BAGGAGE_ITEMS_SEPARATOR = exports.BAGGAGE_PROPERTIES_SEPARATOR = exports.BAGGAGE_KEY_PAIR_SEPARATOR = undefined;
   exports.BAGGAGE_KEY_PAIR_SEPARATOR = "=";
@@ -56738,11 +58125,11 @@ var require_constants4 = __commonJS((exports) => {
 });
 
 // node_modules/@opentelemetry/propagator-jaeger/node_modules/@opentelemetry/core/build/src/baggage/utils.js
-var require_utils13 = __commonJS((exports) => {
+var require_utils14 = __commonJS((exports) => {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.parseKeyPairsIntoRecord = exports.parseBaggageHeaderString = exports.parsePairKeyValue = exports.getKeyPairs = exports.serializeKeyPairs = undefined;
   var api_1 = require_src();
-  var constants_1 = require_constants4();
+  var constants_1 = require_constants5();
   function serializeKeyPairs(keyPairs) {
     return keyPairs.reduce((hValue, current) => {
       const value = `${hValue}${hValue !== "" ? constants_1.BAGGAGE_ITEMS_SEPARATOR : ""}${current}`;
@@ -56828,13 +58215,13 @@ var require_utils13 = __commonJS((exports) => {
 });
 
 // node_modules/@opentelemetry/propagator-jaeger/node_modules/@opentelemetry/core/build/src/baggage/propagation/W3CBaggagePropagator.js
-var require_W3CBaggagePropagator2 = __commonJS((exports) => {
+var require_W3CBaggagePropagator3 = __commonJS((exports) => {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.W3CBaggagePropagator = undefined;
   var api_1 = require_src();
-  var suppress_tracing_1 = require_suppress_tracing2();
-  var constants_1 = require_constants4();
-  var utils_1 = require_utils13();
+  var suppress_tracing_1 = require_suppress_tracing3();
+  var constants_1 = require_constants5();
+  var utils_1 = require_utils14();
 
   class W3CBaggagePropagator {
     inject(context, carrier, setter) {
@@ -56877,7 +58264,7 @@ var require_W3CBaggagePropagator2 = __commonJS((exports) => {
 });
 
 // node_modules/@opentelemetry/propagator-jaeger/node_modules/@opentelemetry/core/build/src/common/anchored-clock.js
-var require_anchored_clock2 = __commonJS((exports) => {
+var require_anchored_clock3 = __commonJS((exports) => {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.AnchoredClock = undefined;
 
@@ -56899,7 +58286,7 @@ var require_anchored_clock2 = __commonJS((exports) => {
 });
 
 // node_modules/@opentelemetry/propagator-jaeger/node_modules/@opentelemetry/core/build/src/common/attributes.js
-var require_attributes2 = __commonJS((exports) => {
+var require_attributes3 = __commonJS((exports) => {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.isAttributeValue = exports.isAttributeKey = exports.sanitizeAttributes = undefined;
   var api_1 = require_src();
@@ -56976,7 +58363,7 @@ var require_attributes2 = __commonJS((exports) => {
 });
 
 // node_modules/@opentelemetry/propagator-jaeger/node_modules/@opentelemetry/core/build/src/common/logging-error-handler.js
-var require_logging_error_handler2 = __commonJS((exports) => {
+var require_logging_error_handler3 = __commonJS((exports) => {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.loggingErrorHandler = undefined;
   var api_1 = require_src();
@@ -57012,10 +58399,10 @@ var require_logging_error_handler2 = __commonJS((exports) => {
 });
 
 // node_modules/@opentelemetry/propagator-jaeger/node_modules/@opentelemetry/core/build/src/common/global-error-handler.js
-var require_global_error_handler2 = __commonJS((exports) => {
+var require_global_error_handler3 = __commonJS((exports) => {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.globalErrorHandler = exports.setGlobalErrorHandler = undefined;
-  var logging_error_handler_1 = require_logging_error_handler2();
+  var logging_error_handler_1 = require_logging_error_handler3();
   var delegateHandler = (0, logging_error_handler_1.loggingErrorHandler)();
   function setGlobalErrorHandler(handler) {
     delegateHandler = handler;
@@ -57030,7 +58417,7 @@ var require_global_error_handler2 = __commonJS((exports) => {
 });
 
 // node_modules/@opentelemetry/propagator-jaeger/node_modules/@opentelemetry/core/build/src/platform/node/environment.js
-var require_environment3 = __commonJS((exports) => {
+var require_environment4 = __commonJS((exports) => {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.getStringListFromEnv = exports.getBooleanFromEnv = exports.getStringFromEnv = exports.getNumberFromEnv = undefined;
   var api_1 = require_src();
@@ -57078,33 +58465,33 @@ var require_environment3 = __commonJS((exports) => {
 });
 
 // node_modules/@opentelemetry/propagator-jaeger/node_modules/@opentelemetry/core/build/src/common/globalThis.js
-var require_globalThis2 = __commonJS((exports) => {
+var require_globalThis3 = __commonJS((exports) => {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports._globalThis = undefined;
   exports._globalThis = globalThis;
 });
 
 // node_modules/@opentelemetry/propagator-jaeger/node_modules/@opentelemetry/core/build/src/version.js
-var require_version9 = __commonJS((exports) => {
+var require_version10 = __commonJS((exports) => {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.VERSION = undefined;
   exports.VERSION = "2.9.0";
 });
 
 // node_modules/@opentelemetry/propagator-jaeger/node_modules/@opentelemetry/core/build/src/semconv.js
-var require_semconv7 = __commonJS((exports) => {
+var require_semconv8 = __commonJS((exports) => {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.ATTR_PROCESS_RUNTIME_NAME = undefined;
   exports.ATTR_PROCESS_RUNTIME_NAME = "process.runtime.name";
 });
 
 // node_modules/@opentelemetry/propagator-jaeger/node_modules/@opentelemetry/core/build/src/platform/node/sdk-info.js
-var require_sdk_info2 = __commonJS((exports) => {
+var require_sdk_info3 = __commonJS((exports) => {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.SDK_INFO = undefined;
-  var version_1 = require_version9();
+  var version_1 = require_version10();
   var semantic_conventions_1 = require_src2();
-  var semconv_1 = require_semconv7();
+  var semconv_1 = require_semconv8();
   exports.SDK_INFO = {
     [semantic_conventions_1.ATTR_TELEMETRY_SDK_NAME]: "opentelemetry",
     [semconv_1.ATTR_PROCESS_RUNTIME_NAME]: "node",
@@ -57114,10 +58501,10 @@ var require_sdk_info2 = __commonJS((exports) => {
 });
 
 // node_modules/@opentelemetry/propagator-jaeger/node_modules/@opentelemetry/core/build/src/platform/node/index.js
-var require_node12 = __commonJS((exports) => {
+var require_node13 = __commonJS((exports) => {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.otperformance = exports.SDK_INFO = exports._globalThis = exports.getStringListFromEnv = exports.getNumberFromEnv = exports.getBooleanFromEnv = exports.getStringFromEnv = undefined;
-  var environment_1 = require_environment3();
+  var environment_1 = require_environment4();
   Object.defineProperty(exports, "getStringFromEnv", { enumerable: true, get: function() {
     return environment_1.getStringFromEnv;
   } });
@@ -57130,11 +58517,11 @@ var require_node12 = __commonJS((exports) => {
   Object.defineProperty(exports, "getStringListFromEnv", { enumerable: true, get: function() {
     return environment_1.getStringListFromEnv;
   } });
-  var globalThis_1 = require_globalThis2();
+  var globalThis_1 = require_globalThis3();
   Object.defineProperty(exports, "_globalThis", { enumerable: true, get: function() {
     return globalThis_1._globalThis;
   } });
-  var sdk_info_1 = require_sdk_info2();
+  var sdk_info_1 = require_sdk_info3();
   Object.defineProperty(exports, "SDK_INFO", { enumerable: true, get: function() {
     return sdk_info_1.SDK_INFO;
   } });
@@ -57142,10 +58529,10 @@ var require_node12 = __commonJS((exports) => {
 });
 
 // node_modules/@opentelemetry/propagator-jaeger/node_modules/@opentelemetry/core/build/src/platform/index.js
-var require_platform11 = __commonJS((exports) => {
+var require_platform12 = __commonJS((exports) => {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.getStringListFromEnv = exports.getNumberFromEnv = exports.getStringFromEnv = exports.getBooleanFromEnv = exports.otperformance = exports._globalThis = exports.SDK_INFO = undefined;
-  var node_1 = require_node12();
+  var node_1 = require_node13();
   Object.defineProperty(exports, "SDK_INFO", { enumerable: true, get: function() {
     return node_1.SDK_INFO;
   } });
@@ -57170,10 +58557,10 @@ var require_platform11 = __commonJS((exports) => {
 });
 
 // node_modules/@opentelemetry/propagator-jaeger/node_modules/@opentelemetry/core/build/src/common/time.js
-var require_time2 = __commonJS((exports) => {
+var require_time3 = __commonJS((exports) => {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.addHrTimes = exports.isTimeInput = exports.isTimeInputHrTime = exports.hrTimeToSeconds = exports.hrTimeToMilliseconds = exports.hrTimeToMicroseconds = exports.hrTimeToNanoseconds = exports.hrTimeToTimeStamp = exports.hrTimeDuration = exports.timeInputToHrTime = exports.hrTime = exports.getTimeOrigin = exports.millisToHrTime = undefined;
-  var platform_1 = require_platform11();
+  var platform_1 = require_platform12();
   var NANOSECOND_DIGITS = 9;
   var NANOSECOND_DIGITS_IN_MILLIS = 6;
   var MILLISECONDS_TO_NANOSECONDS = Math.pow(10, NANOSECOND_DIGITS_IN_MILLIS);
@@ -57265,7 +58652,7 @@ var require_time2 = __commonJS((exports) => {
 });
 
 // node_modules/@opentelemetry/propagator-jaeger/node_modules/@opentelemetry/core/build/src/common/timer-util.js
-var require_timer_util2 = __commonJS((exports) => {
+var require_timer_util3 = __commonJS((exports) => {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.unrefTimer = undefined;
   function unrefTimer(timer) {
@@ -57277,7 +58664,7 @@ var require_timer_util2 = __commonJS((exports) => {
 });
 
 // node_modules/@opentelemetry/propagator-jaeger/node_modules/@opentelemetry/core/build/src/ExportResult.js
-var require_ExportResult2 = __commonJS((exports) => {
+var require_ExportResult3 = __commonJS((exports) => {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.ExportResultCode = undefined;
   var ExportResultCode;
@@ -57288,7 +58675,7 @@ var require_ExportResult2 = __commonJS((exports) => {
 });
 
 // node_modules/@opentelemetry/propagator-jaeger/node_modules/@opentelemetry/core/build/src/propagation/composite.js
-var require_composite2 = __commonJS((exports) => {
+var require_composite3 = __commonJS((exports) => {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.CompositePropagator = undefined;
   var api_1 = require_src();
@@ -57334,7 +58721,7 @@ var require_composite2 = __commonJS((exports) => {
 });
 
 // node_modules/@opentelemetry/propagator-jaeger/node_modules/@opentelemetry/core/build/src/internal/validators.js
-var require_validators2 = __commonJS((exports) => {
+var require_validators3 = __commonJS((exports) => {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.validateValue = exports.validateKey = undefined;
   var VALID_KEY_CHAR_RANGE = "[_0-9a-z-*/]";
@@ -57354,10 +58741,10 @@ var require_validators2 = __commonJS((exports) => {
 });
 
 // node_modules/@opentelemetry/propagator-jaeger/node_modules/@opentelemetry/core/build/src/trace/TraceState.js
-var require_TraceState2 = __commonJS((exports) => {
+var require_TraceState3 = __commonJS((exports) => {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.TraceState = undefined;
-  var validators_1 = require_validators2();
+  var validators_1 = require_validators3();
   var MAX_TRACE_STATE_ITEMS = 32;
   var MAX_TRACE_STATE_LEN = 512;
   var LIST_MEMBERS_SEPARATOR = ",";
@@ -57464,12 +58851,12 @@ var require_TraceState2 = __commonJS((exports) => {
 });
 
 // node_modules/@opentelemetry/propagator-jaeger/node_modules/@opentelemetry/core/build/src/trace/W3CTraceContextPropagator.js
-var require_W3CTraceContextPropagator2 = __commonJS((exports) => {
+var require_W3CTraceContextPropagator3 = __commonJS((exports) => {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.W3CTraceContextPropagator = exports.parseTraceParent = exports.TRACE_STATE_HEADER = exports.TRACE_PARENT_HEADER = undefined;
   var api_1 = require_src();
-  var suppress_tracing_1 = require_suppress_tracing2();
-  var TraceState_1 = require_TraceState2();
+  var suppress_tracing_1 = require_suppress_tracing3();
+  var TraceState_1 = require_TraceState3();
   exports.TRACE_PARENT_HEADER = "traceparent";
   exports.TRACE_STATE_HEADER = "tracestate";
   var VERSION = "00";
@@ -57529,7 +58916,7 @@ var require_W3CTraceContextPropagator2 = __commonJS((exports) => {
 });
 
 // node_modules/@opentelemetry/propagator-jaeger/node_modules/@opentelemetry/core/build/src/trace/rpc-metadata.js
-var require_rpc_metadata2 = __commonJS((exports) => {
+var require_rpc_metadata3 = __commonJS((exports) => {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.getRPCMetadata = exports.deleteRPCMetadata = exports.setRPCMetadata = exports.RPCType = undefined;
   var api_1 = require_src();
@@ -57553,7 +58940,7 @@ var require_rpc_metadata2 = __commonJS((exports) => {
 });
 
 // node_modules/@opentelemetry/propagator-jaeger/node_modules/@opentelemetry/core/build/src/utils/lodash.merge.js
-var require_lodash_merge2 = __commonJS((exports) => {
+var require_lodash_merge3 = __commonJS((exports) => {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.isPlainObject = undefined;
   var objectTag = "[object Object]";
@@ -57611,10 +58998,10 @@ var require_lodash_merge2 = __commonJS((exports) => {
 });
 
 // node_modules/@opentelemetry/propagator-jaeger/node_modules/@opentelemetry/core/build/src/utils/merge.js
-var require_merge2 = __commonJS((exports) => {
+var require_merge3 = __commonJS((exports) => {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.merge = undefined;
-  var lodash_merge_1 = require_lodash_merge2();
+  var lodash_merge_1 = require_lodash_merge3();
   var MAX_LEVEL = 20;
   function merge(...args) {
     let result = args.shift();
@@ -57729,7 +59116,7 @@ var require_merge2 = __commonJS((exports) => {
 });
 
 // node_modules/@opentelemetry/propagator-jaeger/node_modules/@opentelemetry/core/build/src/utils/timeout.js
-var require_timeout2 = __commonJS((exports) => {
+var require_timeout3 = __commonJS((exports) => {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.callWithTimeout = exports.TimeoutError = undefined;
 
@@ -57759,7 +59146,7 @@ var require_timeout2 = __commonJS((exports) => {
 });
 
 // node_modules/@opentelemetry/propagator-jaeger/node_modules/@opentelemetry/core/build/src/utils/url.js
-var require_url2 = __commonJS((exports) => {
+var require_url3 = __commonJS((exports) => {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.isUrlIgnored = exports.urlMatches = undefined;
   function urlMatches(url, urlToMatch) {
@@ -57785,7 +59172,7 @@ var require_url2 = __commonJS((exports) => {
 });
 
 // node_modules/@opentelemetry/propagator-jaeger/node_modules/@opentelemetry/core/build/src/utils/promise.js
-var require_promise2 = __commonJS((exports) => {
+var require_promise3 = __commonJS((exports) => {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.Deferred = undefined;
 
@@ -57813,10 +59200,10 @@ var require_promise2 = __commonJS((exports) => {
 });
 
 // node_modules/@opentelemetry/propagator-jaeger/node_modules/@opentelemetry/core/build/src/utils/callback.js
-var require_callback2 = __commonJS((exports) => {
+var require_callback3 = __commonJS((exports) => {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.BindOnceFuture = undefined;
-  var promise_1 = require_promise2();
+  var promise_1 = require_promise3();
 
   class BindOnceFuture {
     _isCalled = false;
@@ -57849,7 +59236,7 @@ var require_callback2 = __commonJS((exports) => {
 });
 
 // node_modules/@opentelemetry/propagator-jaeger/node_modules/@opentelemetry/core/build/src/utils/configuration.js
-var require_configuration2 = __commonJS((exports) => {
+var require_configuration3 = __commonJS((exports) => {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.diagLogLevelFromString = undefined;
   var api_1 = require_src();
@@ -57877,11 +59264,11 @@ var require_configuration2 = __commonJS((exports) => {
 });
 
 // node_modules/@opentelemetry/propagator-jaeger/node_modules/@opentelemetry/core/build/src/internal/exporter.js
-var require_exporter2 = __commonJS((exports) => {
+var require_exporter3 = __commonJS((exports) => {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports._export = undefined;
   var api_1 = require_src();
-  var suppress_tracing_1 = require_suppress_tracing2();
+  var suppress_tracing_1 = require_suppress_tracing3();
   function _export(exporter, arg) {
     return new Promise((resolve) => {
       api_1.context.with((0, suppress_tracing_1.suppressTracing)(api_1.context.active()), () => {
@@ -57893,37 +59280,37 @@ var require_exporter2 = __commonJS((exports) => {
 });
 
 // node_modules/@opentelemetry/propagator-jaeger/node_modules/@opentelemetry/core/build/src/index.js
-var require_src28 = __commonJS((exports) => {
+var require_src29 = __commonJS((exports) => {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.diagLogLevelFromString = exports.BindOnceFuture = exports.urlMatches = exports.isUrlIgnored = exports.callWithTimeout = exports.TimeoutError = exports.merge = exports.TraceState = exports.unsuppressTracing = exports.suppressTracing = exports.isTracingSuppressed = exports.setRPCMetadata = exports.getRPCMetadata = exports.deleteRPCMetadata = exports.RPCType = exports.parseTraceParent = exports.W3CTraceContextPropagator = exports.TRACE_STATE_HEADER = exports.TRACE_PARENT_HEADER = exports.CompositePropagator = exports.otperformance = exports.getStringListFromEnv = exports.getNumberFromEnv = exports.getBooleanFromEnv = exports.getStringFromEnv = exports._globalThis = exports.SDK_INFO = exports.parseKeyPairsIntoRecord = exports.ExportResultCode = exports.unrefTimer = exports.timeInputToHrTime = exports.millisToHrTime = exports.isTimeInputHrTime = exports.isTimeInput = exports.hrTimeToTimeStamp = exports.hrTimeToSeconds = exports.hrTimeToNanoseconds = exports.hrTimeToMilliseconds = exports.hrTimeToMicroseconds = exports.hrTimeDuration = exports.hrTime = exports.getTimeOrigin = exports.addHrTimes = exports.loggingErrorHandler = exports.setGlobalErrorHandler = exports.globalErrorHandler = exports.sanitizeAttributes = exports.isAttributeValue = exports.AnchoredClock = exports.W3CBaggagePropagator = undefined;
   exports.internal = undefined;
-  var W3CBaggagePropagator_1 = require_W3CBaggagePropagator2();
+  var W3CBaggagePropagator_1 = require_W3CBaggagePropagator3();
   Object.defineProperty(exports, "W3CBaggagePropagator", { enumerable: true, get: function() {
     return W3CBaggagePropagator_1.W3CBaggagePropagator;
   } });
-  var anchored_clock_1 = require_anchored_clock2();
+  var anchored_clock_1 = require_anchored_clock3();
   Object.defineProperty(exports, "AnchoredClock", { enumerable: true, get: function() {
     return anchored_clock_1.AnchoredClock;
   } });
-  var attributes_1 = require_attributes2();
+  var attributes_1 = require_attributes3();
   Object.defineProperty(exports, "isAttributeValue", { enumerable: true, get: function() {
     return attributes_1.isAttributeValue;
   } });
   Object.defineProperty(exports, "sanitizeAttributes", { enumerable: true, get: function() {
     return attributes_1.sanitizeAttributes;
   } });
-  var global_error_handler_1 = require_global_error_handler2();
+  var global_error_handler_1 = require_global_error_handler3();
   Object.defineProperty(exports, "globalErrorHandler", { enumerable: true, get: function() {
     return global_error_handler_1.globalErrorHandler;
   } });
   Object.defineProperty(exports, "setGlobalErrorHandler", { enumerable: true, get: function() {
     return global_error_handler_1.setGlobalErrorHandler;
   } });
-  var logging_error_handler_1 = require_logging_error_handler2();
+  var logging_error_handler_1 = require_logging_error_handler3();
   Object.defineProperty(exports, "loggingErrorHandler", { enumerable: true, get: function() {
     return logging_error_handler_1.loggingErrorHandler;
   } });
-  var time_1 = require_time2();
+  var time_1 = require_time3();
   Object.defineProperty(exports, "addHrTimes", { enumerable: true, get: function() {
     return time_1.addHrTimes;
   } });
@@ -57963,19 +59350,19 @@ var require_src28 = __commonJS((exports) => {
   Object.defineProperty(exports, "timeInputToHrTime", { enumerable: true, get: function() {
     return time_1.timeInputToHrTime;
   } });
-  var timer_util_1 = require_timer_util2();
+  var timer_util_1 = require_timer_util3();
   Object.defineProperty(exports, "unrefTimer", { enumerable: true, get: function() {
     return timer_util_1.unrefTimer;
   } });
-  var ExportResult_1 = require_ExportResult2();
+  var ExportResult_1 = require_ExportResult3();
   Object.defineProperty(exports, "ExportResultCode", { enumerable: true, get: function() {
     return ExportResult_1.ExportResultCode;
   } });
-  var utils_1 = require_utils13();
+  var utils_1 = require_utils14();
   Object.defineProperty(exports, "parseKeyPairsIntoRecord", { enumerable: true, get: function() {
     return utils_1.parseKeyPairsIntoRecord;
   } });
-  var platform_1 = require_platform11();
+  var platform_1 = require_platform12();
   Object.defineProperty(exports, "SDK_INFO", { enumerable: true, get: function() {
     return platform_1.SDK_INFO;
   } });
@@ -57997,11 +59384,11 @@ var require_src28 = __commonJS((exports) => {
   Object.defineProperty(exports, "otperformance", { enumerable: true, get: function() {
     return platform_1.otperformance;
   } });
-  var composite_1 = require_composite2();
+  var composite_1 = require_composite3();
   Object.defineProperty(exports, "CompositePropagator", { enumerable: true, get: function() {
     return composite_1.CompositePropagator;
   } });
-  var W3CTraceContextPropagator_1 = require_W3CTraceContextPropagator2();
+  var W3CTraceContextPropagator_1 = require_W3CTraceContextPropagator3();
   Object.defineProperty(exports, "TRACE_PARENT_HEADER", { enumerable: true, get: function() {
     return W3CTraceContextPropagator_1.TRACE_PARENT_HEADER;
   } });
@@ -58014,7 +59401,7 @@ var require_src28 = __commonJS((exports) => {
   Object.defineProperty(exports, "parseTraceParent", { enumerable: true, get: function() {
     return W3CTraceContextPropagator_1.parseTraceParent;
   } });
-  var rpc_metadata_1 = require_rpc_metadata2();
+  var rpc_metadata_1 = require_rpc_metadata3();
   Object.defineProperty(exports, "RPCType", { enumerable: true, get: function() {
     return rpc_metadata_1.RPCType;
   } });
@@ -58027,7 +59414,7 @@ var require_src28 = __commonJS((exports) => {
   Object.defineProperty(exports, "setRPCMetadata", { enumerable: true, get: function() {
     return rpc_metadata_1.setRPCMetadata;
   } });
-  var suppress_tracing_1 = require_suppress_tracing2();
+  var suppress_tracing_1 = require_suppress_tracing3();
   Object.defineProperty(exports, "isTracingSuppressed", { enumerable: true, get: function() {
     return suppress_tracing_1.isTracingSuppressed;
   } });
@@ -58037,37 +59424,37 @@ var require_src28 = __commonJS((exports) => {
   Object.defineProperty(exports, "unsuppressTracing", { enumerable: true, get: function() {
     return suppress_tracing_1.unsuppressTracing;
   } });
-  var TraceState_1 = require_TraceState2();
+  var TraceState_1 = require_TraceState3();
   Object.defineProperty(exports, "TraceState", { enumerable: true, get: function() {
     return TraceState_1.TraceState;
   } });
-  var merge_1 = require_merge2();
+  var merge_1 = require_merge3();
   Object.defineProperty(exports, "merge", { enumerable: true, get: function() {
     return merge_1.merge;
   } });
-  var timeout_1 = require_timeout2();
+  var timeout_1 = require_timeout3();
   Object.defineProperty(exports, "TimeoutError", { enumerable: true, get: function() {
     return timeout_1.TimeoutError;
   } });
   Object.defineProperty(exports, "callWithTimeout", { enumerable: true, get: function() {
     return timeout_1.callWithTimeout;
   } });
-  var url_1 = require_url2();
+  var url_1 = require_url3();
   Object.defineProperty(exports, "isUrlIgnored", { enumerable: true, get: function() {
     return url_1.isUrlIgnored;
   } });
   Object.defineProperty(exports, "urlMatches", { enumerable: true, get: function() {
     return url_1.urlMatches;
   } });
-  var callback_1 = require_callback2();
+  var callback_1 = require_callback3();
   Object.defineProperty(exports, "BindOnceFuture", { enumerable: true, get: function() {
     return callback_1.BindOnceFuture;
   } });
-  var configuration_1 = require_configuration2();
+  var configuration_1 = require_configuration3();
   Object.defineProperty(exports, "diagLogLevelFromString", { enumerable: true, get: function() {
     return configuration_1.diagLogLevelFromString;
   } });
-  var exporter_1 = require_exporter2();
+  var exporter_1 = require_exporter3();
   exports.internal = {
     _export: exporter_1._export
   };
@@ -58078,7 +59465,7 @@ var require_JaegerPropagator = __commonJS((exports) => {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.JaegerPropagator = exports.UBER_BAGGAGE_HEADER_PREFIX = exports.UBER_TRACE_ID_HEADER = undefined;
   var api_1 = require_src();
-  var core_1 = require_src28();
+  var core_1 = require_src29();
   exports.UBER_TRACE_ID_HEADER = "uber-trace-id";
   exports.UBER_BAGGAGE_HEADER_PREFIX = "uberctx";
 
@@ -58169,7 +59556,7 @@ var require_JaegerPropagator = __commonJS((exports) => {
 });
 
 // node_modules/@opentelemetry/propagator-jaeger/build/src/index.js
-var require_src29 = __commonJS((exports) => {
+var require_src30 = __commonJS((exports) => {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.UBER_TRACE_ID_HEADER = exports.UBER_BAGGAGE_HEADER_PREFIX = exports.JaegerPropagator = undefined;
   var JaegerPropagator_1 = require_JaegerPropagator();
@@ -58200,10 +59587,10 @@ var require_OTLPMetricExporterOptions = __commonJS((exports) => {
 var require_OTLPMetricExporterBase = __commonJS((exports) => {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.OTLPMetricExporterBase = exports.LowMemoryTemporalitySelector = exports.DeltaTemporalitySelector = exports.CumulativeTemporalitySelector = undefined;
-  var core_1 = require_src3();
-  var sdk_metrics_1 = require_src7();
+  var core_1 = require_src4();
+  var sdk_metrics_1 = require_src8();
   var OTLPMetricExporterOptions_1 = require_OTLPMetricExporterOptions();
-  var otlp_exporter_base_1 = require_src4();
+  var otlp_exporter_base_1 = require_src5();
   var api_1 = require_src();
   var CumulativeTemporalitySelector = () => sdk_metrics_1.AggregationTemporality.CUMULATIVE;
   exports.CumulativeTemporalitySelector = CumulativeTemporalitySelector;
@@ -58290,7 +59677,7 @@ var require_OTLPMetricExporter = __commonJS((exports) => {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.OTLPMetricExporter = undefined;
   var OTLPMetricExporterBase_1 = require_OTLPMetricExporterBase();
-  var otlp_transformer_1 = require_src8();
+  var otlp_transformer_1 = require_src9();
   var node_http_1 = require_index_node_http();
 
   class OTLPMetricExporter extends OTLPMetricExporterBase_1.OTLPMetricExporterBase {
@@ -58304,7 +59691,7 @@ var require_OTLPMetricExporter = __commonJS((exports) => {
 });
 
 // node_modules/@opentelemetry/exporter-metrics-otlp-http/build/src/platform/node/index.js
-var require_node13 = __commonJS((exports) => {
+var require_node14 = __commonJS((exports) => {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.OTLPMetricExporter = undefined;
   var OTLPMetricExporter_1 = require_OTLPMetricExporter();
@@ -58314,20 +59701,20 @@ var require_node13 = __commonJS((exports) => {
 });
 
 // node_modules/@opentelemetry/exporter-metrics-otlp-http/build/src/platform/index.js
-var require_platform12 = __commonJS((exports) => {
+var require_platform13 = __commonJS((exports) => {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.OTLPMetricExporter = undefined;
-  var node_1 = require_node13();
+  var node_1 = require_node14();
   Object.defineProperty(exports, "OTLPMetricExporter", { enumerable: true, get: function() {
     return node_1.OTLPMetricExporter;
   } });
 });
 
 // node_modules/@opentelemetry/exporter-metrics-otlp-http/build/src/index.js
-var require_src30 = __commonJS((exports) => {
+var require_src31 = __commonJS((exports) => {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.OTLPMetricExporterBase = exports.LowMemoryTemporalitySelector = exports.DeltaTemporalitySelector = exports.CumulativeTemporalitySelector = exports.AggregationTemporalityPreference = exports.OTLPMetricExporter = undefined;
-  var platform_1 = require_platform12();
+  var platform_1 = require_platform13();
   Object.defineProperty(exports, "OTLPMetricExporter", { enumerable: true, get: function() {
     return platform_1.OTLPMetricExporter;
   } });
@@ -58354,9 +59741,9 @@ var require_src30 = __commonJS((exports) => {
 var require_OTLPMetricExporter2 = __commonJS((exports) => {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.OTLPMetricExporter = undefined;
-  var exporter_metrics_otlp_http_1 = require_src30();
-  var otlp_grpc_exporter_base_1 = require_src20();
-  var otlp_transformer_1 = require_src8();
+  var exporter_metrics_otlp_http_1 = require_src31();
+  var otlp_grpc_exporter_base_1 = require_src21();
+  var otlp_transformer_1 = require_src9();
 
   class OTLPMetricExporter extends exporter_metrics_otlp_http_1.OTLPMetricExporterBase {
     constructor(config) {
@@ -58367,7 +59754,7 @@ var require_OTLPMetricExporter2 = __commonJS((exports) => {
 });
 
 // node_modules/@opentelemetry/exporter-metrics-otlp-grpc/build/src/index.js
-var require_src31 = __commonJS((exports) => {
+var require_src32 = __commonJS((exports) => {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.OTLPMetricExporter = undefined;
   var OTLPMetricExporter_1 = require_OTLPMetricExporter2();
@@ -58380,8 +59767,8 @@ var require_src31 = __commonJS((exports) => {
 var require_OTLPMetricExporter3 = __commonJS((exports) => {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.OTLPMetricExporter = undefined;
-  var exporter_metrics_otlp_http_1 = require_src30();
-  var otlp_transformer_1 = require_src8();
+  var exporter_metrics_otlp_http_1 = require_src31();
+  var otlp_transformer_1 = require_src9();
   var node_http_1 = require_index_node_http();
 
   class OTLPMetricExporter extends exporter_metrics_otlp_http_1.OTLPMetricExporterBase {
@@ -58395,7 +59782,7 @@ var require_OTLPMetricExporter3 = __commonJS((exports) => {
 });
 
 // node_modules/@opentelemetry/exporter-metrics-otlp-proto/build/src/platform/node/index.js
-var require_node14 = __commonJS((exports) => {
+var require_node15 = __commonJS((exports) => {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.OTLPMetricExporter = undefined;
   var OTLPMetricExporter_1 = require_OTLPMetricExporter3();
@@ -58405,50 +59792,50 @@ var require_node14 = __commonJS((exports) => {
 });
 
 // node_modules/@opentelemetry/exporter-metrics-otlp-proto/build/src/platform/index.js
-var require_platform13 = __commonJS((exports) => {
+var require_platform14 = __commonJS((exports) => {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.OTLPMetricExporter = undefined;
-  var node_1 = require_node14();
+  var node_1 = require_node15();
   Object.defineProperty(exports, "OTLPMetricExporter", { enumerable: true, get: function() {
     return node_1.OTLPMetricExporter;
   } });
 });
 
 // node_modules/@opentelemetry/exporter-metrics-otlp-proto/build/src/index.js
-var require_src32 = __commonJS((exports) => {
+var require_src33 = __commonJS((exports) => {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.OTLPMetricExporter = undefined;
-  var platform_1 = require_platform13();
+  var platform_1 = require_platform14();
   Object.defineProperty(exports, "OTLPMetricExporter", { enumerable: true, get: function() {
     return platform_1.OTLPMetricExporter;
   } });
 });
 
 // node_modules/@opentelemetry/sdk-node/build/src/utils.js
-var require_utils14 = __commonJS((exports) => {
+var require_utils15 = __commonJS((exports) => {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.buildSamplerFromConfig = exports.getInstanceID = exports.getMeterViewsFromConfiguration = exports.getAggregationType = exports.getInstrumentType = exports.getMeterReadersFromConfiguration = exports.getSpanLimitsFromConfiguration = exports.getSpanProcessorsFromConfiguration = exports.getSpanExporter = exports.getHttpAgentOptionsFromTls = exports.getHeadersFromConfiguration = exports.getLogRecordProcessorsFromConfiguration = exports.getLogRecordExporter = exports.getBatchLogRecordProcessorFromEnv = exports.getBatchLogRecordProcessorConfigFromEnv = exports.getLoggerProviderConfigFromEnv = exports.getPeriodicMetricReaderFromConfiguration = exports.getOtlpMetricExporterFromEnv = exports.getPeriodicExportingMetricReaderFromEnv = exports.getNonNegativeNumberFromEnv = exports.getKeyListFromObjectArray = exports.setupPropagator = exports.setupContextManager = exports.getPropagatorFromConfiguration = exports.getPropagatorFromEnv = exports.getSpanProcessorsFromEnv = exports.getOtlpProtocolFromEnv = exports.getResourceDetectorsFromConfiguration = exports.getResourceDetectorsFromEnv = exports.getResourceFromConfiguration = undefined;
   var api_1 = require_src();
-  var core_1 = require_src3();
-  var exporter_trace_otlp_proto_1 = require_src9();
-  var exporter_trace_otlp_http_1 = require_src24();
-  var exporter_trace_otlp_grpc_1 = require_src25();
-  var exporter_zipkin_1 = require_src26();
-  var resources_1 = require_src6();
-  var sdk_trace_base_1 = require_src12();
-  var propagator_b3_1 = require_src27();
-  var propagator_jaeger_1 = require_src29();
-  var context_async_hooks_1 = require_src11();
-  var exporter_logs_otlp_http_1 = require_src16();
-  var exporter_logs_otlp_grpc_1 = require_src21();
-  var exporter_logs_otlp_proto_1 = require_src22();
-  var otlp_exporter_base_1 = require_src4();
-  var otlp_grpc_exporter_base_1 = require_src20();
-  var sdk_metrics_1 = require_src7();
-  var exporter_metrics_otlp_grpc_1 = require_src31();
-  var exporter_metrics_otlp_http_1 = require_src30();
-  var exporter_metrics_otlp_proto_1 = require_src32();
-  var sdk_logs_1 = require_src10();
+  var core_1 = require_src4();
+  var exporter_trace_otlp_proto_1 = require_src10();
+  var exporter_trace_otlp_http_1 = require_src25();
+  var exporter_trace_otlp_grpc_1 = require_src26();
+  var exporter_zipkin_1 = require_src27();
+  var resources_1 = require_src7();
+  var sdk_trace_base_1 = require_src13();
+  var propagator_b3_1 = require_src28();
+  var propagator_jaeger_1 = require_src30();
+  var context_async_hooks_1 = require_src12();
+  var exporter_logs_otlp_http_1 = require_src17();
+  var exporter_logs_otlp_grpc_1 = require_src22();
+  var exporter_logs_otlp_proto_1 = require_src23();
+  var otlp_exporter_base_1 = require_src5();
+  var otlp_grpc_exporter_base_1 = require_src21();
+  var sdk_metrics_1 = require_src8();
+  var exporter_metrics_otlp_grpc_1 = require_src32();
+  var exporter_metrics_otlp_http_1 = require_src31();
+  var exporter_metrics_otlp_proto_1 = require_src33();
+  var sdk_logs_1 = require_src11();
   var fs = __require("fs");
   var RESOURCE_DETECTOR_ENVIRONMENT = "env";
   var RESOURCE_DETECTOR_HOST = "host";
@@ -59245,20 +60632,20 @@ var require_sdk = __commonJS((exports) => {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.NodeSDK = undefined;
   var api_1 = require_src();
-  var api_logs_1 = require_src5();
-  var instrumentation_1 = require_src15();
-  var resources_1 = require_src6();
-  var sdk_logs_1 = require_src10();
-  var exporter_logs_otlp_http_1 = require_src16();
-  var exporter_logs_otlp_grpc_1 = require_src21();
-  var exporter_logs_otlp_proto_1 = require_src22();
-  var exporter_prometheus_1 = require_src23();
-  var sdk_metrics_1 = require_src7();
-  var sdk_trace_base_1 = require_src12();
-  var sdk_trace_node_1 = require_src13();
+  var api_logs_1 = require_src6();
+  var instrumentation_1 = require_src16();
+  var resources_1 = require_src7();
+  var sdk_logs_1 = require_src11();
+  var exporter_logs_otlp_http_1 = require_src17();
+  var exporter_logs_otlp_grpc_1 = require_src22();
+  var exporter_logs_otlp_proto_1 = require_src23();
+  var exporter_prometheus_1 = require_src24();
+  var sdk_metrics_1 = require_src8();
+  var sdk_trace_base_1 = require_src13();
+  var sdk_trace_node_1 = require_src14();
   var semantic_conventions_1 = require_src2();
-  var core_1 = require_src3();
-  var utils_1 = require_utils14();
+  var core_1 = require_src4();
+  var utils_1 = require_utils15();
   function getMetricReadersFromEnv() {
     const metricReaders = [];
     const enabledExporters = Array.from(new Set((0, core_1.getStringListFromEnv)("OTEL_METRICS_EXPORTER") ?? []));
@@ -61076,7 +62463,7 @@ var require_log = __commonJS((exports) => {
 });
 
 // node_modules/yaml/dist/schema/yaml-1.1/merge.js
-var require_merge3 = __commonJS((exports) => {
+var require_merge4 = __commonJS((exports) => {
   var identity = require_identity();
   var Scalar = require_Scalar();
   var MERGE_KEY = "<<";
@@ -61132,7 +62519,7 @@ var require_merge3 = __commonJS((exports) => {
 // node_modules/yaml/dist/nodes/addPairToJSMap.js
 var require_addPairToJSMap = __commonJS((exports) => {
   var log = require_log();
-  var merge = require_merge3();
+  var merge = require_merge4();
   var stringify = require_stringify();
   var identity = require_identity();
   var toJS = require_toJS();
@@ -62409,7 +63796,7 @@ var require_schema4 = __commonJS((exports) => {
   var bool = require_bool2();
   var float = require_float3();
   var int = require_int2();
-  var merge = require_merge3();
+  var merge = require_merge4();
   var omap = require_omap();
   var pairs = require_pairs();
   var set = require_set();
@@ -62452,7 +63839,7 @@ var require_tags = __commonJS((exports) => {
   var schema = require_schema2();
   var schema$1 = require_schema3();
   var binary = require_binary();
-  var merge = require_merge3();
+  var merge = require_merge4();
   var omap = require_omap();
   var pairs = require_pairs();
   var schema$2 = require_schema4();
@@ -66443,11 +67830,11 @@ var require_dist = __commonJS((exports) => {
 });
 
 // node_modules/@opentelemetry/configuration/build/src/utils.js
-var require_utils15 = __commonJS((exports) => {
+var require_utils16 = __commonJS((exports) => {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.getHttpTlsConfig = exports.initializeDefaultLoggerProviderConfiguration = exports.initializeDefaultMeterProviderConfiguration = exports.initializeDefaultTracerProviderConfiguration = exports.initializeDefaultConfiguration = exports.getGrpcTlsConfig = exports.substituteEnvVars = undefined;
   var yaml = require_dist();
-  var core_1 = require_src3();
+  var core_1 = require_src4();
   function substituteEnvVars(doc) {
     yaml.visit(doc, {
       Scalar: (key, node, _path) => {
@@ -66634,7 +68021,7 @@ var require_EnvReader = __commonJS((exports) => {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.readAllEnvVars = exports.readEnvVar = undefined;
   var api_1 = require_src();
-  var core_1 = require_src3();
+  var core_1 = require_src4();
   var EnvDefinition_1 = require_EnvDefinition();
   function readStringEnv(def) {
     const value = (0, core_1.getStringFromEnv)(def.key);
@@ -66684,9 +68071,9 @@ var require_EnvReader = __commonJS((exports) => {
 var require_EnvironmentConfigFactory = __commonJS((exports) => {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.setLoggerProvider = exports.setMeterProvider = exports.setTracerProvider = exports.setSampler = exports.setPropagators = exports.setAttributeLimits = exports.setResources = exports.EnvironmentConfigFactory = undefined;
-  var core_1 = require_src3();
+  var core_1 = require_src4();
   var api_1 = require_src();
-  var utils_1 = require_utils15();
+  var utils_1 = require_utils16();
   var EnvReader_1 = require_EnvReader();
   var EnvDefinition_1 = require_EnvDefinition();
 
@@ -76899,10 +78286,10 @@ If omitted or null, false is used.
 var require_FileConfigFactory = __commonJS((exports) => {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.parseConfigFile = exports.FileConfigFactory = undefined;
-  var core_1 = require_src3();
+  var core_1 = require_src4();
   var fs = __require("fs");
   var yaml = require_dist();
-  var utils_1 = require_utils15();
+  var utils_1 = require_utils16();
   var validateConfig = require_validator();
 
   class FileConfigFactory {
@@ -77061,7 +78448,7 @@ var require_FileConfigFactory = __commonJS((exports) => {
 var require_ConfigFactory = __commonJS((exports) => {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.createConfigFactory = undefined;
-  var core_1 = require_src3();
+  var core_1 = require_src4();
   var EnvironmentConfigFactory_1 = require_EnvironmentConfigFactory();
   var FileConfigFactory_1 = require_FileConfigFactory();
   function createConfigFactory() {
@@ -77075,7 +78462,7 @@ var require_ConfigFactory = __commonJS((exports) => {
 });
 
 // node_modules/@opentelemetry/configuration/build/src/index.js
-var require_src33 = __commonJS((exports) => {
+var require_src34 = __commonJS((exports) => {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.createConfigFactory = undefined;
   var ConfigFactory_1 = require_ConfigFactory();
@@ -77085,7 +78472,7 @@ var require_src33 = __commonJS((exports) => {
 });
 
 // node_modules/@opentelemetry/sdk-node/build/src/semconv.js
-var require_semconv8 = __commonJS((exports) => {
+var require_semconv9 = __commonJS((exports) => {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.ATTR_SERVICE_NAMESPACE = exports.ATTR_SERVICE_INSTANCE_ID = exports.ATTR_PROCESS_PID = exports.ATTR_HOST_NAME = undefined;
   exports.ATTR_HOST_NAME = "host.name";
@@ -77152,17 +78539,17 @@ var require_diag2 = __commonJS((exports) => {
 var require_start = __commonJS((exports) => {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.setupResource = exports.startNodeSDK = exports.NOOP_SDK = undefined;
-  var configuration_1 = require_src33();
+  var configuration_1 = require_src34();
   var api_1 = require_src();
-  var utils_1 = require_utils14();
-  var instrumentation_1 = require_src15();
-  var sdk_logs_1 = require_src10();
-  var sdk_metrics_1 = require_src7();
-  var api_logs_1 = require_src5();
-  var resources_1 = require_src6();
-  var context_async_hooks_1 = require_src11();
-  var semconv_1 = require_semconv8();
-  var sdk_trace_base_1 = require_src12();
+  var utils_1 = require_utils15();
+  var instrumentation_1 = require_src16();
+  var sdk_logs_1 = require_src11();
+  var sdk_metrics_1 = require_src8();
+  var api_logs_1 = require_src6();
+  var resources_1 = require_src7();
+  var context_async_hooks_1 = require_src12();
+  var semconv_1 = require_semconv9();
+  var sdk_trace_base_1 = require_src13();
   var diag_1 = require_diag2();
   exports.NOOP_SDK = {
     shutdown: async () => {}
@@ -77285,17 +78672,17 @@ var require_start = __commonJS((exports) => {
 });
 
 // node_modules/@opentelemetry/sdk-node/build/src/index.js
-var require_src34 = __commonJS((exports) => {
+var require_src35 = __commonJS((exports) => {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.startNodeSDK = exports.NodeSDK = exports.tracing = exports.resources = exports.node = exports.metrics = exports.logs = exports.core = exports.contextBase = exports.api = undefined;
   exports.api = require_src();
   exports.contextBase = require_src();
-  exports.core = require_src3();
-  exports.logs = require_src10();
-  exports.metrics = require_src7();
-  exports.node = require_src13();
-  exports.resources = require_src6();
-  exports.tracing = require_src12();
+  exports.core = require_src4();
+  exports.logs = require_src11();
+  exports.metrics = require_src8();
+  exports.node = require_src14();
+  exports.resources = require_src7();
+  exports.tracing = require_src13();
   var sdk_1 = require_sdk();
   Object.defineProperty(exports, "NodeSDK", { enumerable: true, get: function() {
     return sdk_1.NodeSDK;
@@ -77684,7 +79071,7 @@ var require_node_color_log = __commonJS((exports, module) => {
   module.exports = logger;
 });
 
-// src/session/utils.ts
+// src/session/dist/utils.js
 function isDeno() {
   return typeof globalThis.Deno !== "undefined";
 }
@@ -77696,7 +79083,7 @@ var init_utils = __esm(() => {
   import_node_color_log = __toESM(require_node_color_log(), 1);
 });
 
-// src/session/errors/DaggerSDKError.ts
+// src/session/dist/errors/DaggerSDKError.js
 var DaggerSDKError;
 var init_DaggerSDKError = __esm(() => {
   init_utils();
@@ -77715,7 +79102,7 @@ var init_DaggerSDKError = __esm(() => {
   };
 });
 
-// src/session/errors/errors-codes.ts
+// src/session/dist/errors/errors-codes.js
 var ERROR_CODES, ERROR_NAMES;
 var init_errors_codes = __esm(() => {
   ERROR_CODES = {
@@ -77734,7 +79121,7 @@ var init_errors_codes = __esm(() => {
   ERROR_NAMES = Object.keys(ERROR_CODES).reduce((obj, item) => ({ ...obj, [item]: item }), {});
 });
 
-// src/session/errors/UnknownDaggerError.ts
+// src/session/dist/errors/UnknownDaggerError.js
 var UnknownDaggerError;
 var init_UnknownDaggerError = __esm(() => {
   init_DaggerSDKError();
@@ -77748,7 +79135,7 @@ var init_UnknownDaggerError = __esm(() => {
   };
 });
 
-// src/session/errors/DockerImageRefValidationError.ts
+// src/session/dist/errors/DockerImageRefValidationError.js
 var DockerImageRefValidationError;
 var init_DockerImageRefValidationError = __esm(() => {
   init_DaggerSDKError();
@@ -77764,7 +79151,7 @@ var init_DockerImageRefValidationError = __esm(() => {
   };
 });
 
-// src/session/errors/EngineSessionConnectParamsParseError.ts
+// src/session/dist/errors/EngineSessionConnectParamsParseError.js
 var EngineSessionConnectParamsParseError;
 var init_EngineSessionConnectParamsParseError = __esm(() => {
   init_DaggerSDKError();
@@ -77780,7 +79167,7 @@ var init_EngineSessionConnectParamsParseError = __esm(() => {
   };
 });
 
-// src/session/errors/ExecError.ts
+// src/session/dist/errors/ExecError.js
 var ExecError;
 var init_ExecError = __esm(() => {
   init_DaggerSDKError();
@@ -77804,7 +79191,7 @@ var init_ExecError = __esm(() => {
   };
 });
 
-// src/session/errors/GraphQLRequestError.ts
+// src/session/dist/errors/GraphQLRequestError.js
 var GraphQLRequestError;
 var init_GraphQLRequestError = __esm(() => {
   init_DaggerSDKError();
@@ -77824,7 +79211,7 @@ var init_GraphQLRequestError = __esm(() => {
   };
 });
 
-// src/session/errors/InitEngineSessionBinaryError.ts
+// src/session/dist/errors/InitEngineSessionBinaryError.js
 var InitEngineSessionBinaryError;
 var init_InitEngineSessionBinaryError = __esm(() => {
   init_DaggerSDKError();
@@ -77838,7 +79225,7 @@ var init_InitEngineSessionBinaryError = __esm(() => {
   };
 });
 
-// src/session/errors/TooManyNestedObjectsError.ts
+// src/session/dist/errors/TooManyNestedObjectsError.js
 var TooManyNestedObjectsError;
 var init_TooManyNestedObjectsError = __esm(() => {
   init_DaggerSDKError();
@@ -77854,7 +79241,7 @@ var init_TooManyNestedObjectsError = __esm(() => {
   };
 });
 
-// src/session/errors/EngineSessionErrorOptions.ts
+// src/session/dist/errors/EngineSessionErrorOptions.js
 var EngineSessionError;
 var init_EngineSessionErrorOptions = __esm(() => {
   init_DaggerSDKError();
@@ -77868,7 +79255,7 @@ var init_EngineSessionErrorOptions = __esm(() => {
   };
 });
 
-// src/session/errors/EngineSessionConnectionTimeoutError.ts
+// src/session/dist/errors/EngineSessionConnectionTimeoutError.js
 var EngineSessionConnectionTimeoutError;
 var init_EngineSessionConnectionTimeoutError = __esm(() => {
   init_DaggerSDKError();
@@ -77884,7 +79271,7 @@ var init_EngineSessionConnectionTimeoutError = __esm(() => {
   };
 });
 
-// src/session/errors/NotAwaitedRequestError.ts
+// src/session/dist/errors/NotAwaitedRequestError.js
 var NotAwaitedRequestError;
 var init_NotAwaitedRequestError = __esm(() => {
   init_DaggerSDKError();
@@ -77898,7 +79285,7 @@ var init_NotAwaitedRequestError = __esm(() => {
   };
 });
 
-// src/session/errors/FunctionNotFound.ts
+// src/session/dist/errors/FunctionNotFound.js
 var FunctionNotFound;
 var init_FunctionNotFound = __esm(() => {
   init_DaggerSDKError();
@@ -77912,7 +79299,7 @@ var init_FunctionNotFound = __esm(() => {
   };
 });
 
-// src/session/errors/IntrospectionError.ts
+// src/session/dist/errors/IntrospectionError.js
 var IntrospectionError;
 var init_IntrospectionError = __esm(() => {
   init_DaggerSDKError();
@@ -77926,7 +79313,7 @@ var init_IntrospectionError = __esm(() => {
   };
 });
 
-// src/session/errors/index.ts
+// src/session/dist/errors/index.js
 var init_errors = __esm(() => {
   init_DaggerSDKError();
   init_UnknownDaggerError();
@@ -77944,7 +79331,7 @@ var init_errors = __esm(() => {
   init_errors_codes();
 });
 
-// node_modules/data-uri-to-buffer/dist/index.js
+// src/session/node_modules/node-fetch/node_modules/data-uri-to-buffer/dist/index.js
 function dataUriToBuffer(uri) {
   if (!/^data:/i.test(uri)) {
     throw new TypeError('`uri` does not appear to be a Data URI (must begin with "data:")');
@@ -77986,7 +79373,7 @@ var init_dist = __esm(() => {
   dist_default = dataUriToBuffer;
 });
 
-// node_modules/web-streams-polyfill/dist/ponyfill.es2018.js
+// src/session/node_modules/node-fetch/node_modules/fetch-blob/node_modules/web-streams-polyfill/dist/ponyfill.es2018.js
 var require_ponyfill_es2018 = __commonJS((exports, module) => {
   (function(global2, factory) {
     typeof exports === "object" && typeof module !== "undefined" ? factory(exports) : typeof define === "function" && define.amd ? define(["exports"], factory) : (global2 = typeof globalThis !== "undefined" ? globalThis : global2 || self, factory(global2.WebStreamsPolyfill = {}));
@@ -80412,7 +81799,7 @@ var require_ponyfill_es2018 = __commonJS((exports, module) => {
       return isDOMExceptionConstructor(ctor) ? ctor : undefined;
     }
     function createPolyfill() {
-      const ctor = function DOMException(message, name) {
+      const ctor = function DOMException3(message, name) {
         this.message = message || "";
         this.name = name || "Error";
         if (Error.captureStackTrace) {
@@ -82049,7 +83436,7 @@ var require_ponyfill_es2018 = __commonJS((exports, module) => {
   });
 });
 
-// node_modules/fetch-blob/streams.cjs
+// src/session/node_modules/node-fetch/node_modules/fetch-blob/streams.cjs
 var require_streams = __commonJS(() => {
   var POOL_SIZE = 65536;
   if (!globalThis.ReadableStream) {
@@ -82091,7 +83478,7 @@ var require_streams = __commonJS(() => {
   } catch (error) {}
 });
 
-// node_modules/fetch-blob/index.js
+// src/session/node_modules/node-fetch/node_modules/fetch-blob/index.js
 async function* toIterator(parts, clone = true) {
   for (const part of parts) {
     if ("stream" in part) {
@@ -82248,7 +83635,7 @@ var init_fetch_blob = __esm(() => {
   fetch_blob_default = Blob2;
 });
 
-// node_modules/fetch-blob/file.js
+// src/session/node_modules/node-fetch/node_modules/fetch-blob/file.js
 var _File, File2, file_default;
 var init_file = __esm(() => {
   init_fetch_blob();
@@ -82285,7 +83672,7 @@ var init_file = __esm(() => {
   file_default = File2;
 });
 
-// node_modules/formdata-polyfill/esm.min.js
+// src/session/node_modules/node-fetch/node_modules/formdata-polyfill/esm.min.js
 function formDataToBlob(F, B = fetch_blob_default) {
   var b = `${r()}${r()}`.replace(/\./g, "").slice(-28).padStart(32, "-"), c = [], p = `--${b}\r
 Content-Disposition: form-data; name="`;
@@ -82387,7 +83774,7 @@ var init_esm_min = __esm(() => {
   };
 });
 
-// node_modules/node-fetch/src/errors/base.js
+// src/session/node_modules/node-fetch/src/errors/base.js
 var FetchBaseError;
 var init_base = __esm(() => {
   FetchBaseError = class FetchBaseError extends Error {
@@ -82405,7 +83792,7 @@ var init_base = __esm(() => {
   };
 });
 
-// node_modules/node-fetch/src/errors/fetch-error.js
+// src/session/node_modules/node-fetch/src/errors/fetch-error.js
 var FetchError;
 var init_fetch_error = __esm(() => {
   init_base();
@@ -82420,7 +83807,7 @@ var init_fetch_error = __esm(() => {
   };
 });
 
-// node_modules/node-fetch/src/utils/is.js
+// src/session/node_modules/node-fetch/src/utils/is.js
 var NAME, isURLSearchParameters = (object) => {
   return typeof object === "object" && typeof object.append === "function" && typeof object.delete === "function" && typeof object.get === "function" && typeof object.getAll === "function" && typeof object.has === "function" && typeof object.set === "function" && typeof object.sort === "function" && object[NAME] === "URLSearchParams";
 }, isBlob = (object) => {
@@ -82440,7 +83827,7 @@ var init_is = __esm(() => {
   NAME = Symbol.toStringTag;
 });
 
-// node_modules/node-domexception/index.js
+// src/session/node_modules/node-fetch/node_modules/fetch-blob/node_modules/node-domexception/index.js
 var require_node_domexception = __commonJS((exports, module) => {
   /*! node-domexception. MIT License. Jimmy Wärting <https://jimmy.warting.se/opensource> */
   if (!globalThis.DOMException) {
@@ -82454,7 +83841,7 @@ var require_node_domexception = __commonJS((exports, module) => {
   module.exports = globalThis.DOMException;
 });
 
-// node_modules/fetch-blob/from.js
+// src/session/node_modules/node-fetch/node_modules/fetch-blob/from.js
 import { statSync, createReadStream, promises as fs } from "node:fs";
 var import_node_domexception, stat, BlobDataItem;
 var init_from = __esm(() => {
@@ -82495,7 +83882,7 @@ var init_from = __esm(() => {
   };
 });
 
-// node_modules/node-fetch/src/utils/multipart-parser.js
+// src/session/node_modules/node-fetch/src/utils/multipart-parser.js
 var exports_multipart_parser = {};
 __export(exports_multipart_parser, {
   toFormData: () => toFormData
@@ -82836,7 +84223,7 @@ var init_multipart_parser = __esm(() => {
   };
 });
 
-// node_modules/node-fetch/src/body.js
+// src/session/node_modules/node-fetch/src/body.js
 import Stream, { PassThrough } from "node:stream";
 import { types, deprecate, promisify } from "node:util";
 import { Buffer as Buffer2 } from "node:buffer";
@@ -83052,7 +84439,7 @@ var init_body = __esm(() => {
   getNonSpecFormDataBoundary = deprecate((body) => body.getBoundary(), "form-data doesn't follow the spec and requires special treatment. Use alternative package", "https://github.com/node-fetch/node-fetch/issues/1167");
 });
 
-// node_modules/node-fetch/src/headers.js
+// src/session/node_modules/node-fetch/src/headers.js
 import { types as types2 } from "node:util";
 import http from "node:http";
 function fromRawHeaders(headers = []) {
@@ -83211,7 +84598,7 @@ var init_headers = __esm(() => {
   }, {}));
 });
 
-// node_modules/node-fetch/src/utils/is-redirect.js
+// src/session/node_modules/node-fetch/src/utils/is-redirect.js
 var redirectStatus, isRedirect = (code) => {
   return redirectStatus.has(code);
 };
@@ -83219,7 +84606,7 @@ var init_is_redirect = __esm(() => {
   redirectStatus = new Set([301, 302, 303, 307, 308]);
 });
 
-// node_modules/node-fetch/src/response.js
+// src/session/node_modules/node-fetch/src/response.js
 var INTERNALS2, Response;
 var init_response = __esm(() => {
   init_headers();
@@ -83330,7 +84717,7 @@ var init_response = __esm(() => {
   });
 });
 
-// node_modules/node-fetch/src/utils/get-search.js
+// src/session/node_modules/node-fetch/src/utils/get-search.js
 var getSearch = (parsedURL) => {
   if (parsedURL.search) {
     return parsedURL.search;
@@ -83340,7 +84727,7 @@ var getSearch = (parsedURL) => {
   return parsedURL.href[lastOffset - hash.length] === "?" ? "?" : "";
 };
 
-// node_modules/node-fetch/src/utils/referrer.js
+// src/session/node_modules/node-fetch/src/utils/referrer.js
 import { isIP } from "node:net";
 function stripURLForUseAsAReferrer(url, originOnly = false) {
   if (url == null) {
@@ -83482,7 +84869,7 @@ var init_referrer = __esm(() => {
   ]);
 });
 
-// node_modules/node-fetch/src/request.js
+// src/session/node_modules/node-fetch/src/request.js
 import { format as formatUrl } from "node:url";
 import { deprecate as deprecate2 } from "node:util";
 var INTERNALS3, isRequest = (object) => {
@@ -83664,7 +85051,7 @@ var init_request2 = __esm(() => {
   });
 });
 
-// node_modules/node-fetch/src/errors/abort-error.js
+// src/session/node_modules/node-fetch/src/errors/abort-error.js
 var AbortError;
 var init_abort_error = __esm(() => {
   init_base();
@@ -83675,7 +85062,7 @@ var init_abort_error = __esm(() => {
   };
 });
 
-// node_modules/node-fetch/src/index.js
+// src/session/node_modules/node-fetch/src/index.js
 import http2 from "node:http";
 import https from "node:https";
 import zlib from "node:zlib";
@@ -83961,7 +85348,7 @@ var init_src = __esm(() => {
   supportedSchemas = new Set(["data:", "http:", "https:"]);
 });
 
-// src/session/graphql/client.ts
+// src/session/dist/graphql/client.js
 class CustomSetter {
   set(carrier, key, value) {
     carrier.set(key, value);
@@ -84018,7 +85405,7 @@ var init_client = __esm(() => {
 });
 
 // node_modules/adm-zip/util/constants.js
-var require_constants5 = __commonJS((exports, module) => {
+var require_constants6 = __commonJS((exports, module) => {
   module.exports = {
     LOCHDR: 30,
     LOCSIG: 67324752,
@@ -84186,10 +85573,10 @@ var require_errors2 = __commonJS((exports) => {
 });
 
 // node_modules/adm-zip/util/utils.js
-var require_utils16 = __commonJS((exports, module) => {
+var require_utils17 = __commonJS((exports, module) => {
   var fsystem = __require("fs");
   var pth = __require("path");
-  var Constants = require_constants5();
+  var Constants = require_constants6();
   var Errors = require_errors2();
   var isWin = typeof process === "object" && process.platform === "win32";
   var is_Obj = (obj) => typeof obj === "object" && obj !== null;
@@ -84576,8 +85963,8 @@ var require_decoder2 = __commonJS((exports, module) => {
 
 // node_modules/adm-zip/util/index.js
 var require_util6 = __commonJS((exports, module) => {
-  module.exports = require_utils16();
-  module.exports.Constants = require_constants5();
+  module.exports = require_utils17();
+  module.exports.Constants = require_constants6();
   module.exports.Errors = require_errors2();
   module.exports.FileAttr = require_fattr();
   module.exports.decoder = require_decoder2();
@@ -87135,7 +88522,6 @@ var init_base2 = __esm(() => {
 
 // node_modules/yoctocolors/index.js
 var init_yoctocolors = __esm(() => {
-  init_base2();
   init_base2();
 });
 
@@ -96757,7 +98143,7 @@ var init_index_min = __esm(() => {
   });
 });
 
-// src/session/provisioning/bin.ts
+// src/session/dist/provisioning/bin.js
 import * as crypto2 from "crypto";
 import * as fs3 from "fs";
 import * as os3 from "os";
@@ -97149,10 +98535,10 @@ var init_bin = __esm(() => {
   };
 });
 
-// src/session/provisioning/default.ts
+// src/session/dist/provisioning/default.js
 var CLI_VERSION = "1.0.0-beta.11";
 
-// src/session/provisioning/index.ts
+// src/session/dist/provisioning/index.js
 var exports_provisioning = {};
 __export(exports_provisioning, {
   withEngineSession: () => withEngineSession
@@ -97172,7 +98558,7 @@ var init_provisioning = __esm(() => {
   init_bin();
 });
 
-// node_modules/reflect-metadata/Reflect.js
+// src/module/node_modules/reflect-metadata/Reflect.js
 var require_Reflect = __commonJS(() => {
   /*! *****************************************************************************
   Copyright (C) Microsoft. All rights reserved.
@@ -98171,17 +99557,17 @@ var require_Reflect = __commonJS(() => {
 // src/index.ts
 init_main();
 
-// src/telemetry/telemetry.ts
+// src/telemetry/dist/telemetry.js
 var opentelemetry2 = __toESM(require_src(), 1);
 
-// src/telemetry/init.ts
+// src/telemetry/dist/init.js
 var import_core = __toESM(require_src3(), 1);
-var import_exporter_trace_otlp_proto = __toESM(require_src9(), 1);
-var import_sdk_node = __toESM(require_src34(), 1);
-var import_sdk_trace_base2 = __toESM(require_src12(), 1);
+var import_exporter_trace_otlp_proto = __toESM(require_src10(), 1);
+var import_sdk_node = __toESM(require_src35(), 1);
+var import_sdk_trace_base2 = __toESM(require_src13(), 1);
 
-// src/telemetry/live_processor.ts
-var import_sdk_trace_base = __toESM(require_src12(), 1);
+// src/telemetry/dist/live_processor.js
+var import_sdk_trace_base = __toESM(require_src13(), 1);
 
 class LiveProcessor extends import_sdk_trace_base.BatchSpanProcessor {
   onStart(_span, _parentContext) {
@@ -98189,7 +99575,7 @@ class LiveProcessor extends import_sdk_trace_base.BatchSpanProcessor {
   }
 }
 
-// src/telemetry/init.ts
+// src/telemetry/dist/init.js
 var SERVICE_NAME = "dagger-typescript-sdk";
 function otelConfigured() {
   return Object.keys(process.env).some((key) => key.startsWith("OTEL_"));
@@ -98248,7 +99634,7 @@ class DaggerOtelConfigurator {
   }
 }
 
-// src/telemetry/tracer.ts
+// src/telemetry/dist/tracer.js
 var opentelemetry = __toESM(require_src(), 1);
 
 class Tracer {
@@ -98279,7 +99665,7 @@ class Tracer {
   }
 }
 
-// src/telemetry/telemetry.ts
+// src/telemetry/dist/telemetry.js
 var DAGGER_TRACER_NAME = "dagger.io/sdk.typescript";
 var configurator = new DaggerOtelConfigurator;
 function initialize() {
@@ -98306,7 +99692,7 @@ function getContext() {
   }
   return ctx;
 }
-// src/telemetry/tracing.ts
+// src/telemetry/dist/tracing.js
 var opentelemetry3 = __toESM(require_src(), 1);
 async function withTracing(fct) {
   try {
@@ -98316,10 +99702,10 @@ async function withTracing(fct) {
     await close();
   }
 }
-// src/session/index.ts
+// src/session/dist/index.js
 init_errors();
 
-// src/session/graphql/compute_query.ts
+// src/session/dist/graphql/compute_query.js
 init_main();
 init_errors();
 function buildArgs(args) {
@@ -98457,7 +99843,7 @@ async function compute(query, client) {
   return queryFlatten(computeQuery2);
 }
 
-// src/session/shared.ts
+// src/session/dist/shared.js
 var SHARED = Symbol.for("@dagger.io/session.shared");
 function shared(key, create) {
   const slots = globalThis[SHARED] ??= {};
@@ -98467,7 +99853,7 @@ function shared(key, create) {
   return slots[key];
 }
 
-// src/session/graphql/connection.ts
+// src/session/dist/graphql/connection.js
 class Connection {
   _gqlClient;
   constructor(_gqlClient) {
@@ -98498,7 +99884,7 @@ class Connection {
 }
 var globalConnection = shared("connection", () => new Connection);
 
-// src/session/context.ts
+// src/session/dist/context.js
 class Context {
   _queryTree;
   _connection;
@@ -98540,7 +99926,7 @@ class BaseClient {
     this._ctx = _ctx;
   }
 }
-// src/session/graphql/connect.ts
+// src/session/dist/graphql/connect.js
 init_client();
 async function withGQLClient(connectOpts, cb) {
   if (process.env["DAGGER_SESSION_PORT"]) {
@@ -98559,7 +99945,7 @@ async function withGQLClient(connectOpts, cb) {
   }
 }
 
-// src/session/connect.ts
+// src/session/dist/connect.js
 async function withSession(fct, cfg = {}) {
   try {
     await withGQLClient(cfg, async (gqlClient) => {
@@ -98570,20 +99956,20 @@ async function withSession(fct, cfg = {}) {
     globalConnection.resetClient();
   }
 }
-// src/core/client.gen.ts
+// src/core/dist/client.gen.js
 var AgentMessageDelivery;
-((AgentMessageDelivery2) => {
+(function(AgentMessageDelivery2) {
   AgentMessageDelivery2["Queued"] = "QUEUED";
   AgentMessageDelivery2["Started"] = "STARTED";
   AgentMessageDelivery2["Steered"] = "STEERED";
-})(AgentMessageDelivery ||= {});
+})(AgentMessageDelivery || (AgentMessageDelivery = {}));
 function AgentMessageDeliveryValueToName(value) {
   switch (value) {
-    case "QUEUED" /* Queued */:
+    case AgentMessageDelivery.Queued:
       return "QUEUED";
-    case "STARTED" /* Started */:
+    case AgentMessageDelivery.Started:
       return "STARTED";
-    case "STEERED" /* Steered */:
+    case AgentMessageDelivery.Steered:
       return "STEERED";
     default:
       return value;
@@ -98592,37 +99978,37 @@ function AgentMessageDeliveryValueToName(value) {
 function AgentMessageDeliveryNameToValue(name) {
   switch (name) {
     case "QUEUED":
-      return "QUEUED" /* Queued */;
+      return AgentMessageDelivery.Queued;
     case "STARTED":
-      return "STARTED" /* Started */;
+      return AgentMessageDelivery.Started;
     case "STEERED":
-      return "STEERED" /* Steered */;
+      return AgentMessageDelivery.Steered;
     default:
       return name;
   }
 }
 var AgentState;
-((AgentState2) => {
+(function(AgentState2) {
   AgentState2["Failed"] = "FAILED";
   AgentState2["Idle"] = "IDLE";
   AgentState2["Paused"] = "PAUSED";
   AgentState2["Running"] = "RUNNING";
   AgentState2["Stopped"] = "STOPPED";
   AgentState2["WaitingInput"] = "WAITING_INPUT";
-})(AgentState ||= {});
+})(AgentState || (AgentState = {}));
 function AgentStateValueToName(value) {
   switch (value) {
-    case "FAILED" /* Failed */:
+    case AgentState.Failed:
       return "FAILED";
-    case "IDLE" /* Idle */:
+    case AgentState.Idle:
       return "IDLE";
-    case "PAUSED" /* Paused */:
+    case AgentState.Paused:
       return "PAUSED";
-    case "RUNNING" /* Running */:
+    case AgentState.Running:
       return "RUNNING";
-    case "STOPPED" /* Stopped */:
+    case AgentState.Stopped:
       return "STOPPED";
-    case "WAITING_INPUT" /* WaitingInput */:
+    case AgentState.WaitingInput:
       return "WAITING_INPUT";
     default:
       return value;
@@ -98631,34 +100017,34 @@ function AgentStateValueToName(value) {
 function AgentStateNameToValue(name) {
   switch (name) {
     case "FAILED":
-      return "FAILED" /* Failed */;
+      return AgentState.Failed;
     case "IDLE":
-      return "IDLE" /* Idle */;
+      return AgentState.Idle;
     case "PAUSED":
-      return "PAUSED" /* Paused */;
+      return AgentState.Paused;
     case "RUNNING":
-      return "RUNNING" /* Running */;
+      return AgentState.Running;
     case "STOPPED":
-      return "STOPPED" /* Stopped */;
+      return AgentState.Stopped;
     case "WAITING_INPUT":
-      return "WAITING_INPUT" /* WaitingInput */;
+      return AgentState.WaitingInput;
     default:
       return name;
   }
 }
 var ArtifactDimensionKind;
-((ArtifactDimensionKind2) => {
+(function(ArtifactDimensionKind2) {
   ArtifactDimensionKind2["Collection"] = "COLLECTION";
   ArtifactDimensionKind2["Module"] = "MODULE";
   ArtifactDimensionKind2["Type"] = "TYPE";
-})(ArtifactDimensionKind ||= {});
+})(ArtifactDimensionKind || (ArtifactDimensionKind = {}));
 function ArtifactDimensionKindValueToName(value) {
   switch (value) {
-    case "COLLECTION" /* Collection */:
+    case ArtifactDimensionKind.Collection:
       return "COLLECTION";
-    case "MODULE" /* Module */:
+    case ArtifactDimensionKind.Module:
       return "MODULE";
-    case "TYPE" /* Type */:
+    case ArtifactDimensionKind.Type:
       return "TYPE";
     default:
       return value;
@@ -98667,28 +100053,28 @@ function ArtifactDimensionKindValueToName(value) {
 function ArtifactDimensionKindNameToValue(name) {
   switch (name) {
     case "COLLECTION":
-      return "COLLECTION" /* Collection */;
+      return ArtifactDimensionKind.Collection;
     case "MODULE":
-      return "MODULE" /* Module */;
+      return ArtifactDimensionKind.Module;
     case "TYPE":
-      return "TYPE" /* Type */;
+      return ArtifactDimensionKind.Type;
     default:
       return name;
   }
 }
 var CacheSharingMode;
-((CacheSharingMode2) => {
+(function(CacheSharingMode2) {
   CacheSharingMode2["Locked"] = "LOCKED";
   CacheSharingMode2["Private"] = "PRIVATE";
   CacheSharingMode2["Shared"] = "SHARED";
-})(CacheSharingMode ||= {});
+})(CacheSharingMode || (CacheSharingMode = {}));
 function CacheSharingModeValueToName(value) {
   switch (value) {
-    case "LOCKED" /* Locked */:
+    case CacheSharingMode.Locked:
       return "LOCKED";
-    case "PRIVATE" /* Private */:
+    case CacheSharingMode.Private:
       return "PRIVATE";
-    case "SHARED" /* Shared */:
+    case CacheSharingMode.Shared:
       return "SHARED";
     default:
       return value;
@@ -98697,34 +100083,34 @@ function CacheSharingModeValueToName(value) {
 function CacheSharingModeNameToValue(name) {
   switch (name) {
     case "LOCKED":
-      return "LOCKED" /* Locked */;
+      return CacheSharingMode.Locked;
     case "PRIVATE":
-      return "PRIVATE" /* Private */;
+      return CacheSharingMode.Private;
     case "SHARED":
-      return "SHARED" /* Shared */;
+      return CacheSharingMode.Shared;
     default:
       return name;
   }
 }
 var ChangesetMergeConflict;
-((ChangesetMergeConflict2) => {
+(function(ChangesetMergeConflict2) {
   ChangesetMergeConflict2["Fail"] = "FAIL";
   ChangesetMergeConflict2["FailEarly"] = "FAIL_EARLY";
   ChangesetMergeConflict2["LeaveConflictMarkers"] = "LEAVE_CONFLICT_MARKERS";
   ChangesetMergeConflict2["PreferOurs"] = "PREFER_OURS";
   ChangesetMergeConflict2["PreferTheirs"] = "PREFER_THEIRS";
-})(ChangesetMergeConflict ||= {});
+})(ChangesetMergeConflict || (ChangesetMergeConflict = {}));
 function ChangesetMergeConflictValueToName(value) {
   switch (value) {
-    case "FAIL" /* Fail */:
+    case ChangesetMergeConflict.Fail:
       return "FAIL";
-    case "FAIL_EARLY" /* FailEarly */:
+    case ChangesetMergeConflict.FailEarly:
       return "FAIL_EARLY";
-    case "LEAVE_CONFLICT_MARKERS" /* LeaveConflictMarkers */:
+    case ChangesetMergeConflict.LeaveConflictMarkers:
       return "LEAVE_CONFLICT_MARKERS";
-    case "PREFER_OURS" /* PreferOurs */:
+    case ChangesetMergeConflict.PreferOurs:
       return "PREFER_OURS";
-    case "PREFER_THEIRS" /* PreferTheirs */:
+    case ChangesetMergeConflict.PreferTheirs:
       return "PREFER_THEIRS";
     default:
       return value;
@@ -98733,29 +100119,29 @@ function ChangesetMergeConflictValueToName(value) {
 function ChangesetMergeConflictNameToValue(name) {
   switch (name) {
     case "FAIL":
-      return "FAIL" /* Fail */;
+      return ChangesetMergeConflict.Fail;
     case "FAIL_EARLY":
-      return "FAIL_EARLY" /* FailEarly */;
+      return ChangesetMergeConflict.FailEarly;
     case "LEAVE_CONFLICT_MARKERS":
-      return "LEAVE_CONFLICT_MARKERS" /* LeaveConflictMarkers */;
+      return ChangesetMergeConflict.LeaveConflictMarkers;
     case "PREFER_OURS":
-      return "PREFER_OURS" /* PreferOurs */;
+      return ChangesetMergeConflict.PreferOurs;
     case "PREFER_THEIRS":
-      return "PREFER_THEIRS" /* PreferTheirs */;
+      return ChangesetMergeConflict.PreferTheirs;
     default:
       return name;
   }
 }
 var ChangesetsMergeConflict;
-((ChangesetsMergeConflict2) => {
+(function(ChangesetsMergeConflict2) {
   ChangesetsMergeConflict2["Fail"] = "FAIL";
   ChangesetsMergeConflict2["FailEarly"] = "FAIL_EARLY";
-})(ChangesetsMergeConflict ||= {});
+})(ChangesetsMergeConflict || (ChangesetsMergeConflict = {}));
 function ChangesetsMergeConflictValueToName(value) {
   switch (value) {
-    case "FAIL" /* Fail */:
+    case ChangesetsMergeConflict.Fail:
       return "FAIL";
-    case "FAIL_EARLY" /* FailEarly */:
+    case ChangesetsMergeConflict.FailEarly:
       return "FAIL_EARLY";
     default:
       return value;
@@ -98764,29 +100150,29 @@ function ChangesetsMergeConflictValueToName(value) {
 function ChangesetsMergeConflictNameToValue(name) {
   switch (name) {
     case "FAIL":
-      return "FAIL" /* Fail */;
+      return ChangesetsMergeConflict.Fail;
     case "FAIL_EARLY":
-      return "FAIL_EARLY" /* FailEarly */;
+      return ChangesetsMergeConflict.FailEarly;
     default:
       return name;
   }
 }
 var DiffStatKind;
-((DiffStatKind2) => {
+(function(DiffStatKind2) {
   DiffStatKind2["Added"] = "ADDED";
   DiffStatKind2["Modified"] = "MODIFIED";
   DiffStatKind2["Removed"] = "REMOVED";
   DiffStatKind2["Renamed"] = "RENAMED";
-})(DiffStatKind ||= {});
+})(DiffStatKind || (DiffStatKind = {}));
 function DiffStatKindValueToName(value) {
   switch (value) {
-    case "ADDED" /* Added */:
+    case DiffStatKind.Added:
       return "ADDED";
-    case "MODIFIED" /* Modified */:
+    case DiffStatKind.Modified:
       return "MODIFIED";
-    case "REMOVED" /* Removed */:
+    case DiffStatKind.Removed:
       return "REMOVED";
-    case "RENAMED" /* Renamed */:
+    case DiffStatKind.Renamed:
       return "RENAMED";
     default:
       return value;
@@ -98795,30 +100181,30 @@ function DiffStatKindValueToName(value) {
 function DiffStatKindNameToValue(name) {
   switch (name) {
     case "ADDED":
-      return "ADDED" /* Added */;
+      return DiffStatKind.Added;
     case "MODIFIED":
-      return "MODIFIED" /* Modified */;
+      return DiffStatKind.Modified;
     case "REMOVED":
-      return "REMOVED" /* Removed */;
+      return DiffStatKind.Removed;
     case "RENAMED":
-      return "RENAMED" /* Renamed */;
+      return DiffStatKind.Renamed;
     default:
       return name;
   }
 }
 var ExistsType;
-((ExistsType2) => {
+(function(ExistsType2) {
   ExistsType2["DirectoryType"] = "DIRECTORY_TYPE";
   ExistsType2["RegularType"] = "REGULAR_TYPE";
   ExistsType2["SymlinkType"] = "SYMLINK_TYPE";
-})(ExistsType ||= {});
+})(ExistsType || (ExistsType = {}));
 function ExistsTypeValueToName(value) {
   switch (value) {
-    case "DIRECTORY_TYPE" /* DirectoryType */:
+    case ExistsType.DirectoryType:
       return "DIRECTORY_TYPE";
-    case "REGULAR_TYPE" /* RegularType */:
+    case ExistsType.RegularType:
       return "REGULAR_TYPE";
-    case "SYMLINK_TYPE" /* SymlinkType */:
+    case ExistsType.SymlinkType:
       return "SYMLINK_TYPE";
     default:
       return value;
@@ -98827,17 +100213,17 @@ function ExistsTypeValueToName(value) {
 function ExistsTypeNameToValue(name) {
   switch (name) {
     case "DIRECTORY_TYPE":
-      return "DIRECTORY_TYPE" /* DirectoryType */;
+      return ExistsType.DirectoryType;
     case "REGULAR_TYPE":
-      return "REGULAR_TYPE" /* RegularType */;
+      return ExistsType.RegularType;
     case "SYMLINK_TYPE":
-      return "SYMLINK_TYPE" /* SymlinkType */;
+      return ExistsType.SymlinkType;
     default:
       return name;
   }
 }
 var FileType;
-((FileType2) => {
+(function(FileType2) {
   FileType2["Directory"] = "DIRECTORY";
   FileType2["DirectoryType"] = "DIRECTORY";
   FileType2["Regular"] = "REGULAR";
@@ -98845,16 +100231,16 @@ var FileType;
   FileType2["Symlink"] = "SYMLINK";
   FileType2["SymlinkType"] = "SYMLINK";
   FileType2["Unknown"] = "UNKNOWN";
-})(FileType ||= {});
+})(FileType || (FileType = {}));
 function FileTypeValueToName(value) {
   switch (value) {
-    case "DIRECTORY" /* Directory */:
+    case FileType.Directory:
       return "DIRECTORY";
-    case "REGULAR" /* Regular */:
+    case FileType.Regular:
       return "REGULAR";
-    case "SYMLINK" /* Symlink */:
+    case FileType.Symlink:
       return "SYMLINK";
-    case "UNKNOWN" /* Unknown */:
+    case FileType.Unknown:
       return "UNKNOWN";
     default:
       return value;
@@ -98863,30 +100249,30 @@ function FileTypeValueToName(value) {
 function FileTypeNameToValue(name) {
   switch (name) {
     case "DIRECTORY":
-      return "DIRECTORY" /* Directory */;
+      return FileType.Directory;
     case "REGULAR":
-      return "REGULAR" /* Regular */;
+      return FileType.Regular;
     case "SYMLINK":
-      return "SYMLINK" /* Symlink */;
+      return FileType.Symlink;
     case "UNKNOWN":
-      return "UNKNOWN" /* Unknown */;
+      return FileType.Unknown;
     default:
       return name;
   }
 }
 var FunctionCachePolicy;
-((FunctionCachePolicy2) => {
+(function(FunctionCachePolicy2) {
   FunctionCachePolicy2["Default"] = "Default";
   FunctionCachePolicy2["Never"] = "Never";
   FunctionCachePolicy2["PerSession"] = "PerSession";
-})(FunctionCachePolicy ||= {});
+})(FunctionCachePolicy || (FunctionCachePolicy = {}));
 function FunctionCachePolicyValueToName(value) {
   switch (value) {
-    case "Default" /* Default */:
+    case FunctionCachePolicy.Default:
       return "Default";
-    case "Never" /* Never */:
+    case FunctionCachePolicy.Never:
       return "Never";
-    case "PerSession" /* PerSession */:
+    case FunctionCachePolicy.PerSession:
       return "PerSession";
     default:
       return value;
@@ -98895,31 +100281,31 @@ function FunctionCachePolicyValueToName(value) {
 function FunctionCachePolicyNameToValue(name) {
   switch (name) {
     case "Default":
-      return "Default" /* Default */;
+      return FunctionCachePolicy.Default;
     case "Never":
-      return "Never" /* Never */;
+      return FunctionCachePolicy.Never;
     case "PerSession":
-      return "PerSession" /* PerSession */;
+      return FunctionCachePolicy.PerSession;
     default:
       return name;
   }
 }
 var GitPushDisposition;
-((GitPushDisposition2) => {
+(function(GitPushDisposition2) {
   GitPushDisposition2["Created"] = "CREATED";
   GitPushDisposition2["FastForward"] = "FAST_FORWARD";
   GitPushDisposition2["Forced"] = "FORCED";
   GitPushDisposition2["UpToDate"] = "UP_TO_DATE";
-})(GitPushDisposition ||= {});
+})(GitPushDisposition || (GitPushDisposition = {}));
 function GitPushDispositionValueToName(value) {
   switch (value) {
-    case "CREATED" /* Created */:
+    case GitPushDisposition.Created:
       return "CREATED";
-    case "FAST_FORWARD" /* FastForward */:
+    case GitPushDisposition.FastForward:
       return "FAST_FORWARD";
-    case "FORCED" /* Forced */:
+    case GitPushDisposition.Forced:
       return "FORCED";
-    case "UP_TO_DATE" /* UpToDate */:
+    case GitPushDisposition.UpToDate:
       return "UP_TO_DATE";
     default:
       return value;
@@ -98928,34 +100314,34 @@ function GitPushDispositionValueToName(value) {
 function GitPushDispositionNameToValue(name) {
   switch (name) {
     case "CREATED":
-      return "CREATED" /* Created */;
+      return GitPushDisposition.Created;
     case "FAST_FORWARD":
-      return "FAST_FORWARD" /* FastForward */;
+      return GitPushDisposition.FastForward;
     case "FORCED":
-      return "FORCED" /* Forced */;
+      return GitPushDisposition.Forced;
     case "UP_TO_DATE":
-      return "UP_TO_DATE" /* UpToDate */;
+      return GitPushDisposition.UpToDate;
     default:
       return name;
   }
 }
 var ImageLayerCompression;
-((ImageLayerCompression2) => {
+(function(ImageLayerCompression2) {
   ImageLayerCompression2["EStarGz"] = "EStarGZ";
   ImageLayerCompression2["Estargz"] = "EStarGZ";
   ImageLayerCompression2["Gzip"] = "Gzip";
   ImageLayerCompression2["Uncompressed"] = "Uncompressed";
   ImageLayerCompression2["Zstd"] = "Zstd";
-})(ImageLayerCompression ||= {});
+})(ImageLayerCompression || (ImageLayerCompression = {}));
 function ImageLayerCompressionValueToName(value) {
   switch (value) {
-    case "EStarGZ" /* EStarGz */:
+    case ImageLayerCompression.EStarGz:
       return "EStarGZ";
-    case "Gzip" /* Gzip */:
+    case ImageLayerCompression.Gzip:
       return "Gzip";
-    case "Uncompressed" /* Uncompressed */:
+    case ImageLayerCompression.Uncompressed:
       return "Uncompressed";
-    case "Zstd" /* Zstd */:
+    case ImageLayerCompression.Zstd:
       return "Zstd";
     default:
       return value;
@@ -98964,29 +100350,29 @@ function ImageLayerCompressionValueToName(value) {
 function ImageLayerCompressionNameToValue(name) {
   switch (name) {
     case "EStarGZ":
-      return "EStarGZ" /* EStarGz */;
+      return ImageLayerCompression.EStarGz;
     case "Gzip":
-      return "Gzip" /* Gzip */;
+      return ImageLayerCompression.Gzip;
     case "Uncompressed":
-      return "Uncompressed" /* Uncompressed */;
+      return ImageLayerCompression.Uncompressed;
     case "Zstd":
-      return "Zstd" /* Zstd */;
+      return ImageLayerCompression.Zstd;
     default:
       return name;
   }
 }
 var ImageMediaTypes;
-((ImageMediaTypes2) => {
+(function(ImageMediaTypes2) {
   ImageMediaTypes2["Docker"] = "DockerMediaTypes";
   ImageMediaTypes2["DockerMediaTypes"] = "DockerMediaTypes";
   ImageMediaTypes2["Oci"] = "OCIMediaTypes";
   ImageMediaTypes2["OciMediaTypes"] = "OCIMediaTypes";
-})(ImageMediaTypes ||= {});
+})(ImageMediaTypes || (ImageMediaTypes = {}));
 function ImageMediaTypesValueToName(value) {
   switch (value) {
-    case "DockerMediaTypes" /* Docker */:
+    case ImageMediaTypes.Docker:
       return "DOCKER";
-    case "OCIMediaTypes" /* Oci */:
+    case ImageMediaTypes.Oci:
       return "OCI";
     default:
       return value;
@@ -98995,15 +100381,15 @@ function ImageMediaTypesValueToName(value) {
 function ImageMediaTypesNameToValue(name) {
   switch (name) {
     case "DOCKER":
-      return "DockerMediaTypes" /* Docker */;
+      return ImageMediaTypes.Docker;
     case "OCI":
-      return "OCIMediaTypes" /* Oci */;
+      return ImageMediaTypes.Oci;
     default:
       return name;
   }
 }
 var LLMContentBlockKind;
-((LLMContentBlockKind2) => {
+(function(LLMContentBlockKind2) {
   LLMContentBlockKind2["Audio"] = "AUDIO";
   LLMContentBlockKind2["Document"] = "DOCUMENT";
   LLMContentBlockKind2["Image"] = "IMAGE";
@@ -99011,22 +100397,22 @@ var LLMContentBlockKind;
   LLMContentBlockKind2["Thinking"] = "THINKING";
   LLMContentBlockKind2["ToolCall"] = "TOOL_CALL";
   LLMContentBlockKind2["ToolResult"] = "TOOL_RESULT";
-})(LLMContentBlockKind ||= {});
+})(LLMContentBlockKind || (LLMContentBlockKind = {}));
 function LLMContentBlockKindValueToName(value) {
   switch (value) {
-    case "AUDIO" /* Audio */:
+    case LLMContentBlockKind.Audio:
       return "AUDIO";
-    case "DOCUMENT" /* Document */:
+    case LLMContentBlockKind.Document:
       return "DOCUMENT";
-    case "IMAGE" /* Image */:
+    case LLMContentBlockKind.Image:
       return "IMAGE";
-    case "TEXT" /* Text */:
+    case LLMContentBlockKind.Text:
       return "TEXT";
-    case "THINKING" /* Thinking */:
+    case LLMContentBlockKind.Thinking:
       return "THINKING";
-    case "TOOL_CALL" /* ToolCall */:
+    case LLMContentBlockKind.ToolCall:
       return "TOOL_CALL";
-    case "TOOL_RESULT" /* ToolResult */:
+    case LLMContentBlockKind.ToolResult:
       return "TOOL_RESULT";
     default:
       return value;
@@ -99035,36 +100421,36 @@ function LLMContentBlockKindValueToName(value) {
 function LLMContentBlockKindNameToValue(name) {
   switch (name) {
     case "AUDIO":
-      return "AUDIO" /* Audio */;
+      return LLMContentBlockKind.Audio;
     case "DOCUMENT":
-      return "DOCUMENT" /* Document */;
+      return LLMContentBlockKind.Document;
     case "IMAGE":
-      return "IMAGE" /* Image */;
+      return LLMContentBlockKind.Image;
     case "TEXT":
-      return "TEXT" /* Text */;
+      return LLMContentBlockKind.Text;
     case "THINKING":
-      return "THINKING" /* Thinking */;
+      return LLMContentBlockKind.Thinking;
     case "TOOL_CALL":
-      return "TOOL_CALL" /* ToolCall */;
+      return LLMContentBlockKind.ToolCall;
     case "TOOL_RESULT":
-      return "TOOL_RESULT" /* ToolResult */;
+      return LLMContentBlockKind.ToolResult;
     default:
       return name;
   }
 }
 var LLMMessageOriginKind;
-((LLMMessageOriginKind2) => {
+(function(LLMMessageOriginKind2) {
   LLMMessageOriginKind2["Agent"] = "AGENT";
   LLMMessageOriginKind2["Event"] = "EVENT";
   LLMMessageOriginKind2["User"] = "USER";
-})(LLMMessageOriginKind ||= {});
+})(LLMMessageOriginKind || (LLMMessageOriginKind = {}));
 function LLMMessageOriginKindValueToName(value) {
   switch (value) {
-    case "AGENT" /* Agent */:
+    case LLMMessageOriginKind.Agent:
       return "AGENT";
-    case "EVENT" /* Event */:
+    case LLMMessageOriginKind.Event:
       return "EVENT";
-    case "USER" /* User */:
+    case LLMMessageOriginKind.User:
       return "USER";
     default:
       return value;
@@ -99073,28 +100459,28 @@ function LLMMessageOriginKindValueToName(value) {
 function LLMMessageOriginKindNameToValue(name) {
   switch (name) {
     case "AGENT":
-      return "AGENT" /* Agent */;
+      return LLMMessageOriginKind.Agent;
     case "EVENT":
-      return "EVENT" /* Event */;
+      return LLMMessageOriginKind.Event;
     case "USER":
-      return "USER" /* User */;
+      return LLMMessageOriginKind.User;
     default:
       return name;
   }
 }
 var LLMMessageRole;
-((LLMMessageRole2) => {
+(function(LLMMessageRole2) {
   LLMMessageRole2["Assistant"] = "ASSISTANT";
   LLMMessageRole2["System"] = "SYSTEM";
   LLMMessageRole2["User"] = "USER";
-})(LLMMessageRole ||= {});
+})(LLMMessageRole || (LLMMessageRole = {}));
 function LLMMessageRoleValueToName(value) {
   switch (value) {
-    case "ASSISTANT" /* Assistant */:
+    case LLMMessageRole.Assistant:
       return "ASSISTANT";
-    case "SYSTEM" /* System */:
+    case LLMMessageRole.System:
       return "SYSTEM";
-    case "USER" /* User */:
+    case LLMMessageRole.User:
       return "USER";
     default:
       return value;
@@ -99103,22 +100489,22 @@ function LLMMessageRoleValueToName(value) {
 function LLMMessageRoleNameToValue(name) {
   switch (name) {
     case "ASSISTANT":
-      return "ASSISTANT" /* Assistant */;
+      return LLMMessageRole.Assistant;
     case "SYSTEM":
-      return "SYSTEM" /* System */;
+      return LLMMessageRole.System;
     case "USER":
-      return "USER" /* User */;
+      return LLMMessageRole.User;
     default:
       return name;
   }
 }
 var ModuleSourceExperimentalFeature;
-((ModuleSourceExperimentalFeature2) => {
+(function(ModuleSourceExperimentalFeature2) {
   ModuleSourceExperimentalFeature2["SelfCalls"] = "SELF_CALLS";
-})(ModuleSourceExperimentalFeature ||= {});
+})(ModuleSourceExperimentalFeature || (ModuleSourceExperimentalFeature = {}));
 function ModuleSourceExperimentalFeatureValueToName(value) {
   switch (value) {
-    case "SELF_CALLS" /* SelfCalls */:
+    case ModuleSourceExperimentalFeature.SelfCalls:
       return "SELF_CALLS";
     default:
       return value;
@@ -99127,27 +100513,27 @@ function ModuleSourceExperimentalFeatureValueToName(value) {
 function ModuleSourceExperimentalFeatureNameToValue(name) {
   switch (name) {
     case "SELF_CALLS":
-      return "SELF_CALLS" /* SelfCalls */;
+      return ModuleSourceExperimentalFeature.SelfCalls;
     default:
       return name;
   }
 }
 var ModuleSourceKind;
-((ModuleSourceKind2) => {
+(function(ModuleSourceKind2) {
   ModuleSourceKind2["Dir"] = "DIR_SOURCE";
   ModuleSourceKind2["DirSource"] = "DIR_SOURCE";
   ModuleSourceKind2["Git"] = "GIT_SOURCE";
   ModuleSourceKind2["GitSource"] = "GIT_SOURCE";
   ModuleSourceKind2["Local"] = "LOCAL_SOURCE";
   ModuleSourceKind2["LocalSource"] = "LOCAL_SOURCE";
-})(ModuleSourceKind ||= {});
+})(ModuleSourceKind || (ModuleSourceKind = {}));
 function ModuleSourceKindValueToName(value) {
   switch (value) {
-    case "DIR_SOURCE" /* Dir */:
+    case ModuleSourceKind.Dir:
       return "DIR";
-    case "GIT_SOURCE" /* Git */:
+    case ModuleSourceKind.Git:
       return "GIT";
-    case "LOCAL_SOURCE" /* Local */:
+    case ModuleSourceKind.Local:
       return "LOCAL";
     default:
       return value;
@@ -99156,25 +100542,25 @@ function ModuleSourceKindValueToName(value) {
 function ModuleSourceKindNameToValue(name) {
   switch (name) {
     case "DIR":
-      return "DIR_SOURCE" /* Dir */;
+      return ModuleSourceKind.Dir;
     case "GIT":
-      return "GIT_SOURCE" /* Git */;
+      return ModuleSourceKind.Git;
     case "LOCAL":
-      return "LOCAL_SOURCE" /* Local */;
+      return ModuleSourceKind.Local;
     default:
       return name;
   }
 }
 var NetworkProtocol;
-((NetworkProtocol2) => {
+(function(NetworkProtocol2) {
   NetworkProtocol2["Tcp"] = "TCP";
   NetworkProtocol2["Udp"] = "UDP";
-})(NetworkProtocol ||= {});
+})(NetworkProtocol || (NetworkProtocol = {}));
 function NetworkProtocolValueToName(value) {
   switch (value) {
-    case "TCP" /* Tcp */:
+    case NetworkProtocol.Tcp:
       return "TCP";
-    case "UDP" /* Udp */:
+    case NetworkProtocol.Udp:
       return "UDP";
     default:
       return value;
@@ -99183,23 +100569,23 @@ function NetworkProtocolValueToName(value) {
 function NetworkProtocolNameToValue(name) {
   switch (name) {
     case "TCP":
-      return "TCP" /* Tcp */;
+      return NetworkProtocol.Tcp;
     case "UDP":
-      return "UDP" /* Udp */;
+      return NetworkProtocol.Udp;
     default:
       return name;
   }
 }
 var PatchConflict;
-((PatchConflict2) => {
+(function(PatchConflict2) {
   PatchConflict2["Fail"] = "FAIL";
   PatchConflict2["LeaveConflictMarkers"] = "LEAVE_CONFLICT_MARKERS";
-})(PatchConflict ||= {});
+})(PatchConflict || (PatchConflict = {}));
 function PatchConflictValueToName(value) {
   switch (value) {
-    case "FAIL" /* Fail */:
+    case PatchConflict.Fail:
       return "FAIL";
-    case "LEAVE_CONFLICT_MARKERS" /* LeaveConflictMarkers */:
+    case PatchConflict.LeaveConflictMarkers:
       return "LEAVE_CONFLICT_MARKERS";
     default:
       return value;
@@ -99208,23 +100594,23 @@ function PatchConflictValueToName(value) {
 function PatchConflictNameToValue(name) {
   switch (name) {
     case "FAIL":
-      return "FAIL" /* Fail */;
+      return PatchConflict.Fail;
     case "LEAVE_CONFLICT_MARKERS":
-      return "LEAVE_CONFLICT_MARKERS" /* LeaveConflictMarkers */;
+      return PatchConflict.LeaveConflictMarkers;
     default:
       return name;
   }
 }
 var RegistryProtocol;
-((RegistryProtocol2) => {
+(function(RegistryProtocol2) {
   RegistryProtocol2["Http"] = "HTTP";
   RegistryProtocol2["Https"] = "HTTPS";
-})(RegistryProtocol ||= {});
+})(RegistryProtocol || (RegistryProtocol = {}));
 function RegistryProtocolValueToName(value) {
   switch (value) {
-    case "HTTP" /* Http */:
+    case RegistryProtocol.Http:
       return "HTTP";
-    case "HTTPS" /* Https */:
+    case RegistryProtocol.Https:
       return "HTTPS";
     default:
       return value;
@@ -99233,26 +100619,26 @@ function RegistryProtocolValueToName(value) {
 function RegistryProtocolNameToValue(name) {
   switch (name) {
     case "HTTP":
-      return "HTTP" /* Http */;
+      return RegistryProtocol.Http;
     case "HTTPS":
-      return "HTTPS" /* Https */;
+      return RegistryProtocol.Https;
     default:
       return name;
   }
 }
 var ReturnType;
-((ReturnType2) => {
+(function(ReturnType2) {
   ReturnType2["Any"] = "ANY";
   ReturnType2["Failure"] = "FAILURE";
   ReturnType2["Success"] = "SUCCESS";
-})(ReturnType ||= {});
+})(ReturnType || (ReturnType = {}));
 function ReturnTypeValueToName(value) {
   switch (value) {
-    case "ANY" /* Any */:
+    case ReturnType.Any:
       return "ANY";
-    case "FAILURE" /* Failure */:
+    case ReturnType.Failure:
       return "FAILURE";
-    case "SUCCESS" /* Success */:
+    case ReturnType.Success:
       return "SUCCESS";
     default:
       return value;
@@ -99261,17 +100647,17 @@ function ReturnTypeValueToName(value) {
 function ReturnTypeNameToValue(name) {
   switch (name) {
     case "ANY":
-      return "ANY" /* Any */;
+      return ReturnType.Any;
     case "FAILURE":
-      return "FAILURE" /* Failure */;
+      return ReturnType.Failure;
     case "SUCCESS":
-      return "SUCCESS" /* Success */;
+      return ReturnType.Success;
     default:
       return name;
   }
 }
 var TypeDefKind;
-((TypeDefKind2) => {
+(function(TypeDefKind2) {
   TypeDefKind2["Boolean"] = "BOOLEAN_KIND";
   TypeDefKind2["BooleanKind"] = "BOOLEAN_KIND";
   TypeDefKind2["Enum"] = "ENUM_KIND";
@@ -99294,30 +100680,30 @@ var TypeDefKind;
   TypeDefKind2["StringKind"] = "STRING_KIND";
   TypeDefKind2["Void"] = "VOID_KIND";
   TypeDefKind2["VoidKind"] = "VOID_KIND";
-})(TypeDefKind ||= {});
+})(TypeDefKind || (TypeDefKind = {}));
 function TypeDefKindValueToName(value) {
   switch (value) {
-    case "BOOLEAN_KIND" /* Boolean */:
+    case TypeDefKind.Boolean:
       return "BOOLEAN";
-    case "ENUM_KIND" /* Enum */:
+    case TypeDefKind.Enum:
       return "ENUM";
-    case "FLOAT_KIND" /* Float */:
+    case TypeDefKind.Float:
       return "FLOAT";
-    case "INPUT_KIND" /* Input */:
+    case TypeDefKind.Input:
       return "INPUT";
-    case "INTEGER_KIND" /* Integer */:
+    case TypeDefKind.Integer:
       return "INTEGER";
-    case "INTERFACE_KIND" /* Interface */:
+    case TypeDefKind.Interface:
       return "INTERFACE";
-    case "LIST_KIND" /* List */:
+    case TypeDefKind.List:
       return "LIST";
-    case "OBJECT_KIND" /* Object */:
+    case TypeDefKind.Object:
       return "OBJECT";
-    case "SCALAR_KIND" /* Scalar */:
+    case TypeDefKind.Scalar:
       return "SCALAR";
-    case "STRING_KIND" /* String */:
+    case TypeDefKind.String:
       return "STRING";
-    case "VOID_KIND" /* Void */:
+    case TypeDefKind.Void:
       return "VOID";
     default:
       return value;
@@ -99326,44 +100712,44 @@ function TypeDefKindValueToName(value) {
 function TypeDefKindNameToValue(name) {
   switch (name) {
     case "BOOLEAN":
-      return "BOOLEAN_KIND" /* Boolean */;
+      return TypeDefKind.Boolean;
     case "ENUM":
-      return "ENUM_KIND" /* Enum */;
+      return TypeDefKind.Enum;
     case "FLOAT":
-      return "FLOAT_KIND" /* Float */;
+      return TypeDefKind.Float;
     case "INPUT":
-      return "INPUT_KIND" /* Input */;
+      return TypeDefKind.Input;
     case "INTEGER":
-      return "INTEGER_KIND" /* Integer */;
+      return TypeDefKind.Integer;
     case "INTERFACE":
-      return "INTERFACE_KIND" /* Interface */;
+      return TypeDefKind.Interface;
     case "LIST":
-      return "LIST_KIND" /* List */;
+      return TypeDefKind.List;
     case "OBJECT":
-      return "OBJECT_KIND" /* Object */;
+      return TypeDefKind.Object;
     case "SCALAR":
-      return "SCALAR_KIND" /* Scalar */;
+      return TypeDefKind.Scalar;
     case "STRING":
-      return "STRING_KIND" /* String */;
+      return TypeDefKind.String;
     case "VOID":
-      return "VOID_KIND" /* Void */;
+      return TypeDefKind.Void;
     default:
       return name;
   }
 }
 var WorkspaceCommitPickReason;
-((WorkspaceCommitPickReason2) => {
+(function(WorkspaceCommitPickReason2) {
   WorkspaceCommitPickReason2["Content"] = "CONTENT";
   WorkspaceCommitPickReason2["Dirty"] = "DIRTY";
   WorkspaceCommitPickReason2["None"] = "NONE";
-})(WorkspaceCommitPickReason ||= {});
+})(WorkspaceCommitPickReason || (WorkspaceCommitPickReason = {}));
 function WorkspaceCommitPickReasonValueToName(value) {
   switch (value) {
-    case "CONTENT" /* Content */:
+    case WorkspaceCommitPickReason.Content:
       return "CONTENT";
-    case "DIRTY" /* Dirty */:
+    case WorkspaceCommitPickReason.Dirty:
       return "DIRTY";
-    case "NONE" /* None */:
+    case WorkspaceCommitPickReason.None:
       return "NONE";
     default:
       return value;
@@ -99372,31 +100758,31 @@ function WorkspaceCommitPickReasonValueToName(value) {
 function WorkspaceCommitPickReasonNameToValue(name) {
   switch (name) {
     case "CONTENT":
-      return "CONTENT" /* Content */;
+      return WorkspaceCommitPickReason.Content;
     case "DIRTY":
-      return "DIRTY" /* Dirty */;
+      return WorkspaceCommitPickReason.Dirty;
     case "NONE":
-      return "NONE" /* None */;
+      return WorkspaceCommitPickReason.None;
     default:
       return name;
   }
 }
 var WorkspaceCommitPickStatus;
-((WorkspaceCommitPickStatus2) => {
+(function(WorkspaceCommitPickStatus2) {
   WorkspaceCommitPickStatus2["Conflict"] = "CONFLICT";
   WorkspaceCommitPickStatus2["Pickable"] = "PICKABLE";
   WorkspaceCommitPickStatus2["Picked"] = "PICKED";
   WorkspaceCommitPickStatus2["Redundant"] = "REDUNDANT";
-})(WorkspaceCommitPickStatus ||= {});
+})(WorkspaceCommitPickStatus || (WorkspaceCommitPickStatus = {}));
 function WorkspaceCommitPickStatusValueToName(value) {
   switch (value) {
-    case "CONFLICT" /* Conflict */:
+    case WorkspaceCommitPickStatus.Conflict:
       return "CONFLICT";
-    case "PICKABLE" /* Pickable */:
+    case WorkspaceCommitPickStatus.Pickable:
       return "PICKABLE";
-    case "PICKED" /* Picked */:
+    case WorkspaceCommitPickStatus.Picked:
       return "PICKED";
-    case "REDUNDANT" /* Redundant */:
+    case WorkspaceCommitPickStatus.Redundant:
       return "REDUNDANT";
     default:
       return value;
@@ -99405,13 +100791,13 @@ function WorkspaceCommitPickStatusValueToName(value) {
 function WorkspaceCommitPickStatusNameToValue(name) {
   switch (name) {
     case "CONFLICT":
-      return "CONFLICT" /* Conflict */;
+      return WorkspaceCommitPickStatus.Conflict;
     case "PICKABLE":
-      return "PICKABLE" /* Pickable */;
+      return WorkspaceCommitPickStatus.Pickable;
     case "PICKED":
-      return "PICKED" /* Picked */;
+      return WorkspaceCommitPickStatus.Picked;
     case "REDUNDANT":
-      return "REDUNDANT" /* Redundant */;
+      return WorkspaceCommitPickStatus.Redundant;
     default:
       return name;
   }
@@ -106136,19 +107522,11 @@ class WorkspaceSDK extends BaseClient {
   };
 }
 var dag = new Client;
-
-// src/index.ts
-init_errors();
-
-// src/connection.ts
-async function connection(fct, cfg = {}) {
-  await withTracing(() => withSession(fct, cfg));
-}
-// src/core/connect.ts
+// src/core/dist/connect.js
 async function connect(cb, config = {}) {
   await withGQLClient(config, async (gqlClient) => {
-    const connection2 = new Connection(gqlClient);
-    const ctx = new Context([], connection2);
+    const connection = new Connection(gqlClient);
+    const ctx = new Context([], connection);
     const client = new Client(ctx);
     try {
       await client.version();
@@ -106158,7 +107536,11 @@ async function connect(cb, config = {}) {
     return await cb(client);
   });
 }
-// src/module/registry.ts
+// src/connection.ts
+async function connection(fct, cfg = {}) {
+  await withTracing(() => withSession(fct, cfg));
+}
+// src/module/dist/registry.js
 var import_reflect_metadata = __toESM(require_Reflect(), 1);
 class Registry {
   collection = () => this.object();
@@ -106228,7 +107610,7 @@ function getRegisteredClass(name) {
   return meta?.class_;
 }
 
-// src/module/decorators.ts
+// src/module/dist/decorators.js
 var object = registry.object;
 var collection = registry.collection;
 var keys = registry.keys;
@@ -106243,10 +107625,13 @@ var field = registry.field;
 var enumType = registry.enumType;
 var argument = registry.argument;
 export {
-  withTracing,
+  withSession,
+  withGQLClient,
   up,
+  shared,
   object,
   keys,
+  globalConnection,
   getTracer,
   getRegisteredClass,
   get,
@@ -106258,6 +107643,7 @@ export {
   dag,
   connection,
   connect,
+  computeQuery,
   collection,
   check,
   argument,
@@ -106408,6 +107794,7 @@ export {
   CurrentModule,
   Context,
   Container,
+  Connection,
   Command,
   CollectionTypeDef,
   CollectionDelta,

@@ -1,0 +1,31 @@
+{
+  "name": "@dagger.io/session",
+  "version": "0.0.0",
+  "author": "hello@dagger.io",
+  "license": "Apache-2.0",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist/"
+  ],
+  "engines": {
+    "node": ">=20"
+  },
+  "dependencies": {
+    "@opentelemetry/api": "^1.9.1",
+    "adm-zip": "^0.6.0",
+    "env-paths": "^4.0.0",
+    "execa": "^9.6.1",
+    "graphql-request": "^7.4.0",
+    "node-color-log": "^14.0.0",
+    "node-fetch": "^3.3.2",
+    "tar": "^7.5.19"
+  }
+}
