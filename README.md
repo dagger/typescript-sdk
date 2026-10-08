@@ -95,7 +95,10 @@ dagger module init typescript --name my-module \
 `runtime` is detected rather than defaulted, so adopting an existing project, or
 regenerating a module created before the setting existed, does not silently move
 a Bun or Deno project onto Node. Setting it moves the scope to that runtime on
-the next generation.
+the next generation. A switch adds the new runtime's config files and leaves the
+old ones in place — a Node module moved to Deno gains a `deno.json` and keeps
+its `package.json` and `tsconfig.json` until you remove them — because
+generation never removes what it did not write.
 
 `--package-manager` accepts the Node-standard `name@version` syntax (e.g.
 `npm@10.7.0`, `pnpm@8.15.4`, `yarn@1.22.22`). It is only valid with the Node
@@ -148,7 +151,7 @@ What a scope gets depends on what the scope is:
 | Scope | Client output |
 | --- | --- |
 | A module | `sdk/` (the library) plus `clients/` (its per-module clients) |
-| Your own project | `.dagger/clients/` — `sdk/` (the vendored library) plus flat per-module clients |
+| Your own project | `clients/` — the vendored library plus one package per target, wired through your `package.json` |
 
 A module keeps its targets in a `clients/` directory beside the library:
 every module — a dependency, a recorded target, the module itself — becomes its
@@ -168,31 +171,52 @@ The `@dagger.io/<module>` aliases are written into `tsconfig.json` (or
 straight away.
 
 A standalone client scope renders the same client files as a module, packaged
-as real npm packages:
+as real npm packages under the scope:
 
 ```
-.dagger/clients/
-  dagger/          the vendored @dagger.io/dagger library
-  <module>/        one package per target, named @dagger.io/<module>
+<scope>/
+  package.json     yours; gains a file: dependency on each package below
+  clients/
+    dagger/        the vendored @dagger.io/dagger library
+    <module>/      one package per target, named @dagger.io/<module>
 ```
 
-Install what you use — a client's `file:` dependencies pull the library (and
-any sibling it references) along:
+The scope's `package.json` is the link. The SDK writes
+`"@dagger.io/dagger": "file:./clients/dagger"` and one
+`"@dagger.io/<module>": "file:./clients/<module>"` per target into its
+`dependencies`, pins `typescript` unless you declare one in any section, and
+sets `"type": "module"` when the field is absent. That is the whole edit: every
+other key is yours, an explicit `"type"` — `"commonjs"` included — stays, and
+you run the install. Each client's own `file:` dependencies pull the library
+(and any sibling it references) along:
 
 ```sh
-npm install ./.dagger/clients/api
+npm install
 ```
 
 ```ts
 import { connection, dag } from "@dagger.io/dagger"
 import { api } from "@dagger.io/api"
+
+await connection(async () => {
+  console.log(await api(dag.currentWorkspace()).deploy(dag.container().from("alpine")))
+})
 ```
 
+Run it through `dagger run`, which opens the session `connection` attaches to:
+
+```sh
+dagger run -- npx -y tsx main.ts
+```
+
+The `--` is needed: `dagger run` parses flags after the command, so `-y` would
+be read as its own. And it is `tsx` rather than `node` because the packages
+ship `.ts` sources with `.js` import specifiers, which plain `node main.ts`
+rejects with `ERR_MODULE_NOT_FOUND`.
+
 No path aliases, no remote `@dagger.io/dagger` dependency — plain package
-resolution against the vendored, offline tree — and nothing of yours is
-edited; you run the install. The same packages can later come from a registry
-instead of a `file:` link, and a shared `.dagger/clients/` can back both a
-module and your own code.
+resolution against the vendored, offline tree. The same packages can later come
+from a registry instead of a `file:` link.
 
 `clients` is the complete desired set, so `dagger module client rm` is just
 regeneration without that target: its client goes, and the last target leaving

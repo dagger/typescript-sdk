@@ -84,7 +84,7 @@ await connection(async () => {
 })
 ```
 
-run with `dagger run npx tsx main.ts`. Only the SDK's own `@dagger.io/*` deps
+run with `dagger run -- npx -y tsx main.ts`. Only the SDK's own `@dagger.io/*` deps
 and the `clients/` directory are managed; everything else in the scope is the
 user's. A dep the user pointed elsewhere — another scope's client, a registry —
 is never touched.
@@ -112,6 +112,6 @@ the §2 layout — clients/dagger only, no self client — and a call runs;
 `dagger module client add .` (dev engine with dagger/dagger#14188) generates
 clients/test, wires the dep, and after `npm install` the self-call answers
 through the generated client; `client rm` prunes the package and the dep;
-a client-only scope produces the §3 layout, and `dagger run npx tsx main.ts`
+a client-only scope produces the §3 layout, and `dagger run -- npx -y tsx main.ts`
 reaches the module from plain user code; regeneration is byte-quiet
 throughout. codegen, config-updater and the dang parse gate are green.
