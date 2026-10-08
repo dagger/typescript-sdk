@@ -960,6 +960,14 @@ type TypescriptSdk {
   }
 
   """
+  The bundle files that make up the library half of every @dagger.io/dagger
+  package this SDK writes — a module's sdk/, a scope's clients/dagger. Named
+  once because two things have to agree on the set: what a package is
+  assembled from, and what ownedClientFiles may take back out of a tree.
+  """
+  let coreBundleFiles: [String!]! = ["core.js", "core.d.ts", "index.ts", "telemetry.ts"]
+
+  """
   A file from the prebuilt library this SDK ships, so callers can tell what a
   generated module was built against.
   """
@@ -1129,7 +1137,7 @@ type TypescriptSdk {
     # Only client.gen.ts comes from the generated bindings: the module clients
     # and the loader are the caller's to place, not part of the library.
     directory
-      .withDirectory(".", tsBundle, include: ["core.js", "core.d.ts", "index.ts", "telemetry.ts"])
+      .withDirectory(".", tsBundle, include: coreBundleFiles)
       .withFile("client.gen.ts", bindings.file("client.gen.ts"))
   }
 
@@ -1142,7 +1150,7 @@ type TypescriptSdk {
   """
   let embeddedSdkDirectory(bindings: Directory!): Directory! {
     directory
-      .withDirectory(".", tsBundle, include: ["core.js", "core.d.ts", "index.ts", "telemetry.ts"])
+      .withDirectory(".", tsBundle, include: coreBundleFiles)
       .withDirectory(".", bindings)
   }
 
@@ -1543,17 +1551,18 @@ type TypescriptSdk {
   """
   let moduleFiles(ws: Workspace!, sourcePath: String!, generated: Directory!, pruneStale: Boolean!): Workspace! {
     if (legacyRuntime == false) {
-      # clients/ is fully generated under an entrypoint, so anything in it this
-      # run does not render is stale and removed. Earlier layouts are taken with
-      # it: the embedded sdk/, a loader or client packages left at the module
-      # root, whichever a previous generation wrote.
+      # What this SDK generated into clients/ and does not render this run is
+      # stale and removed — that and nothing else, so a file of the user's in
+      # there stays. Earlier layouts are taken with it: the embedded sdk/, a
+      # loader or client packages left at the module root, whichever a previous
+      # generation wrote.
       let base = prunedClientPackages(
         prunedRootLoader(prunedEmbeddedSdk(prunedInactiveDispatch(ws, sourcePath), sourcePath), sourcePath),
         sourcePath,
         [],
       )
       writeChanged(
-        prunedDirFiles(base, moduleClientsPath(sourcePath), generated.directory("clients")),
+        prunedOwnedFiles(base, moduleClientsPath(sourcePath), generated.directory("clients")),
         sourcePath,
         generated,
       )
@@ -1575,19 +1584,17 @@ type TypescriptSdk {
   }
 
   """
-  Remove the clients/ directory a `[runtime]` module has no use for: the one an
-  earlier embedded layout kept beside sdk/, or the clients/dagger and
-  clients/<name>/ packages of an entrypoint module moving back. Its files are
-  inside sdk/ now, where the builtin runtime's one mount reaches them. A no-op
-  when there is none.
+  Remove the generated files from the clients/ directory a `[runtime]` module
+  has no use for: the one an earlier embedded layout kept beside sdk/, or the
+  clients/dagger and clients/<name>/ packages of an entrypoint module moving
+  back. An embedded module's clients are inside sdk/ now, where the builtin
+  runtime's one mount reaches them, so nothing this run renders belongs there
+  and every owned file is stale. Only those go — a file of the user's in that
+  directory is not the SDK's to take, and the directory follows only once it is
+  empty. A no-op when there is none.
   """
   let prunedEmbeddedClientsDir(ws: Workspace!, sourcePath: String!): Workspace! {
-    let clientsPath = moduleClientsPath(sourcePath)
-    if (existingDir(ws, clientsPath).entries.length == 0) {
-      ws
-    } else {
-      ws.withoutDirectory("/" + clientsPath)
-    }
+    prunedOwnedFiles(ws, moduleClientsPath(sourcePath), directory)
   }
 
   """
@@ -1604,27 +1611,99 @@ type TypescriptSdk {
   }
 
   """
-  Drop the files in a fully generated directory that this run does not render.
-  Writing file by file can only add, so removals are explicit; node_modules is
-  left alone — a user's install, not rendered content.
+  The files in a clients/ directory this SDK owns, as paths relative to it.
 
-  A package directory whose last file goes is taken whole — withoutFile leaves
-  the emptied directory behind otherwise, a husk of a removed client.
+  Decided by shape rather than by remembering what a previous run wrote,
+  because nothing remembers: no record of a generation survives in the
+  workspace, and the layout has changed more than once — flat <m>.gen.ts
+  files, then packages with a loader among them — so what the last run wrote
+  is not what this one renders. Shape is the one thing every layout shares.
+  Every *.gen.ts is generated, whatever it is named; a package.json is ours
+  beside the <name>.gen.ts that names its package and nowhere else; the bundle
+  files are ours beside the client.gen.ts that makes dagger/ the vendored
+  library. Everything else is the user's, however it got there — a notes.txt
+  dropped into a package, a README beside the packages — and clients/ is not
+  the SDK's to wipe (SDK Main-Engine Test Run 2026-10-07, issue #29).
+
+  Not enumerated by client name on purpose: the names a run renders are one
+  set and the names an earlier layout wrote are another, and a file this SDK
+  generated under a name it no longer uses is still its own to take.
+
+  node_modules is a user's install, not rendered content, and is not looked
+  into.
   """
-  let prunedDirFiles(ws: Workspace!, dir: String!, generated: Directory!): Workspace! {
-    let kept = generated.glob("**")
-    let keptDirs = generated.entries.filter { e => e.trimSuffix("/") != e }.map { e => e.trimSuffix("/") }
+  let ownedClientFiles(dir: Directory!): [String!]! {
+    let files = filesOutsideNodeModules(dir)
+    let rendered = files.filter { path => path.trimSuffix(".gen.ts") != path }
+    let manifests = files
+      .filter { path => path.split("/").length == 2 and path.trimSuffix("/package.json") != path }
+      .filter { path =>
+        let name = path.trimSuffix("/package.json")
+        rendered.filter { gen => gen == name + "/" + name + ".gen.ts" }.length > 0
+      }
+    let bundle = if (rendered.filter { gen => gen == "dagger/client.gen.ts" }.length == 0) {
+      []
+    } else {
+      let library = ["package.json"] + coreBundleFiles
+      files.filter { path => library.filter { name => "dagger/" + name == path }.length > 0 }
+    }
 
-    let withoutFiles = filePaths(existingDir(ws, dir))
-      .filter { path => path.hasPrefix("node_modules/") == false and path.split("/node_modules/").length == 1 }
-      .filter { path => kept.filter { name => name == path }.length == 0 }
-      .reduce(ws) { acc, path => acc.withoutFile("/" + dir + "/" + path) }
+    rendered + manifests + bundle
+  }
 
-    existingDir(ws, dir).entries
-      .filter { e => e.trimSuffix("/") != e }
-      .map { e => e.trimSuffix("/") }
-      .filter { name => name != "node_modules" and keptDirs.filter { k => k == name }.length == 0 }
-      .reduce(withoutFiles) { acc, name => acc.withoutDirectory("/" + dir + "/" + name) }
+  """
+  Every file in a directory apart from a node_modules tree, as paths relative
+  to it. An install is the user's, never rendered content, and large enough
+  that nothing here should be comparing against it file by file.
+  """
+  let filesOutsideNodeModules(dir: Directory!): [String!]! {
+    filePaths(dir).filter { path => path.hasPrefix("node_modules/") == false and path.split("/node_modules/").length == 1 }
+  }
+
+  """
+  Take what this SDK owns in a clients/ directory and does not render this run,
+  and nothing else: the stale files, and a directory once that leaves nothing
+  in it.
+
+  Writing file by file can only add, so removals are explicit — and they stop
+  at ownership. Pruning everything the run did not render, as this once did,
+  took a user's file with the client it sat beside, and a file beside the
+  packages with the last target. A directory goes only when it is emptied:
+  withoutFile leaves it behind otherwise, a husk of a removed client, while
+  one still holding a file of the user's is theirs to keep — clients/ itself
+  included, so the last target leaving takes an all-generated directory whole
+  and nothing of one that was never only ours.
+
+  node_modules is not content of its own: an install of what sits beside it,
+  never pruned on its own, and gone only with the directory it was installed
+  into.
+  """
+  let prunedOwnedFiles(ws: Workspace!, dir: String!, generated: Directory!): Workspace! {
+    let existing = existingDir(ws, dir)
+    let rendered = filePaths(generated)
+    let stale = ownedClientFiles(existing).filter { path => rendered.filter { name => name == path }.length == 0 }
+
+    if (stale.length == 0) {
+      ws
+    } else {
+      let remaining = filesOutsideNodeModules(existing).filter { path => stale.filter { name => name == path }.length == 0 }
+      if (remaining.length == 0) {
+        ws.withoutDirectory("/" + dir)
+      } else {
+        # A directory the removals empty goes whole, at whatever depth, and
+        # taking one takes everything beneath it.
+        let emptied = existing.glob("**")
+          .filter { path => path.trimSuffix("/") != path }
+          .map { path => path.trimSuffix("/") }
+          .filter { path => stale.filter { name => name.hasPrefix(path + "/") }.length > 0 and remaining.filter { name => name.hasPrefix(path + "/") }.length == 0 }
+        let roots = emptied.filter { path => emptied.filter { other => other != path and path.hasPrefix(other + "/") }.length == 0 }
+        let withoutDirs = roots.reduce(ws) { acc, path => acc.withoutDirectory("/" + dir + "/" + path) }
+
+        stale
+          .filter { path => roots.filter { root => path.hasPrefix(root + "/") }.length == 0 }
+          .reduce(withoutDirs) { acc, path => acc.withoutFile("/" + dir + "/" + path) }
+      }
+    }
   }
 
   """
@@ -1980,15 +2059,18 @@ type TypescriptSdk {
   Generate a client-only scope: its clients/ directory of installable packages,
   the scope's own core among them, wired through the scope's package.json.
 
-  clients/ is fully generated, so anything in it this run does not render is
-  removed; the rest of the scope is the user's and untouched. A scope whose last
-  client leaves loses the directory and its file: deps with it.
+  What this SDK generated into clients/ and does not render this run is
+  removed, and only that: the rest of the scope is the user's and untouched,
+  and so is anything of theirs under clients/. A scope whose last client leaves
+  loses the packages and its file: deps — and the directory itself only when
+  nothing else was in it.
   """
   let clientScope(ws: Workspace!, base: String!, targets: [ClientTarget!]!): Workspace! {
     let dir = scopeFile(base, "clients")
 
     if (targets.length == 0) {
-      let cleared = if (existingDir(ws, dir).entries.length == 0) { ws } else { ws.withoutDirectory("/" + dir) }
+      # Nothing rendered, so every owned file is stale.
+      let cleared = prunedOwnedFiles(ws, dir, directory)
       withScopeClientDeps(withoutLegacyScopeClients(prunedClientPackages(cleared, base, []), base), base, [])
     } else {
       let generated = clientDirectory(generateClientBindings(targets, scopeRepoURL(ws, base, targets)))
@@ -1997,7 +2079,7 @@ type TypescriptSdk {
       # regeneration: packages directly in the scope (the marker scan) and the
       # .dagger/clients directory of the layout before that.
       let migrated = withoutLegacyScopeClients(prunedClientPackages(ws, base, []), base)
-      let written = writeChanged(prunedDirFiles(migrated, dir, generated), dir, generated)
+      let written = writeChanged(prunedOwnedFiles(migrated, dir, generated), dir, generated)
       # package.json is the link: the scope's manifest names its core and each
       # client as file: dependencies, so `npm install` in the scope wires them.
       withScopeClientDeps(written, base, modules)

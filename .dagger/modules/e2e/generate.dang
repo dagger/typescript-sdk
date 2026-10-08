@@ -1098,4 +1098,46 @@ type GenerateChecks {
   tree at that commit is read; the SDK under test is the local one.
   """
   let gitCommit: String! = "249ba5a1d704a55034139e72005e445df7672150"
+
+  """
+  A `[runtime]` module's clients/ holds the user's files too, and regeneration
+  takes only its own out of it.
+
+  An earlier layout kept the module's clients there, flat beside sdk/, and the
+  move into sdk/ makes every one of them stale — so a leftover <m>.gen.ts goes.
+  It used to go by deleting the directory, which took whatever else was in it.
+  Ownership is by shape: a file of the user's beside the stale client stays,
+  and the directory stays with it. Staged rather than fixtured, like the stale
+  bindings above — nothing generated today leaves a clients/ beside sdk/.
+  """
+  generateKeepsUserFilesInClientsDirCheck(ws: Workspace!): Void @check {
+    let path = fixtures.depLibModule
+    let stale = path + "/clients/departed.gen.ts"
+    let notes = path + "/clients/notes.txt"
+
+    let dirty = ws
+      .withNewFile("/" + stale, "export const gone = true\n")
+      .withNewFile("/" + notes, "user notes\n")
+    let changes = Gen.module(dirty, path, "gendep")
+    let removed = ", got removed [" + changes.removedPaths.join(", ") + "]"
+
+    Asserts.assert(
+      Asserts.contains(changes.removedPaths, stale),
+      "regeneration should take a flat client an earlier layout left in clients/" + removed,
+    )
+    Asserts.assert(
+      Asserts.contains(changes.removedPaths, notes) == false,
+      "regeneration removed a user's file from a module's clients/" + removed,
+    )
+    Asserts.assert(
+      Asserts.contains(changes.removedPaths, path + "/clients/") == false,
+      "regeneration removed a module's clients/ with a user's file still in it" + removed,
+    )
+    Asserts.assert(
+      Asserts.contains(dirty.withChanges(changes).directory("/" + path + "/clients").entries, "notes.txt"),
+      "a user's file in a module's clients/ must survive regeneration",
+    )
+
+    null
+  }
 }

@@ -131,8 +131,9 @@ type ClientChecks {
   Regeneration owns the generated files and the scope's @dagger.io/* deps, and
   nothing else: a hand-written file in the scope survives, the user's own
   package.json keys survive the dep wiring, a client for a target that left the
-  scope is pruned, and the .dagger/clients directory an earlier layout kept is
-  taken with the move.
+  scope is pruned, a file of the user's under clients/ is not pruned with it,
+  and the .dagger/clients directory an earlier layout kept is taken with the
+  move.
   """
   generateClientRespectsExistingCheck(ws: Workspace!): Void @check {
     let changes = generateClients(ws, fixtures.clientExisting)
@@ -163,6 +164,29 @@ type ClientChecks {
     Asserts.assert(
       Asserts.contains(changes.removedPaths, generatedDir + "/stale-dep.gen.ts"),
       "regeneration should prune bindings for a target that left the scope: " + removed,
+    )
+    # Ownership stops at what the SDK generates: a file of the user's under
+    # clients/ — beside the packages, or in a directory named like the stale
+    # client — is not taken with it, and neither is the directory holding it.
+    [generatedDir + "/notes.md", generatedDir + "/stale-dep/README.md", generatedDir + "/stale-dep/"].each { path =>
+      Asserts.assert(
+        Asserts.contains(changes.removedPaths, path) == false,
+        "regeneration removed a user's file from clients/: " + removed,
+      )
+    }
+    let clients = after.directory("clients")
+    let kept = "kept [" + clients.entries.join(", ") + "]"
+    Asserts.assert(
+      Asserts.contains(clients.entries, "notes.md"),
+      "a user's file beside the generated packages must survive regeneration: " + kept,
+    )
+    Asserts.assert(
+      Asserts.contains(clients.entries, "stale-dep/"),
+      "a user's directory under clients/ must survive regeneration: " + kept,
+    )
+    Asserts.assert(
+      Asserts.contains(clients.directory("stale-dep").entries, "README.md"),
+      "a user's file in a directory under clients/ must survive regeneration",
     )
     Asserts.assert(
       Asserts.contains(changes.removedPaths, fixtures.clientExisting + "/.dagger/clients/"),
@@ -197,6 +221,8 @@ type ClientChecks {
     )
     # Directory entries carry a trailing slash.
     Asserts.assert(Asserts.contains(entries, "dagger/"), "regeneration must write the library package: " + kept)
+    Asserts.assert(Asserts.contains(entries, "notes.md"), "a user's file beside the generated packages must survive: " + kept)
+    Asserts.assert(Asserts.contains(entries, "stale-dep/"), "a user's directory under clients/ must survive: " + kept)
 
     null
   }
@@ -214,6 +240,66 @@ type ClientChecks {
       Asserts.contains(removed.removedPaths, clientDir(fixtures.clientOutput) + "/"),
       "dropping the last target should remove the generated package, got: "
         + removed.removedPaths.join(", "),
+    )
+
+    null
+  }
+
+  """
+  Dropping the last target takes the generated files and nothing else.
+
+  The complete-desired-set rule says what the SDK renders; it does not make
+  clients/ the SDK's directory. A file of the user's there — beside the
+  packages or inside one — survives, and so does every directory still holding
+  one, clients/ itself included. What the removals empty goes whole: the
+  library package, which held nothing but generated files. The all-generated
+  case, where that is the directory itself, is removeClientsCheck.
+  """
+  removeClientsKeepsUserFilesCheck(ws: Workspace!): Void @check {
+    let path = clientDir(fixtures.clientOutput)
+    let generated = ws
+      .withChanges(generateClients(ws, fixtures.clientOutput))
+      .withNewFile("/" + path + "/notes.txt", "user notes\n")
+      .withNewFile("/" + path + "/client-app/notes.txt", "user notes\n")
+    let removed = Gen.scope(generated, fixtures.clientOutput, "", isModule: false)
+    let got = "removed [" + removed.removedPaths.join(", ") + "]"
+
+    [path + "/client-app/client-app.gen.ts", path + "/client-app/package.json"].each { file =>
+      Asserts.assert(
+        Asserts.contains(removed.removedPaths, file),
+        "dropping the last target should remove its generated " + file + ": " + got,
+      )
+    }
+    Asserts.assert(
+      Asserts.contains(removed.removedPaths, path + "/dagger/"),
+      "dropping the last target should take the emptied library package whole: " + got,
+    )
+    [path + "/", path + "/client-app/", path + "/notes.txt", path + "/client-app/notes.txt"].each { kept =>
+      Asserts.assert(
+        Asserts.contains(removed.removedPaths, kept) == false,
+        "dropping the last target removed " + kept + ", which holds the user's files: " + got,
+      )
+    }
+
+    # The tree the user is left with, not the changeset: a file left alone is
+    # not in the changeset at all.
+    let after = generated.withChanges(removed).directory("/" + path)
+    let entries = "kept [" + after.entries.join(", ") + "]"
+    Asserts.assert(
+      Asserts.contains(after.entries, "notes.txt"),
+      "a user's file beside the packages must survive the last target leaving: " + entries,
+    )
+    Asserts.assert(
+      Asserts.contains(after.entries, "client-app/"),
+      "a package directory holding a user's file must survive its client leaving: " + entries,
+    )
+    Asserts.assert(
+      Asserts.contains(after.directory("client-app").entries, "notes.txt"),
+      "a user's file inside a package must survive its client leaving",
+    )
+    Asserts.assert(
+      Asserts.contains(after.entries, "dagger/") == false,
+      "the emptied library package should not be left behind as a husk: " + entries,
     )
 
     null
