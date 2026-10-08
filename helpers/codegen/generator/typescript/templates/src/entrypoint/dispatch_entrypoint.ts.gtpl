@@ -7,8 +7,13 @@ engine, so the container only ever exists to run a real call. What is left is th
 dispatch half — the iface wrappers, the per-object rebuild/serialize helpers,
 and invoke() — behind a stdin/stdout protocol.
 
-Generated alongside __dagger.entrypoint.ts rather than replacing it: no engine
-loads it yet, so nothing regresses while both are written.
+The protocol: one JSON request on stdin, one JSON reply on stdout (CallReply in
+dispatch_v2), logs on stderr. The reply carries either the function's result or
+the error it threw, and the process exits 0 in both cases: the entrypoint raises
+a carried error as the function's own, with its message, where a nonzero exit
+would surface as the exec's "exit code: 1". A nonzero exit is kept for the
+dispatcher itself failing — an unreadable request, a session that never came
+up — and stays a hard failure.
 */ -}}
 {{- define "dispatch_entrypoint" -}}
 // AUTO-GENERATED — DO NOT EDIT.

@@ -187,9 +187,20 @@ pub call(
     fnName: fnName,
     fnArgs: fnArgs,
   }})
-  (runtime(workspace)
-    .withExec(["tsx", "--no-deprecation", "--tsconfig", "tsconfig.json", "__dagger.dispatch.ts", "engine-call"], stdin: request)
-    .stdout :: JSON!)
+  let reply = JSON.decode(
+    runtime(workspace)
+      .withExec(["tsx", "--no-deprecation", "--tsconfig", "tsconfig.json", "__dagger.dispatch.ts", "engine-call"], stdin: request)
+      .stdout,
+  ) :: DispatchReply!
+  let failure = reply.error
+  if (failure != null) {
+    raise failure.message
+  }
+  let result = reply.result
+  if (result == null) {
+    raise "the dispatcher replied with neither a result nor an error"
+  }
+  result
 }
 ```
 
@@ -265,8 +276,14 @@ Request on stdin, one JSON object:
 { "receiverType": "Hello", "receiverValue": "{…}", "fnName": "message", "fnArgs": "{…}" }
 ```
 
-Result on stdout, one JSON value. Logs on stderr. Nonzero exit is a function
-error. That is the whole protocol — no session channel, no result field.
+Reply on stdout, one JSON object — `{ "result": "<json>" }` when the function
+returned, `{ "error": { "message": "…" } }` when it threw — and the dispatcher
+exits 0 either way. The result is a JSON string for the same reason the
+request's fields are (a Dang `JSON` scalar decodes from a string), and the error
+travels as data so the entrypoint can `raise` its message as the function's own
+error: a nonzero exit reaches the caller as `exit code: 1` with the message only
+in the exec log. A nonzero exit is the dispatcher itself failing. Logs on
+stderr. That is the whole protocol — no session channel.
 
 The dispatcher keeps: `connection()` (user code calls `dag`), the per-object
 `rebuild`/`serialize` helpers, and `__loadCoreObject` for ID-carrying arguments
@@ -509,10 +526,14 @@ module-loading contract is replaced by #14038 (`types` / `call`). #42 lands the
 first; this design lands the second on top. They are independent — but the
 entrypoint work should not start until #42 settles, or it rebases twice.
 
-**10.5 — Error fidelity.** Today the dispatcher returns structured errors
+**10.5 — Error fidelity.** *(Settled: the message survives, extensions do
+not.)* Today the dispatcher returns structured errors
 (`dag.error(msg).withValue(k, v)` via `returnError`, carrying extensions). Under
-v2 a failure is "nonzero exit + stderr", surfaced as the exec error. Confirm
-whether structured error values survive, or whether we lose extensions.
+v2 a failure first surfaced as "nonzero exit + stderr", i.e. the exec error
+`exit code: 1` with the message lost to the log. The dispatcher now replies
+with `{ "error": { "message" } }` and the entrypoint raises it (§6.3), which
+restores the message; `raise` carries nothing richer, so `withValue` extensions
+stop at the dispatcher.
 
 **10.6 — Regeneration is load-bearing.** Adding a `bun.lock`, switching
 `packageManager`, or adding a first dependency without re-running

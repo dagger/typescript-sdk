@@ -38,9 +38,17 @@ type Entrypoint implements ModuleEntrypoint {
   """
   Run one constructor or function and return its JSON result.
 
-  The request goes in on stdin and the result comes back on stdout; a nonzero
-  exit is a function error. There is no session channel and no FunctionCall
-  round-trip, so the dispatcher's logs have to go to stderr to keep stdout clean.
+  The request goes in on stdin and the reply comes back on stdout as one JSON
+  object, a DispatchReply: `result` carries the function's result, `error` what
+  it threw. The dispatcher exits 0 either way and the error travels as data,
+  because this is the only way its message reaches the caller: raised here it
+  becomes the function's own error, as returnError made it under the builtin
+  runtime, where a nonzero exit surfaces as the exec's "exit code: 1" with the
+  message buried in the exec log. A nonzero exit is therefore the dispatcher
+  itself failing, not the function, and stays an exec error.
+
+  There is no session channel and no FunctionCall round-trip, so the
+  dispatcher's logs have to go to stderr to keep stdout clean.
   """
   pub call(
     workspace: Workspace!,
@@ -56,9 +64,20 @@ type Entrypoint implements ModuleEntrypoint {
       fnName: fnName,
       fnArgs: fnArgs,
     {{"}}"}})
-    (runtime(workspace)
-      .withExec({{ dangDispatchExec }}, stdin: request)
-      .stdout :: JSON!)
+    let reply = JSON.decode(
+      runtime(workspace)
+        .withExec({{ dangDispatchExec }}, stdin: request)
+        .stdout,
+    ) :: DispatchReply!
+    let failure = reply.error
+    if (failure != null) {
+      raise failure.message
+    }
+    let result = reply.result
+    if (result == null) {
+      raise "the dispatcher replied with neither a result nor an error"
+    }
+    result
   }
 
   """
@@ -114,5 +133,30 @@ type Entrypoint implements ModuleEntrypoint {
   let requireGenerated(workspace: Workspace!): Void {
     {{ dangRequireGeneratedBody }}
   }
+}
+
+"""
+What the dispatcher writes to stdout: `result` when the call returned, `error`
+when it threw, never both.
+
+`result` is the function's return value as a JSON string — a string rather than
+an embedded value for the same reason the request's receiverValue and fnArgs
+are: a JSON scalar decodes from a string, and the engine gets the value back
+verbatim.
+"""
+type DispatchReply {
+  result: JSON
+  error: DispatchError
+}
+
+"""
+A thrown error as the dispatcher reports it: the message, and nothing else.
+
+The stack is on the dispatcher's stderr, which is the exec log. The values a
+typed error carried as extensions through returnError under the builtin runtime
+do not cross this boundary: call() can raise nothing richer than a message.
+"""
+type DispatchError {
+  message: String!
 }
 {{- end -}}

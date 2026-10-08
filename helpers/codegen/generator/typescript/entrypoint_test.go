@@ -202,3 +202,38 @@ func TestGenerateEntrypointDispatchDoesNotServe(t *testing.T) {
 	// The loader is still imported for wrapping received IDs; it is what serves.
 	require.Contains(t, got, "__loadObject as __loadCoreObject")
 }
+
+// TestGenerateEntrypointDispatchReportsErrors pins how a thrown error leaves the
+// dispatcher: as data in the reply, with the process exiting 0, rather than as
+// a nonzero exit. The Dang entrypoint raises the carried message as the
+// function's own error — what the builtin runtime's returnError gave a caller —
+// where an exit code reached them as "exit code: 1" with the message only in
+// the exec log.
+func TestGenerateEntrypointDispatchReportsErrors(t *testing.T) {
+	gen := &TypeScriptGenerator{Config: generator.Config{
+		EntrypointConfig: &generator.EntrypointGeneratorConfig{
+			TypedefJSONPath: "testdata/typedef_smoke.json",
+			ModuleRoot:      "/work",
+			SDKImportPath:   "@dagger.io/dagger",
+			SourceDir:       "src",
+			DispatchMode:    true,
+		},
+	}}
+
+	state, err := gen.GenerateEntrypoint(context.Background())
+	require.NoError(t, err)
+	got := readOverlay(t, state, DefaultDispatchFile)
+
+	// One reply shape for both outcomes, so the entrypoint never has to guess
+	// whether a raw result is an error.
+	require.Contains(t, got, "type CallReply = { result: string } | { error: { message: string } }")
+	require.Contains(t, got, "process.stdout.write(JSON.stringify(reply))")
+
+	// The thrown error is caught inside the call: the stack still reaches the
+	// exec log, only the message crosses, and nothing exits.
+	require.Contains(t, got, "} catch (e: unknown) {\n        console.error(e)\n        reply = { error: { message: errorMessage(e) } }\n      }")
+
+	// The nonzero exit around main() stays, reserved for the dispatcher failing
+	// itself — an unreadable request, a session that never came up.
+	require.Contains(t, got, "main().catch((e) => {\n  console.error(e)\n  process.exit(1)\n})")
+}
