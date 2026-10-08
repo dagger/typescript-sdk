@@ -221,6 +221,12 @@ No path aliases, no remote `@dagger.io/dagger` dependency — plain package
 resolution against the vendored, offline tree. The same packages can later come
 from a registry instead of a `file:` link.
 
+A Deno project — one with a `deno.json` — is wired through its import map
+instead: `@dagger.io/dagger` and each `@dagger.io/<module>` land in `deno.json`'s
+`imports`, with the unstable flags the library needs under Deno, and no
+`package.json` is written — plain `deno check` and `deno run` resolve them, with
+no install and no `--unstable-*` flags.
+
 `clients` is the complete desired set, so `dagger module client rm` is just
 regeneration without that target: its `<module>/` package goes, and the last
 target leaving takes the vendored `dagger/` library and the scope's `file:`
