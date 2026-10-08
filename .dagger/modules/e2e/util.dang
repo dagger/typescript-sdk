@@ -180,6 +180,15 @@ type Gen {
   }
 
   """
+  The same for the pre-1.0 pair: its dependency is a dagger.json module too,
+  and generating it is what migrates it and gives it the committed files the
+  dependent's schema load needs.
+  """
+  let withLegacyDependency(ws: Workspace!): Workspace! {
+    ws.withChanges(module(ws, Fixtures.legacyDepLibModule, "legacydep"))
+  }
+
+  """
   Return the error a rejected generation raised, or the paths it added when it
   unexpectedly succeeded.
   """

@@ -1140,4 +1140,100 @@ type GenerateChecks {
 
     null
   }
+
+  """
+  Migrating a pre-1.0 module takes the `/sdk` and `/__dagger.entrypoint.ts`
+  lines out of its .gitignore, and nothing else.
+
+  The v0.21 engine wrote them because its runtime regenerated both at call
+  time. A 1.0 module commits them — the trusted runtime does no codegen — and
+  source loading honours .gitignore before the runtime sees the tree, so the
+  lines hide the very files the module needs: `committed generated file
+  "sdk/client.gen.ts" is missing`, with the file on disk (SDK Main-Engine Test
+  Run, 2026-10-07 — issue #25, case G14). dagger/dagger#13720 taught `dagger
+  setup` the same removal, but it learns the lines from a legacy SDK's codegen,
+  which an SDK-module provider has none of — so a module this SDK converts
+  kept them.
+
+  The other rules describe nothing a module commits and stay as they were. The
+  file is asserted whole rather than line by line, so a survivor that was
+  reordered or reformatted fails too.
+  """
+  generateCleansLegacyIgnoreCheck(ws: Workspace!): Void @check {
+    let path = fixtures.legacyDepAppModule
+    let ignore = path + "/.gitignore"
+    let staged = Gen.withLegacyDependency(ws)
+    let changes = Gen.module(staged, path, "legacy-deps-app")
+    let cleaned = staged.withChanges(changes).file("/" + ignore).contents
+
+    Asserts.modified(changes, ignore)
+    Asserts.assert(
+      Asserts.contains(cleaned.split("\n"), "/sdk") == false,
+      "migration should drop the /sdk ignore that hides the committed library, got:\n" + cleaned,
+    )
+    Asserts.assert(
+      Asserts.contains(cleaned.split("\n"), "/__dagger.entrypoint.ts") == false,
+      "migration should drop the /__dagger.entrypoint.ts ignore that hides the committed entrypoint, got:\n" + cleaned,
+    )
+    Asserts.assert(
+      cleaned == "/**/node_modules/**\n/**/.pnpm-store/**\n/.env\n",
+      "the rules naming no generated file should survive byte for byte, got:\n" + cleaned,
+    )
+
+    null
+  }
+
+  """
+  A .gitignore already cleaned is not written again.
+
+  The cleanup runs on every generation — a manifest an earlier SDK version or
+  `dagger setup` wrote has already lost the dagger.json that would mark the
+  module as migrating — so it has to be a no-op on the file it fixed last time.
+  Asserted on the changeset's layer: a rewrite with the same bytes is absent
+  from the reported paths and still lands on disk, where the next generate
+  reports it whole (see Asserts.untouched).
+  """
+  generateLegacyIgnoreSettlesCheck(ws: Workspace!): Void @check {
+    let path = fixtures.legacyDepAppModule
+    let staged = Gen.withLegacyDependency(ws)
+    let settled = staged.withChanges(Gen.module(staged, path, "legacy-deps-app"))
+    let again = Gen.module(settled, path, "legacy-deps-app")
+
+    Asserts.untouched(
+      again,
+      path + "/.gitignore",
+      "regenerating should not rewrite a .gitignore it already cleaned",
+    )
+
+    null
+  }
+
+  """
+  A module with no .gitignore gets none, and one whose .gitignore names no
+  generated file is left alone.
+
+  The cleanup only ever removes lines the pre-1.0 engine wrote. Creating the
+  file would hand every module an ignore list it never asked for, and
+  rewriting one that carries nothing to remove puts it in the changeset with
+  its own bytes — the churn writeChanged exists to avoid.
+  """
+  generateLeavesOtherIgnoresCheck(ws: Workspace!): Void @check {
+    # A fresh scope: nothing there, so nothing to clean and nothing to create.
+    let fresh = fixtures.out + "/no-ignore"
+    Asserts.untouched(
+      Gen.scope(ws, fresh, "no-ignore"),
+      fresh + "/.gitignore",
+      "generation should not create a .gitignore",
+    )
+
+    # A current module's .gitignore — node_modules, pnpm-store and .env rules
+    # only, which is what the dependency fixture carries.
+    Asserts.untouched(
+      Gen.module(ws, fixtures.depLibModule, "gendep"),
+      fixtures.depLibModule + "/.gitignore",
+      "a .gitignore naming no generated file should not be rewritten",
+    )
+
+    null
+  }
 }
