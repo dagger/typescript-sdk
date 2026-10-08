@@ -179,31 +179,30 @@ build is part of step 3 rather than a detail of it, and it also lands on the
 dagger/dagger pipeline that generates `core`: generating the bindings is not
 enough, it has to compile them.
 
-### Two things that constrain how the facade gets built
+### The facade is built from this tree after all
 
-**`tsc` emits a `paths`-resolved specifier verbatim.** `src/core/client.gen.ts`
-imports `@dagger.io/session`, and the compiled `dist/src/core/client.gen.js` still
-imports `@dagger.io/session` — the path mapping is a compile-time convenience, not
-a rewrite. So any package containing more than one layer has to *depend* on the
-others rather than contain them. That is what the facade was always meant to be,
-but it does mean there is no such thing as "the whole library as one package" any
-more, and the check that used to install one is gone with it.
+Two things stood in the way, and both are recorded because step 4 would otherwise
+rediscover them.
 
-**The facade cannot be built from this tree yet.** `src/index.ts` would have to
-import the four packages by name, and it cannot: the introspector's testdata
-fixtures import it by relative path (`../../../../../index.js`), so a scan has to
-resolve those specifiers — and a scan synthesizes `@dagger.io/*` to a *module's*
-client, not to the library's own layers. Making the facade real from here means
-first moving those fixtures onto `@dagger.io/dagger`, which is a large delta
-against vendored files. Building it in dagger/dagger, where the doc already puts
-it, avoids the question entirely.
+**The introspector reads source and discards declarations.** Its scan filters
+`.d.ts` files out of the program, so when the facade imported the layers as
+packages — resolving to `core/dist/index.d.ts` — a fixture that reached the facade
+by relative path lost every type declared in `core`: `could not resolve type
+reference for CollectionDelta`. The fix was not in the facade. The one fixture that
+needs resolvable *types* (`testdata/collections`) now imports `decorators.js` and
+`core/client.gen.js` directly, by source path; the other six only use decorator
+*names*, and an unresolved name still prints as itself, which is all they need.
+One vendored fixture file, recorded in `library/VENDOR.md`.
 
-Manifest honesty moved with all this. There is no longer a hand-written manifest
-to audit, because the three published manifests are derived from what their layer
-imports — so the property is enforced when the package is built (an undeclared
-import fails the build) rather than checked afterwards. The audit check and its
-script are gone; the scanner they shared, `imports.cjs`, is what the generator
-uses.
+**Any package containing more than one layer has to depend on the others.** `tsc`
+does not rewrite a specifier on emit, so there is no such thing as "the whole
+library as one package" — the facade depends on the four packages, which is what
+it was always meant to be.
+
+Manifest honesty is checked again rather than built in. The manifests are
+hand-written, so `packager:manifest-is-honest-check` compares each published
+package's imports against what it declares, over the built package because that is
+JavaScript and `import type` is already gone.
 
 ## Who publishes what
 
@@ -297,28 +296,51 @@ run.
 Three different problems, three different tools. The experiments in "The hazard,
 measured" rule one popular tool out.
 
-**Inside typescript-sdk** — `session` ← `module`, `telemetry`. **Not npm
-workspaces, for now**: the layers import each other by the package name they
-publish under, and `tsconfig`'s `paths` resolve those specifiers to source
-(`src/session/index.ts`). One compilation unit, no build ordering, edits live on
-the source. Both `tsc` and `bun build` honour it, measured.
+**Inside typescript-sdk** — `session` ← `module`, `telemetry`. **npm workspaces**,
+declared in `library/package.json` over the existing `src/<layer>/` directories,
+each of which carries a committed `package.json` and a `tsconfig.json`. One install
+at the root symlinks `node_modules/@dagger.io/{session,core,module,telemetry}` to
+the layers; `tsc -b src/core src/module src/telemetry` builds all four into their
+own `dist/`, in dependency order, because the tsconfigs reference each other.
+`core` is built here too even though dagger/dagger publishes it: the facade and the
+bundle import it.
 
-Workspaces were the original answer and are still the endgame, but they cost more
-than they look here, for a reason specific to this split: a workspace member's
-`main` points at `dist/`, because [these packages cannot ship TypeScript
-source](#these-packages-cannot-ship-typescript-source) — so `core` could not
-typecheck until `session` had been built, which means per-package tsconfigs and
-project references. `paths` gets the same import graph for none of that.
+The first attempt resolved the specifiers to *source* through `tsconfig` `paths`
+instead, to avoid a build step. That is not an option, measured: the facade has to
+import the layers too, and the moment some importers resolve to source and others
+to `dist/`, the bundle carries each layer twice —
+`Symbol.for("@dagger.io/session.shared")` was defined twice in it, which is the
+dual-package hazard reconstructed inside a single file. One resolution story or
+none. The price is that the bundle, the test suite and a publish all build the
+packages first, and `tsc -b` makes that one line.
 
-Two facts worth keeping for when workspaces do arrive:
+**bun 1.3.0 does not link these workspaces.** `bun install` in the image the bundle
+was built with reported 416 packages and created no `node_modules/@dagger.io/*` at
+all, with or without a private root, so the bundle build failed on
+`Could not resolve: "@dagger.io/core"` and the test suite on
+`Cannot find module '@dagger.io/telemetry'`. 1.3.14 links all four. The packager's
+image moved to 1.3.14 — ahead of the bun the engine builds its own bundle with, and
+the first time that pin has diverged from it.
+
+**And the declaration rollup has to inline the layers.** `rollup-plugin-dts` leaves
+`node_modules` external, so with the facade importing the layers as packages
+`bundle/core.d.ts` came out as seven lines of `export * from '@dagger.io/...'` —
+and every generated client scope failed to type-check against it with
+`Property '_ctx' does not exist on type 'Address'`, because `BaseClient` was no
+longer declared anywhere it could see. `rollup.dts.config.mjs` now resolves
+`@dagger.io/*` to `src/<layer>/dist/index.d.ts` so they inline. Found by the full
+suite rather than by anything local, which is the argument for running it.
+
+Two facts kept for the publishing side:
 
 - **`workspace:*` is unpublishable through npm.** npm 11.6.2 packs the protocol
   verbatim and the consumer gets
   `EUNSUPPORTEDPROTOCOL: Unsupported URL Type "workspace:"`. bun *does* rewrite it
   (`bun pm pack` resolves the version) but only once `bun install` has run, which
-  couples publishing to bun. Inter-package deps have to be real semver ranges;
-  npm workspaces still symlink those locally whenever the local version satisfies
-  the range.
+  couples publishing to bun. So the manifests pin their siblings as plain versions
+  — `0.0.0`, the placeholder `library/package.json` has always carried — and
+  `release-version.cjs` stamps the real version onto both the package and its
+  sibling pins when one is built for publishing.
 - **Independent publishing is not the hard part.** `npm publish -w <pkg>` publishes
   one member at its own version, which is what the version table above needs.
 
@@ -829,11 +851,9 @@ and the pre-v1 tree gets moved for nothing.
    it, which is what step 2 was still missing. What is left is publishing them to
    npmjs for real.
 
-   Their manifests are derived, not written: `package-manifest.cjs` reads what the
-   compiled layer imports and takes each range from the library's own manifest, so
-   four hand-kept dependency lists cannot drift, and a layer importing something
-   the library does not declare fails the build instead of publishing a manifest
-   nobody can install. What came out:
+   Their manifests are committed, in `library/src/<layer>/package.json`, and
+   `packager:manifest-is-honest-check` keeps each one matching what its layer
+   actually imports. What they declare:
 
    | Package | Dependencies |
    |---|---|

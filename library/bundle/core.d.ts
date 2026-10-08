@@ -2,9 +2,8 @@ import * as graphql_request from 'graphql-request';
 import { ClientError, GraphQLClient } from 'graphql-request';
 export { GraphQLClient } from 'graphql-request';
 import * as opentelemetry from '@opentelemetry/api';
-import { BaseClient as BaseClient$1, Context as Context$1, ConnectOpts as ConnectOpts$1 } from '@dagger.io/session';
-import { GraphQLErrorExtensions } from 'graphql';
 import { Writable } from 'node:stream';
+import { GraphQLErrorExtensions } from 'graphql';
 
 /**
  * Tracer encapsulates the OpenTelemetry Tracer.
@@ -48,16 +47,442 @@ declare class Tracer {
  */
 declare function getTracer(name?: string): Tracer;
 
+declare const ERROR_CODES: {
+    /**
+     * {@link GraphQLRequestError}
+     */
+    readonly GraphQLRequestError: "D100";
+    /**
+     * {@link UnknownDaggerError}
+     */
+    readonly UnknownDaggerError: "D101";
+    /**
+     * {@link TooManyNestedObjectsError}
+     */
+    readonly TooManyNestedObjectsError: "D102";
+    /**
+     * {@link EngineSessionConnectParamsParseError}
+     */
+    readonly EngineSessionConnectParamsParseError: "D103";
+    /**
+     * {@link EngineSessionConnectionTimeoutError}
+     */
+    readonly EngineSessionConnectionTimeoutError: "D104";
+    /**
+     * {@link EngineSessionError}
+     */
+    readonly EngineSessionError: "D105";
+    /**
+     * {@link InitEngineSessionBinaryError}
+     */
+    readonly InitEngineSessionBinaryError: "D106";
+    /**
+     * {@link DockerImageRefValidationError}
+     */
+    readonly DockerImageRefValidationError: "D107";
+    /**
+     * {@link NotAwaitedRequestError}
+     */
+    readonly NotAwaitedRequestError: "D108";
+    /**
+     * (@link ExecError}
+     */
+    readonly ExecError: "D109";
+    /**
+     * {@link IntrospectionError}
+     */
+    readonly IntrospectionError: "D110";
+};
+type ErrorCodesType = typeof ERROR_CODES;
+type ErrorNames = keyof ErrorCodesType;
+type ErrorCodes = ErrorCodesType[ErrorNames];
+
+interface DaggerSDKErrorOptions {
+    cause?: Error;
+}
 /**
- * withTracing runs `fct` with the tracer initialized and the OpenTelemetry
- * context propagated, and shuts the tracer down afterwards.
- *
- * The tracer's lifetime lives here rather than in whatever establishes a
- * session: a session that knows about telemetry puts the OpenTelemetry SDK in
- * every consumer's closure, which is most of what the package split sheds. See
- * design/package-split.md.
+ * The base error. Every other error inherits this error.
  */
-declare function withTracing(fct: () => Promise<void>): Promise<void>;
+declare abstract class DaggerSDKError extends Error {
+    /**
+     * The name of the dagger error.
+     */
+    abstract readonly name: ErrorNames;
+    /**
+     * The dagger specific error code.
+     * Use this to identify dagger errors programmatically.
+     */
+    abstract readonly code: ErrorCodes;
+    /**
+     * The original error, which caused the DaggerSDKError.
+     */
+    cause?: Error;
+    protected constructor(message: string, options?: DaggerSDKErrorOptions);
+    /**
+     * @hidden
+     */
+    get [Symbol.toStringTag](): "GraphQLRequestError" | "UnknownDaggerError" | "TooManyNestedObjectsError" | "EngineSessionConnectParamsParseError" | "EngineSessionConnectionTimeoutError" | "EngineSessionError" | "InitEngineSessionBinaryError" | "DockerImageRefValidationError" | "NotAwaitedRequestError" | "ExecError" | "IntrospectionError";
+    /**
+     * Pretty prints the error
+     */
+    printStackTrace(): void;
+}
+
+/**
+ *  This error is thrown if the dagger SDK does not identify the error and just wraps the cause.
+ */
+declare class UnknownDaggerError extends DaggerSDKError {
+    name: "UnknownDaggerError";
+    code: "D101";
+    /**
+     * @hidden
+     */
+    constructor(message: string, options: DaggerSDKErrorOptions);
+}
+
+interface DockerImageRefValidationErrorOptions extends DaggerSDKErrorOptions {
+    ref: string;
+}
+/**
+ *  This error is thrown if the passed image reference does not pass validation and is not compliant with the
+ *  DockerImage constructor.
+ */
+declare class DockerImageRefValidationError extends DaggerSDKError {
+    name: "DockerImageRefValidationError";
+    code: "D107";
+    /**
+     *  The docker image reference, which caused the error.
+     */
+    ref: string;
+    /**
+     *  @hidden
+     */
+    constructor(message: string, options: DockerImageRefValidationErrorOptions);
+}
+
+interface EngineSessionConnectParamsParseErrorOptions extends DaggerSDKErrorOptions {
+    parsedLine: string;
+}
+/**
+ * This error is thrown if the EngineSession does not manage to parse the required connection parameters from the session binary
+ */
+declare class EngineSessionConnectParamsParseError extends DaggerSDKError {
+    name: "EngineSessionConnectParamsParseError";
+    code: "D103";
+    /**
+     *  the line, which caused the error during parsing, if the error was caused because of parsing.
+     */
+    parsedLine: string;
+    /**
+     * @hidden
+     */
+    constructor(message: string, options: EngineSessionConnectParamsParseErrorOptions);
+}
+
+interface ExecErrorOptions extends DaggerSDKErrorOptions {
+    cmd: string[];
+    exitCode: number;
+    stdout: string;
+    stderr: string;
+    extensions?: GraphQLErrorExtensions;
+}
+/**
+ *  API error from an exec operation in a pipeline.
+ */
+declare class ExecError extends DaggerSDKError {
+    name: "ExecError";
+    code: "D109";
+    /**
+     *  The command that caused the error.
+     */
+    cmd: string[];
+    /**
+     *  The exit code of the command.
+     */
+    exitCode: number;
+    /**
+     * The stdout of the command.
+     */
+    stdout: string;
+    /**
+     * The stderr of the command.
+     */
+    stderr: string;
+    /**
+     * GraphQL error extensions
+     */
+    extensions?: GraphQLErrorExtensions;
+    /**
+     *  @hidden
+     */
+    constructor(message: string, options: ExecErrorOptions);
+}
+
+interface GraphQLRequestErrorOptions extends DaggerSDKErrorOptions {
+    error: ClientError;
+}
+/**
+ *  This error originates from the dagger engine. It means that some error was thrown and sent back via GraphQL.
+ */
+declare class GraphQLRequestError extends DaggerSDKError {
+    name: "GraphQLRequestError";
+    code: "D100";
+    /**
+     *  The query and variables, which caused the error.
+     */
+    requestContext: ClientError["request"];
+    /**
+     *  the GraphQL response containing the error.
+     */
+    response: ClientError["response"];
+    /**
+     *  The GraphQL error extentions.
+     */
+    extensions?: GraphQLErrorExtensions;
+    /**
+     *  @hidden
+     */
+    constructor(message: string, options: GraphQLRequestErrorOptions);
+}
+
+/**
+ *  This error is thrown if the dagger binary cannot be copied from the dagger docker image and copied to the local host.
+ */
+declare class InitEngineSessionBinaryError extends DaggerSDKError {
+    name: "InitEngineSessionBinaryError";
+    code: "D106";
+    /**
+     *  @hidden
+     */
+    constructor(message: string, options?: DaggerSDKErrorOptions);
+}
+
+interface TooManyNestedObjectsErrorOptions extends DaggerSDKErrorOptions {
+    response: unknown;
+}
+/**
+ *  Dagger only expects one response value from the engine. If the engine returns more than one value this error is thrown.
+ */
+declare class TooManyNestedObjectsError extends DaggerSDKError {
+    name: "TooManyNestedObjectsError";
+    code: "D102";
+    /**
+     *  the response containing more than one value.
+     */
+    response: unknown;
+    /**
+     * @hidden
+     */
+    constructor(message: string, options: TooManyNestedObjectsErrorOptions);
+}
+
+type EngineSessionErrorOptions = DaggerSDKErrorOptions;
+/**
+ * This error is thrown if the EngineSession does not manage to parse the required port successfully because a EOF is read before any valid port.
+ * This usually happens if no connection can be established.
+ */
+declare class EngineSessionError extends DaggerSDKError {
+    name: "EngineSessionError";
+    code: "D105";
+    /**
+     * @hidden
+     */
+    constructor(message: string, options?: EngineSessionErrorOptions);
+}
+
+interface EngineSessionConnectionTimeoutErrorOptions extends DaggerSDKErrorOptions {
+    timeOutDuration: number;
+}
+/**
+ * This error is thrown if the EngineSession does not manage to parse the required port successfully because the sessions connection timed out.
+ */
+declare class EngineSessionConnectionTimeoutError extends DaggerSDKError {
+    name: "EngineSessionConnectionTimeoutError";
+    code: "D104";
+    /**
+     * The duration until the timeout occurred in ms.
+     */
+    timeOutDuration: number;
+    /**
+     * @hidden
+     */
+    constructor(message: string, options: EngineSessionConnectionTimeoutErrorOptions);
+}
+
+/**
+ * This error is thrown when the compute function isn't awaited.
+ */
+declare class NotAwaitedRequestError extends DaggerSDKError {
+    name: "NotAwaitedRequestError";
+    code: "D108";
+    /**
+     * @hidden
+     */
+    constructor(message: string, options?: DaggerSDKErrorOptions);
+}
+
+declare class FunctionNotFound extends DaggerSDKError {
+    name: "ExecError";
+    code: "D109";
+    constructor(message: string, options?: DaggerSDKErrorOptions);
+}
+
+declare class IntrospectionError extends DaggerSDKError {
+    name: "IntrospectionError";
+    code: "D110";
+    constructor(message: string, options?: DaggerSDKErrorOptions);
+}
+
+/**
+ * Wraps the GraphQL client to allow lazy initialization and setting
+ * the GQL client of the global Dagger client instance (`dag`).
+ */
+declare class Connection {
+    private _gqlClient?;
+    constructor(_gqlClient?: GraphQLClient | undefined);
+    private _served;
+    resetClient(): void;
+    setGQLClient(gqlClient: GraphQLClient): void;
+    getGQLClient(): GraphQLClient;
+    /**
+     * Run `serve` the first time `key` is seen in this session and remember the
+     * result, so a generated client can ensure its module is served before its
+     * first query without serving it again on every call.
+     */
+    ensureServed(key: string, serve: () => Promise<void>): Promise<void>;
+}
+declare const globalConnection: Connection;
+
+type QueryTree = {
+    operation: string;
+    args?: Record<string, unknown>;
+    inlineType?: string;
+};
+type Metadata = {
+    [key: string]: {
+        is_enum?: boolean;
+        value_to_name?: (value: any) => string;
+    };
+};
+/**
+ * Convert querytree into a Graphql query then compute it
+ * @param q | QueryTree[]
+ * @param client | GraphQLClient
+ * @returns
+ */
+declare function computeQuery<T>(q: QueryTree[], client: GraphQLClient): Promise<T>;
+
+/**
+ * A module a generated client serves into the session before its first query.
+ * `key` memoizes the serve per session (the module's ref or path); `run`
+ * performs it, through a context that carries no serve of its own so it cannot
+ * recurse.
+ */
+type ServeSpec = {
+    key: string;
+    run: () => Promise<void>;
+};
+declare class Context {
+    private _queryTree;
+    private _connection;
+    private _serve?;
+    constructor(_queryTree?: QueryTree[], _connection?: Connection, _serve?: ServeSpec | undefined);
+    getGQLClient(): GraphQLClient;
+    copy(): Context;
+    select(operation: string, args?: Record<string, unknown>): Context;
+    /**
+     * Select via node(id:) with an inline fragment on the given type.
+     * Produces: node(id: "...") { ... on TypeName { children } }
+     */
+    selectNode(id: string, typeName: string): Context;
+    /**
+     * Return a copy of this context that serves `spec`'s module before the first
+     * query on it (or on any context derived from it) runs. Used by a generated
+     * module client to bind its own module to its `dag`.
+     */
+    withServe(spec: ServeSpec): Context;
+    execute<T>(): Promise<T>;
+}
+/**
+ * Common base class for every generated API class (Client, Container, and
+ * dependency-contributed types).
+ *
+ * It lives here in the SDK runtime rather than in the generated client.gen.ts
+ * so that per-dependency generated files (e.g. hello.gen.ts) can `extends
+ * BaseClient` without importing a value from client.gen.ts — client.gen.ts
+ * `export *`s those dep files, so a value import would create an ESM cycle.
+ * client.gen.ts re-exports BaseClient to keep `import { BaseClient } from
+ * "./client.gen.js"` working for existing consumers.
+ */
+declare class BaseClient {
+    protected _ctx: Context;
+    /**
+     * @hidden
+     */
+    constructor(_ctx?: Context);
+}
+
+/**
+ * ConnectOpts defines option used to connect to an engine.
+ */
+interface ConnectOpts {
+    /**
+     * Use to overwrite Dagger workdir
+     * @defaultValue process.cwd()
+     */
+    Workdir?: string;
+    /**
+     * Opt into loading workspace modules for this connection.
+     * By default, only the core API is exposed.
+     */
+    LoadWorkspaceModules?: boolean;
+    /**
+       * Enable logs output
+       * @example
+       * LogOutput
+       * ```ts
+       * connect(async (client: Client) => {
+      const source = await client.host().workdir().id()
+      ...
+      }, {LogOutput: process.stdout})
+       ```
+       */
+    LogOutput?: Writable;
+}
+
+/**
+ * withSession establishes a Dagger session, points the global client at it for
+ * the duration of `fct`, and tears it down again.
+ *
+ * This is the session layer's whole job: no tracing, no bindings. `connection`
+ * is this plus the tracer's lifetime, and it lives above both.
+ */
+declare function withSession(fct: () => Promise<void>, cfg?: ConnectOpts): Promise<void>;
+
+/**
+ * Execute the callback with a GraphQL client connected to the Dagger engine.
+ * It automatically provisions the engine if needed.
+ */
+declare function withGQLClient<T>(connectOpts: ConnectOpts, cb: (gqlClient: GraphQLClient) => Promise<T>): Promise<T>;
+
+/**
+ * Hold a process-wide singleton on `globalThis` rather than in module scope.
+ *
+ * Module scope is not process scope. Once the SDK is several packages, a
+ * resolver is free to install two copies of the session package — conflicting
+ * ranges, a failed hoist, an `npm link` — and each copy evaluates its own
+ * module-level `new`. The symptom is silent and points nowhere near
+ * node_modules: decorators register into one registry while the dispatcher
+ * reads another, or `connect()` populates a connection `dag` cannot see.
+ *
+ * `Symbol.for` resolves through the cross-realm symbol registry, so duplicate
+ * copies of this very file still agree on the slot and share one instance.
+ *
+ * The first copy to evaluate wins, which means the shape stored here is a
+ * compatibility surface between versions that may run side by side: only ever
+ * add to it.
+ */
+declare function shared<T>(key: string, create: () => T): T;
 
 /**
  * Declare a number as float in the Dagger API.
@@ -3156,13 +3581,13 @@ type __TypeInputFieldsOpts = {
 /**
  * A standardized address to load containers, directories, secrets, and other object types. Address format depends on the type, and is validated at type selection.
  */
-declare class Address extends BaseClient$1 {
+declare class Address extends BaseClient {
     private readonly _id?;
     private readonly _value?;
     /**
      * Constructor is used for internal usage only, do not create object from it.
      */
-    constructor(ctx?: Context$1, _id?: ID, _value?: string);
+    constructor(ctx?: Context, _id?: ID, _value?: string);
     /**
      * A unique identifier for this Address.
      */
@@ -3217,7 +3642,7 @@ declare class Address extends BaseClient$1 {
  *
  * A conversation loop running as an addressable, long-lived entity within the session. The conversation itself remains observable at any time as an immutable LLM value.
  */
-declare class Agent extends BaseClient$1 {
+declare class Agent extends BaseClient {
     private readonly _id?;
     private readonly _error?;
     private readonly _handle?;
@@ -3233,7 +3658,7 @@ declare class Agent extends BaseClient$1 {
     /**
      * Constructor is used for internal usage only, do not create object from it.
      */
-    constructor(ctx?: Context$1, _id?: ID, _error?: string, _handle?: string, _name?: string, _notify?: ID, _pause?: ID, _reseed?: ID, _resume?: ID, _send?: ID, _state?: AgentState, _stop?: ID, _wait?: ID);
+    constructor(ctx?: Context, _id?: ID, _error?: string, _handle?: string, _name?: string, _notify?: ID, _pause?: ID, _reseed?: ID, _resume?: ID, _send?: ID, _state?: AgentState, _stop?: ID, _wait?: ID);
     /**
      * A unique identifier for this Agent.
      */
@@ -3362,7 +3787,7 @@ declare class Agent extends BaseClient$1 {
  *
  * A message delivered to an agent's mailbox.
  */
-declare class AgentMessage extends BaseClient$1 {
+declare class AgentMessage extends BaseClient {
     private readonly _id?;
     private readonly _delivery?;
     private readonly _ref?;
@@ -3370,7 +3795,7 @@ declare class AgentMessage extends BaseClient$1 {
     /**
      * Constructor is used for internal usage only, do not create object from it.
      */
-    constructor(ctx?: Context$1, _id?: ID, _delivery?: AgentMessageDelivery, _ref?: string, _response?: string);
+    constructor(ctx?: Context, _id?: ID, _delivery?: AgentMessageDelivery, _ref?: string, _response?: string);
     /**
      * A unique identifier for this AgentMessage.
      */
@@ -3404,7 +3829,7 @@ declare class AgentMessage extends BaseClient$1 {
 /**
  * One workspace value with a complete path and all required dimension keys. Reading metadata does not evaluate the value. Different addresses remain distinct even if they return the same object.
  */
-declare class Artifact extends BaseClient$1 {
+declare class Artifact extends BaseClient {
     private readonly _id?;
     private readonly _description?;
     private readonly _loadError?;
@@ -3413,7 +3838,7 @@ declare class Artifact extends BaseClient$1 {
     /**
      * Constructor is used for internal usage only, do not create object from it.
      */
-    constructor(ctx?: Context$1, _id?: ID, _description?: string, _loadError?: string, _moduleName?: string, _uri?: string);
+    constructor(ctx?: Context, _id?: ID, _description?: string, _loadError?: string, _moduleName?: string, _uri?: string);
     /**
      * A unique identifier for this Artifact.
      */
@@ -3459,7 +3884,7 @@ declare class Artifact extends BaseClient$1 {
      */
     value: (opts?: ArtifactValueOpts) => Node;
 }
-declare class ArtifactDimension extends BaseClient$1 {
+declare class ArtifactDimension extends BaseClient {
     private readonly _id?;
     private readonly _collectionType?;
     private readonly _identifier?;
@@ -3472,7 +3897,7 @@ declare class ArtifactDimension extends BaseClient$1 {
     /**
      * Constructor is used for internal usage only, do not create object from it.
      */
-    constructor(ctx?: Context$1, _id?: ID, _collectionType?: string, _identifier?: string, _itemType?: string, _keyDescription?: string, _keyName?: string, _kind?: ArtifactDimensionKind, _name?: string, _qualifiedName?: string);
+    constructor(ctx?: Context, _id?: ID, _collectionType?: string, _identifier?: string, _itemType?: string, _keyDescription?: string, _keyName?: string, _kind?: ArtifactDimensionKind, _name?: string, _qualifiedName?: string);
     /**
      * A unique identifier for this ArtifactDimension.
      */
@@ -3510,14 +3935,14 @@ declare class ArtifactDimension extends BaseClient$1 {
      */
     qualifiedName: () => Promise<string>;
 }
-declare class ArtifactDimensionKey extends BaseClient$1 {
+declare class ArtifactDimensionKey extends BaseClient {
     private readonly _id?;
     private readonly _dimension?;
     private readonly _key?;
     /**
      * Constructor is used for internal usage only, do not create object from it.
      */
-    constructor(ctx?: Context$1, _id?: ID, _dimension?: string, _key?: string);
+    constructor(ctx?: Context, _id?: ID, _dimension?: string, _key?: string);
     /**
      * A unique identifier for this ArtifactDimensionKey.
      */
@@ -3534,7 +3959,7 @@ declare class ArtifactDimensionKey extends BaseClient$1 {
 /**
  * A schema path and its dimensions. The path can exist even when its collections have no runtime items.
  */
-declare class ArtifactPath extends BaseClient$1 {
+declare class ArtifactPath extends BaseClient {
     private readonly _id?;
     private readonly _description?;
     private readonly _loadError?;
@@ -3543,7 +3968,7 @@ declare class ArtifactPath extends BaseClient$1 {
     /**
      * Constructor is used for internal usage only, do not create object from it.
      */
-    constructor(ctx?: Context$1, _id?: ID, _description?: string, _loadError?: string, _moduleName?: string, _uri?: string);
+    constructor(ctx?: Context, _id?: ID, _description?: string, _loadError?: string, _moduleName?: string, _uri?: string);
     /**
      * A unique identifier for this ArtifactPath.
      */
@@ -3569,12 +3994,12 @@ declare class ArtifactPath extends BaseClient$1 {
      */
     uri: () => Promise<string>;
 }
-declare class ArtifactResult extends BaseClient$1 {
+declare class ArtifactResult extends BaseClient {
     private readonly _id?;
     /**
      * Constructor is used for internal usage only, do not create object from it.
      */
-    constructor(ctx?: Context$1, _id?: ID);
+    constructor(ctx?: Context, _id?: ID);
     /**
      * A unique identifier for this ArtifactResult.
      */
@@ -3595,13 +4020,13 @@ declare class ArtifactResult extends BaseClient$1 {
 /**
  * An immutable selection of workspace artifacts. Listed types, dimensions, and keys use OR; chained filters use AND. Empty alternatives and unknown names match nothing. Filters never change addresses or dimension identifiers.
  */
-declare class Artifacts extends BaseClient$1 {
+declare class Artifacts extends BaseClient {
     private readonly _id?;
     private readonly _uri?;
     /**
      * Constructor is used for internal usage only, do not create object from it.
      */
-    constructor(ctx?: Context$1, _id?: ID, _uri?: string);
+    constructor(ctx?: Context, _id?: ID, _uri?: string);
     /**
      * A unique identifier for this Artifacts.
      */
@@ -3736,12 +4161,12 @@ declare class Artifacts extends BaseClient$1 {
 /**
  * A directory whose contents persist across runs.
  */
-declare class CacheVolume extends BaseClient$1 {
+declare class CacheVolume extends BaseClient {
     private readonly _id?;
     /**
      * Constructor is used for internal usage only, do not create object from it.
      */
-    constructor(ctx?: Context$1, _id?: ID);
+    constructor(ctx?: Context, _id?: ID);
     /**
      * A unique identifier for this CacheVolume.
      */
@@ -3750,7 +4175,7 @@ declare class CacheVolume extends BaseClient$1 {
 /**
  * A comparison between two directories representing changes that can be applied.
  */
-declare class Changeset extends BaseClient$1 {
+declare class Changeset extends BaseClient {
     private readonly _id?;
     private readonly _export?;
     private readonly _isEmpty?;
@@ -3758,7 +4183,7 @@ declare class Changeset extends BaseClient$1 {
     /**
      * Constructor is used for internal usage only, do not create object from it.
      */
-    constructor(ctx?: Context$1, _id?: ID, _export?: string, _isEmpty?: boolean, _sync?: ID);
+    constructor(ctx?: Context, _id?: ID, _export?: string, _isEmpty?: boolean, _sync?: ID);
     /**
      * A unique identifier for this Changeset.
      */
@@ -3844,14 +4269,14 @@ declare class Changeset extends BaseClient$1 {
 /**
  * One deferred check. Reading pass, error, or sync runs it.
  */
-declare class Check extends BaseClient$1 {
+declare class Check extends BaseClient {
     private readonly _id?;
     private readonly _assertion?;
     private readonly _pass?;
     /**
      * Constructor is used for internal usage only, do not create object from it.
      */
-    constructor(ctx?: Context$1, _id?: ID, _assertion?: string, _pass?: boolean);
+    constructor(ctx?: Context, _id?: ID, _assertion?: string, _pass?: boolean);
     /**
      * A unique identifier for this Check.
      */
@@ -3886,12 +4311,12 @@ declare class Check extends BaseClient$1 {
 /**
  * An internal persistent filesync mirror.
  */
-declare class ClientFilesyncMirror extends BaseClient$1 {
+declare class ClientFilesyncMirror extends BaseClient {
     private readonly _id?;
     /**
      * Constructor is used for internal usage only, do not create object from it.
      */
-    constructor(ctx?: Context$1, _id?: ID);
+    constructor(ctx?: Context, _id?: ID);
     /**
      * A unique identifier for this ClientFilesyncMirror.
      */
@@ -3900,13 +4325,13 @@ declare class ClientFilesyncMirror extends BaseClient$1 {
 /**
  * Dagger Cloud configuration and state
  */
-declare class Cloud extends BaseClient$1 {
+declare class Cloud extends BaseClient {
     private readonly _id?;
     private readonly _traceURL?;
     /**
      * Constructor is used for internal usage only, do not create object from it.
      */
-    constructor(ctx?: Context$1, _id?: ID, _traceURL?: string);
+    constructor(ctx?: Context, _id?: ID, _traceURL?: string);
     /**
      * A unique identifier for this Cloud.
      */
@@ -3916,12 +4341,12 @@ declare class Cloud extends BaseClient$1 {
      */
     traceURL: () => Promise<string>;
 }
-declare class CollectionDelta extends BaseClient$1 {
+declare class CollectionDelta extends BaseClient {
     private readonly _id?;
     /**
      * Constructor is used for internal usage only, do not create object from it.
      */
-    constructor(ctx?: Context$1, _id?: ID);
+    constructor(ctx?: Context, _id?: ID);
     /**
      * A unique identifier for this CollectionDelta.
      */
@@ -3935,12 +4360,12 @@ declare class CollectionDelta extends BaseClient$1 {
      */
     removedKeys: () => Promise<string[]>;
 }
-declare class CollectionTypeDef extends BaseClient$1 {
+declare class CollectionTypeDef extends BaseClient {
     private readonly _id?;
     /**
      * Constructor is used for internal usage only, do not create object from it.
      */
-    constructor(ctx?: Context$1, _id?: ID);
+    constructor(ctx?: Context, _id?: ID);
     /**
      * A unique identifier for this CollectionTypeDef.
      */
@@ -3961,7 +4386,7 @@ declare class CollectionTypeDef extends BaseClient$1 {
 /**
  * A command's arguments and execution settings.
  */
-declare class Command extends BaseClient$1 {
+declare class Command extends BaseClient {
     private readonly _id?;
     private readonly _insecureRootCapabilities?;
     private readonly _privilegedNesting?;
@@ -3969,7 +4394,7 @@ declare class Command extends BaseClient$1 {
     /**
      * Constructor is used for internal usage only, do not create object from it.
      */
-    constructor(ctx?: Context$1, _id?: ID, _insecureRootCapabilities?: boolean, _privilegedNesting?: boolean, _workdir?: string);
+    constructor(ctx?: Context, _id?: ID, _insecureRootCapabilities?: boolean, _privilegedNesting?: boolean, _workdir?: string);
     /**
      * A unique identifier for this Command.
      */
@@ -3998,7 +4423,7 @@ declare class Command extends BaseClient$1 {
 /**
  * An OCI-compatible container, also known as a Docker container.
  */
-declare class Container extends BaseClient$1 {
+declare class Container extends BaseClient {
     private readonly _id?;
     private readonly _combinedOutput?;
     private readonly _envVariable?;
@@ -4019,7 +4444,7 @@ declare class Container extends BaseClient$1 {
     /**
      * Constructor is used for internal usage only, do not create object from it.
      */
-    constructor(ctx?: Context$1, _id?: ID, _combinedOutput?: string, _envVariable?: string, _exists?: boolean, _exitCode?: number, _export?: string, _exportImage?: Void, _imageRef?: string, _label?: string, _platform?: Platform, _publish?: string, _stderr?: string, _stdout?: string, _sync?: ID, _up?: Void, _user?: string, _workdir?: string);
+    constructor(ctx?: Context, _id?: ID, _combinedOutput?: string, _envVariable?: string, _exists?: boolean, _exitCode?: number, _export?: string, _exportImage?: Void, _imageRef?: string, _label?: string, _platform?: Platform, _publish?: string, _stderr?: string, _stdout?: string, _sync?: ID, _up?: Void, _user?: string, _workdir?: string);
     /**
      * A unique identifier for this Container.
      */
@@ -4739,13 +5164,13 @@ declare class Container extends BaseClient$1 {
 /**
  * Reflective module API provided to functions at runtime.
  */
-declare class CurrentModule extends BaseClient$1 {
+declare class CurrentModule extends BaseClient {
     private readonly _id?;
     private readonly _name?;
     /**
      * Constructor is used for internal usage only, do not create object from it.
      */
-    constructor(ctx?: Context$1, _id?: ID, _name?: string);
+    constructor(ctx?: Context, _id?: ID, _name?: string);
     /**
      * A unique identifier for this CurrentModule.
      */
@@ -4780,7 +5205,7 @@ declare class CurrentModule extends BaseClient$1 {
      */
     workdirFile: (path: string) => File;
 }
-declare class DiffStat extends BaseClient$1 {
+declare class DiffStat extends BaseClient {
     private readonly _id?;
     private readonly _addedLines?;
     private readonly _kind?;
@@ -4790,7 +5215,7 @@ declare class DiffStat extends BaseClient$1 {
     /**
      * Constructor is used for internal usage only, do not create object from it.
      */
-    constructor(ctx?: Context$1, _id?: ID, _addedLines?: number, _kind?: DiffStatKind, _oldPath?: string, _path?: string, _removedLines?: number);
+    constructor(ctx?: Context, _id?: ID, _addedLines?: number, _kind?: DiffStatKind, _oldPath?: string, _path?: string, _removedLines?: number);
     /**
      * A unique identifier for this DiffStat.
      */
@@ -4819,7 +5244,7 @@ declare class DiffStat extends BaseClient$1 {
 /**
  * A directory.
  */
-declare class Directory extends BaseClient$1 {
+declare class Directory extends BaseClient {
     private readonly _id?;
     private readonly _digest?;
     private readonly _exists?;
@@ -4830,7 +5255,7 @@ declare class Directory extends BaseClient$1 {
     /**
      * Constructor is used for internal usage only, do not create object from it.
      */
-    constructor(ctx?: Context$1, _id?: ID, _digest?: string, _exists?: boolean, _export?: string, _findUp?: string, _name?: string, _sync?: ID);
+    constructor(ctx?: Context, _id?: ID, _digest?: string, _exists?: boolean, _export?: string, _findUp?: string, _name?: string, _sync?: ID);
     /**
      * A unique identifier for this Directory.
      */
@@ -5097,13 +5522,13 @@ declare class Directory extends BaseClient$1 {
 /**
  * The Dagger engine configuration and state
  */
-declare class Engine extends BaseClient$1 {
+declare class Engine extends BaseClient {
     private readonly _id?;
     private readonly _name?;
     /**
      * Constructor is used for internal usage only, do not create object from it.
      */
-    constructor(ctx?: Context$1, _id?: ID, _name?: string);
+    constructor(ctx?: Context, _id?: ID, _name?: string);
     /**
      * A unique identifier for this Engine.
      */
@@ -5124,7 +5549,7 @@ declare class Engine extends BaseClient$1 {
 /**
  * A cache storage for the Dagger engine
  */
-declare class EngineCache extends BaseClient$1 {
+declare class EngineCache extends BaseClient {
     private readonly _id?;
     private readonly _maxUsedSpace?;
     private readonly _minFreeSpace?;
@@ -5134,7 +5559,7 @@ declare class EngineCache extends BaseClient$1 {
     /**
      * Constructor is used for internal usage only, do not create object from it.
      */
-    constructor(ctx?: Context$1, _id?: ID, _maxUsedSpace?: number, _minFreeSpace?: number, _prune?: Void, _reservedSpace?: number, _targetSpace?: number);
+    constructor(ctx?: Context, _id?: ID, _maxUsedSpace?: number, _minFreeSpace?: number, _prune?: Void, _reservedSpace?: number, _targetSpace?: number);
     /**
      * A unique identifier for this EngineCache.
      */
@@ -5174,7 +5599,7 @@ declare class EngineCache extends BaseClient$1 {
 /**
  * An individual cache entry in a cache entry set
  */
-declare class EngineCacheEntry extends BaseClient$1 {
+declare class EngineCacheEntry extends BaseClient {
     private readonly _id?;
     private readonly _activelyUsed?;
     private readonly _createdTimeUnixNano?;
@@ -5186,7 +5611,7 @@ declare class EngineCacheEntry extends BaseClient$1 {
     /**
      * Constructor is used for internal usage only, do not create object from it.
      */
-    constructor(ctx?: Context$1, _id?: ID, _activelyUsed?: boolean, _createdTimeUnixNano?: number, _dagqlCall?: string, _description?: string, _diskSpaceBytes?: number, _mostRecentUseTimeUnixNano?: number, _recordType?: string);
+    constructor(ctx?: Context, _id?: ID, _activelyUsed?: boolean, _createdTimeUnixNano?: number, _dagqlCall?: string, _description?: string, _diskSpaceBytes?: number, _mostRecentUseTimeUnixNano?: number, _recordType?: string);
     /**
      * A unique identifier for this EngineCacheEntry.
      */
@@ -5227,14 +5652,14 @@ declare class EngineCacheEntry extends BaseClient$1 {
 /**
  * A set of cache entries returned by a query to a cache
  */
-declare class EngineCacheEntrySet extends BaseClient$1 {
+declare class EngineCacheEntrySet extends BaseClient {
     private readonly _id?;
     private readonly _diskSpaceBytes?;
     private readonly _entryCount?;
     /**
      * Constructor is used for internal usage only, do not create object from it.
      */
-    constructor(ctx?: Context$1, _id?: ID, _diskSpaceBytes?: number, _entryCount?: number);
+    constructor(ctx?: Context, _id?: ID, _diskSpaceBytes?: number, _entryCount?: number);
     /**
      * A unique identifier for this EngineCacheEntrySet.
      */
@@ -5255,7 +5680,7 @@ declare class EngineCacheEntrySet extends BaseClient$1 {
 /**
  * A definition of a custom enum defined in a Module.
  */
-declare class EnumTypeDef extends BaseClient$1 {
+declare class EnumTypeDef extends BaseClient {
     private readonly _id?;
     private readonly _description?;
     private readonly _name?;
@@ -5263,7 +5688,7 @@ declare class EnumTypeDef extends BaseClient$1 {
     /**
      * Constructor is used for internal usage only, do not create object from it.
      */
-    constructor(ctx?: Context$1, _id?: ID, _description?: string, _name?: string, _sourceModuleName?: string);
+    constructor(ctx?: Context, _id?: ID, _description?: string, _name?: string, _sourceModuleName?: string);
     /**
      * A unique identifier for this EnumTypeDef.
      */
@@ -5297,7 +5722,7 @@ declare class EnumTypeDef extends BaseClient$1 {
 /**
  * A definition of a value in a custom enum defined in a Module.
  */
-declare class EnumValueTypeDef extends BaseClient$1 {
+declare class EnumValueTypeDef extends BaseClient {
     private readonly _id?;
     private readonly _deprecated?;
     private readonly _description?;
@@ -5306,7 +5731,7 @@ declare class EnumValueTypeDef extends BaseClient$1 {
     /**
      * Constructor is used for internal usage only, do not create object from it.
      */
-    constructor(ctx?: Context$1, _id?: ID, _deprecated?: string, _description?: string, _name?: string, _value?: string);
+    constructor(ctx?: Context, _id?: ID, _deprecated?: string, _description?: string, _name?: string, _value?: string);
     /**
      * A unique identifier for this EnumValueTypeDef.
      */
@@ -5335,14 +5760,14 @@ declare class EnumValueTypeDef extends BaseClient$1 {
 /**
  * A collection of environment variables.
  */
-declare class EnvFile extends BaseClient$1 {
+declare class EnvFile extends BaseClient {
     private readonly _id?;
     private readonly _exists?;
     private readonly _get?;
     /**
      * Constructor is used for internal usage only, do not create object from it.
      */
-    constructor(ctx?: Context$1, _id?: ID, _exists?: boolean, _get?: string);
+    constructor(ctx?: Context, _id?: ID, _exists?: boolean, _get?: string);
     /**
      * A unique identifier for this EnvFile.
      */
@@ -5393,14 +5818,14 @@ declare class EnvFile extends BaseClient$1 {
 /**
  * An environment variable name and value.
  */
-declare class EnvVariable extends BaseClient$1 {
+declare class EnvVariable extends BaseClient {
     private readonly _id?;
     private readonly _name?;
     private readonly _value?;
     /**
      * Constructor is used for internal usage only, do not create object from it.
      */
-    constructor(ctx?: Context$1, _id?: ID, _name?: string, _value?: string);
+    constructor(ctx?: Context, _id?: ID, _name?: string, _value?: string);
     /**
      * A unique identifier for this EnvVariable.
      */
@@ -5414,13 +5839,13 @@ declare class EnvVariable extends BaseClient$1 {
      */
     value: () => Promise<string>;
 }
-declare class Error$1 extends BaseClient$1 {
+declare class Error$1 extends BaseClient {
     private readonly _id?;
     private readonly _message?;
     /**
      * Constructor is used for internal usage only, do not create object from it.
      */
-    constructor(ctx?: Context$1, _id?: ID, _message?: string);
+    constructor(ctx?: Context, _id?: ID, _message?: string);
     /**
      * A unique identifier for this Error.
      */
@@ -5446,14 +5871,14 @@ declare class Error$1 extends BaseClient$1 {
      */
     with: (arg: (param: Error$1) => Error$1) => Error$1;
 }
-declare class ErrorValue extends BaseClient$1 {
+declare class ErrorValue extends BaseClient {
     private readonly _id?;
     private readonly _name?;
     private readonly _value?;
     /**
      * Constructor is used for internal usage only, do not create object from it.
      */
-    constructor(ctx?: Context$1, _id?: ID, _name?: string, _value?: JSON);
+    constructor(ctx?: Context, _id?: ID, _name?: string, _value?: JSON);
     /**
      * A unique identifier for this ErrorValue.
      */
@@ -5470,14 +5895,14 @@ declare class ErrorValue extends BaseClient$1 {
 /**
  * An agent function that can modify a conversation.
  */
-declare class Expertise extends BaseClient$1 {
+declare class Expertise extends BaseClient {
     private readonly _id?;
     private readonly _description?;
     private readonly _name?;
     /**
      * Constructor is used for internal usage only, do not create object from it.
      */
-    constructor(ctx?: Context$1, _id?: ID, _description?: string, _name?: string);
+    constructor(ctx?: Context, _id?: ID, _description?: string, _name?: string);
     /**
      * A unique identifier for this Expertise.
      */
@@ -5508,13 +5933,13 @@ interface Exportable {
     id(): Promise<ID>;
     export(path: string): Promise<string>;
 }
-declare class _ExportableClient extends BaseClient$1 {
+declare class _ExportableClient extends BaseClient {
     private readonly _id?;
     private readonly _export?;
     /**
      * Constructor is used for internal usage only, do not create object from it.
      */
-    constructor(ctx?: Context$1, _id?: ID, _export?: string);
+    constructor(ctx?: Context, _id?: ID, _export?: string);
     id: () => Promise<ID>;
     export: (path: string) => Promise<string>;
 }
@@ -5523,7 +5948,7 @@ declare class _ExportableClient extends BaseClient$1 {
  *
  * A field on an object has a static value, as opposed to a function on an object whose value is computed by invoking code (and can accept arguments).
  */
-declare class FieldTypeDef extends BaseClient$1 {
+declare class FieldTypeDef extends BaseClient {
     private readonly _id?;
     private readonly _deprecated?;
     private readonly _description?;
@@ -5531,7 +5956,7 @@ declare class FieldTypeDef extends BaseClient$1 {
     /**
      * Constructor is used for internal usage only, do not create object from it.
      */
-    constructor(ctx?: Context$1, _id?: ID, _deprecated?: string, _description?: string, _name?: string);
+    constructor(ctx?: Context, _id?: ID, _deprecated?: string, _description?: string, _name?: string);
     /**
      * A unique identifier for this FieldTypeDef.
      */
@@ -5560,7 +5985,7 @@ declare class FieldTypeDef extends BaseClient$1 {
 /**
  * A file.
  */
-declare class File extends BaseClient$1 {
+declare class File extends BaseClient {
     private readonly _id?;
     private readonly _contents?;
     private readonly _digest?;
@@ -5571,7 +5996,7 @@ declare class File extends BaseClient$1 {
     /**
      * Constructor is used for internal usage only, do not create object from it.
      */
-    constructor(ctx?: Context$1, _id?: ID, _contents?: string, _digest?: string, _export?: string, _name?: string, _size?: number, _sync?: ID);
+    constructor(ctx?: Context, _id?: ID, _contents?: string, _digest?: string, _export?: string, _name?: string, _size?: number, _sync?: ID);
     /**
      * A unique identifier for this File.
      */
@@ -5686,7 +6111,7 @@ declare class File extends BaseClient$1 {
  *
  * A function always evaluates against a parent object and is given a set of named arguments.
  */
-declare class Function_ extends BaseClient$1 {
+declare class Function_ extends BaseClient {
     private readonly _id?;
     private readonly _deprecated?;
     private readonly _description?;
@@ -5695,7 +6120,7 @@ declare class Function_ extends BaseClient$1 {
     /**
      * Constructor is used for internal usage only, do not create object from it.
      */
-    constructor(ctx?: Context$1, _id?: ID, _deprecated?: string, _description?: string, _name?: string, _sourceModuleName?: string);
+    constructor(ctx?: Context, _id?: ID, _deprecated?: string, _description?: string, _name?: string, _sourceModuleName?: string);
     /**
      * A unique identifier for this Function.
      */
@@ -5790,7 +6215,7 @@ declare class Function_ extends BaseClient$1 {
  *
  * This is a specification for an argument at function definition time, not an argument passed at function call time.
  */
-declare class FunctionArg extends BaseClient$1 {
+declare class FunctionArg extends BaseClient {
     private readonly _id?;
     private readonly _defaultAddress?;
     private readonly _defaultPath?;
@@ -5801,7 +6226,7 @@ declare class FunctionArg extends BaseClient$1 {
     /**
      * Constructor is used for internal usage only, do not create object from it.
      */
-    constructor(ctx?: Context$1, _id?: ID, _defaultAddress?: string, _defaultPath?: string, _defaultValue?: JSON, _deprecated?: string, _description?: string, _name?: string);
+    constructor(ctx?: Context, _id?: ID, _defaultAddress?: string, _defaultPath?: string, _defaultValue?: JSON, _deprecated?: string, _description?: string, _name?: string);
     /**
      * A unique identifier for this FunctionArg.
      */
@@ -5846,7 +6271,7 @@ declare class FunctionArg extends BaseClient$1 {
 /**
  * An active function call.
  */
-declare class FunctionCall extends BaseClient$1 {
+declare class FunctionCall extends BaseClient {
     private readonly _id?;
     private readonly _name?;
     private readonly _parent?;
@@ -5856,7 +6281,7 @@ declare class FunctionCall extends BaseClient$1 {
     /**
      * Constructor is used for internal usage only, do not create object from it.
      */
-    constructor(ctx?: Context$1, _id?: ID, _name?: string, _parent?: JSON, _parentName?: string, _returnError?: Void, _returnValue?: Void);
+    constructor(ctx?: Context, _id?: ID, _name?: string, _parent?: JSON, _parentName?: string, _returnError?: Void, _returnValue?: Void);
     /**
      * A unique identifier for this FunctionCall.
      */
@@ -5891,14 +6316,14 @@ declare class FunctionCall extends BaseClient$1 {
 /**
  * A value passed as a named argument to a function call.
  */
-declare class FunctionCallArgValue extends BaseClient$1 {
+declare class FunctionCallArgValue extends BaseClient {
     private readonly _id?;
     private readonly _name?;
     private readonly _value?;
     /**
      * Constructor is used for internal usage only, do not create object from it.
      */
-    constructor(ctx?: Context$1, _id?: ID, _name?: string, _value?: JSON);
+    constructor(ctx?: Context, _id?: ID, _name?: string, _value?: JSON);
     /**
      * A unique identifier for this FunctionCallArgValue.
      */
@@ -5915,12 +6340,12 @@ declare class FunctionCallArgValue extends BaseClient$1 {
 /**
  * The result of running an SDK's codegen.
  */
-declare class GeneratedCode extends BaseClient$1 {
+declare class GeneratedCode extends BaseClient {
     private readonly _id?;
     /**
      * Constructor is used for internal usage only, do not create object from it.
      */
-    constructor(ctx?: Context$1, _id?: ID);
+    constructor(ctx?: Context, _id?: ID);
     /**
      * A unique identifier for this GeneratedCode.
      */
@@ -5955,12 +6380,12 @@ declare class GeneratedCode extends BaseClient$1 {
 /**
  * A generation function and its staleness check. Reading changeset runs the function.
  */
-declare class Generator extends BaseClient$1 {
+declare class Generator extends BaseClient {
     private readonly _id?;
     /**
      * Constructor is used for internal usage only, do not create object from it.
      */
-    constructor(ctx?: Context$1, _id?: ID);
+    constructor(ctx?: Context, _id?: ID);
     /**
      * A unique identifier for this Generator.
      */
@@ -5987,14 +6412,14 @@ declare class Generator extends BaseClient$1 {
 /**
  * A Git bundle: a self-describing container of refs and the objects needed to reconstruct them, optionally rooted at prerequisite commits.
  */
-declare class GitBundle extends BaseClient$1 {
+declare class GitBundle extends BaseClient {
     private readonly _id?;
     private readonly _objectFormat?;
     private readonly _version?;
     /**
      * Constructor is used for internal usage only, do not create object from it.
      */
-    constructor(ctx?: Context$1, _id?: ID, _objectFormat?: string, _version?: number);
+    constructor(ctx?: Context, _id?: ID, _objectFormat?: string, _version?: number);
     /**
      * A unique identifier for this GitBundle.
      */
@@ -6033,14 +6458,14 @@ declare class GitBundle extends BaseClient$1 {
 /**
  * A ref advertised by a Git bundle.
  */
-declare class GitBundleRef extends BaseClient$1 {
+declare class GitBundleRef extends BaseClient {
     private readonly _id?;
     private readonly _name?;
     private readonly _sha?;
     /**
      * Constructor is used for internal usage only, do not create object from it.
      */
-    constructor(ctx?: Context$1, _id?: ID, _name?: string, _sha?: string);
+    constructor(ctx?: Context, _id?: ID, _name?: string, _sha?: string);
     /**
      * A unique identifier for this GitBundleRef.
      */
@@ -6057,7 +6482,7 @@ declare class GitBundleRef extends BaseClient$1 {
 /**
  * An immutable git commit.
  */
-declare class GitCommit extends BaseClient$1 {
+declare class GitCommit extends BaseClient {
     private readonly _id?;
     private readonly _authorEmail?;
     private readonly _authorName?;
@@ -6073,7 +6498,7 @@ declare class GitCommit extends BaseClient$1 {
     /**
      * Constructor is used for internal usage only, do not create object from it.
      */
-    constructor(ctx?: Context$1, _id?: ID, _authorEmail?: string, _authorName?: string, _authoredDate?: string, _committedDate?: string, _committerEmail?: string, _committerName?: string, _message?: string, _messageBody?: string, _messageHeadline?: string, _sha?: string, _shortSha?: string);
+    constructor(ctx?: Context, _id?: ID, _authorEmail?: string, _authorName?: string, _authoredDate?: string, _committedDate?: string, _committerEmail?: string, _committerName?: string, _message?: string, _messageBody?: string, _messageHeadline?: string, _sha?: string, _shortSha?: string);
     /**
      * A unique identifier for this GitCommit.
      */
@@ -6154,7 +6579,7 @@ declare class GitCommit extends BaseClient$1 {
 /**
  * A receipt for a completed Git push. Reading or replaying the receipt does not push again.
  */
-declare class GitPushResult extends BaseClient$1 {
+declare class GitPushResult extends BaseClient {
     private readonly _id?;
     private readonly _disposition?;
     private readonly _previousSHA?;
@@ -6163,7 +6588,7 @@ declare class GitPushResult extends BaseClient$1 {
     /**
      * Constructor is used for internal usage only, do not create object from it.
      */
-    constructor(ctx?: Context$1, _id?: ID, _disposition?: GitPushDisposition, _previousSHA?: string, _ref?: string, _sha?: string);
+    constructor(ctx?: Context, _id?: ID, _disposition?: GitPushDisposition, _previousSHA?: string, _ref?: string, _sha?: string);
     /**
      * A unique identifier for this GitPushResult.
      */
@@ -6188,7 +6613,7 @@ declare class GitPushResult extends BaseClient$1 {
 /**
  * A git ref (tag, branch, or commit).
  */
-declare class GitRef extends BaseClient$1 {
+declare class GitRef extends BaseClient {
     private readonly _id?;
     private readonly _commit?;
     private readonly _commitSHA?;
@@ -6197,7 +6622,7 @@ declare class GitRef extends BaseClient$1 {
     /**
      * Constructor is used for internal usage only, do not create object from it.
      */
-    constructor(ctx?: Context$1, _id?: ID, _commit?: string, _commitSHA?: string, _name?: string, _ref?: string);
+    constructor(ctx?: Context, _id?: ID, _commit?: string, _commitSHA?: string, _name?: string, _ref?: string);
     /**
      * A unique identifier for this GitRef.
      */
@@ -6294,13 +6719,13 @@ declare class GitRef extends BaseClient$1 {
 /**
  * A git repository.
  */
-declare class GitRepository extends BaseClient$1 {
+declare class GitRepository extends BaseClient {
     private readonly _id?;
     private readonly _url?;
     /**
      * Constructor is used for internal usage only, do not create object from it.
      */
-    constructor(ctx?: Context$1, _id?: ID, _url?: string);
+    constructor(ctx?: Context, _id?: ID, _url?: string);
     /**
      * A unique identifier for this GitRepository.
      */
@@ -6409,12 +6834,12 @@ declare class GitRepository extends BaseClient$1 {
 /**
  * An internal persistent HTTP state.
  */
-declare class HTTPState extends BaseClient$1 {
+declare class HTTPState extends BaseClient {
     private readonly _id?;
     /**
      * Constructor is used for internal usage only, do not create object from it.
      */
-    constructor(ctx?: Context$1, _id?: ID);
+    constructor(ctx?: Context, _id?: ID);
     /**
      * A unique identifier for this HTTPState.
      */
@@ -6423,7 +6848,7 @@ declare class HTTPState extends BaseClient$1 {
 /**
  * Image healthcheck configuration.
  */
-declare class HealthcheckConfig extends BaseClient$1 {
+declare class HealthcheckConfig extends BaseClient {
     private readonly _id?;
     private readonly _interval?;
     private readonly _retries?;
@@ -6434,7 +6859,7 @@ declare class HealthcheckConfig extends BaseClient$1 {
     /**
      * Constructor is used for internal usage only, do not create object from it.
      */
-    constructor(ctx?: Context$1, _id?: ID, _interval?: string, _retries?: number, _shell?: boolean, _startInterval?: string, _startPeriod?: string, _timeout?: string);
+    constructor(ctx?: Context, _id?: ID, _interval?: string, _retries?: number, _shell?: boolean, _startInterval?: string, _startPeriod?: string, _timeout?: string);
     /**
      * A unique identifier for this HealthcheckConfig.
      */
@@ -6471,13 +6896,13 @@ declare class HealthcheckConfig extends BaseClient$1 {
 /**
  * Information about the host environment.
  */
-declare class Host extends BaseClient$1 {
+declare class Host extends BaseClient {
     private readonly _id?;
     private readonly _findUp?;
     /**
      * Constructor is used for internal usage only, do not create object from it.
      */
-    constructor(ctx?: Context$1, _id?: ID, _findUp?: string);
+    constructor(ctx?: Context, _id?: ID, _findUp?: string);
     /**
      * A unique identifier for this Host.
      */
@@ -6544,13 +6969,13 @@ declare class Host extends BaseClient$1 {
  * in the core API. It is not used by user modules and shouldn't ever be as user
  * module accept input objects via their id rather than graphql input types.
  */
-declare class InputTypeDef extends BaseClient$1 {
+declare class InputTypeDef extends BaseClient {
     private readonly _id?;
     private readonly _name?;
     /**
      * Constructor is used for internal usage only, do not create object from it.
      */
-    constructor(ctx?: Context$1, _id?: ID, _name?: string);
+    constructor(ctx?: Context, _id?: ID, _name?: string);
     /**
      * A unique identifier for this InputTypeDef.
      */
@@ -6567,7 +6992,7 @@ declare class InputTypeDef extends BaseClient$1 {
 /**
  * A definition of a custom interface defined in a Module.
  */
-declare class InterfaceTypeDef extends BaseClient$1 {
+declare class InterfaceTypeDef extends BaseClient {
     private readonly _id?;
     private readonly _description?;
     private readonly _name?;
@@ -6575,7 +7000,7 @@ declare class InterfaceTypeDef extends BaseClient$1 {
     /**
      * Constructor is used for internal usage only, do not create object from it.
      */
-    constructor(ctx?: Context$1, _id?: ID, _description?: string, _name?: string, _sourceModuleName?: string);
+    constructor(ctx?: Context, _id?: ID, _description?: string, _name?: string, _sourceModuleName?: string);
     /**
      * A unique identifier for this InterfaceTypeDef.
      */
@@ -6601,7 +7026,7 @@ declare class InterfaceTypeDef extends BaseClient$1 {
      */
     sourceModuleName: () => Promise<string>;
 }
-declare class JSONValue extends BaseClient$1 {
+declare class JSONValue extends BaseClient {
     private readonly _id?;
     private readonly _asBoolean?;
     private readonly _asInteger?;
@@ -6610,7 +7035,7 @@ declare class JSONValue extends BaseClient$1 {
     /**
      * Constructor is used for internal usage only, do not create object from it.
      */
-    constructor(ctx?: Context$1, _id?: ID, _asBoolean?: boolean, _asInteger?: number, _asString?: string, _contents?: JSON);
+    constructor(ctx?: Context, _id?: ID, _asBoolean?: boolean, _asInteger?: number, _asString?: string, _contents?: JSON);
     /**
      * A unique identifier for this JSONValue.
      */
@@ -6682,7 +7107,7 @@ declare class JSONValue extends BaseClient$1 {
 /**
  * A conversation with a large language model (LLM): queue prompts, expose tools, and step the model until it completes its turn.
  */
-declare class LLM extends BaseClient$1 {
+declare class LLM extends BaseClient {
     private readonly _id?;
     private readonly _contextTokens?;
     private readonly _contextWindow?;
@@ -6698,7 +7123,7 @@ declare class LLM extends BaseClient$1 {
     /**
      * Constructor is used for internal usage only, do not create object from it.
      */
-    constructor(ctx?: Context$1, _id?: ID, _contextTokens?: number, _contextWindow?: number, _hasPending?: boolean, _lastReply?: string, _model?: string, _provider?: string, _reasoningEffort?: string, _spawn?: ID, _sync?: ID, _tools?: string, _transcript?: string);
+    constructor(ctx?: Context, _id?: ID, _contextTokens?: number, _contextWindow?: number, _hasPending?: boolean, _lastReply?: string, _model?: string, _provider?: string, _reasoningEffort?: string, _spawn?: ID, _sync?: ID, _tools?: string, _transcript?: string);
     /**
      * A unique identifier for this LLM.
      */
@@ -6922,7 +7347,7 @@ declare class LLM extends BaseClient$1 {
 /**
  * A single piece of content within an LLM message.
  */
-declare class LLMContentBlock extends BaseClient$1 {
+declare class LLMContentBlock extends BaseClient {
     private readonly _id?;
     private readonly _arguments?;
     private readonly _callId?;
@@ -6936,7 +7361,7 @@ declare class LLMContentBlock extends BaseClient$1 {
     /**
      * Constructor is used for internal usage only, do not create object from it.
      */
-    constructor(ctx?: Context$1, _id?: ID, _arguments?: JSON, _callId?: string, _data?: string, _errored?: boolean, _kind?: LLMContentBlockKind, _mimeType?: string, _signature?: string, _text?: string, _toolName?: string);
+    constructor(ctx?: Context, _id?: ID, _arguments?: JSON, _callId?: string, _data?: string, _errored?: boolean, _kind?: LLMContentBlockKind, _mimeType?: string, _signature?: string, _text?: string, _toolName?: string);
     /**
      * A unique identifier for this LLMContentBlock.
      */
@@ -6985,13 +7410,13 @@ declare class LLMContentBlock extends BaseClient$1 {
 /**
  * A single message in an LLM conversation.
  */
-declare class LLMMessage extends BaseClient$1 {
+declare class LLMMessage extends BaseClient {
     private readonly _id?;
     private readonly _role?;
     /**
      * Constructor is used for internal usage only, do not create object from it.
      */
-    constructor(ctx?: Context$1, _id?: ID, _role?: LLMMessageRole);
+    constructor(ctx?: Context, _id?: ID, _role?: LLMMessageRole);
     /**
      * A unique identifier for this LLMMessage.
      */
@@ -7021,7 +7446,7 @@ declare class LLMMessage extends BaseClient$1 {
  *
  * The recorded provenance of a message that arrived through an agent mailbox.
  */
-declare class LLMMessageOrigin extends BaseClient$1 {
+declare class LLMMessageOrigin extends BaseClient {
     private readonly _id?;
     private readonly _agentName?;
     private readonly _kind?;
@@ -7030,7 +7455,7 @@ declare class LLMMessageOrigin extends BaseClient$1 {
     /**
      * Constructor is used for internal usage only, do not create object from it.
      */
-    constructor(ctx?: Context$1, _id?: ID, _agentName?: string, _kind?: LLMMessageOriginKind, _ref?: string, _replyTo?: string);
+    constructor(ctx?: Context, _id?: ID, _agentName?: string, _kind?: LLMMessageOriginKind, _ref?: string, _replyTo?: string);
     /**
      * A unique identifier for this LLMMessageOrigin.
      */
@@ -7059,14 +7484,14 @@ declare class LLMMessageOrigin extends BaseClient$1 {
 /**
  * A skill available to a model: task-specific guidance discovered with ListSkills and read with ReadSkill.
  */
-declare class LLMSkill extends BaseClient$1 {
+declare class LLMSkill extends BaseClient {
     private readonly _id?;
     private readonly _description?;
     private readonly _name?;
     /**
      * Constructor is used for internal usage only, do not create object from it.
      */
-    constructor(ctx?: Context$1, _id?: ID, _description?: string, _name?: string);
+    constructor(ctx?: Context, _id?: ID, _description?: string, _name?: string);
     /**
      * A unique identifier for this LLMSkill.
      */
@@ -7083,7 +7508,7 @@ declare class LLMSkill extends BaseClient$1 {
 /**
  * A count of tokens consumed by LLM API calls.
  */
-declare class LLMTokenUsage extends BaseClient$1 {
+declare class LLMTokenUsage extends BaseClient {
     private readonly _id?;
     private readonly _cachedTokenReads?;
     private readonly _cachedTokenWrites?;
@@ -7093,7 +7518,7 @@ declare class LLMTokenUsage extends BaseClient$1 {
     /**
      * Constructor is used for internal usage only, do not create object from it.
      */
-    constructor(ctx?: Context$1, _id?: ID, _cachedTokenReads?: number, _cachedTokenWrites?: number, _inputTokens?: number, _outputTokens?: number, _totalTokens?: number);
+    constructor(ctx?: Context, _id?: ID, _cachedTokenReads?: number, _cachedTokenWrites?: number, _inputTokens?: number, _outputTokens?: number, _totalTokens?: number);
     /**
      * A unique identifier for this LLMTokenUsage.
      */
@@ -7122,14 +7547,14 @@ declare class LLMTokenUsage extends BaseClient$1 {
 /**
  * A simple key value object that represents a label.
  */
-declare class Label extends BaseClient$1 {
+declare class Label extends BaseClient {
     private readonly _id?;
     private readonly _name?;
     private readonly _value?;
     /**
      * Constructor is used for internal usage only, do not create object from it.
      */
-    constructor(ctx?: Context$1, _id?: ID, _name?: string, _value?: string);
+    constructor(ctx?: Context, _id?: ID, _name?: string, _value?: string);
     /**
      * A unique identifier for this Label.
      */
@@ -7146,12 +7571,12 @@ declare class Label extends BaseClient$1 {
 /**
  * A definition of a list type in a Module.
  */
-declare class ListTypeDef extends BaseClient$1 {
+declare class ListTypeDef extends BaseClient {
     private readonly _id?;
     /**
      * Constructor is used for internal usage only, do not create object from it.
      */
-    constructor(ctx?: Context$1, _id?: ID);
+    constructor(ctx?: Context, _id?: ID);
     /**
      * A unique identifier for this ListTypeDef.
      */
@@ -7164,7 +7589,7 @@ declare class ListTypeDef extends BaseClient$1 {
 /**
  * A Dagger module.
  */
-declare class Module_ extends BaseClient$1 {
+declare class Module_ extends BaseClient {
     private readonly _id?;
     private readonly _description?;
     private readonly _name?;
@@ -7173,7 +7598,7 @@ declare class Module_ extends BaseClient$1 {
     /**
      * Constructor is used for internal usage only, do not create object from it.
      */
-    constructor(ctx?: Context$1, _id?: ID, _description?: string, _name?: string, _serve?: Void, _sync?: ID);
+    constructor(ctx?: Context, _id?: ID, _description?: string, _name?: string, _serve?: Void, _sync?: ID);
     /**
      * A unique identifier for this Module.
      */
@@ -7273,14 +7698,14 @@ declare class Module_ extends BaseClient$1 {
 /**
  * The client generated for the module.
  */
-declare class ModuleConfigClient extends BaseClient$1 {
+declare class ModuleConfigClient extends BaseClient {
     private readonly _id?;
     private readonly _directory?;
     private readonly _generator?;
     /**
      * Constructor is used for internal usage only, do not create object from it.
      */
-    constructor(ctx?: Context$1, _id?: ID, _directory?: string, _generator?: string);
+    constructor(ctx?: Context, _id?: ID, _directory?: string, _generator?: string);
     /**
      * A unique identifier for this ModuleConfigClient.
      */
@@ -7297,7 +7722,7 @@ declare class ModuleConfigClient extends BaseClient$1 {
 /**
  * The source needed to load and run a module, along with any metadata about the source such as versions/urls/etc.
  */
-declare class ModuleSource extends BaseClient$1 {
+declare class ModuleSource extends BaseClient {
     private readonly _id?;
     private readonly _asString?;
     private readonly _cloneRef?;
@@ -7321,7 +7746,7 @@ declare class ModuleSource extends BaseClient$1 {
     /**
      * Constructor is used for internal usage only, do not create object from it.
      */
-    constructor(ctx?: Context$1, _id?: ID, _asString?: string, _cloneRef?: string, _commit?: string, _configExists?: boolean, _digest?: string, _engineVersion?: string, _htmlRepoURL?: string, _htmlURL?: string, _kind?: ModuleSourceKind, _localContextDirectoryPath?: string, _moduleName?: string, _moduleOriginalName?: string, _originalSubpath?: string, _pin?: string, _repoRootPath?: string, _sourceRootSubpath?: string, _sourceSubpath?: string, _sync?: ID, _version?: string);
+    constructor(ctx?: Context, _id?: ID, _asString?: string, _cloneRef?: string, _commit?: string, _configExists?: boolean, _digest?: string, _engineVersion?: string, _htmlRepoURL?: string, _htmlURL?: string, _kind?: ModuleSourceKind, _localContextDirectoryPath?: string, _moduleName?: string, _moduleOriginalName?: string, _originalSubpath?: string, _pin?: string, _repoRootPath?: string, _sourceRootSubpath?: string, _sourceSubpath?: string, _sync?: ID, _version?: string);
     /**
      * A unique identifier for this ModuleSource.
      */
@@ -7589,18 +8014,18 @@ declare class ModuleSource extends BaseClient$1 {
 interface Node {
     id(): Promise<ID>;
 }
-declare class _NodeClient extends BaseClient$1 {
+declare class _NodeClient extends BaseClient {
     private readonly _id?;
     /**
      * Constructor is used for internal usage only, do not create object from it.
      */
-    constructor(ctx?: Context$1, _id?: ID);
+    constructor(ctx?: Context, _id?: ID);
     id: () => Promise<ID>;
 }
 /**
  * A definition of a custom object defined in a Module.
  */
-declare class ObjectTypeDef extends BaseClient$1 {
+declare class ObjectTypeDef extends BaseClient {
     private readonly _id?;
     private readonly _deprecated?;
     private readonly _description?;
@@ -7609,7 +8034,7 @@ declare class ObjectTypeDef extends BaseClient$1 {
     /**
      * Constructor is used for internal usage only, do not create object from it.
      */
-    constructor(ctx?: Context$1, _id?: ID, _deprecated?: string, _description?: string, _name?: string, _sourceModuleName?: string);
+    constructor(ctx?: Context, _id?: ID, _deprecated?: string, _description?: string, _name?: string, _sourceModuleName?: string);
     /**
      * A unique identifier for this ObjectTypeDef.
      */
@@ -7650,7 +8075,7 @@ declare class ObjectTypeDef extends BaseClient$1 {
 /**
  * A port exposed by a container.
  */
-declare class Port extends BaseClient$1 {
+declare class Port extends BaseClient {
     private readonly _id?;
     private readonly _description?;
     private readonly _experimentalSkipHealthcheck?;
@@ -7659,7 +8084,7 @@ declare class Port extends BaseClient$1 {
     /**
      * Constructor is used for internal usage only, do not create object from it.
      */
-    constructor(ctx?: Context$1, _id?: ID, _description?: string, _experimentalSkipHealthcheck?: boolean, _port?: number, _protocol?: NetworkProtocol);
+    constructor(ctx?: Context, _id?: ID, _description?: string, _experimentalSkipHealthcheck?: boolean, _port?: number, _protocol?: NetworkProtocol);
     /**
      * A unique identifier for this Port.
      */
@@ -7684,7 +8109,7 @@ declare class Port extends BaseClient$1 {
 /**
  * The root of the DAG.
  */
-declare class Client extends BaseClient$1 {
+declare class Client extends BaseClient {
     private readonly _id?;
     private readonly _currentTimestamp?;
     private readonly _defaultPlatform?;
@@ -7694,7 +8119,7 @@ declare class Client extends BaseClient$1 {
     /**
      * Constructor is used for internal usage only, do not create object from it.
      */
-    constructor(ctx?: Context$1, _id?: ID, _currentTimestamp?: string, _defaultPlatform?: Platform, _serveModule?: Void, _setSessionTitle?: Void, _version?: string);
+    constructor(ctx?: Context, _id?: ID, _currentTimestamp?: string, _defaultPlatform?: Platform, _serveModule?: Void, _setSessionTitle?: Void, _version?: string);
     /**
      * Get the Raw GraphQL client.
      */
@@ -7948,12 +8373,12 @@ declare class Client extends BaseClient$1 {
 /**
  * An internal persistent bare git mirror.
  */
-declare class RemoteGitMirror extends BaseClient$1 {
+declare class RemoteGitMirror extends BaseClient {
     private readonly _id?;
     /**
      * Constructor is used for internal usage only, do not create object from it.
      */
-    constructor(ctx?: Context$1, _id?: ID);
+    constructor(ctx?: Context, _id?: ID);
     /**
      * A unique identifier for this RemoteGitMirror.
      */
@@ -7962,14 +8387,14 @@ declare class RemoteGitMirror extends BaseClient$1 {
 /**
  * The SDK config of the module.
  */
-declare class SDKConfig extends BaseClient$1 {
+declare class SDKConfig extends BaseClient {
     private readonly _id?;
     private readonly _debug?;
     private readonly _source?;
     /**
      * Constructor is used for internal usage only, do not create object from it.
      */
-    constructor(ctx?: Context$1, _id?: ID, _debug?: boolean, _source?: string);
+    constructor(ctx?: Context, _id?: ID, _debug?: boolean, _source?: string);
     /**
      * A unique identifier for this SDKConfig.
      */
@@ -7986,7 +8411,7 @@ declare class SDKConfig extends BaseClient$1 {
 /**
  * A definition of a custom scalar defined in a Module.
  */
-declare class ScalarTypeDef extends BaseClient$1 {
+declare class ScalarTypeDef extends BaseClient {
     private readonly _id?;
     private readonly _description?;
     private readonly _name?;
@@ -7994,7 +8419,7 @@ declare class ScalarTypeDef extends BaseClient$1 {
     /**
      * Constructor is used for internal usage only, do not create object from it.
      */
-    constructor(ctx?: Context$1, _id?: ID, _description?: string, _name?: string, _sourceModuleName?: string);
+    constructor(ctx?: Context, _id?: ID, _description?: string, _name?: string, _sourceModuleName?: string);
     /**
      * A unique identifier for this ScalarTypeDef.
      */
@@ -8015,13 +8440,13 @@ declare class ScalarTypeDef extends BaseClient$1 {
 /**
  * A GraphQL introspection schema that can be inspected and merged.
  */
-declare class Schema extends BaseClient$1 {
+declare class Schema extends BaseClient {
     private readonly _id?;
     private readonly _contents?;
     /**
      * Constructor is used for internal usage only, do not create object from it.
      */
-    constructor(ctx?: Context$1, _id?: ID, _contents?: JSON);
+    constructor(ctx?: Context, _id?: ID, _contents?: JSON);
     /**
      * A unique identifier for this Schema.
      */
@@ -8043,7 +8468,7 @@ declare class Schema extends BaseClient$1 {
      */
     with: (arg: (param: Schema) => Schema) => Schema;
 }
-declare class SearchResult extends BaseClient$1 {
+declare class SearchResult extends BaseClient {
     private readonly _id?;
     private readonly _absoluteOffset?;
     private readonly _filePath?;
@@ -8052,7 +8477,7 @@ declare class SearchResult extends BaseClient$1 {
     /**
      * Constructor is used for internal usage only, do not create object from it.
      */
-    constructor(ctx?: Context$1, _id?: ID, _absoluteOffset?: number, _filePath?: string, _lineNumber?: number, _matchedLines?: string);
+    constructor(ctx?: Context, _id?: ID, _absoluteOffset?: number, _filePath?: string, _lineNumber?: number, _matchedLines?: string);
     /**
      * A unique identifier for this SearchResult.
      */
@@ -8078,7 +8503,7 @@ declare class SearchResult extends BaseClient$1 {
      */
     submatches: () => Promise<SearchSubmatch[]>;
 }
-declare class SearchSubmatch extends BaseClient$1 {
+declare class SearchSubmatch extends BaseClient {
     private readonly _id?;
     private readonly _end?;
     private readonly _start?;
@@ -8086,7 +8511,7 @@ declare class SearchSubmatch extends BaseClient$1 {
     /**
      * Constructor is used for internal usage only, do not create object from it.
      */
-    constructor(ctx?: Context$1, _id?: ID, _end?: number, _start?: number, _text?: string);
+    constructor(ctx?: Context, _id?: ID, _end?: number, _start?: number, _text?: string);
     /**
      * A unique identifier for this SearchSubmatch.
      */
@@ -8107,7 +8532,7 @@ declare class SearchSubmatch extends BaseClient$1 {
 /**
  * A reference to a secret value, which can be handled more safely than the value itself.
  */
-declare class Secret extends BaseClient$1 {
+declare class Secret extends BaseClient {
     private readonly _id?;
     private readonly _name?;
     private readonly _plaintext?;
@@ -8115,7 +8540,7 @@ declare class Secret extends BaseClient$1 {
     /**
      * Constructor is used for internal usage only, do not create object from it.
      */
-    constructor(ctx?: Context$1, _id?: ID, _name?: string, _plaintext?: string, _uri?: string);
+    constructor(ctx?: Context, _id?: ID, _name?: string, _plaintext?: string, _uri?: string);
     /**
      * A unique identifier for this Secret.
      */
@@ -8136,7 +8561,7 @@ declare class Secret extends BaseClient$1 {
 /**
  * A content-addressed service providing TCP connectivity.
  */
-declare class Service extends BaseClient$1 {
+declare class Service extends BaseClient {
     private readonly _id?;
     private readonly _endpoint?;
     private readonly _hostname?;
@@ -8147,7 +8572,7 @@ declare class Service extends BaseClient$1 {
     /**
      * Constructor is used for internal usage only, do not create object from it.
      */
-    constructor(ctx?: Context$1, _id?: ID, _endpoint?: string, _hostname?: string, _start?: ID, _stop?: ID, _sync?: ID, _up?: Void);
+    constructor(ctx?: Context, _id?: ID, _endpoint?: string, _hostname?: string, _start?: ID, _stop?: ID, _sync?: ID, _up?: Void);
     /**
      * A unique identifier for this Service.
      */
@@ -8210,12 +8635,12 @@ declare class Service extends BaseClient$1 {
 /**
  * A Unix or TCP/IP socket that can be mounted into a container.
  */
-declare class Socket extends BaseClient$1 {
+declare class Socket extends BaseClient {
     private readonly _id?;
     /**
      * Constructor is used for internal usage only, do not create object from it.
      */
-    constructor(ctx?: Context$1, _id?: ID);
+    constructor(ctx?: Context, _id?: ID);
     /**
      * A unique identifier for this Socket.
      */
@@ -8224,7 +8649,7 @@ declare class Socket extends BaseClient$1 {
 /**
  * Source location information.
  */
-declare class SourceMap extends BaseClient$1 {
+declare class SourceMap extends BaseClient {
     private readonly _id?;
     private readonly _column?;
     private readonly _filename?;
@@ -8234,7 +8659,7 @@ declare class SourceMap extends BaseClient$1 {
     /**
      * Constructor is used for internal usage only, do not create object from it.
      */
-    constructor(ctx?: Context$1, _id?: ID, _column?: number, _filename?: string, _line?: number, _module?: string, _url?: string);
+    constructor(ctx?: Context, _id?: ID, _column?: number, _filename?: string, _line?: number, _module?: string, _url?: string);
     /**
      * A unique identifier for this SourceMap.
      */
@@ -8263,7 +8688,7 @@ declare class SourceMap extends BaseClient$1 {
 /**
  * A file or directory status object.
  */
-declare class Stat extends BaseClient$1 {
+declare class Stat extends BaseClient {
     private readonly _id?;
     private readonly _fileType?;
     private readonly _name?;
@@ -8272,7 +8697,7 @@ declare class Stat extends BaseClient$1 {
     /**
      * Constructor is used for internal usage only, do not create object from it.
      */
-    constructor(ctx?: Context$1, _id?: ID, _fileType?: FileType, _name?: string, _permissions?: number, _size?: number);
+    constructor(ctx?: Context, _id?: ID, _fileType?: FileType, _name?: string, _permissions?: number, _size?: number);
     /**
      * A unique identifier for this Stat.
      */
@@ -8303,26 +8728,26 @@ interface Syncer {
     id(): Promise<ID>;
     sync(): Promise<Syncer>;
 }
-declare class _SyncerClient extends BaseClient$1 {
+declare class _SyncerClient extends BaseClient {
     private readonly _id?;
     private readonly _sync?;
     /**
      * Constructor is used for internal usage only, do not create object from it.
      */
-    constructor(ctx?: Context$1, _id?: ID, _sync?: ID);
+    constructor(ctx?: Context, _id?: ID, _sync?: ID);
     id: () => Promise<ID>;
     sync: () => Promise<Syncer>;
 }
 /**
  * An interactive terminal that clients can connect to.
  */
-declare class Terminal extends BaseClient$1 {
+declare class Terminal extends BaseClient {
     private readonly _id?;
     private readonly _sync?;
     /**
      * Constructor is used for internal usage only, do not create object from it.
      */
-    constructor(ctx?: Context$1, _id?: ID, _sync?: ID);
+    constructor(ctx?: Context, _id?: ID, _sync?: ID);
     /**
      * A unique identifier for this Terminal.
      */
@@ -8337,7 +8762,7 @@ declare class Terminal extends BaseClient$1 {
 /**
  * A definition of a parameter or return type in a Module.
  */
-declare class TypeDef extends BaseClient$1 {
+declare class TypeDef extends BaseClient {
     private readonly _id?;
     private readonly _kind?;
     private readonly _name?;
@@ -8345,7 +8770,7 @@ declare class TypeDef extends BaseClient$1 {
     /**
      * Constructor is used for internal usage only, do not create object from it.
      */
-    constructor(ctx?: Context$1, _id?: ID, _kind?: TypeDefKind, _name?: string, _optional?: boolean);
+    constructor(ctx?: Context, _id?: ID, _kind?: TypeDefKind, _name?: string, _optional?: boolean);
     /**
      * A unique identifier for this TypeDef.
      */
@@ -8486,12 +8911,12 @@ declare class TypeDef extends BaseClient$1 {
 /**
  * A filesystem volume that can be mounted into containers.
  */
-declare class Volume extends BaseClient$1 {
+declare class Volume extends BaseClient {
     private readonly _id?;
     /**
      * Constructor is used for internal usage only, do not create object from it.
      */
-    constructor(ctx?: Context$1, _id?: ID);
+    constructor(ctx?: Context, _id?: ID);
     /**
      * A unique identifier for this Volume.
      */
@@ -8500,7 +8925,7 @@ declare class Volume extends BaseClient$1 {
 /**
  * A Dagger workspace detected from the current working directory or constructed from a Directory.
  */
-declare class Workspace extends BaseClient$1 {
+declare class Workspace extends BaseClient {
     private readonly _id?;
     private readonly _address?;
     private readonly _configFile?;
@@ -8513,7 +8938,7 @@ declare class Workspace extends BaseClient$1 {
     /**
      * Constructor is used for internal usage only, do not create object from it.
      */
-    constructor(ctx?: Context$1, _id?: ID, _address?: string, _configFile?: string, _configRead?: string, _cwd?: string, _detectScope?: string, _entrypoint?: string, _export?: Void, _findUp?: string);
+    constructor(ctx?: Context, _id?: ID, _address?: string, _configFile?: string, _configRead?: string, _cwd?: string, _detectScope?: string, _entrypoint?: string, _export?: Void, _findUp?: string);
     /**
      * A unique identifier for this Workspace.
      */
@@ -9009,14 +9434,14 @@ declare class Workspace extends BaseClient$1 {
 /**
  * A source commit classified against the receiving workspace.
  */
-declare class WorkspaceCommitPick extends BaseClient$1 {
+declare class WorkspaceCommitPick extends BaseClient {
     private readonly _id?;
     private readonly _reason?;
     private readonly _status?;
     /**
      * Constructor is used for internal usage only, do not create object from it.
      */
-    constructor(ctx?: Context$1, _id?: ID, _reason?: WorkspaceCommitPickReason, _status?: WorkspaceCommitPickStatus);
+    constructor(ctx?: Context, _id?: ID, _reason?: WorkspaceCommitPickReason, _status?: WorkspaceCommitPickStatus);
     /**
      * A unique identifier for this WorkspaceCommitPick.
      */
@@ -9041,12 +9466,12 @@ declare class WorkspaceCommitPick extends BaseClient$1 {
 /**
  * Local git state for a workspace.
  */
-declare class WorkspaceGit extends BaseClient$1 {
+declare class WorkspaceGit extends BaseClient {
     private readonly _id?;
     /**
      * Constructor is used for internal usage only, do not create object from it.
      */
-    constructor(ctx?: Context$1, _id?: ID);
+    constructor(ctx?: Context, _id?: ID);
     /**
      * A unique identifier for this WorkspaceGit.
      */
@@ -9071,13 +9496,13 @@ declare class WorkspaceGit extends BaseClient$1 {
 /**
  * A planned workspace migration.
  */
-declare class WorkspaceMigration extends BaseClient$1 {
+declare class WorkspaceMigration extends BaseClient {
     private readonly _id?;
     private readonly _configFile?;
     /**
      * Constructor is used for internal usage only, do not create object from it.
      */
-    constructor(ctx?: Context$1, _id?: ID, _configFile?: string);
+    constructor(ctx?: Context, _id?: ID, _configFile?: string);
     /**
      * A unique identifier for this WorkspaceMigration.
      */
@@ -9102,14 +9527,14 @@ declare class WorkspaceMigration extends BaseClient$1 {
 /**
  * A single logical part of a workspace migration.
  */
-declare class WorkspaceMigrationStep extends BaseClient$1 {
+declare class WorkspaceMigrationStep extends BaseClient {
     private readonly _id?;
     private readonly _code?;
     private readonly _description?;
     /**
      * Constructor is used for internal usage only, do not create object from it.
      */
-    constructor(ctx?: Context$1, _id?: ID, _code?: string, _description?: string);
+    constructor(ctx?: Context, _id?: ID, _code?: string, _description?: string);
     /**
      * A unique identifier for this WorkspaceMigrationStep.
      */
@@ -9134,7 +9559,7 @@ declare class WorkspaceMigrationStep extends BaseClient$1 {
 /**
  * A module entry in the workspace configuration.
  */
-declare class WorkspaceModule extends BaseClient$1 {
+declare class WorkspaceModule extends BaseClient {
     private readonly _id?;
     private readonly _entrypoint?;
     private readonly _name?;
@@ -9142,7 +9567,7 @@ declare class WorkspaceModule extends BaseClient$1 {
     /**
      * Constructor is used for internal usage only, do not create object from it.
      */
-    constructor(ctx?: Context$1, _id?: ID, _entrypoint?: boolean, _name?: string, _source?: string);
+    constructor(ctx?: Context, _id?: ID, _entrypoint?: boolean, _name?: string, _source?: string);
     /**
      * A unique identifier for this WorkspaceModule.
      */
@@ -9171,7 +9596,7 @@ declare class WorkspaceModule extends BaseClient$1 {
 /**
  * A constructor-backed module setting.
  */
-declare class WorkspaceModuleSetting extends BaseClient$1 {
+declare class WorkspaceModuleSetting extends BaseClient {
     private readonly _id?;
     private readonly _defaultValue?;
     private readonly _description?;
@@ -9183,7 +9608,7 @@ declare class WorkspaceModuleSetting extends BaseClient$1 {
     /**
      * Constructor is used for internal usage only, do not create object from it.
      */
-    constructor(ctx?: Context$1, _id?: ID, _defaultValue?: string, _description?: string, _isList?: boolean, _isObject?: boolean, _isString?: boolean, _key?: string, _value?: string);
+    constructor(ctx?: Context, _id?: ID, _defaultValue?: string, _description?: string, _isList?: boolean, _isObject?: boolean, _isString?: boolean, _key?: string, _value?: string);
     /**
      * A unique identifier for this WorkspaceModuleSetting.
      */
@@ -9220,14 +9645,14 @@ declare class WorkspaceModuleSetting extends BaseClient$1 {
 /**
  * An installed SDK: a module marked for scaffolding other modules and clients.
  */
-declare class WorkspaceSDK extends BaseClient$1 {
+declare class WorkspaceSDK extends BaseClient {
     private readonly _id?;
     private readonly _name?;
     private readonly _ref?;
     /**
      * Constructor is used for internal usage only, do not create object from it.
      */
-    constructor(ctx?: Context$1, _id?: ID, _name?: string, _ref?: string);
+    constructor(ctx?: Context, _id?: ID, _name?: string, _ref?: string);
     /**
      * A unique identifier for this WorkspaceSDK.
      */
@@ -9255,319 +9680,13 @@ declare class WorkspaceSDK extends BaseClient$1 {
 }
 declare const dag: Client;
 
-declare const ERROR_CODES: {
-    /**
-     * {@link GraphQLRequestError}
-     */
-    readonly GraphQLRequestError: "D100";
-    /**
-     * {@link UnknownDaggerError}
-     */
-    readonly UnknownDaggerError: "D101";
-    /**
-     * {@link TooManyNestedObjectsError}
-     */
-    readonly TooManyNestedObjectsError: "D102";
-    /**
-     * {@link EngineSessionConnectParamsParseError}
-     */
-    readonly EngineSessionConnectParamsParseError: "D103";
-    /**
-     * {@link EngineSessionConnectionTimeoutError}
-     */
-    readonly EngineSessionConnectionTimeoutError: "D104";
-    /**
-     * {@link EngineSessionError}
-     */
-    readonly EngineSessionError: "D105";
-    /**
-     * {@link InitEngineSessionBinaryError}
-     */
-    readonly InitEngineSessionBinaryError: "D106";
-    /**
-     * {@link DockerImageRefValidationError}
-     */
-    readonly DockerImageRefValidationError: "D107";
-    /**
-     * {@link NotAwaitedRequestError}
-     */
-    readonly NotAwaitedRequestError: "D108";
-    /**
-     * (@link ExecError}
-     */
-    readonly ExecError: "D109";
-    /**
-     * {@link IntrospectionError}
-     */
-    readonly IntrospectionError: "D110";
-};
-type ErrorCodesType = typeof ERROR_CODES;
-type ErrorNames = keyof ErrorCodesType;
-type ErrorCodes = ErrorCodesType[ErrorNames];
-
-interface DaggerSDKErrorOptions {
-    cause?: Error;
-}
+type CallbackFct = (client: Client) => Promise<void>;
 /**
- * The base error. Every other error inherits this error.
+ * connect runs GraphQL server and initializes a
+ * GraphQL client to execute query on it through its callback.
+ * This implementation is based on the existing Go SDK.
  */
-declare abstract class DaggerSDKError extends Error {
-    /**
-     * The name of the dagger error.
-     */
-    abstract readonly name: ErrorNames;
-    /**
-     * The dagger specific error code.
-     * Use this to identify dagger errors programmatically.
-     */
-    abstract readonly code: ErrorCodes;
-    /**
-     * The original error, which caused the DaggerSDKError.
-     */
-    cause?: Error;
-    protected constructor(message: string, options?: DaggerSDKErrorOptions);
-    /**
-     * @hidden
-     */
-    get [Symbol.toStringTag](): "GraphQLRequestError" | "UnknownDaggerError" | "TooManyNestedObjectsError" | "EngineSessionConnectParamsParseError" | "EngineSessionConnectionTimeoutError" | "EngineSessionError" | "InitEngineSessionBinaryError" | "DockerImageRefValidationError" | "NotAwaitedRequestError" | "ExecError" | "IntrospectionError";
-    /**
-     * Pretty prints the error
-     */
-    printStackTrace(): void;
-}
-
-/**
- *  This error is thrown if the dagger SDK does not identify the error and just wraps the cause.
- */
-declare class UnknownDaggerError extends DaggerSDKError {
-    name: "UnknownDaggerError";
-    code: "D101";
-    /**
-     * @hidden
-     */
-    constructor(message: string, options: DaggerSDKErrorOptions);
-}
-
-interface DockerImageRefValidationErrorOptions extends DaggerSDKErrorOptions {
-    ref: string;
-}
-/**
- *  This error is thrown if the passed image reference does not pass validation and is not compliant with the
- *  DockerImage constructor.
- */
-declare class DockerImageRefValidationError extends DaggerSDKError {
-    name: "DockerImageRefValidationError";
-    code: "D107";
-    /**
-     *  The docker image reference, which caused the error.
-     */
-    ref: string;
-    /**
-     *  @hidden
-     */
-    constructor(message: string, options: DockerImageRefValidationErrorOptions);
-}
-
-interface EngineSessionConnectParamsParseErrorOptions extends DaggerSDKErrorOptions {
-    parsedLine: string;
-}
-/**
- * This error is thrown if the EngineSession does not manage to parse the required connection parameters from the session binary
- */
-declare class EngineSessionConnectParamsParseError extends DaggerSDKError {
-    name: "EngineSessionConnectParamsParseError";
-    code: "D103";
-    /**
-     *  the line, which caused the error during parsing, if the error was caused because of parsing.
-     */
-    parsedLine: string;
-    /**
-     * @hidden
-     */
-    constructor(message: string, options: EngineSessionConnectParamsParseErrorOptions);
-}
-
-interface ExecErrorOptions extends DaggerSDKErrorOptions {
-    cmd: string[];
-    exitCode: number;
-    stdout: string;
-    stderr: string;
-    extensions?: GraphQLErrorExtensions;
-}
-/**
- *  API error from an exec operation in a pipeline.
- */
-declare class ExecError extends DaggerSDKError {
-    name: "ExecError";
-    code: "D109";
-    /**
-     *  The command that caused the error.
-     */
-    cmd: string[];
-    /**
-     *  The exit code of the command.
-     */
-    exitCode: number;
-    /**
-     * The stdout of the command.
-     */
-    stdout: string;
-    /**
-     * The stderr of the command.
-     */
-    stderr: string;
-    /**
-     * GraphQL error extensions
-     */
-    extensions?: GraphQLErrorExtensions;
-    /**
-     *  @hidden
-     */
-    constructor(message: string, options: ExecErrorOptions);
-}
-
-interface GraphQLRequestErrorOptions extends DaggerSDKErrorOptions {
-    error: ClientError;
-}
-/**
- *  This error originates from the dagger engine. It means that some error was thrown and sent back via GraphQL.
- */
-declare class GraphQLRequestError extends DaggerSDKError {
-    name: "GraphQLRequestError";
-    code: "D100";
-    /**
-     *  The query and variables, which caused the error.
-     */
-    requestContext: ClientError["request"];
-    /**
-     *  the GraphQL response containing the error.
-     */
-    response: ClientError["response"];
-    /**
-     *  The GraphQL error extentions.
-     */
-    extensions?: GraphQLErrorExtensions;
-    /**
-     *  @hidden
-     */
-    constructor(message: string, options: GraphQLRequestErrorOptions);
-}
-
-/**
- *  This error is thrown if the dagger binary cannot be copied from the dagger docker image and copied to the local host.
- */
-declare class InitEngineSessionBinaryError extends DaggerSDKError {
-    name: "InitEngineSessionBinaryError";
-    code: "D106";
-    /**
-     *  @hidden
-     */
-    constructor(message: string, options?: DaggerSDKErrorOptions);
-}
-
-interface TooManyNestedObjectsErrorOptions extends DaggerSDKErrorOptions {
-    response: unknown;
-}
-/**
- *  Dagger only expects one response value from the engine. If the engine returns more than one value this error is thrown.
- */
-declare class TooManyNestedObjectsError extends DaggerSDKError {
-    name: "TooManyNestedObjectsError";
-    code: "D102";
-    /**
-     *  the response containing more than one value.
-     */
-    response: unknown;
-    /**
-     * @hidden
-     */
-    constructor(message: string, options: TooManyNestedObjectsErrorOptions);
-}
-
-type EngineSessionErrorOptions = DaggerSDKErrorOptions;
-/**
- * This error is thrown if the EngineSession does not manage to parse the required port successfully because a EOF is read before any valid port.
- * This usually happens if no connection can be established.
- */
-declare class EngineSessionError extends DaggerSDKError {
-    name: "EngineSessionError";
-    code: "D105";
-    /**
-     * @hidden
-     */
-    constructor(message: string, options?: EngineSessionErrorOptions);
-}
-
-interface EngineSessionConnectionTimeoutErrorOptions extends DaggerSDKErrorOptions {
-    timeOutDuration: number;
-}
-/**
- * This error is thrown if the EngineSession does not manage to parse the required port successfully because the sessions connection timed out.
- */
-declare class EngineSessionConnectionTimeoutError extends DaggerSDKError {
-    name: "EngineSessionConnectionTimeoutError";
-    code: "D104";
-    /**
-     * The duration until the timeout occurred in ms.
-     */
-    timeOutDuration: number;
-    /**
-     * @hidden
-     */
-    constructor(message: string, options: EngineSessionConnectionTimeoutErrorOptions);
-}
-
-/**
- * This error is thrown when the compute function isn't awaited.
- */
-declare class NotAwaitedRequestError extends DaggerSDKError {
-    name: "NotAwaitedRequestError";
-    code: "D108";
-    /**
-     * @hidden
-     */
-    constructor(message: string, options?: DaggerSDKErrorOptions);
-}
-
-declare class FunctionNotFound extends DaggerSDKError {
-    name: "ExecError";
-    code: "D109";
-    constructor(message: string, options?: DaggerSDKErrorOptions);
-}
-
-declare class IntrospectionError extends DaggerSDKError {
-    name: "IntrospectionError";
-    code: "D110";
-    constructor(message: string, options?: DaggerSDKErrorOptions);
-}
-
-/**
- * ConnectOpts defines option used to connect to an engine.
- */
-interface ConnectOpts {
-    /**
-     * Use to overwrite Dagger workdir
-     * @defaultValue process.cwd()
-     */
-    Workdir?: string;
-    /**
-     * Opt into loading workspace modules for this connection.
-     * By default, only the core API is exposed.
-     */
-    LoadWorkspaceModules?: boolean;
-    /**
-       * Enable logs output
-       * @example
-       * LogOutput
-       * ```ts
-       * connect(async (client: Client) => {
-      const source = await client.host().workdir().id()
-      ...
-      }, {LogOutput: process.stdout})
-       ```
-       */
-    LogOutput?: Writable;
-}
+declare function connect(cb: CallbackFct, config?: ConnectOpts): Promise<void>;
 
 /**
  * connection executes the given function using the default global Dagger client.
@@ -9587,89 +9706,6 @@ interface ConnectOpts {
  * ```
  */
 declare function connection(fct: () => Promise<void>, cfg?: ConnectOpts): Promise<void>;
-
-type CallbackFct = (client: Client) => Promise<void>;
-/**
- * connect runs GraphQL server and initializes a
- * GraphQL client to execute query on it through its callback.
- * This implementation is based on the existing Go SDK.
- */
-declare function connect(cb: CallbackFct, config?: ConnectOpts$1): Promise<void>;
-
-/**
- * Wraps the GraphQL client to allow lazy initialization and setting
- * the GQL client of the global Dagger client instance (`dag`).
- */
-declare class Connection {
-    private _gqlClient?;
-    constructor(_gqlClient?: GraphQLClient | undefined);
-    private _served;
-    resetClient(): void;
-    setGQLClient(gqlClient: GraphQLClient): void;
-    getGQLClient(): GraphQLClient;
-    /**
-     * Run `serve` the first time `key` is seen in this session and remember the
-     * result, so a generated client can ensure its module is served before its
-     * first query without serving it again on every call.
-     */
-    ensureServed(key: string, serve: () => Promise<void>): Promise<void>;
-}
-
-type QueryTree = {
-    operation: string;
-    args?: Record<string, unknown>;
-    inlineType?: string;
-};
-
-/**
- * A module a generated client serves into the session before its first query.
- * `key` memoizes the serve per session (the module's ref or path); `run`
- * performs it, through a context that carries no serve of its own so it cannot
- * recurse.
- */
-type ServeSpec = {
-    key: string;
-    run: () => Promise<void>;
-};
-declare class Context {
-    private _queryTree;
-    private _connection;
-    private _serve?;
-    constructor(_queryTree?: QueryTree[], _connection?: Connection, _serve?: ServeSpec | undefined);
-    getGQLClient(): GraphQLClient;
-    copy(): Context;
-    select(operation: string, args?: Record<string, unknown>): Context;
-    /**
-     * Select via node(id:) with an inline fragment on the given type.
-     * Produces: node(id: "...") { ... on TypeName { children } }
-     */
-    selectNode(id: string, typeName: string): Context;
-    /**
-     * Return a copy of this context that serves `spec`'s module before the first
-     * query on it (or on any context derived from it) runs. Used by a generated
-     * module client to bind its own module to its `dag`.
-     */
-    withServe(spec: ServeSpec): Context;
-    execute<T>(): Promise<T>;
-}
-/**
- * Common base class for every generated API class (Client, Container, and
- * dependency-contributed types).
- *
- * It lives here in the SDK runtime rather than in the generated client.gen.ts
- * so that per-dependency generated files (e.g. hello.gen.ts) can `extends
- * BaseClient` without importing a value from client.gen.ts — client.gen.ts
- * `export *`s those dep files, so a value import would create an ESM cycle.
- * client.gen.ts re-exports BaseClient to keep `import { BaseClient } from
- * "./client.gen.js"` working for existing consumers.
- */
-declare class BaseClient {
-    protected _ctx: Context;
-    /**
-     * @hidden
-     */
-    constructor(_ctx?: Context);
-}
 
 type Class = {
     new (...args: any[]): any;
@@ -9800,5 +9836,5 @@ declare const enumType: () => (<T extends Class>(constructor: T) => T);
  */
 declare const argument: (opts?: ArgumentOptions) => ((target: object, propertyKey: string | undefined, parameterIndex: number) => void);
 
-export { Address, Agent, AgentMessage, AgentMessageDelivery, AgentMessageDeliveryNameToValue, AgentMessageDeliveryValueToName, AgentState, AgentStateNameToValue, AgentStateValueToName, Artifact, ArtifactDimension, ArtifactDimensionKey, ArtifactDimensionKind, ArtifactDimensionKindNameToValue, ArtifactDimensionKindValueToName, ArtifactPath, ArtifactResult, Artifacts, BaseClient, CacheSharingMode, CacheSharingModeNameToValue, CacheSharingModeValueToName, CacheVolume, Changeset, ChangesetMergeConflict, ChangesetMergeConflictNameToValue, ChangesetMergeConflictValueToName, ChangesetsMergeConflict, ChangesetsMergeConflictNameToValue, ChangesetsMergeConflictValueToName, Check, Client, ClientFilesyncMirror, Cloud, CollectionDelta, CollectionTypeDef, Command, Container, Context, CurrentModule, DaggerSDKError, DiffStat, DiffStatKind, DiffStatKindNameToValue, DiffStatKindValueToName, Directory, DockerImageRefValidationError, ERROR_CODES, Engine, EngineCache, EngineCacheEntry, EngineCacheEntrySet, EngineSessionConnectParamsParseError, EngineSessionConnectionTimeoutError, EngineSessionError, EnumTypeDef, EnumValueTypeDef, EnvFile, EnvVariable, Error$1 as Error, ErrorValue, ExecError, ExistsType, ExistsTypeNameToValue, ExistsTypeValueToName, Expertise, FieldTypeDef, File, FileType, FileTypeNameToValue, FileTypeValueToName, FunctionArg, FunctionCachePolicy, FunctionCachePolicyNameToValue, FunctionCachePolicyValueToName, FunctionCall, FunctionCallArgValue, FunctionNotFound, Function_, GeneratedCode, Generator, GitBundle, GitBundleRef, GitCommit, GitPushDisposition, GitPushDispositionNameToValue, GitPushDispositionValueToName, GitPushResult, GitRef, GitRepository, GraphQLRequestError, HTTPState, HealthcheckConfig, Host, ImageLayerCompression, ImageLayerCompressionNameToValue, ImageLayerCompressionValueToName, ImageMediaTypes, ImageMediaTypesNameToValue, ImageMediaTypesValueToName, InitEngineSessionBinaryError, InputTypeDef, InterfaceTypeDef, IntrospectionError, JSONValue, LLM, LLMContentBlock, LLMContentBlockKind, LLMContentBlockKindNameToValue, LLMContentBlockKindValueToName, LLMMessage, LLMMessageOrigin, LLMMessageOriginKind, LLMMessageOriginKindNameToValue, LLMMessageOriginKindValueToName, LLMMessageRole, LLMMessageRoleNameToValue, LLMMessageRoleValueToName, LLMSkill, LLMTokenUsage, Label, ListTypeDef, ModuleConfigClient, ModuleSource, ModuleSourceExperimentalFeature, ModuleSourceExperimentalFeatureNameToValue, ModuleSourceExperimentalFeatureValueToName, ModuleSourceKind, ModuleSourceKindNameToValue, ModuleSourceKindValueToName, Module_, NetworkProtocol, NetworkProtocolNameToValue, NetworkProtocolValueToName, NotAwaitedRequestError, ObjectTypeDef, PatchConflict, PatchConflictNameToValue, PatchConflictValueToName, Port, RegistryProtocol, RegistryProtocolNameToValue, RegistryProtocolValueToName, RemoteGitMirror, ReturnType, ReturnTypeNameToValue, ReturnTypeValueToName, SDKConfig, ScalarTypeDef, Schema, SearchResult, SearchSubmatch, Secret, Service, Socket, SourceMap, Stat, Terminal, TooManyNestedObjectsError, TypeDef, TypeDefKind, TypeDefKindNameToValue, TypeDefKindValueToName, UnknownDaggerError, Volume, Workspace, WorkspaceCommitPick, WorkspaceCommitPickReason, WorkspaceCommitPickReasonNameToValue, WorkspaceCommitPickReasonValueToName, WorkspaceCommitPickStatus, WorkspaceCommitPickStatusNameToValue, WorkspaceCommitPickStatusValueToName, WorkspaceGit, WorkspaceMigration, WorkspaceMigrationStep, WorkspaceModule, WorkspaceModuleSetting, WorkspaceSDK, _ExportableClient, _NodeClient, _SyncerClient, agent, argument, check, collection, connect, connection, dag, delta, enumType, field, func, generate, get, getRegisteredClass, getTracer, keys, object, up, withTracing };
-export type { AddressDirectoryOpts, AddressFileOpts, AgentNotifyOpts, AgentPauseOpts, AgentSendOpts, AgentStopOpts, ArtifactUriOpts, ArtifactValueOpts, ArtifactsFilterDirectivesOpts, ArtifactsFilterParentDirectivesOpts, ArtifactsFilterParentTypesOpts, ArtifactsFilterTypesOpts, ArtifactsPathDefinitionsOpts, ArtifactsValuesOpts, BuildArg, Bytes, CallbackFct, ChangesetFilterOpts, ChangesetWithChangesetOpts, ChangesetWithChangesetsOpts, ClientBlobOpts, ClientCacheVolumeOpts, ClientContainerOpts, ClientCurrentTypeDefsOpts, ClientEngineVolumeOpts, ClientEnvFileOpts, ClientFileOpts, ClientGitOpts, ClientHttpOpts, ClientLLMOpts, ClientModuleSourceOpts, ClientSecretOpts, ClientServeModuleOpts, ClientSshfsVolumeOpts, ConnectOpts, ContainerAsServiceOpts, ContainerAsTarballOpts, ContainerDirectoryOpts, ContainerExistsOpts, ContainerExportImageOpts, ContainerExportOpts, ContainerFileOpts, ContainerFromOpts, ContainerImportOpts, ContainerLayerOpts, ContainerManifestOpts, ContainerPublishOpts, ContainerShellOpts, ContainerStatOpts, ContainerTerminalOpts, ContainerUpOpts, ContainerWithDefaultTerminalCmdOpts, ContainerWithDirectoryOpts, ContainerWithDockerHealthcheckOpts, ContainerWithEntrypointOpts, ContainerWithEnvVariableOpts, ContainerWithExecOpts, ContainerWithExposedPortOpts, ContainerWithFileOpts, ContainerWithFilesOpts, ContainerWithMountedCacheOpts, ContainerWithMountedDirectoryOpts, ContainerWithMountedFileOpts, ContainerWithMountedSecretOpts, ContainerWithMountedTempOpts, ContainerWithMountedVolumeOpts, ContainerWithNewFileOpts, ContainerWithRunOpts, ContainerWithShellOpts, ContainerWithSymlinkOpts, ContainerWithUnixSocketOpts, ContainerWithWorkdirOpts, ContainerWithoutDirectoryOpts, ContainerWithoutEntrypointOpts, ContainerWithoutExposedPortOpts, ContainerWithoutFileOpts, ContainerWithoutFilesOpts, ContainerWithoutMountOpts, ContainerWithoutUnixSocketOpts, CurrentModuleWorkdirOpts, DirectoryAsModuleOpts, DirectoryAsModuleSourceOpts, DirectoryAsWorkspaceOpts, DirectoryDockerBuildOpts, DirectoryEntriesOpts, DirectoryExistsOpts, DirectoryExportOpts, DirectoryFilterOpts, DirectorySearchOpts, DirectoryStatOpts, DirectoryTerminalOpts, DirectoryWithDirectoryOpts, DirectoryWithFileOpts, DirectoryWithFilesOpts, DirectoryWithNewDirectoryOpts, DirectoryWithNewFileOpts, DirectoryWithPatchFileOpts, DirectoryWithPatchOpts, EngineCacheEntrySetOpts, EngineCachePruneOpts, EnvFileGetOpts, EnvFileVariablesOpts, Exportable, FileAsEnvFileOpts, FileContentsOpts, FileDigestOpts, FileExportOpts, FileSearchOpts, FileWithReplacedOpts, FunctionWithArgOpts, FunctionWithCachePolicyOpts, FunctionWithDeprecatedOpts, GitCommitAncestorReleaseTagOpts, GitCommitChangesOpts, GitCommitReleaseTagOpts, GitCommitTreeOpts, GitRefAsWorkspaceOpts, GitRefLogOpts, GitRefPushOpts, GitRefTreeOpts, GitRefWithCommitOpts, GitRepositoryAsWorkspaceOpts, GitRepositoryBranchesOpts, GitRepositoryBundleOpts, GitRepositoryLatestOpts, GitRepositoryTagsOpts, GitRepositoryWithBundleOpts, GitRepositoryWithRemoteOpts, HostDirectoryOpts, HostFileOpts, HostFindUpOpts, HostServiceOpts, HostTunnelOpts, ID, JSON, JSONValueContentsOpts, LLMContentBlockInput, LLMLoopOpts, LLMMessageOriginInput, LLMSpawnOpts, LLMStepOpts, LLMWithContentFileOpts, LLMWithContentOpts, LLMWithModelOpts, LLMWithPromptOpts, LLMWithResponseOpts, LLMWithToolResultOpts, LLMWithToolsOpts, ModuleServeOpts, Node, PipelineLabel, Platform, PortForward, ServiceEndpointOpts, ServicePortsOpts, ServiceStopOpts, ServiceTerminalOpts, ServiceUpOpts, Syncer, TypeDefWithEnumMemberOpts, TypeDefWithEnumOpts, TypeDefWithEnumValueOpts, TypeDefWithFieldOpts, TypeDefWithInterfaceOpts, TypeDefWithObjectOpts, TypeDefWithScalarOpts, Void, WorkspaceArtifactsOpts, WorkspaceChangesOpts, WorkspaceCompareCommitsFromOpts, WorkspaceConfigReadOpts, WorkspaceDirectoryOpts, WorkspaceExportOpts, WorkspaceFindRootsOpts, WorkspaceFindUpOpts, WorkspaceMigrateModuleOpts, WorkspaceMigrateOpts, WorkspaceSearchOpts, WorkspaceWithClientOpts, WorkspaceWithCommitOpts, WorkspaceWithCommitsFromOpts, WorkspaceWithConfigEnvOpts, WorkspaceWithConfigValueOpts, WorkspaceWithFileOpts, WorkspaceWithInitModuleOpts, WorkspaceWithModuleOpts, WorkspaceWithNewFileOpts, WorkspaceWithResetOpts, WorkspaceWithSdkOpts, WorkspaceWithUpdatedClientsOpts, WorkspaceWithUpdatedLockOpts, WorkspaceWithUpdatedModulesOpts, WorkspaceWithoutClientOpts, WorkspaceWithoutConfigEnvOpts, WorkspaceWithoutConfigValueOpts, WorkspaceWithoutModuleOpts, WorkspaceWithoutSdkOpts, __DirectiveArgsOpts, __FieldArgsOpts, __TypeEnumValuesOpts, __TypeFieldsOpts, __TypeInputFieldsOpts, float };
+export { Address, Agent, AgentMessage, AgentMessageDelivery, AgentMessageDeliveryNameToValue, AgentMessageDeliveryValueToName, AgentState, AgentStateNameToValue, AgentStateValueToName, Artifact, ArtifactDimension, ArtifactDimensionKey, ArtifactDimensionKind, ArtifactDimensionKindNameToValue, ArtifactDimensionKindValueToName, ArtifactPath, ArtifactResult, Artifacts, BaseClient, CacheSharingMode, CacheSharingModeNameToValue, CacheSharingModeValueToName, CacheVolume, Changeset, ChangesetMergeConflict, ChangesetMergeConflictNameToValue, ChangesetMergeConflictValueToName, ChangesetsMergeConflict, ChangesetsMergeConflictNameToValue, ChangesetsMergeConflictValueToName, Check, Client, ClientFilesyncMirror, Cloud, CollectionDelta, CollectionTypeDef, Command, Connection, Container, Context, CurrentModule, DaggerSDKError, DiffStat, DiffStatKind, DiffStatKindNameToValue, DiffStatKindValueToName, Directory, DockerImageRefValidationError, ERROR_CODES, Engine, EngineCache, EngineCacheEntry, EngineCacheEntrySet, EngineSessionConnectParamsParseError, EngineSessionConnectionTimeoutError, EngineSessionError, EnumTypeDef, EnumValueTypeDef, EnvFile, EnvVariable, Error$1 as Error, ErrorValue, ExecError, ExistsType, ExistsTypeNameToValue, ExistsTypeValueToName, Expertise, FieldTypeDef, File, FileType, FileTypeNameToValue, FileTypeValueToName, FunctionArg, FunctionCachePolicy, FunctionCachePolicyNameToValue, FunctionCachePolicyValueToName, FunctionCall, FunctionCallArgValue, FunctionNotFound, Function_, GeneratedCode, Generator, GitBundle, GitBundleRef, GitCommit, GitPushDisposition, GitPushDispositionNameToValue, GitPushDispositionValueToName, GitPushResult, GitRef, GitRepository, GraphQLRequestError, HTTPState, HealthcheckConfig, Host, ImageLayerCompression, ImageLayerCompressionNameToValue, ImageLayerCompressionValueToName, ImageMediaTypes, ImageMediaTypesNameToValue, ImageMediaTypesValueToName, InitEngineSessionBinaryError, InputTypeDef, InterfaceTypeDef, IntrospectionError, JSONValue, LLM, LLMContentBlock, LLMContentBlockKind, LLMContentBlockKindNameToValue, LLMContentBlockKindValueToName, LLMMessage, LLMMessageOrigin, LLMMessageOriginKind, LLMMessageOriginKindNameToValue, LLMMessageOriginKindValueToName, LLMMessageRole, LLMMessageRoleNameToValue, LLMMessageRoleValueToName, LLMSkill, LLMTokenUsage, Label, ListTypeDef, ModuleConfigClient, ModuleSource, ModuleSourceExperimentalFeature, ModuleSourceExperimentalFeatureNameToValue, ModuleSourceExperimentalFeatureValueToName, ModuleSourceKind, ModuleSourceKindNameToValue, ModuleSourceKindValueToName, Module_, NetworkProtocol, NetworkProtocolNameToValue, NetworkProtocolValueToName, NotAwaitedRequestError, ObjectTypeDef, PatchConflict, PatchConflictNameToValue, PatchConflictValueToName, Port, RegistryProtocol, RegistryProtocolNameToValue, RegistryProtocolValueToName, RemoteGitMirror, ReturnType, ReturnTypeNameToValue, ReturnTypeValueToName, SDKConfig, ScalarTypeDef, Schema, SearchResult, SearchSubmatch, Secret, Service, Socket, SourceMap, Stat, Terminal, TooManyNestedObjectsError, TypeDef, TypeDefKind, TypeDefKindNameToValue, TypeDefKindValueToName, UnknownDaggerError, Volume, Workspace, WorkspaceCommitPick, WorkspaceCommitPickReason, WorkspaceCommitPickReasonNameToValue, WorkspaceCommitPickReasonValueToName, WorkspaceCommitPickStatus, WorkspaceCommitPickStatusNameToValue, WorkspaceCommitPickStatusValueToName, WorkspaceGit, WorkspaceMigration, WorkspaceMigrationStep, WorkspaceModule, WorkspaceModuleSetting, WorkspaceSDK, _ExportableClient, _NodeClient, _SyncerClient, agent, argument, check, collection, computeQuery, connect, connection, dag, delta, enumType, field, func, generate, get, getRegisteredClass, getTracer, globalConnection, keys, object, shared, up, withGQLClient, withSession };
+export type { AddressDirectoryOpts, AddressFileOpts, AgentNotifyOpts, AgentPauseOpts, AgentSendOpts, AgentStopOpts, ArtifactUriOpts, ArtifactValueOpts, ArtifactsFilterDirectivesOpts, ArtifactsFilterParentDirectivesOpts, ArtifactsFilterParentTypesOpts, ArtifactsFilterTypesOpts, ArtifactsPathDefinitionsOpts, ArtifactsValuesOpts, BuildArg, Bytes, CallbackFct, ChangesetFilterOpts, ChangesetWithChangesetOpts, ChangesetWithChangesetsOpts, ClientBlobOpts, ClientCacheVolumeOpts, ClientContainerOpts, ClientCurrentTypeDefsOpts, ClientEngineVolumeOpts, ClientEnvFileOpts, ClientFileOpts, ClientGitOpts, ClientHttpOpts, ClientLLMOpts, ClientModuleSourceOpts, ClientSecretOpts, ClientServeModuleOpts, ClientSshfsVolumeOpts, ConnectOpts, ContainerAsServiceOpts, ContainerAsTarballOpts, ContainerDirectoryOpts, ContainerExistsOpts, ContainerExportImageOpts, ContainerExportOpts, ContainerFileOpts, ContainerFromOpts, ContainerImportOpts, ContainerLayerOpts, ContainerManifestOpts, ContainerPublishOpts, ContainerShellOpts, ContainerStatOpts, ContainerTerminalOpts, ContainerUpOpts, ContainerWithDefaultTerminalCmdOpts, ContainerWithDirectoryOpts, ContainerWithDockerHealthcheckOpts, ContainerWithEntrypointOpts, ContainerWithEnvVariableOpts, ContainerWithExecOpts, ContainerWithExposedPortOpts, ContainerWithFileOpts, ContainerWithFilesOpts, ContainerWithMountedCacheOpts, ContainerWithMountedDirectoryOpts, ContainerWithMountedFileOpts, ContainerWithMountedSecretOpts, ContainerWithMountedTempOpts, ContainerWithMountedVolumeOpts, ContainerWithNewFileOpts, ContainerWithRunOpts, ContainerWithShellOpts, ContainerWithSymlinkOpts, ContainerWithUnixSocketOpts, ContainerWithWorkdirOpts, ContainerWithoutDirectoryOpts, ContainerWithoutEntrypointOpts, ContainerWithoutExposedPortOpts, ContainerWithoutFileOpts, ContainerWithoutFilesOpts, ContainerWithoutMountOpts, ContainerWithoutUnixSocketOpts, CurrentModuleWorkdirOpts, DirectoryAsModuleOpts, DirectoryAsModuleSourceOpts, DirectoryAsWorkspaceOpts, DirectoryDockerBuildOpts, DirectoryEntriesOpts, DirectoryExistsOpts, DirectoryExportOpts, DirectoryFilterOpts, DirectorySearchOpts, DirectoryStatOpts, DirectoryTerminalOpts, DirectoryWithDirectoryOpts, DirectoryWithFileOpts, DirectoryWithFilesOpts, DirectoryWithNewDirectoryOpts, DirectoryWithNewFileOpts, DirectoryWithPatchFileOpts, DirectoryWithPatchOpts, EngineCacheEntrySetOpts, EngineCachePruneOpts, EnvFileGetOpts, EnvFileVariablesOpts, Exportable, FileAsEnvFileOpts, FileContentsOpts, FileDigestOpts, FileExportOpts, FileSearchOpts, FileWithReplacedOpts, FunctionWithArgOpts, FunctionWithCachePolicyOpts, FunctionWithDeprecatedOpts, GitCommitAncestorReleaseTagOpts, GitCommitChangesOpts, GitCommitReleaseTagOpts, GitCommitTreeOpts, GitRefAsWorkspaceOpts, GitRefLogOpts, GitRefPushOpts, GitRefTreeOpts, GitRefWithCommitOpts, GitRepositoryAsWorkspaceOpts, GitRepositoryBranchesOpts, GitRepositoryBundleOpts, GitRepositoryLatestOpts, GitRepositoryTagsOpts, GitRepositoryWithBundleOpts, GitRepositoryWithRemoteOpts, HostDirectoryOpts, HostFileOpts, HostFindUpOpts, HostServiceOpts, HostTunnelOpts, ID, JSON, JSONValueContentsOpts, LLMContentBlockInput, LLMLoopOpts, LLMMessageOriginInput, LLMSpawnOpts, LLMStepOpts, LLMWithContentFileOpts, LLMWithContentOpts, LLMWithModelOpts, LLMWithPromptOpts, LLMWithResponseOpts, LLMWithToolResultOpts, LLMWithToolsOpts, Metadata, ModuleServeOpts, Node, PipelineLabel, Platform, PortForward, QueryTree, ServeSpec, ServiceEndpointOpts, ServicePortsOpts, ServiceStopOpts, ServiceTerminalOpts, ServiceUpOpts, Syncer, TypeDefWithEnumMemberOpts, TypeDefWithEnumOpts, TypeDefWithEnumValueOpts, TypeDefWithFieldOpts, TypeDefWithInterfaceOpts, TypeDefWithObjectOpts, TypeDefWithScalarOpts, Void, WorkspaceArtifactsOpts, WorkspaceChangesOpts, WorkspaceCompareCommitsFromOpts, WorkspaceConfigReadOpts, WorkspaceDirectoryOpts, WorkspaceExportOpts, WorkspaceFindRootsOpts, WorkspaceFindUpOpts, WorkspaceMigrateModuleOpts, WorkspaceMigrateOpts, WorkspaceSearchOpts, WorkspaceWithClientOpts, WorkspaceWithCommitOpts, WorkspaceWithCommitsFromOpts, WorkspaceWithConfigEnvOpts, WorkspaceWithConfigValueOpts, WorkspaceWithFileOpts, WorkspaceWithInitModuleOpts, WorkspaceWithModuleOpts, WorkspaceWithNewFileOpts, WorkspaceWithResetOpts, WorkspaceWithSdkOpts, WorkspaceWithUpdatedClientsOpts, WorkspaceWithUpdatedLockOpts, WorkspaceWithUpdatedModulesOpts, WorkspaceWithoutClientOpts, WorkspaceWithoutConfigEnvOpts, WorkspaceWithoutConfigValueOpts, WorkspaceWithoutModuleOpts, WorkspaceWithoutSdkOpts, __DirectiveArgsOpts, __FieldArgsOpts, __TypeEnumValuesOpts, __TypeFieldsOpts, __TypeInputFieldsOpts, float };
