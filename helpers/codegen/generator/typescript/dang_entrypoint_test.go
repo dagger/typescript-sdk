@@ -282,11 +282,15 @@ func TestGenerateDangEntrypointImplementsContract(t *testing.T) {
 	// No `let` field: a field, even a defaulted one, becomes a constructor
 	// argument, and the driver requires a zero-argument constructor. A `let`
 	// that takes arguments or has a body is a member, not a field.
+	//
+	// Only the type's own members qualify, which is what the two-space indent
+	// selects — a `let` deeper than that is a local binding in some member's
+	// body and binds nothing on the type.
 	for _, line := range strings.Split(got, "\n") {
-		trimmed := strings.TrimSpace(line)
-		if !strings.HasPrefix(trimmed, "let ") {
+		if !strings.HasPrefix(line, "  let ") {
 			continue
 		}
+		trimmed := strings.TrimSpace(line)
 		require.True(t, strings.Contains(trimmed, "(") || strings.HasSuffix(trimmed, "{"),
 			"field %q would become a constructor argument", trimmed)
 	}
@@ -356,4 +360,33 @@ func TestGenerateDangEntrypointGuardsGeneratedFiles(t *testing.T) {
 			require.Contains(t, got, "Run `dagger generate`")
 		})
 	}
+}
+
+// TestGenerateDangEntrypointRaisesDispatchErrors pins the entrypoint's half of
+// the reply protocol: call() decodes what the dispatcher wrote and raises a
+// carried error's message, so a function that throws fails with what it threw
+// rather than with the exec's "exit code: 1".
+func TestGenerateDangEntrypointRaisesDispatchErrors(t *testing.T) {
+	gen := &TypeScriptGenerator{Config: generator.Config{
+		DangEntrypointConfig: &generator.DangEntrypointGeneratorConfig{
+			TypedefJSONPath: "testdata/typedef_smoke.json",
+			Runtime:         "node",
+			ModulePath:      ".",
+		},
+	}}
+
+	state, err := gen.GenerateDangEntrypoint(context.Background())
+	require.NoError(t, err)
+	got := readOverlay(t, state, DefaultDangEntrypointFile)
+
+	require.Contains(t, got, ") :: DispatchReply!")
+	require.Contains(t, got, "let failure = reply.error\n    if (failure != null) {\n      raise failure.message\n    }")
+	require.NotContains(t, got, ".stdout :: JSON!")
+
+	// The reply types are declared beside the entrypoint, not inside it: a
+	// field on Entrypoint would become a constructor argument, which the dang
+	// driver rejects (see TestGenerateDangEntrypointImplementsContract).
+	require.Contains(t, got, "\n}\n\n\"\"\"\nWhat the dispatcher writes to stdout")
+	require.Contains(t, got, "type DispatchReply {\n  result: JSON\n  error: DispatchError\n}")
+	require.Contains(t, got, "type DispatchError {\n  message: String!\n}")
 }

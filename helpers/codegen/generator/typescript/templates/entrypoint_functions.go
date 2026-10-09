@@ -490,8 +490,9 @@ func (c *entrypointFuncCtx) plannedImports() []importLine {
 	}
 	// DaggerError, FunctionCachePolicy, TypeDefKind and dag are all reachable only
 	// from register() and formatError(), and the dispatcher has neither: its
-	// typedefs live in the Dang entrypoint, a failure is a nonzero exit, and it
-	// no longer serves anything (each client serves its own module).
+	// typedefs live in the Dang entrypoint, a failure is a message in the reply
+	// it writes to stdout rather than a structured Error built through dag, and
+	// it no longer serves anything (each client serves its own module).
 	names := []string{"Context", "Error as DaggerError", "FunctionCachePolicy", "TypeDefKind", "connection", "dag", "getRegisteredClass"}
 	if c.opts.DispatchMode {
 		names = []string{"Context", "connection", "getRegisteredClass"}

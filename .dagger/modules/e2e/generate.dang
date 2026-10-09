@@ -229,6 +229,36 @@ type GenerateChecks {
   }
 
   """
+  An entrypoint module's call recipe should raise what a function threw, with
+  its message, rather than report the exec's exit code.
+
+  The dispatcher runs in a container, so a thrown error used to leave it as a
+  nonzero exit and reach the caller as "exit code: 1", the message visible only
+  in the exec log — where the builtin runtime's returnError gave them the
+  message itself. The dispatcher now replies with the error as data and the
+  recipe raises it, which is what keeps the two loading paths reporting the
+  same thing. This pins the recipe; the runtimes module runs one for real.
+  """
+  entrypointReportsErrorsCheck(ws: Workspace!): Void @check {
+    let recipe = entrypointRecipe(ws, Fixtures.out + "/entrypoint-errors", "entrypoint-errors")
+
+    Asserts.stringContains(
+      recipe, ") :: DispatchReply!",
+      "the recipe should decode the dispatcher's reply",
+    )
+    Asserts.stringContains(
+      recipe, "raise failure.message",
+      "the recipe should raise a thrown error's message as the function's error",
+    )
+    Asserts.stringNotContains(
+      recipe, ".stdout :: JSON!",
+      "the recipe should not take stdout as the result as it is",
+    )
+
+    null
+  }
+
+  """
   The Dang program a generated entrypoint scope comes out with.
   """
   let entrypointRecipe(ws: Workspace!, scope: String!, name: String!): String! {

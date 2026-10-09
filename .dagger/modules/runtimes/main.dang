@@ -48,6 +48,46 @@ type Runtimes {
   }
 
   """
+  A function that throws in an entrypoint module should fail with what it
+  threw, as it does under the builtin runtime.
+
+  The entrypoint runs the dispatcher in a container, so a thrown error used to
+  reach the engine as the exec's "exit code: 1", its message only in the exec
+  log. The dispatcher now replies with the error as data and the recipe raises
+  it; this is the check that the message really comes out the other end.
+
+  Exercised through a check because a check's result is the one thing a
+  module's caller can read back without a typed client, and a check is a
+  function call like any other on this path. The fixture is installed into the
+  staged workspace for the same reason: artifacts are discovered from installed
+  modules.
+  """
+  entrypointErrorTextCheck(ws: Workspace!): Void @check {
+    let path = fixtures + "/node"
+    let installed = typescriptSdk(legacyRuntime: false, skipGenerateFilename: "")
+      .generateScope(ws.withWorkdir(path), isModule: true, name: "runtime-node", clients: [])
+      .withWorkdir(".")
+      .withModule(path, name: "runtime-node")
+
+    let messages = installed.artifacts(include: ["runtime-node:failing-check"]).asChecks
+      .{{ error.{{ message }} }}
+      .map { c => c.error.message ?? "the check passed" }
+
+    if (messages.length != 1) {
+      raise "expected the fixture's one failing check, got " + toString(messages.length)
+    }
+    let message = messages.join("")
+    if (message.contains("RuntimeNode failure: boom") == false) {
+      raise "a thrown error should fail the call with its message, got: " + message
+    }
+    if (message.contains("exit code")) {
+      raise "a thrown error should not surface as the dispatcher's exit code, got: " + message
+    }
+
+    null
+  }
+
+  """
   Generate a fixture, stage the result, and load the module from it.
 
   Generating into a Workspace rather than writing to disk keeps the generated
