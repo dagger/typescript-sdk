@@ -22,7 +22,7 @@
     "@opentelemetry/exporter-trace-otlp-proto": "^0.219.0",
     "@opentelemetry/sdk-node": "^0.219.0",
     "@opentelemetry/sdk-trace-base": "^2.8.0",
-    "adm-zip": "^0.6.0",
+    "adm-zip": "^0.6.1",
     "env-paths": "^4.0.0",
     "execa": "^9.6.1",
     "graphql": "^16.14.2",
