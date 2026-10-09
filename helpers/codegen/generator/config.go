@@ -183,4 +183,10 @@ type DangEntrypointGeneratorConfig struct {
 	// TSConfigPath is the tsconfig tsx loads, relative to the module directory.
 	// Node only; defaults to "tsconfig.json".
 	TSConfigPath string
+
+	// Include lists paths outside the module directory the module builds and
+	// runs with, workspace-relative and already resolved by the SDK from
+	// `dagger.include`. A "!"-prefixed entry excludes. Empty is the usual case:
+	// the recipe then reads the module directory and nothing else.
+	Include []string
 }

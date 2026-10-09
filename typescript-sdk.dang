@@ -52,8 +52,9 @@ type TypescriptSdk {
   manifest is rewritten to match. Onto an entrypoint, it comes out with an
   `[entrypoint]` table and no `[runtime]`, and `engineVersion`, `source`,
   `include` and `[[dependencies]]` are fields of the runtime the module no
-  longer declares — so a module that had them loses them. Back onto a
-  `[runtime]`, it is written fresh: `engineVersion` pinned to the release this
+  longer declares — so a module that had them loses them, and an `include`
+  becomes `dagger.include` in the module's package.json or deno.json. Back onto
+  a `[runtime]`, it is written fresh: `engineVersion` pinned to the release this
   SDK ships for, `[[dependencies]]` rebuilt from the scope's clients, and the
   other path's files — entrypoint/, __dagger.dispatch.ts, the clients/ packages
   — removed. A `source` or `include` the original `[runtime]` manifest carried
@@ -699,7 +700,9 @@ type TypescriptSdk {
   back (withModuleManifest) writes a fresh manifest rather than reading this
   one, so of those only the engine pin and the dependencies come back —
   re-pinned to the release this SDK ships for, and rebuilt from the scope's
-  clients. `source` and `include` do not.
+  clients. `source` and `include` do not — an entrypoint module declares files
+  outside its directory with `dagger.include` in its package.json or deno.json
+  instead, which is read at generation and baked into the recipe.
   """
   let withEntrypointManifest(ws: Workspace!, scope: String!, name: String!, hasToml: Boolean!): Workspace! {
     let existing = if (hasToml) {
@@ -1283,7 +1286,14 @@ type TypescriptSdk {
   Split out from the renderers because all three read it and the scan is the
   expensive half: one node, one cache entry, however many files come out of it.
   """
-  let moduleTypedefJSON(moduleName: String!, source: Directory!, sdk: Directory!, clients: Directory!): String! {
+  let moduleTypedefJSON(
+    moduleName: String!,
+    source: Directory!,
+    sdk: Directory!,
+    clients: Directory!,
+    scanDir: String!,
+    includes: Directory!,
+  ): String! {
     # The introspector resolves a dependency type a user function references
     # (e.g. returning a Hello) by name across the generated files it is handed.
     # It derives that set from the *.gen.ts siblings of client.gen.ts, so the
@@ -1301,13 +1311,24 @@ type TypescriptSdk {
       sdk
     }
 
+    # The declared includes go in first, at their workspace-relative paths, and
+    # `scanDir` is where the module itself lands among them — so an import
+    # reaching outside the module directory resolves during the scan to the same
+    # path it will resolve to at call time. Without includes that tree is empty
+    # and scanDir is /work, the module directory alone.
+    #
+    # The introspector's arguments stay relative to its workdir, which is what
+    # keeps a recorded source path module-relative however deep scanDir is.
     introspector
-      .withWorkdir("/work")
-      .withDirectory("/work/src", source)
-      .withDirectory("/work/sdk", staged)
-      .withEnvVariable("EMIT_TYPEDEF_JSON_FILE", "/work/typedef.json")
+      .withDirectory("/work", includes)
+      .withWorkdir(scanDir)
+      .withDirectory(scanDir + "/src", source)
+      .withDirectory(scanDir + "/sdk", staged)
+      # Outside /work: with includes that tree is the workspace, and a workspace
+      # file of the same name would be read back instead of the scan's output.
+      .withEnvVariable("EMIT_TYPEDEF_JSON_FILE", "/typedef.json")
       .withExec(["bun", "/introspector/introspector.js", moduleName, "src", "sdk/client.gen.ts"])
-      .file("/work/typedef.json")
+      .file("/typedef.json")
       .contents
   }
 
@@ -1371,6 +1392,7 @@ type TypescriptSdk {
     sourcePath: String!,
     rt: Runtime!,
     pkgManager: String!,
+    includes: [String!]!,
   ): File! {
     entrypointCodegen(typedef)
       .withExec([
@@ -1381,7 +1403,7 @@ type TypescriptSdk {
         "--runtime", runtimeName(rt),
         "--module-path", sourcePath,
         "--package-manager", pkgManager,
-      ])
+      ] + includes.reduce([]) { acc, path => acc + ["--include", path] })
       .file("/out/entrypoint/main.dang")
   }
 
@@ -1424,6 +1446,8 @@ type TypescriptSdk {
     packageManager: String!,
     targets: [ClientTarget!]!,
     repoURL: String!,
+    includes: [String!]!,
+    includeTree: Directory!,
   ): Directory! {
     let bindings = generateModuleBindings(schemaJSON, moduleName, targets, repoURL)
     # The embedded layout's sdk/ carries the client files and the loader flat
@@ -1431,7 +1455,10 @@ type TypescriptSdk {
     # into node_modules, and it cannot be told to mount anything else.
     let sdk = if (legacyRuntime == false) { moduleSdkDirectory(bindings) } else { embeddedSdkDirectory(bindings) }
     let clients = if (legacyRuntime == false) { moduleClientsDirectory(bindings) } else { directory }
-    let typedef = moduleTypedefJSON(moduleName, source, sdk, clients)
+    # With includes the module is scanned from inside a workspace-rooted tree,
+    # at its own path, rather than on its own at the root of one.
+    let scanDir = if (includes.length == 0) { "/work" } else { "/work/" + sourcePath }
+    let typedef = moduleTypedefJSON(moduleName, source, sdk, clients, scanDir, includeTree)
     let clientNames = bindingAliasModules(bindings)
 
     # Two layouts. Under an entrypoint every client is a self-contained package
@@ -1446,7 +1473,7 @@ type TypescriptSdk {
         .withFile(dispatchFile, generateModuleDispatcher(typedef))
         .withFile(
           dangEntrypointDir + "/main.dang",
-          generateDangEntrypoint(typedef, moduleName, sourcePath, runtime, packageManager),
+          generateDangEntrypoint(typedef, moduleName, sourcePath, runtime, packageManager, includes),
         )
     } else {
       directory
@@ -1579,18 +1606,67 @@ type TypescriptSdk {
     # package.json through a container — so a `[runtime]` module does not pay
     # for an answer nothing would bake.
     let pkgManager = if (legacyRuntime == false) { effectivePackageManager(ws, sourcePath, rt) } else { "" }
+    # Read on both paths, unlike the package manager above: a `[runtime]` module
+    # bakes nothing from it, but one that declares it is making a mistake worth
+    # one exec to catch.
+    let includes = ModConfig(sourcePath: sourcePath, ws: ws).include
 
-    moduleDirectory(
-      ws.moduleSource("/" + scope).introspectionSchemaJSON.contents,
-      name,
-      sourcePath,
-      ws.directory("/" + sourcePrefix + "src"),
-      existingModuleConfig(ws, sourcePath),
-      rt,
-      pkgManager,
-      targets,
-      workspaceRepoURL(ws, scope),
-    )
+    if (legacyRuntime and includes.length > 0) {
+      # A `[runtime]` module's files come from the module source the engine
+      # loads, which this SDK does not assemble — its manifest has an `include`
+      # field for exactly this, and honouring the package.json one would mean
+      # generating against files the module would not have at run time.
+      raise "dagger.include is only read for a module entrypoint; a [runtime] module declares files outside its directory with `include` in dagger-module.toml"
+    } else {
+      moduleDirectory(
+        ws.moduleSource("/" + scope).introspectionSchemaJSON.contents,
+        name,
+        sourcePath,
+        ws.directory("/" + sourcePrefix + "src"),
+        existingModuleConfig(ws, sourcePath),
+        rt,
+        pkgManager,
+        targets,
+        workspaceRepoURL(ws, scope),
+        includes,
+        includeTree(ws, includes),
+      )
+    }
+  }
+
+  """
+  The paths `dagger.include` declares, read from the workspace.
+
+  `.gitignore` applies and node_modules is dropped: these are directories the
+  module does not own, so whatever the repository ignores in them is build
+  output with no business in the module's container. The module's own directory
+  is read without either filter, since a module may gitignore the generated
+  sdk/ or clients/ it cannot run without.
+
+  shortcut: an empty result is refused, which catches a list that matches
+  nothing, but not one path of several that does. Per-path checking needs a
+  workspace read per path, and a glob entry cannot be checked that way at all.
+  """
+  let includeTree(ws: Workspace!, includes: [String!]!): Directory! {
+    let patterns = includes.filter { path => path.trimPrefix("!") == path }
+    if (patterns.length == 0) {
+      directory
+    } else {
+      let excludes = includes
+        .filter { path => path.trimPrefix("!") != path }
+        .map { path => path.trimPrefix("!") }
+      let tree = ws.directory(
+        "/",
+        include: patterns,
+        exclude: excludes + ["**/node_modules"],
+        gitignore: true,
+      )
+      if (tree.entries.length == 0) {
+        raise "dagger.include matched nothing in the workspace: " + patterns.join(", ")
+      } else {
+        tree
+      }
+    }
   }
 
   """

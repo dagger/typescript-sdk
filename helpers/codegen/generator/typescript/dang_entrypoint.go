@@ -56,6 +56,7 @@ func (g *TypeScriptGenerator) GenerateDangEntrypoint(ctx context.Context) (*gene
 		PackageManagerVersion: cfg.PackageManagerVersion,
 		DispatchFile:          cfg.DispatchFile,
 		TSConfigPath:          cfg.TSConfigPath,
+		Include:               cfg.Include,
 	})
 
 	var buf bytes.Buffer

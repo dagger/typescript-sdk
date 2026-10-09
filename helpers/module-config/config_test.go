@@ -41,6 +41,62 @@ func TestGetBaseImage(t *testing.T) {
 	require.Equal(t, "", getBaseImage(sampleDenoJSON))
 }
 
+func TestResolveInclude(t *testing.T) {
+	const withInclude = `{
+  "dagger": {
+    "include": ["../lib/greet", "!../lib/greet/testdata", "../shared/*.ts", "../version.txt"]
+  }
+}`
+
+	patterns, err := resolveInclude(withInclude, "apps/web")
+	require.NoError(t, err)
+	require.Equal(t, []string{
+		// A plain path names itself and everything under it, since the filter
+		// cannot tell a file from a directory.
+		"apps/lib/greet", "apps/lib/greet/**",
+		"!apps/lib/greet/testdata", "!apps/lib/greet/testdata/**",
+		// A glob is left alone.
+		"apps/shared/*.ts",
+		"apps/version.txt", "apps/version.txt/**",
+	}, patterns)
+
+	// Absent, empty and non-TypeScript configs all mean "no includes".
+	for _, input := range []string{samplePackageJSON, sampleDenoJSON, `{"dagger":{"include":[]}}`, "{}"} {
+		patterns, err := resolveInclude(input, "apps/web")
+		require.NoError(t, err)
+		require.Empty(t, patterns)
+	}
+}
+
+func TestResolveIncludeRefusals(t *testing.T) {
+	for _, tc := range []struct {
+		name       string
+		entry      string
+		modulePath string
+		wantErr    string
+	}{
+		{name: "absolute", entry: `"/etc/passwd"`, modulePath: "app", wantErr: "must be relative to the module directory"},
+		{name: "escapes workspace", entry: `"../../outside"`, modulePath: "app", wantErr: "leaves the workspace root"},
+		{name: "escapes via climb", entry: `"../app/../../x"`, modulePath: "app", wantErr: "leaves the workspace root"},
+		{name: "inside module", entry: `"src/extra"`, modulePath: "app", wantErr: "is inside the module directory"},
+		{name: "module itself", entry: `"."`, modulePath: "app", wantErr: "is inside the module directory"},
+		{name: "exclude inside module", entry: `"!src/extra"`, modulePath: "app", wantErr: "is inside the module directory"},
+		{name: "empty", entry: `""`, modulePath: "app", wantErr: "names no path"},
+		{name: "bang only", entry: `"!"`, modulePath: "app", wantErr: "names no path"},
+		{name: "not a string", entry: `42`, modulePath: "app", wantErr: "is not a path"},
+		{name: "root module", entry: `"../x"`, modulePath: ".", wantErr: "module at the workspace root"},
+		{name: "src ancestor", entry: `"../lib"`, modulePath: "src/dagger", wantErr: `under a "src" directory`},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			_, err := resolveInclude(`{"dagger":{"include":[`+tc.entry+`]}}`, tc.modulePath)
+			require.ErrorContains(t, err, tc.wantErr)
+		})
+	}
+
+	_, err := resolveInclude(`{"dagger":{"include":"../lib"}}`, "app")
+	require.ErrorContains(t, err, "must be an array of paths")
+}
+
 func TestSetPackageManagerPreservesData(t *testing.T) {
 	out, err := setPackageManager(samplePackageJSON, "yarn@1.22.22")
 	require.NoError(t, err)

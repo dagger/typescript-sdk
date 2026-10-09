@@ -170,6 +170,11 @@ func runDangEntrypoint(args []string) error {
 		dispatchFile = fs.String("dispatch-file", typescriptgenerator.DefaultDispatchFile, "dispatcher call() execs, relative to the module directory")
 		tsconfigPath = fs.String("tsconfig", "tsconfig.json", "tsconfig tsx loads, relative to the module directory (node only)")
 	)
+	var includes []string
+	fs.Func("include", `workspace-relative path outside the module directory the module builds with, "!"-prefixed to exclude (repeatable)`, func(v string) error {
+		includes = append(includes, v)
+		return nil
+	})
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
@@ -199,6 +204,7 @@ func runDangEntrypoint(args []string) error {
 			PackageManagerVersion: pkgMgrVersion,
 			DispatchFile:          *dispatchFile,
 			TSConfigPath:          *tsconfigPath,
+			Include:               includes,
 		},
 	}
 	gen := &typescriptgenerator.TypeScriptGenerator{Config: cfg}

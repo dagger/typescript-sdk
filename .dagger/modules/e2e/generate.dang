@@ -347,6 +347,171 @@ type GenerateChecks {
   }
 
   """
+  An entrypoint module's call recipe should mount its own directory, not the
+  caller's whole workspace.
+
+  call() receives the caller's workspace, and mounting it put every unrelated
+  file in the repository inside the module's container — .git, build output, a
+  root .env — and keyed the container on all of them, so an edit anywhere in the
+  repository rebuilt it. A module needing more than its own directory says so
+  with `dagger.include`.
+  """
+  entrypointMountsOnlyModuleCheck(ws: Workspace!): Void @check {
+    let scope = Fixtures.out + "/entrypoint-mount"
+    let recipe = entrypointRecipe(ws, scope, "entrypoint-mount")
+
+    Asserts.stringContains(
+      recipe,
+      "withMountedDirectory(\"/workspace/" + scope + "\", workspace.directory(\"/" + scope + "\", exclude: [\"**/node_modules\"]))",
+      "the recipe should mount the module's own directory",
+    )
+    Asserts.stringNotContains(
+      recipe, "workspace.directory(\"/\"",
+      "the recipe should read nothing from the workspace root",
+    )
+
+    null
+  }
+
+  """
+  `dagger.include` should reach the scan, the mount and the install context.
+
+  Three places and one list: generation scans the module from inside a tree
+  holding those paths, so an import reaching outside the module directory
+  resolves to what it will resolve to at call time; the recipe mounts them under
+  the module; and the install reads them, because a file: dependency outside the
+  module directory has nothing to resolve to otherwise.
+  """
+  entrypointIncludeCheck(ws: Workspace!): Void @check {
+    let scope = Fixtures.out + "/entrypoint-include"
+    let shared = Fixtures.out + "/entrypoint-shared"
+    let recipe = entrypointRecipe(
+      includeFixture(ws, scope, shared, "[\"../entrypoint-shared\"]"),
+      scope,
+      "entrypoint-include",
+    )
+
+    # A plain path names itself and everything under it: the filter matches
+    # literally and cannot tell a file from a directory.
+    Asserts.stringContains(
+      recipe,
+      "withMountedDirectory(\"/workspace\", workspace.directory(\"/\", include: [\"" + shared + "\", \"" + shared + "/**\"], exclude: [\"**/node_modules\"], gitignore: true))",
+      "the declared paths should mount under the module, with .gitignore applied",
+    )
+    # Still the module's own directory over the top, not the workspace.
+    Asserts.stringContains(
+      recipe,
+      "withMountedDirectory(\"/workspace/" + scope + "\", workspace.directory(\"/" + scope + "\"",
+      "the module's own directory should still mount over the declared paths",
+    )
+    # The install runs at the module's workspace path, so the relative symlink
+    # npm leaves for a file: dependency outside the module resolves to the same
+    # place under the runtime mount.
+    Asserts.stringContains(
+      recipe, "withWorkdir(\"/deps/" + scope + "\")",
+      "the install should run at the module's path under the install root",
+    )
+    Asserts.stringContains(
+      recipe, "withDirectory(\"/deps\", workspace.directory(\"/\", include: [\"" + shared + "\"",
+      "the declared paths should be in the install context",
+    )
+
+    null
+  }
+
+  """
+  `dagger.include` should refuse what would silently do nothing.
+
+  Each of these resolves to a path the module already builds with, or to one the
+  entrypoint could never read, so generating against it would produce a module
+  that behaves differently from what was declared.
+  """
+  entrypointIncludeRefusalsCheck(ws: Workspace!): Void @check {
+    let scope = Fixtures.out + "/entrypoint-refuse"
+    let shared = Fixtures.out + "/entrypoint-shared"
+
+    # The resolver refuses these from inside a container, so what reaches here
+    # is the exec's failure and the message is in its log — hence "no recipe"
+    # rather than a message match. The messages themselves are pinned by
+    # module-config's own tests.
+    Asserts.stringNotContains(
+      includeRefusal(ws, scope, shared, "[\"/etc/passwd\"]"),
+      entrypointMarker,
+      "an absolute path should be refused",
+    )
+    Asserts.stringNotContains(
+      includeRefusal(ws, scope, shared, "[\"src/extra\"]"),
+      entrypointMarker,
+      "a path inside the module directory should be refused",
+    )
+    Asserts.stringNotContains(
+      includeRefusal(ws, scope, shared, "[\"../../../../../../outside\"]"),
+      entrypointMarker,
+      "a path above the workspace root should be refused",
+    )
+
+    # Raised by the SDK rather than the resolver, so this one carries its
+    # message: the paths resolved, and nothing in the workspace matched them.
+    Asserts.stringContains(
+      includeRefusal(ws, scope, shared, "[\"../entrypoint-absent\"]"),
+      "matched nothing in the workspace",
+      "a path matching nothing should be refused",
+    )
+
+    # A `[runtime]` module's files come from the module source the engine loads,
+    # which this SDK does not assemble — its manifest has an `include` field for
+    # exactly this.
+    let legacy = typescriptSdk(legacyRuntime: true, template: "empty", skipGenerateFilename: "")
+      .generateScope(
+        includeFixture(ws, scope, shared, "[\"../entrypoint-shared\"]").withWorkdir(scope),
+        isModule: true,
+        name: "entrypoint-refuse",
+        clients: [],
+      )
+      .file("entrypoint/main.dang")
+      .contents rescue {
+      err: Error => err.message
+    }
+    Asserts.stringContains(
+      legacy, "only read for a module entrypoint",
+      "a [runtime] module should be told where its include setting lives",
+    )
+
+    null
+  }
+
+  """
+  What a generated entrypoint recipe always contains, so a refusal can be told
+  from one.
+  """
+  let entrypointMarker: String! = "implements ModuleEntrypoint"
+
+  """
+  The error generating a module whose `dagger.include` carries `field` raised,
+  or its recipe when it unexpectedly succeeded.
+  """
+  let includeRefusal(ws: Workspace!, scope: String!, shared: String!, field: String!): String! {
+    entrypointRecipe(includeFixture(ws, scope, shared, field), scope, "entrypoint-refuse") rescue {
+      err: Error => err.message
+    }
+  }
+
+  """
+  A module scope carrying `dagger.include`, with the sibling directory it names.
+
+  The shared directory has to exist for real: the include read is filtered from
+  the workspace root, and a list that matches nothing is refused.
+  """
+  let includeFixture(ws: Workspace!, scope: String!, shared: String!, field: String!): Workspace! {
+    ws
+      .withNewFile("/" + shared + "/greeting.txt", "hello\n")
+      .withNewFile(
+        "/" + scope + "/package.json",
+        "{\n  \"name\": \"entrypoint-include\",\n  \"type\": \"module\",\n  \"dagger\": { \"include\": " + field + " }\n}\n",
+      )
+  }
+
+  """
   An entrypoint module's call recipe should raise what a function threw, with
   its message, rather than report the exec's exit code.
 

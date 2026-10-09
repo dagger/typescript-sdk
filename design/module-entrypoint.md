@@ -520,6 +520,14 @@ the module context (`core/sdk/dang/shared/shared.go:53`) — but this is exactly
 the thing the embedded-runtime design forbade, so **verify it first**: it decides
 whether the recipe mounts the workspace, the module source, or both.
 
+*Settled, and the gain was a hazard.* The recipe mounted `workspace.directory("/")`,
+so a call carried every unrelated file in the repository — `.git`, build output,
+a root `.env` — and keyed its container on all of them. The recipe now mounts the
+module's own directory, and a module that needs more declares it with
+`dagger.include` (`docs/include.md`), which also reaches the scan and the install
+context. Reachability is opt-in rather than incidental; remote modules are still
+unresolved.
+
 **10.4 — Two moving contracts at once.** The SDK-module interface is being
 replaced by #13992 (`findClientRoot` / `generateScope`) at the same time as the
 module-loading contract is replaced by #14038 (`types` / `call`). #42 lands the
