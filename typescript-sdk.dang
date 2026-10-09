@@ -509,6 +509,26 @@ type TypescriptSdk {
   }
 
   """
+  Whether the dagger-module.toml at `configPath` (workspace-root-relative) pins
+  a pre-1.0 engine release: an `engineVersion` whose major version is 0.
+
+  Read off the file because the builder keeps the pin it loaded to itself.
+  Anchored at the start of a line, so the key is the manifest's own top-level
+  one and not a value quoted inside some table.
+  """
+  let hasLegacyEnginePin(ws: Workspace!, configPath: String!): Boolean! {
+    ws
+      .directory("/", include: [configPath])
+      .file(configPath)
+      .search(
+        pattern: "^engineVersion\\s*=\\s*\"v?0\\.",
+        limit: 1,
+      )
+      .{{id}}
+      .length > 0
+  }
+
+  """
   Whether a scope holds the named file.
   """
   let hasScopeFile(ws: Workspace!, scope: String!, name: String!): Boolean! {
@@ -525,9 +545,19 @@ type TypescriptSdk {
   Migrating is the whole reason this is not folded back into seeding. Leaving
   both files behind would leave the module with two manifests free to disagree,
   and the manifest schema round-trips through the builder, so what the
-  `dagger.json` carried — `source`, `include`, `[[dependencies]]`, its engine
-  pin — comes out the other side. Only a scope the workspace records is ever
-  generated, so migration reaches a module because someone asked for it.
+  `dagger.json` carried — `source`, `include`, `[[dependencies]]` — comes out
+  the other side. Only a scope the workspace records is ever generated, so
+  migration reaches a module because someone asked for it.
+
+  The engine pin is the one field that does not round-trip. A module is served
+  the core view of the release it pins, and its bindings are generated out of
+  that view: carried over, a pre-1.0 pin yields 0.21-shaped core bindings — no
+  serveModule, old argument names — written beside a 1.0 bundle whose
+  per-module clients serve their module through `__dag.serveModule`. The
+  module generates cleanly and its first call through a dependency client dies
+  with `__dag.serveModule is not a function`. So a migrated module is pinned
+  like a fresh one, at the release the bundle is built for: that is the pairing
+  its generated files really have, whatever the dagger.json said.
 
   The entrypoint manifest gets no such round trip. The builder can add a
   runtime to a loaded manifest but not take the entrypoint away, so the file is
@@ -562,7 +592,9 @@ type TypescriptSdk {
         raise "cannot migrate " + configPath + ": it does not use the TypeScript SDK"
       }
 
+      # The loaded `source` is kept: the builder only replaces what is passed.
       sdkHelpers.moduleManifest(loadJson: ws.file(jsonPath))
+        .withLegacyTypescriptRuntime(engineVersion: "v" + targetEngineVersion)
     } else {
       # Pin the engine version to the release this SDK's committed bundle was
       # built for, rather than letting it default to whichever engine happens to
@@ -630,6 +662,16 @@ type TypescriptSdk {
   leaves its dependency behind, serving a module whose bindings are gone.
   Generation also applies the lock setting when there are no clients.
 
+  A pre-1.0 engine pin is raised here too, to the release the bundle is built
+  for. Migration pins a manifest it writes (withModuleManifest), but `dagger
+  setup` writes dagger-module.toml itself and carries the dagger.json's pin
+  over, so a module it migrated never comes through there — and a pre-1.0 pin
+  means a pre-1.0 core view, so the bindings read out of it have no serveModule
+  for the generated clients to call. This runs for every module scope, before
+  the schema is read, which makes it the one place a regeneration can repair
+  the pin. Only a major version of 0 is touched: a 1.0 pin is a choice someone
+  made, and its view already carries everything the clients call.
+
   The manifest is re-emitted every run and comes out the same nearly every time,
   so the result is kept only when it differs. Everything the builder records
   lands in that one file, which makes comparing it enough to say the run changed
@@ -637,8 +679,15 @@ type TypescriptSdk {
   identical bytes or not.
   """
   let withClientDependencies(ws: Workspace!, scope: String!, clients: [ModuleSource!]!): Workspace! {
-    let tomlPath = "/" + scopeFile(scope, "dagger-module.toml")
-    let updated = clients.reduce(sdkHelpers.moduleManifest(loadToml: ws.file(tomlPath))) { manifest, client =>
+    let configPath = scopeFile(scope, "dagger-module.toml")
+    let tomlPath = "/" + configPath
+    let loaded = sdkHelpers.moduleManifest(loadToml: ws.file(tomlPath))
+    let pinned = if (hasLegacyEnginePin(ws, configPath)) {
+      loaded.withLegacyTypescriptRuntime(engineVersion: "v" + targetEngineVersion)
+    } else {
+      loaded
+    }
+    let updated = clients.reduce(pinned) { manifest, client =>
       manifest.withLegacyRuntimeDependency(module: client)
     }.generate(ws.withWorkdir(scope), lock: lock, legacyJson: false).withWorkdir(".")
 

@@ -63,7 +63,13 @@ other custom settings are preserved — and any other file is left untouched.
 A scope whose module is still configured by a pre-1.0 `dagger.json` is migrated
 on its first generation: the manifest is rewritten as `dagger-module.toml`, with
 `source`, `include` and `[[dependencies]]` carried over, and the `dagger.json` is
-removed. The module's own source is generated, never scaffolded over.
+removed. The module's own source is generated, never scaffolded over. Its
+`engineVersion` is not carried over: a module is served the core API of the
+release it pins, and a pre-1.0 pin yields bindings without `serveModule`, which
+the generated clients call — so the migrated manifest is pinned to the release
+this SDK's bundle is built for, and a `dagger-module.toml` still pinned to a
+pre-1.0 release (`dagger setup` keeps the old pin) is raised the same way on its
+next generation.
 
 ### Settings
 

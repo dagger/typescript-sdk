@@ -692,6 +692,114 @@ type GenerateChecks {
   }
 
   """
+  Migrating a pre-1.0 module raises its engine pin to the release this SDK's
+  bundle is built for.
+
+  A module is served the core view of the release it pins, and its bindings are
+  generated out of that view. Carried over, a pre-1.0 pin yields 0.21-shaped
+  core bindings — no serveModule, old argument names — beside a module client
+  that calls `__dag.serveModule(...)`, because that call is rendered from
+  codegen's own template whatever the schema said. The two halves disagree: the
+  module generates cleanly, `tsc` reports `Property 'serveModule' does not
+  exist on type 'Client'`, and a call that reaches the serve dies with
+  `__dag.serveModule is not a function`. A fresh module never sees this, because
+  its manifest is pinned at the target release from the start; migration is
+  where the old pin got in.
+
+  The dependency is generated first and the module against the result, the
+  order the engine runs the two scopes in.
+  """
+  generateMigrationRaisesEnginePinCheck(ws: Workspace!): Void @check {
+    let path = fixtures.legacyPinAppModule
+    let staged = ws.withChanges(Gen.module(ws, fixtures.legacyPinDepModule, "legacypindep"))
+    let changes = Gen.module(staged, path, "legacy-pin-app")
+    let tree = staged.withChanges(changes).directory("/" + path)
+
+    Asserts.stringContains(
+      tree.file("dagger-module.toml").contents,
+      "engineVersion = \"v" + typescriptSdk.targetEngineVersion + "\"",
+      "migration should raise a pre-1.0 engine pin to the release the bundle is built for",
+    )
+    Asserts.generated(changes, path + "/sdk/legacypindep.gen.ts")
+
+    # Both halves of the pairing a pre-1.0 pin breaks. The call site is the
+    # module's own client — a dependency's client has none, because a manifest
+    # dependency is already served into the session — and it renders either
+    # way, so on its own it proves nothing. The definition comes from the
+    # schema view, and only a 1.0 one has it. Matched as the rendered property
+    # (`serveModule = async (`) rather than the bare name, which also occurs in
+    # the constructor and the field list.
+    Asserts.stringContains(
+      tree.file("sdk/legacy-pin-app.gen.ts").contents,
+      "__dag.serveModule(",
+      "the module's own client should serve it before its first query",
+    )
+    Asserts.stringContains(
+      tree.file("sdk/client.gen.ts").contents,
+      "serveModule = async (",
+      "the core bindings should come from a 1.0 schema view, which is the one that defines serveModule",
+    )
+
+    null
+  }
+
+  """
+  Regenerating a manifest still pinned to a pre-1.0 release raises the pin.
+
+  Migration is not the only way a `[runtime]` module ends up on one: `dagger
+  setup` writes dagger-module.toml itself and carries the dagger.json's
+  engineVersion over, so a module it migrated never came through this SDK's
+  migration at all, and a user who bumps nothing by hand keeps regenerating
+  0.21-shaped bindings beside a 1.0 bundle. Regeneration is the one path every
+  module takes, which is why the pin is checked there and not only when the
+  manifest is first written.
+  """
+  generateRaisesLegacyEnginePinCheck(ws: Workspace!): Void @check {
+    let path = fixtures.managedTomlLegacyPinModule
+    let manifest = path + "/dagger-module.toml"
+    let changes = Gen.module(ws, path, "managed-toml-legacy-pin")
+    let tree = ws.withChanges(changes).directory("/" + path)
+
+    Asserts.modified(changes, manifest)
+    Asserts.stringContains(
+      tree.file("dagger-module.toml").contents,
+      "engineVersion = \"v" + typescriptSdk.targetEngineVersion + "\"",
+      "regenerating should raise a pre-1.0 engine pin to the release the bundle is built for",
+    )
+    Asserts.stringContains(
+      tree.file("sdk/client.gen.ts").contents,
+      "serveModule = async (",
+      "the core bindings should come from a 1.0 schema view, which is the one that has serveModule",
+    )
+
+    null
+  }
+
+  """
+  Regenerating a manifest pinned to a 1.0 release leaves the pin alone.
+
+  Only a pre-1.0 pin is raised. A 1.0 one is a choice someone made — an earlier
+  beta the module is known to load on — and its view already has everything
+  the generated clients call, so rewriting it would turn that choice into a
+  diff on every `dagger generate`. Asserted on the layer, as
+  generatePreservesManifestCheck does: a manifest re-emitted with its own bytes
+  is absent from the reported paths either way.
+  """
+  generateKeepsEnginePinCheck(ws: Workspace!): Void @check {
+    let path = fixtures.managedTomlBetaPinModule
+    let changes = Gen.module(ws, path, "managed-toml-beta-pin")
+
+    Asserts.generated(changes, path + "/sdk/client.gen.ts")
+    Asserts.untouched(
+      changes,
+      path + "/dagger-module.toml",
+      "regenerating should leave a 1.0 engine pin as it was written",
+    )
+
+    null
+  }
+
+  """
   A pre-1.0 dagger.json carrying config dagger-module.toml cannot express is
   refused rather than migrated.
 

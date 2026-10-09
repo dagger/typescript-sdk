@@ -233,6 +233,21 @@ type Fixtures {
   let legacyDepAppModule: String! = root + "/generate-legacy-deps/app"
   let legacyDepLibModule: String! = root + "/generate-legacy-deps/dep"
 
+  # The same pair with the engine pin a real pre-1.0 workspace carries: both
+  # dagger.json modules declare v0.21.9, the release they were written against.
+  # Migration has to raise it, because a module is served the core view of the
+  # release it pins, and the generated clients call a serveModule only a 1.0
+  # view defines.
+  let legacyPinAppModule: String! = root + "/generate-legacy-pin/app"
+  let legacyPinDepModule: String! = root + "/generate-legacy-pin/dep"
+
+  # Manifests `dagger setup` wrote, carrying the dagger.json's pin over: one
+  # still on a pre-1.0 release, one on an earlier 1.0 beta. Neither is in
+  # managedTomlFixtures — their pins are the point, and generation is expected
+  # to raise the first and leave the second alone.
+  let managedTomlLegacyPinModule: String! = root + "/managed-toml/legacy-pin"
+  let managedTomlBetaPinModule: String! = root + "/managed-toml/beta-pin"
+
   # Pre-1.0 configs that cannot be migrated: two declaring fields
   # dagger-module.toml has no table for, one belonging to another SDK.
   let migrateToolchainsModule: String! = root + "/migrate/toolchains"
