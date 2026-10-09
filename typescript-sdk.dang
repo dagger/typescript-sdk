@@ -255,7 +255,12 @@ type TypescriptSdk {
       # reads that as ".", and generation then looks for src/ at the workspace
       # root instead of inside the module.
       let source = if (legacyRuntime == false) { scope } else { moduleSourcePath(configured, scope) }
-      let rt = effectiveRuntime(configured, source)
+      # Before anything below loads the module, not on the way out. A module
+      # source read off a workspace honours the module's .gitignore, so the
+      # `/sdk` a pre-1.0 engine left there hides the staged sdk/ from the self
+      # client's load in this very run, not only from the engine's at call time.
+      let unhidden = withoutLegacyIgnores(configured, source)
+      let rt = effectiveRuntime(unhidden, source)
       # The same targets feed the module's runtime dependencies and its clients/
       # directory — the per-module client files its own source imports and any
       # caller outside it installs.
@@ -270,9 +275,9 @@ type TypescriptSdk {
       # consequence is real and has no workaround here: a module with an
       # entrypoint cannot serve a client yet.
       let served = if (legacyRuntime == false) {
-        configured
+        unhidden
       } else {
-        withClientDependencies(configured, scope, clients)
+        withClientDependencies(unhidden, scope, clients)
       }
 
       # The module's own path among the recorded clients is `dagger module
@@ -416,6 +421,73 @@ type TypescriptSdk {
       ws
     } else {
       ws.withoutDirectory("/" + old)
+    }
+  }
+
+  """
+  Take the `/sdk` and `/__dagger.entrypoint.ts` lines out of a module's
+  .gitignore, and nothing else.
+
+  The v0.21 runtime regenerated both on every call, and the engine appended a
+  root-anchored line per path it declared ignorable (v0.21.9
+  core/schema/modulesource.go, the writeGitignore block). A 1.0 module commits
+  them — the trusted runtime does no codegen — and source loading honours
+  .gitignore before the runtime sees the tree, so the two lines hide the very
+  files the module requires: `committed generated file "sdk/client.gen.ts" is
+  missing`, with the file on disk (SDK Main-Engine Test Run, 2026-10-07 — issue
+  #25, case G14; dagger/dagger#13717 describes the loop). dagger/dagger#13720
+  taught `dagger setup` to drop them, learning which lines by running the
+  legacy SDK's codegen — which an SDK-module provider like this one has none
+  of, so for a module it converts the engine removes nothing, and this SDK's
+  own conversion never touched the file either.
+
+  Exactly those lines, as the engine wrote them, the way #13720 does it: the
+  node_modules, .pnpm-store and .env rules describe nothing a module commits,
+  and a rule the user wrote is theirs. Every other line — comments and blank
+  ones included — stays byte for byte, and a removed line takes only its own
+  terminator. `/sdk/` spells the same rule and goes with it.
+
+  On every generation, under either loading path, rather than only while a
+  dagger.json is being migrated: the file outlives the migration. A manifest an
+  earlier version of this SDK wrote, or a `dagger setup` that could not see the
+  lines, has already lost the dagger.json that marks a module as migrating, so
+  the next generate is the only chance to repair it. An entrypoint module has
+  no sdk/ for the line to hide, but the lines are as stale there, and a module
+  moved back onto a `[runtime]` would be unloadable again with no migration
+  left to fix it.
+
+  Written only when a line went: a rewrite with its own bytes lands in the
+  changeset like any other write (see writeChanged) and comes back as a whole
+  new file on the next run. A module without a .gitignore gets none — a file
+  this SDK never wrote is not its to create. One the removal empties is left,
+  empty: v0.21 always wrote more than these two lines, so an emptied file is
+  one the user trimmed by hand, and deleting it is a bigger step than taking
+  two lines out.
+  """
+  let withoutLegacyIgnores(ws: Workspace!, sourcePath: String!): Workspace! {
+    let path = scopeFile(sourcePath, ".gitignore")
+    let legacyLines = ["/sdk", "/sdk/", "/" + legacyEntrypointFile]
+
+    if (hasScopeFile(ws, sourcePath, ".gitignore") == false) {
+      ws
+    } else {
+      # split drops the "\n" it splits on, so it is put back on every segment
+      # but the last — which is what follows the final newline: the
+      # unterminated last line, or "" when there is none. A line that carries
+      # its own terminator is a line that can be removed whole, "\r" included,
+      # with the rest of the file joined back exactly as it was.
+      let segments = ws.file("/" + path).contents.split("\n")
+      let lines = segments.dropLast(1).map { line => line + "\n" } +
+        segments.takeLast(1).filter { tail => tail != "" }
+      let kept = lines.filter { line =>
+        legacyLines.filter { entry => entry == line.trimSuffix("\n").trimSuffix("\r") }.length == 0
+      }
+
+      if (kept.length == lines.length) {
+        ws
+      } else {
+        ws.withNewFile("/" + path, kept.join(""))
+      }
     }
   }
 

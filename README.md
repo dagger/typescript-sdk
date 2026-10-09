@@ -69,7 +69,10 @@ release it pins, and a pre-1.0 pin yields bindings without `serveModule`, which
 the generated clients call — so the migrated manifest is pinned to the release
 this SDK's bundle is built for, and a `dagger-module.toml` still pinned to a
 pre-1.0 release (`dagger setup` keeps the old pin) is raised the same way on its
-next generation.
+next generation. The `/sdk` and `/__dagger.entrypoint.ts` lines the pre-1.0
+engine put in the module's `.gitignore` go the same way — a 1.0 module commits
+those files, and a stale line hides them from the engine — while every other
+line stays.
 
 ### Settings
 
