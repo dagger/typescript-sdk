@@ -1416,4 +1416,25 @@ type GenerateChecks {
 
     null
   }
+
+  """
+  A module whose manifest keeps its source outside the scope is refused under an
+  entrypoint, rather than generated against a directory that is not there.
+
+  An entrypoint manifest has no `source` field, so the module root is the source
+  directory — and a config aiming `source` elsewhere is exactly what migration
+  carries in, since that is the layout `dagger init` wrote inside an existing
+  project. Unguarded the run dies on `stat <scope>/src: no such file or
+  directory`, naming neither the source it ignored nor the setting that keeps
+  the module's own layout.
+  """
+  generateRefusesEntrypointSourceSubpathCheck(ws: Workspace!): Void @check {
+    Asserts.stringContains(
+      Gen.failure(Gen.scope(ws, fixtures.parentSourceModule, "parent-source-app", legacyRuntime: false)),
+      "legacyRuntime = true",
+      "generating an entrypoint for a module whose source is elsewhere should be refused",
+    )
+
+    null
+  }
 }

@@ -118,7 +118,7 @@ for an older engine and the module declares a `[runtime]` with the
 `__dagger.entrypoint.ts` that runtime execs instead.
 
 An existing module moves between the two on its next generation: set
-`legacy-runtime` in the scope's settings in `dagger.toml` and run `dagger
+`legacyRuntime` in the scope's settings in `dagger.toml` and run `dagger
 generate`. Onto an entrypoint, the manifest drops `engineVersion`, `source`,
 `include` and `[[dependencies]]` with the `[runtime]` they hang off. Back onto a
 runtime, the manifest is written fresh — `engineVersion` pinned to the release
