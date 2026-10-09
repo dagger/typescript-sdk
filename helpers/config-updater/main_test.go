@@ -698,3 +698,114 @@ func TestUpdateSharedDeps_RejectsMalformedClientSpec(t *testing.T) {
 		require.Error(t, err, "spec %q must be rejected", spec)
 	}
 }
+
+func TestUpdateDenoDeps(t *testing.T) {
+	type testCase struct {
+		name       string
+		denoConfig string
+		coreDir    string
+		modules    []string
+		expected   string
+	}
+
+	// What a scope with one client comes out as, and must come out as again
+	// when wired a second time.
+	wired := `{
+  "imports": {
+    "@dagger.io/dagger": "./clients/dagger/index.ts",
+    "@dagger.io/dagger/telemetry": "./clients/dagger/telemetry.ts",
+    "@dagger.io/client-app": "./clients/client-app/client-app.gen.ts"
+  },
+  "unstable": ["bare-node-builtins", "sloppy-imports", "node-globals", "byonm"]
+}`
+
+	for _, tc := range []testCase{
+		{
+			// A client scope needs the aliases and the flags and nothing a
+			// module needs: no compiler import, no nodeModulesDir, and no
+			// experimentalDecorators, which Deno warns about on every run.
+			name:       "a fresh deno.json gets the aliases and the flags, nothing module-only",
+			denoConfig: `{}`,
+			coreDir:    "./clients/dagger",
+			modules:    []string{"client-app"},
+			expected:   wired,
+		},
+		{
+			name:       "wiring is idempotent",
+			denoConfig: wired,
+			coreDir:    "./clients/dagger",
+			modules:    []string{"client-app"},
+			expected:   wired,
+		},
+		{
+			name: "the user's own entries, flags and keys survive, and a client that left is pruned",
+			denoConfig: `{
+  "tasks": {"dev": "deno run main.ts"},
+  "imports": {
+    "@std/assert": "jsr:@std/assert@1",
+    "@dagger.io/gone": "./clients/gone/gone.gen.ts"
+  },
+  "unstable": ["kv"]
+}`,
+			coreDir: "./clients/dagger",
+			modules: []string{"kept"},
+			expected: `{
+  "tasks": {"dev": "deno run main.ts"},
+  "imports": {
+    "@std/assert": "jsr:@std/assert@1",
+    "@dagger.io/dagger": "./clients/dagger/index.ts",
+    "@dagger.io/dagger/telemetry": "./clients/dagger/telemetry.ts",
+    "@dagger.io/kept": "./clients/kept/kept.gen.ts"
+  },
+  "unstable": ["kv", "bare-node-builtins", "sloppy-imports", "node-globals", "byonm"]
+}`,
+		},
+		{
+			name: "the last client leaving takes the aliases and the flags, and leaves the user's",
+			denoConfig: `{
+  "tasks": {"dev": "deno run main.ts"},
+  "imports": {
+    "@std/assert": "jsr:@std/assert@1",
+    "@dagger.io/dagger": "./clients/dagger/index.ts",
+    "@dagger.io/dagger/telemetry": "./clients/dagger/telemetry.ts",
+    "@dagger.io/client-app": "./clients/client-app/client-app.gen.ts"
+  },
+  "unstable": ["kv", "bare-node-builtins", "sloppy-imports", "node-globals", "byonm"]
+}`,
+			coreDir: "-",
+			expected: `{
+  "tasks": {"dev": "deno run main.ts"},
+  "imports": {"@std/assert": "jsr:@std/assert@1"},
+  "unstable": ["kv"]
+}`,
+		},
+		{
+			name: "an imports or unstable emptied by the removal goes with it",
+			denoConfig: `{
+  "tasks": {"dev": "deno run main.ts"},
+  "imports": {
+    "@dagger.io/dagger": "./clients/dagger/index.ts",
+    "@dagger.io/dagger/telemetry": "./clients/dagger/telemetry.ts",
+    "@dagger.io/client-app": "./clients/client-app/client-app.gen.ts"
+  },
+  "unstable": ["bare-node-builtins", "sloppy-imports", "node-globals", "byonm"]
+}`,
+			coreDir:  "-",
+			expected: `{"tasks": {"dev": "deno run main.ts"}}`,
+		},
+		{
+			name:       "removal on a deno.json that was never wired is a no-op",
+			denoConfig: `{"tasks": {"dev": "deno run main.ts"}}`,
+			coreDir:    "-",
+			expected:   `{"tasks": {"dev": "deno run main.ts"}}`,
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			res, err := updateDenoDeps(removeJSONComments(tc.denoConfig), tc.coreDir, "clients/", tc.modules)
+			require.NoError(t, err)
+			require.JSONEq(t, tc.expected, res)
+		})
+	}
+}

@@ -1,0 +1,11 @@
+{
+  "tasks": {
+    "dev": "deno run -A main.ts"
+  },
+  "imports": {
+    "@std/assert": "jsr:@std/assert@1"
+  },
+  "unstable": [
+    "kv"
+  ]
+}

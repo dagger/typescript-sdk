@@ -416,4 +416,108 @@ type ClientChecks {
 
     null
   }
+
+  """
+  A Deno project takes its clients through deno.json, not package.json.
+
+  Deno resolves imports through its import map and reads a package.json beside
+  deno.json as "bring your own node_modules" — so the file: deps a node scope
+  gets would leave a Deno app expecting an install nothing runs, and its
+  `deno check` asking for an @types/node nobody declared. The scope's runtime
+  is detected the way a module's is, and a Deno scope gets import-map aliases
+  for the core and each client, plus the unstable flags the library needs, in
+  the deno.json it already has — the user's own entries kept — and no
+  package.json at all.
+  """
+  generateDenoClientCheck(ws: Workspace!): Void @check {
+    let scope = fixtures.clientDenoHost
+    let changes = generateClients(ws, scope)
+    clientPackage(changes, scope)
+
+    Asserts.modified(changes, scope + "/deno.json")
+    Asserts.untouched(changes, scope + "/package.json", "a Deno scope must not be given a package.json")
+
+    let denoConfig = changes.after.directory(scope).file("deno.json").contents
+    Asserts.stringContains(
+      denoConfig,
+      "\"@dagger.io/dagger\": \"./clients/dagger/index.ts\"",
+      "deno.json should alias the library to the scope's own clients/dagger",
+    )
+    Asserts.stringContains(
+      denoConfig,
+      "\"@dagger.io/client-app\": \"./clients/client-app/client-app.gen.ts\"",
+      "deno.json should alias each client to its package",
+    )
+    Asserts.stringContains(denoConfig, "\"bare-node-builtins\"", "deno.json should carry the unstable flag core.js's bare node imports need")
+    Asserts.stringContains(denoConfig, "\"sloppy-imports\"", "deno.json should carry the unstable flag the .js import of client.gen.ts needs")
+    Asserts.stringContains(denoConfig, "\"dev\"", "the user's own deno.json entries must survive the wiring")
+    Asserts.stringContains(denoConfig, "\"kv\"", "the user's own unstable flags must survive the wiring")
+
+    null
+  }
+
+  """
+  The generated Deno scope must type-check and load with plain `deno check`
+  and `deno run`, no --unstable flag on the command line: the flags belong in
+  deno.json, where the SDK put them, which is the whole point of writing them.
+
+  Staged the way a user runs it — the scope as generated, main.ts and all, in
+  the Deno image — rather than through a tsconfig, since a Deno app has none.
+  `deno run` loads an import-only entry rather than main.ts itself: main.ts
+  opens a connection, and nothing in this container can provide an engine. What
+  the run proves is module resolution — the bare node builtins core.js imports,
+  the .js specifier that resolves to client.gen.ts — which is where the flags
+  bite; main.ts is what `deno check` type-checks end to end.
+  """
+  denoClientRunsCheck(ws: Workspace!): Void @check {
+    let scope = fixtures.clientDenoHost
+    let staged = ws.withChanges(generateClients(ws, scope)).directory("/" + scope)
+
+    let load = "import { connection, dag } from \"@dagger.io/dagger\"\n" +
+      "import { clientApp } from \"@dagger.io/client-app\"\n" +
+      "console.log(typeof connection, typeof dag, typeof clientApp)\n"
+
+    let out = container
+      .from("denoland/deno:2.5.6")
+      .withMountedCache("/deno-dir", cacheVolume("deno-cache"))
+      .withDirectory("/app", staged)
+      .withWorkdir("/app")
+      .withNewFile("/app/load.ts", load)
+      .withExec(["deno", "check", "main.ts"])
+      .withExec(["deno", "run", "-A", "load.ts"])
+      .stdout
+
+    Asserts.stringContains(out, "function object function", "the generated packages should load under deno with no extra flags")
+
+    null
+  }
+
+  """
+  Dropping a Deno scope's last target takes its deno.json wiring with the
+  packages: the aliases and the SDK's flags go, the user's own entries stay.
+  Aliases left behind would point the user's imports at files no longer there;
+  flags left behind would be the SDK's leftovers in a file it has no reason to
+  touch any more.
+  """
+  removeDenoClientCheck(ws: Workspace!): Void @check {
+    let scope = fixtures.clientDenoHost
+    let generated = ws.withChanges(generateClients(ws, scope))
+    let removed = Gen.scope(generated, scope, "", isModule: false)
+
+    Asserts.assert(
+      Asserts.contains(removed.removedPaths, clientDir(scope) + "/"),
+      "dropping the last target should remove the generated packages, got: "
+        + removed.removedPaths.join(", "),
+    )
+    Asserts.modified(removed, scope + "/deno.json")
+    Asserts.untouched(removed, scope + "/package.json", "removal must not give a Deno scope a package.json either")
+
+    let denoConfig = generated.withChanges(removed).file("/" + scope + "/deno.json").contents
+    Asserts.stringNotContains(denoConfig, "@dagger.io/", "the aliases should leave with the packages")
+    Asserts.stringNotContains(denoConfig, "bare-node-builtins", "the SDK's unstable flags should leave with the packages")
+    Asserts.stringContains(denoConfig, "\"dev\"", "the user's own deno.json entries must survive removal")
+    Asserts.stringContains(denoConfig, "\"kv\"", "the user's own unstable flags must survive removal")
+
+    null
+  }
 }
