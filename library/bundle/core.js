@@ -99391,8 +99391,8 @@ class Address extends BaseClient {
     const response = await ctx.execute();
     return response;
   };
-  container = () => {
-    const ctx = this._ctx.select("container");
+  container = (opts) => {
+    const ctx = this._ctx.select("container", { ...opts });
     return new Container(ctx);
   };
   directory = (opts) => {
@@ -99403,8 +99403,8 @@ class Address extends BaseClient {
     const ctx = this._ctx.select("file", { ...opts });
     return new File(ctx);
   };
-  gitRef = () => {
-    const ctx = this._ctx.select("gitRef");
+  gitRef = (opts) => {
+    const ctx = this._ctx.select("gitRef", { ...opts });
     return new GitRef(ctx);
   };
   gitRepository = () => {
@@ -99524,6 +99524,10 @@ class Agent extends BaseClient {
     const ctx = this._ctx.select("resume");
     const response = await ctx.execute();
     return new Agent(ctx.copy().selectNode(response, "Agent"));
+  };
+  seed = () => {
+    const ctx = this._ctx.select("seed");
+    return new LLM(ctx);
   };
   send = async (message, opts) => {
     if (this._send) {
@@ -102703,13 +102707,15 @@ class GitRef extends BaseClient {
   _id = undefined;
   _commit = undefined;
   _commitSHA = undefined;
+  _contains = undefined;
   _name = undefined;
   _ref = undefined;
-  constructor(ctx, _id, _commit, _commitSHA, _name, _ref) {
+  constructor(ctx, _id, _commit, _commitSHA, _contains, _name, _ref) {
     super(ctx);
     this._id = _id;
     this._commit = _commit;
     this._commitSHA = _commitSHA;
+    this._contains = _contains;
     this._name = _name;
     this._ref = _ref;
   }
@@ -102748,6 +102754,14 @@ class GitRef extends BaseClient {
   commonAncestor = (other) => {
     const ctx = this._ctx.select("commonAncestor", { other });
     return new GitRef(ctx);
+  };
+  contains = async (other) => {
+    if (this._contains) {
+      return this._contains;
+    }
+    const ctx = this._ctx.select("contains", { other });
+    const response = await ctx.execute();
+    return response;
   };
   log = async (opts) => {
     const ctx = this._ctx.select("log", { ...opts }).select("id");
@@ -102791,6 +102805,36 @@ class GitRef extends BaseClient {
   };
 }
 
+class GitRemote extends BaseClient {
+  _id = undefined;
+  _name = undefined;
+  constructor(ctx, _id, _name) {
+    super(ctx);
+    this._id = _id;
+    this._name = _name;
+  }
+  id = async () => {
+    if (this._id) {
+      return this._id;
+    }
+    const ctx = this._ctx.select("id");
+    const response = await ctx.execute();
+    return response;
+  };
+  name = async () => {
+    if (this._name) {
+      return this._name;
+    }
+    const ctx = this._ctx.select("name");
+    const response = await ctx.execute();
+    return response;
+  };
+  repository = () => {
+    const ctx = this._ctx.select("repository");
+    return new GitRepository(ctx);
+  };
+}
+
 class GitRepository extends BaseClient {
   _id = undefined;
   _url = undefined;
@@ -102811,8 +102855,8 @@ class GitRepository extends BaseClient {
     const ctx = this._ctx.select("asWorkspace", { ...opts });
     return new Workspace(ctx);
   };
-  branch = (name) => {
-    const ctx = this._ctx.select("branch", { name });
+  branch = (name, opts) => {
+    const ctx = this._ctx.select("branch", { name, ...opts });
     return new GitRef(ctx);
   };
   branches = async (opts) => {
@@ -102828,20 +102872,37 @@ class GitRepository extends BaseClient {
     const ctx = this._ctx.select("commit", { id });
     return new GitCommit(ctx);
   };
-  head = () => {
-    const ctx = this._ctx.select("head");
+  defaultRemote = async () => {
+    const ctx = this._ctx.select("defaultRemote").select("id");
+    const response = await ctx.execute();
+    if (response === null) {
+      return null;
+    }
+    return new GitRemote(ctx.copy().selectNode(response, "GitRemote"));
+  };
+  head = (opts) => {
+    const ctx = this._ctx.select("head", { ...opts });
     return new GitRef(ctx);
   };
   latest = (opts) => {
     const ctx = this._ctx.select("latest", { ...opts });
     return new GitRef(ctx);
   };
-  ref = (name) => {
-    const ctx = this._ctx.select("ref", { name });
+  ref = (name, opts) => {
+    const ctx = this._ctx.select("ref", { name, ...opts });
     return new GitRef(ctx);
   };
-  tag = (name) => {
-    const ctx = this._ctx.select("tag", { name });
+  remote = (name) => {
+    const ctx = this._ctx.select("remote", { name });
+    return new GitRemote(ctx);
+  };
+  remotes = async () => {
+    const ctx = this._ctx.select("remotes").select("id");
+    const response = await ctx.execute();
+    return response.map((r) => new GitRemote(ctx.copy().selectNode(r.id, "GitRemote")));
+  };
+  tag = (name, opts) => {
+    const ctx = this._ctx.select("tag", { name, ...opts });
     return new GitRef(ctx);
   };
   tags = async (opts) => {
@@ -103248,6 +103309,10 @@ class LLM extends BaseClient {
     const ctx = this._ctx.select("agent", { handle, name });
     return new Agent(ctx);
   };
+  artifacts = (opts) => {
+    const ctx = this._ctx.select("artifacts", { ...opts });
+    return new Artifacts(ctx);
+  };
   compose = (expertise) => {
     const ctx = this._ctx.select("compose", { expertise });
     return new LLM(ctx);
@@ -103441,6 +103506,42 @@ class LLM extends BaseClient {
   workspace = () => {
     const ctx = this._ctx.select("workspace");
     return new Workspace(ctx);
+  };
+  with = (arg) => {
+    return arg(this);
+  };
+}
+
+class LLMContent extends BaseClient {
+  _id = undefined;
+  constructor(ctx, _id) {
+    super(ctx);
+    this._id = _id;
+  }
+  id = async () => {
+    if (this._id) {
+      return this._id;
+    }
+    const ctx = this._ctx.select("id");
+    const response = await ctx.execute();
+    return response;
+  };
+  blocks = async () => {
+    const ctx = this._ctx.select("blocks").select("id");
+    const response = await ctx.execute();
+    return response.map((r) => new LLMContentBlock(ctx.copy().selectNode(r.id, "LLMContentBlock")));
+  };
+  withData = (data, mimeType) => {
+    const ctx = this._ctx.select("withData", { data, mimeType });
+    return new LLMContent(ctx);
+  };
+  withFile = (file, opts) => {
+    const ctx = this._ctx.select("withFile", { file, ...opts });
+    return new LLMContent(ctx);
+  };
+  withText = (text) => {
+    const ctx = this._ctx.select("withText", { text });
+    return new LLMContent(ctx);
   };
   with = (arg) => {
     return arg(this);
@@ -104625,6 +104726,10 @@ class Client extends BaseClient {
     const ctx = this._ctx.select("llm", { ...opts });
     return new LLM(ctx);
   };
+  llmContent = () => {
+    const ctx = this._ctx.select("llmContent");
+    return new LLMContent(ctx);
+  };
   module_ = () => {
     const ctx = this._ctx.select("module");
     return new Module_(ctx);
@@ -105676,6 +105781,13 @@ class Workspace extends BaseClient {
     const ctx = this._ctx.select("withNewFile", { path, contents, ...opts });
     return new Workspace(ctx);
   };
+  withPatchFile = (patch, opts) => {
+    const metadata = {
+      onConflict: { is_enum: true, value_to_name: PatchConflictValueToName }
+    };
+    const ctx = this._ctx.select("withPatchFile", { patch, ...opts, __metadata: metadata });
+    return new Workspace(ctx);
+  };
   withReset = (commit, opts) => {
     const ctx = this._ctx.select("withReset", { commit, ...opts });
     return new Workspace(ctx);
@@ -105694,6 +105806,10 @@ class Workspace extends BaseClient {
   };
   withUpdatedModules = (opts) => {
     const ctx = this._ctx.select("withUpdatedModules", { ...opts });
+    return new Workspace(ctx);
+  };
+  withUserConfig = () => {
+    const ctx = this._ctx.select("withUserConfig");
     return new Workspace(ctx);
   };
   withWorkdir = (path) => {
@@ -105725,6 +105841,10 @@ class Workspace extends BaseClient {
   };
   withoutFile = (path) => {
     const ctx = this._ctx.select("withoutFile", { path });
+    return new Workspace(ctx);
+  };
+  withoutFiles = (paths) => {
+    const ctx = this._ctx.select("withoutFiles", { paths });
     return new Workspace(ctx);
   };
   withoutModule = (name, opts) => {
@@ -106337,6 +106457,7 @@ export {
   LLMContentBlockKindNameToValue,
   LLMContentBlockKind,
   LLMContentBlock,
+  LLMContent,
   LLM,
   JSONValue,
   IntrospectionError,
@@ -106355,6 +106476,7 @@ export {
   GraphQLRequestError,
   GraphQLClient,
   GitRepository,
+  GitRemote,
   GitRef,
   GitPushResult,
   GitPushDispositionValueToName,
