@@ -148,8 +148,66 @@ func TestGenerateDangEntrypointNestedModule(t *testing.T) {
 
 	require.Contains(t, got, `withWorkdir("/workspace/.dagger/modules/smoke")`)
 	// The install reads the module's own manifest and clients/, not the
-	// workspace root's.
+	// workspace root's, and installs at the module's own path so a relative
+	// symlink resolves the same way under the runtime mount.
 	require.Contains(t, got, `workspace.directory("/.dagger/modules/smoke", include: [`)
+	require.Contains(t, got, `withWorkdir("/deps/.dagger/modules/smoke")`)
+	require.Contains(t, got, `directory("/deps/.dagger/modules/smoke/node_modules")`)
+}
+
+// TestGenerateDangEntrypointMountsOnlyTheModule pins what a call can see. call()
+// receives the caller's whole workspace, and mounting it would put every
+// unrelated file in the repository inside the module's container — .git, build
+// output, a root .env — and key the container on all of them, so any edit
+// anywhere in the repo would rebuild it.
+func TestGenerateDangEntrypointMountsOnlyTheModule(t *testing.T) {
+	render := func(t *testing.T, modulePath string, include ...string) string {
+		t.Helper()
+		gen := &TypeScriptGenerator{Config: generator.Config{
+			DangEntrypointConfig: &generator.DangEntrypointGeneratorConfig{
+				TypedefJSONPath: "testdata/typedef_smoke.json",
+				Runtime:         "node",
+				ModulePath:      modulePath,
+				Include:         include,
+			},
+		}}
+		state, err := gen.GenerateDangEntrypoint(context.Background())
+		require.NoError(t, err)
+		return readOverlay(t, state, DefaultDangEntrypointFile)
+	}
+
+	nested := render(t, "apps/web")
+	require.Contains(t, nested,
+		`withMountedDirectory("/workspace/apps/web", workspace.directory("/apps/web", exclude: ["**/node_modules"]))`)
+	require.NotContains(t, nested, `withMountedDirectory("/workspace", workspace.directory("/"`)
+
+	// A module at the workspace root is the workspace, so the two reads are the
+	// same one and the recipe is unchanged.
+	root := render(t, ".")
+	require.Contains(t, root,
+		`withMountedDirectory("/workspace", workspace.directory("/", exclude: ["**/node_modules"]))`)
+
+	// Declared paths mount under the module, at their workspace-relative
+	// position, with .gitignore applied: they are directories the module does
+	// not own, so what the repository ignores there is build output.
+	withInclude := render(t, "apps/web", "apps/shared", "apps/shared/**", "!apps/shared/testdata")
+	require.Contains(t, withInclude,
+		`withMountedDirectory("/workspace", workspace.directory("/", `+
+			`include: ["apps/shared", "apps/shared/**"], `+
+			`exclude: ["apps/shared/testdata", "**/node_modules"], gitignore: true))`)
+	// Still mounted over the top, and still the module's own directory.
+	require.Contains(t, withInclude,
+		`withMountedDirectory("/workspace/apps/web", workspace.directory("/apps/web", exclude: ["**/node_modules"]))`)
+
+	// The install context needs them too, or a file: dependency outside the
+	// module directory has nothing to resolve to.
+	require.Contains(t, withInclude, `withDirectory("/deps", workspace.directory("/", include: ["apps/shared"`)
+	require.Contains(t, withInclude, `withWorkdir("/deps/apps/web")`)
+	require.Contains(t, withInclude, `directory("/deps/apps/web/node_modules")`)
+
+	// Nothing is read from the workspace root without a declaration.
+	require.NotContains(t, nested, "gitignore: true")
+	require.NotContains(t, root, "gitignore: true")
 }
 
 // TestGenerateDangEntrypointInstallsDependencies pins the install step. Under a

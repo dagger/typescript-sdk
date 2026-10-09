@@ -62,6 +62,38 @@ type ModConfig {
     }
   }
 
+  """
+  Paths outside the module directory the module builds and runs with, from
+  `dagger.include` in package.json or deno.json — the same nested `dagger`
+  object `baseImage` lives in, read out of whichever of the two files the
+  detected runtime uses.
+
+  Resolved to workspace-relative patterns, in declaration order, with a `!`
+  prefix left on the ones that exclude. The helper does the resolving and
+  refuses what would silently do nothing — an absolute path, one that climbs
+  past the workspace root, one that stays inside the module directory — so what
+  comes back here is ready to hand to `ws.directory`.
+
+  Empty when the field is absent, which is almost always.
+
+  shortcut: a refused path fails the helper's exec, so its message reaches the
+  user in that exec's log rather than as the raised error. Carrying it out would
+  mean either resolving paths in Dang or inventing a stdout error protocol;
+  revisit if the log line turns out not to be enough.
+  """
+  include: [String!]! {
+    let configPath = if (runtime == Runtime.DENO) { denoJsonPath } else { packageJsonPath }
+    if (hasFile(configPath) == false) {
+      []
+    } else {
+      let printed = tool(configPath)
+        .withExec(["module-config", "get-include", toolPath, sourcePath])
+        .stdout
+        .trimSuffix("\n")
+      if (printed == "") { [] } else { printed.split("\n") }
+    }
+  }
+
   let packageJsonPath: String! { sourceFile("package.json") }
   let denoJsonPath: String! { sourceFile("deno.json") }
   let bunLockPath: String! { sourceFile("bun.lock") }

@@ -88,6 +88,44 @@ type Runtimes {
   }
 
   """
+  A module declaring `dagger.include` should reach those files when it runs.
+
+  Everything else about includes is checked against what generation writes. This
+  is the one that runs it: a call mounts the module's own directory and the
+  declared paths beside it, so the fixture both imports from the sibling
+  directory — which a missing mount turns into a module-resolution failure while
+  the dispatcher is still importing the user's source — and reads a file there by
+  a path relative to its own directory, which only holds if the layout under the
+  mount matches the workspace.
+
+  Read back through a check for the reason entrypointErrorTextCheck gives: a
+  check's result is the one thing a caller can read without a typed client.
+  """
+  includeRunsCheck(ws: Workspace!): Void @check {
+    let path = fixtures + "/include/app"
+    let installed = typescriptSdk(legacyRuntime: false, skipGenerateFilename: "")
+      .generateScope(ws.withWorkdir(path), isModule: true, name: "runtime-include", clients: [])
+      .withWorkdir(".")
+      .withModule(path, name: "runtime-include")
+
+    # `pass` rather than the error message entrypointErrorTextCheck reads: that
+    # one's fixture always throws, so its error is never null, and reading
+    # `.message` off a passing check's null error fails before the assertion.
+    let outcomes = installed.artifacts(include: ["runtime-include:include-check"]).asChecks
+      .{{ pass }}
+      .map { c => c.pass }
+
+    if (outcomes.length != 1) {
+      raise "expected the fixture's one check, got " + toString(outcomes.length)
+    }
+    if (outcomes.filter { ok => ok == false }.length > 0) {
+      raise "a module should reach its declared includes when it runs; the fixture's check failed"
+    }
+
+    null
+  }
+
+  """
   Generate a fixture, stage the result, and load the module from it.
 
   Generating into a Workspace rather than writing to disk keeps the generated

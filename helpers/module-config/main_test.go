@@ -1,6 +1,7 @@
 package main
 
 import (
+	"io"
 	"os"
 	"path/filepath"
 	"testing"
@@ -36,6 +37,46 @@ func TestRunGetDoesNotWrite(t *testing.T) {
 	after, err := os.ReadFile(p)
 	require.NoError(t, err)
 	require.Equal(t, before, after, "get-* must not modify the file")
+}
+
+// TestRunGetIncludePrintsLines pins the wire format the SDK reads back: one
+// resolved pattern per line, nothing at all when the field is absent, and a
+// non-nil error rather than a partial list when an entry is invalid.
+func TestRunGetIncludePrintsLines(t *testing.T) {
+	p := writeTemp(t, `{"dagger":{"include":["../lib"]}}`)
+	out := captureStdout(t, func() {
+		require.NoError(t, run([]string{"get-include", p, "apps/web"}))
+	})
+	require.Equal(t, "apps/lib\napps/lib/**\n", out)
+
+	p = writeTemp(t, samplePackageJSON)
+	out = captureStdout(t, func() {
+		require.NoError(t, run([]string{"get-include", p, "apps/web"}))
+	})
+	require.Empty(t, out)
+
+	p = writeTemp(t, `{"dagger":{"include":["/abs"]}}`)
+	require.Error(t, run([]string{"get-include", p, "apps/web"}))
+
+	// The module path is the second argument, and resolution needs it.
+	p = writeTemp(t, `{"dagger":{"include":["../lib"]}}`)
+	require.Error(t, run([]string{"get-include", p}))
+}
+
+func captureStdout(t *testing.T, fn func()) string {
+	t.Helper()
+	r, w, err := os.Pipe()
+	require.NoError(t, err)
+	saved := os.Stdout
+	os.Stdout = w
+	defer func() { os.Stdout = saved }()
+
+	fn()
+	require.NoError(t, w.Close())
+
+	out, err := io.ReadAll(r)
+	require.NoError(t, err)
+	return string(out)
 }
 
 func TestRunUnknownCommand(t *testing.T) {
