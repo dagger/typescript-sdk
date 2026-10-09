@@ -195,8 +195,13 @@ instead of a `file:` link, and a shared `.dagger/clients/` can back both a
 module and your own code.
 
 `clients` is the complete desired set, so `dagger module client rm` is just
-regeneration without that target: its client goes, and the last target leaving
-takes the scope with it.
+regeneration without that target: its `<module>/` package goes, and the last
+target leaving takes the vendored `dagger/` library and the scope's `file:`
+dependencies with it. Only what the SDK generates is removed — every `*.gen.ts`
+under `clients/`, a package's `package.json`, the library's bundle files — and a
+directory only once that leaves nothing in it. A file of your own under
+`clients/`, beside the packages or inside one, stays, and so does the directory
+holding it.
 
 ## Regenerate
 
