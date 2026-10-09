@@ -40,6 +40,21 @@ func run(args []string) error {
 	case "get-base-image":
 		fmt.Print(getBaseImage(input))
 		return nil
+	case "get-include":
+		// One resolved pattern per line, rather than the printed-as-is shape the
+		// other get-* commands use: the caller reads it back as a list.
+		modulePath, err := value(args)
+		if err != nil {
+			return err
+		}
+		patterns, err := resolveInclude(input, modulePath)
+		if err != nil {
+			return err
+		}
+		for _, p := range patterns {
+			fmt.Println(p)
+		}
+		return nil
 	case "set-package-manager":
 		v, err := value(args)
 		if err != nil {

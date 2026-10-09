@@ -148,9 +148,9 @@ type Entrypoint implements ModuleEntrypoint {
 
   Built from the module's manifest and lockfile alone — never from its source —
   so editing a function reinstalls nothing. That is also why the install cannot
-  live in runtime(): every exec after the workspace is mounted is keyed on the
-  whole workspace, and anything installed before it under the mount point would
-  be hidden by it.
+  live in runtime(): every exec after the module is mounted is keyed on
+  everything mounted, and anything installed before it under the mount point
+  would be hidden by it.
   """
   let dependencies(workspace: Workspace!): Directory! {
     base
