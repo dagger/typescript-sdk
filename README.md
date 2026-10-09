@@ -103,9 +103,16 @@ default it declares an `[entrypoint]` and carries `entrypoint/main.dang` plus
 the `__dagger.dispatch.ts` that program runs, which needs an engine carrying
 [dagger/dagger#14038][manifest-v2] — `v1.0.0-beta.15` or newer. Pass the flag
 for an older engine and the module declares a `[runtime]` with the
-`__dagger.entrypoint.ts` that runtime execs instead. Moving an existing module onto an entrypoint drops
-`engineVersion`, `source` and `[[dependencies]]` with the `[runtime]` they hang
-off.
+`__dagger.entrypoint.ts` that runtime execs instead.
+
+An existing module moves between the two on its next generation: set
+`legacy-runtime` in the scope's settings in `dagger.toml` and run `dagger
+generate`. Onto an entrypoint, the manifest drops `engineVersion`, `source`,
+`include` and `[[dependencies]]` with the `[runtime]` they hang off. Back onto a
+runtime, the manifest is written fresh — `engineVersion` pinned to the release
+this SDK ships for, `[[dependencies]]` rebuilt from the scope's clients — and
+`entrypoint/`, `__dagger.dispatch.ts` and the `clients/` packages are removed. A
+`source` or `include` the original manifest carried is not restored.
 
 Pass it on a current engine too, for now: #14038 gates the entrypoint path on a
 `manifestVersion` that the manifest builder has no field for, so an

@@ -147,6 +147,24 @@ func updatePackageJSON(packageJSON string) (string, error) {
 		}
 	}
 
+	// The entrypoint layout links each generated client as a file: dependency
+	// on its clients/<name> package. This layout resolves clients through
+	// tsconfig aliases into sdk/ and removes those packages, so a link left
+	// behind points at nothing and fails the runtime's install at call time.
+	// Only a scope-local file: path is ours to take — the rule updateSharedDeps
+	// prunes by — a registry or ../ dependency is the user's.
+	if existing := gjson.Get(packageJSON, "dependencies"); existing.Exists() {
+		for key, val := range existing.Map() {
+			if !isModuleAlias(key) || !isScopeLocalFileRef(val.String()) {
+				continue
+			}
+			packageJSON, err = sjson.Delete(packageJSON, "dependencies."+gjson.Escape(key))
+			if err != nil {
+				return "", fmt.Errorf("prune %s: %w", key, err)
+			}
+		}
+	}
+
 	return packageJSON, nil
 }
 

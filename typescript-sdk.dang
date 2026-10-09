@@ -48,14 +48,20 @@ type TypescriptSdk {
   module gets none of those and keeps the __dagger.entrypoint.ts its runtime
   execs. No module is generated with both halves.
 
-  Moving a module onto an entrypoint is not free. The manifest comes out with an
-  `[entrypoint]` table and no `[runtime]`, and `engineVersion`, `source` and
-  `[[dependencies]]` are fields of the runtime the module no longer declares —
-  so a module that had them loses them.
+  An existing module moves between the two on its next generation, and the
+  manifest is rewritten to match. Onto an entrypoint, it comes out with an
+  `[entrypoint]` table and no `[runtime]`, and `engineVersion`, `source`,
+  `include` and `[[dependencies]]` are fields of the runtime the module no
+  longer declares — so a module that had them loses them. Back onto a
+  `[runtime]`, it is written fresh: `engineVersion` pinned to the release this
+  SDK ships for, `[[dependencies]]` rebuilt from the scope's clients, and the
+  other path's files — entrypoint/, __dagger.dispatch.ts, the clients/ packages
+  — removed. A `source` or `include` the original `[runtime]` manifest carried
+  is not restored.
 
-  A scope's clients still work. With no `[[dependencies]]` to declare them in,
-  the dispatcher serves them into its own session at run time instead — see
-  serveBoundModules in the generated __dagger.dispatch.ts.
+  A scope's clients still work under an entrypoint. With no `[[dependencies]]`
+  to declare them in, each generated client serves its own module into the
+  session at run time instead.
   """
   legacyRuntime: Boolean! = false
 
@@ -221,10 +227,17 @@ type TypescriptSdk {
       }
       # The entrypoint manifest is written on every run rather than only when the
       # scope has none: rewriting one that exists is what lets an existing module
-      # be flipped onto an entrypoint by turning the setting on.
+      # be flipped onto an entrypoint by turning the setting on. Turning it off
+      # again is the mirror image, and the one case where a scope that already
+      # has a manifest gets a new one: a `[runtime]` manifest is generated as it
+      # stands, an entrypoint manifest is replaced by a fresh runtime one. Left
+      # in place it fails twice over, with neither error naming the setting —
+      # the builder refuses to hang a dependency off a runtime the manifest does
+      # not declare, and the engine resolves no `source` out of it, so the
+      # module's files are looked for at the workspace root.
       let configured = if (legacyRuntime == false) {
         withEntrypointManifest(seeded, scope, name, hasToml)
-      } else if (hasToml) {
+      } else if (hasToml and isEntrypointManifest(seeded, scopeFile(scope, "dagger-module.toml")) == false) {
         seeded
       } else {
         withModuleManifest(seeded, scope, name, hasJSON)
@@ -443,6 +456,38 @@ type TypescriptSdk {
   }
 
   """
+  Whether the dagger-module.toml at `configPath` (workspace-root-relative)
+  declares an `[entrypoint]` table and no `[runtime]`: the manifest
+  withEntrypointManifest writes, and the one a `[runtime]` generation has to
+  replace rather than regenerate (see withModuleManifest).
+
+  Read off the file, like isTypescriptConfig, because the builder's loaded
+  manifest exposes neither table. The headers alone tell the two shapes apart:
+  this SDK never writes a manifest declaring both.
+  """
+  let isEntrypointManifest(ws: Workspace!, configPath: String!): Boolean! {
+    tomlDeclaresTable(ws, configPath, "entrypoint") and tomlDeclaresTable(ws, configPath, "runtime") == false
+  }
+
+  """
+  Whether the TOML at `configPath` (workspace-root-relative) opens a table of
+  that name. Anchored at a line start so that a `[[dependencies]]` entry, or a
+  value mentioning the name, is not read as the table.
+  """
+  let tomlDeclaresTable(ws: Workspace!, configPath: String!, table: String!): Boolean! {
+    ws
+      .directory("/", include: [configPath])
+      .file(configPath)
+      .search(
+        pattern: "^\\s*\\[" + table + "\\]",
+        multiline: true,
+        limit: 1,
+      )
+      .{{id}}
+      .length > 0
+  }
+
+  """
   Whether the JSON config at `configPath` (workspace-root-relative) mentions the
   named field.
 
@@ -472,9 +517,10 @@ type TypescriptSdk {
   }
 
   """
-  Give a scope the `dagger-module.toml` it does not have yet: a fresh manifest
-  for a scope with no module, or a pre-1.0 `dagger.json` loaded, re-emitted as
-  TOML and then removed.
+  Give a scope the `[runtime]` manifest it does not have yet. Three arrivals: a
+  scope with no module gets a fresh manifest, a pre-1.0 `dagger.json` is
+  loaded, re-emitted as TOML and then removed, and an entrypoint manifest being
+  moved back onto a runtime is replaced by a fresh one.
 
   Migrating is the whole reason this is not folded back into seeding. Leaving
   both files behind would leave the module with two manifests free to disagree,
@@ -483,9 +529,16 @@ type TypescriptSdk {
   pin — comes out the other side. Only a scope the workspace records is ever
   generated, so migration reaches a module because someone asked for it.
 
-  A scope that already has a manifest does not come through here at all;
-  reconciling its clients into it is `withClientDependencies`, which runs for
-  every module scope rather than only the ones being created.
+  The entrypoint manifest gets no such round trip. The builder can add a
+  runtime to a loaded manifest but not take the entrypoint away, so the file is
+  written fresh — which is also all there is to write: an entrypoint manifest
+  holds the name and the `[entrypoint]` table, the scope's clients come back as
+  `[[dependencies]]` through withClientDependencies on the same run, and the
+  engine pin is this SDK's to set either way.
+
+  A scope that already has a `[runtime]` manifest does not come through here at
+  all; reconciling its clients into it is `withClientDependencies`, which runs
+  for every module scope rather than only the ones being created.
   """
   let withModuleManifest(ws: Workspace!, scope: String!, name: String!, hasJSON: Boolean!): Workspace! {
     let configPath = scopeFile(scope, "dagger.json")
@@ -537,8 +590,12 @@ type TypescriptSdk {
   is not there — better to be unloadable than half-loadable.
 
   Rewriting rather than merging is what makes flipping an existing module onto
-  an entrypoint work at all. It is a one-way trip: `engineVersion`, `source` and
-  `[[dependencies]]` cannot outlive the `[runtime]` they hang off.
+  an entrypoint work at all. `engineVersion`, `source`, `include` and
+  `[[dependencies]]` cannot outlive the `[runtime]` they hang off, and the way
+  back (withModuleManifest) writes a fresh manifest rather than reading this
+  one, so of those only the engine pin and the dependencies come back —
+  re-pinned to the release this SDK ships for, and rebuilt from the scope's
+  clients. `source` and `include` do not.
   """
   let withEntrypointManifest(ws: Workspace!, scope: String!, name: String!, hasToml: Boolean!): Workspace! {
     let existing = if (hasToml) {
@@ -1453,7 +1510,8 @@ type TypescriptSdk {
       )
     } else {
       # An embedded module's clients live inside sdk/ now; a clients/ directory
-      # an earlier layout left is taken with the move. Stale bindings are pruned
+      # left by an earlier layout, or by the entrypoint layout a module is
+      # moving off, is taken with the move. Stale bindings are pruned
       # only when the module loaded: a run that could not read the client set
       # would otherwise delete the self client — the very file whose absence in
       # the staged tree can be why the load failed — and leave the module more
@@ -1468,9 +1526,11 @@ type TypescriptSdk {
   }
 
   """
-  Remove the clients/ directory an earlier embedded layout kept beside sdk/:
-  its files are inside sdk/ now, where the builtin runtime's one mount reaches
-  them. A no-op when there is none.
+  Remove the clients/ directory a `[runtime]` module has no use for: the one an
+  earlier embedded layout kept beside sdk/, or the clients/dagger and
+  clients/<name>/ packages of an entrypoint module moving back. Its files are
+  inside sdk/ now, where the builtin runtime's one mount reaches them. A no-op
+  when there is none.
   """
   let prunedEmbeddedClientsDir(ws: Workspace!, sourcePath: String!): Workspace! {
     let clientsPath = moduleClientsPath(sourcePath)
