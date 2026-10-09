@@ -208,10 +208,33 @@ type EngineE2e {
     null
   }
 
-  """Run all SDK checks and generated-file checks inside the pinned engine."""
+  """
+  Run all SDK checks and generated-file checks inside the pinned engine.
+
+  Capped with `-j`, because the suite runs inside an engine that is itself
+  inside one. Uncapped, `dagger check` starts every check at once: the cheap
+  ones finish and the rest — each building containers, installing packages, or
+  running a registry service — sit in flight together until the inner engine is
+  killed and the CLI reports `connection reset by peer` / `unexpected EOF`
+  partway through. It then prints the checks still running as passed, so the
+  failure reads as a mystery rather than as resource exhaustion.
+
+  The number is a calibration point, not a measurement: the suite died with
+  ~50 in flight and survives on main with fewer checks, so the ceiling is
+  somewhere between. Lowering it trades wall time for headroom, and the inner
+  exec has a Cloud time budget of its own — if a run is cancelled for exceeding
+  it rather than failing, raise this rather than lower it, or split the suite
+  into per-group checks so each gets its own budget.
+
+  `-j` needs a CLI carrying dagger/dagger#14459, so this only works once the
+  engine-dev pin is on v1.0.0-beta.16 or newer: on an older one `dagger check`
+  exits on an unknown flag before running anything.
+  """
+  let checkParallelism: String! = "12"
+
   checksCheck(ws: Workspace!): Void @check {
     playground(ws)
-      .withExec(["dagger", "check"], disableDaggerInDagger: true)
+      .withExec(["dagger", "check", "-j", checkParallelism], disableDaggerInDagger: true)
       .sync
 
     null
