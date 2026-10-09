@@ -183,7 +183,12 @@ func updatePackageJSON(packageJSON string) (string, error) {
 // Non-@dagger.io dependencies, and every other key in the file, are the user's
 // and are left untouched.
 func updateSharedDeps(packageJSON, coreRel string, clientPairs []string) (string, error) {
-	packageJSON, err := sjson.Set(packageJSON, "type", "module")
+	// "type" is the user's field, so only an absent one is filled in: a scope
+	// that declares its module system — "commonjs" included — keeps it. The
+	// generated packages carry their own "type": "module", so they load as ESM
+	// whatever the scope's own code is; a module's manifest is the SDK's
+	// (updatePackageJSON) and still gets the value forced.
+	packageJSON, err := setIfNotExists(packageJSON, "type", "module")
 	if err != nil {
 		return "", fmt.Errorf("set type=module: %w", err)
 	}
@@ -298,13 +303,13 @@ func isScopeLocalFileRef(value string) bool {
 const defaultTypeScriptVersion = "5.9.3"
 
 // pinTypeScript adds the default typescript pin unless the module already
-// declares one, in either dependency section. devDependencies is the normal
-// place to put a compiler, so writing dependencies.typescript without looking
-// there leaves the module declaring two versions of the same package — npm
-// resolves that to the runtime one, quietly overriding the compiler the user
-// chose.
+// declares one, in any dependency section. devDependencies is the normal
+// place to put a compiler, and peerDependencies is where `bun init` puts it,
+// so writing dependencies.typescript without looking there leaves the module
+// declaring two versions of the same package — npm resolves that to the
+// runtime one, quietly overriding the compiler the user chose.
 func pinTypeScript(packageJSON string) (string, error) {
-	for _, section := range []string{"dependencies", "devDependencies"} {
+	for _, section := range []string{"dependencies", "devDependencies", "peerDependencies"} {
 		if gjson.Get(packageJSON, section+".typescript").Exists() {
 			return packageJSON, nil
 		}

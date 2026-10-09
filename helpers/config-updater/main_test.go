@@ -58,6 +58,23 @@ func TestUpdatePackageJSON(t *testing.T) {
 }`,
 		},
 		{
+			// `bun init` declares the compiler as a peer dependency. The same
+			// two-declarations problem as devDependencies, in the third section.
+			name: "a user's own typescript peerDependency is preserved",
+			packageJSON: `{
+  "type": "module",
+  "peerDependencies": {
+    "typescript": "^5"
+  }
+}`,
+			expected: `{
+  "type": "module",
+  "peerDependencies": {
+    "typescript": "^5"
+  }
+}`,
+		},
+		{
 			name: "package.json with local dagger dependency is stripped",
 			packageJSON: `{
   "type": "module",
@@ -652,6 +669,34 @@ func TestUpdateSharedDeps(t *testing.T) {
 			coreRel:     ".dagger/core/typescript",
 			clients:     nil,
 			expected:    `{"devDependencies":{"typescript":"5.0.0"},"type":"module","dependencies":{"@dagger.io/dagger":"file:.dagger/core/typescript"}}`,
+		},
+		{
+			// The manifest `bun init` writes: the compiler is a peer dependency,
+			// and that is the user's pin.
+			name:        "a typescript peerDependency is the user's pin",
+			packageJSON: `{"type":"module","peerDependencies":{"typescript":"^5"}}`,
+			coreRel:     "./clients/dagger",
+			clients:     []string{"b=./clients/b"},
+			expected:    `{"type":"module","peerDependencies":{"typescript":"^5"},"dependencies":{"@dagger.io/dagger":"file:./clients/dagger","@dagger.io/b":"file:./clients/b"}}`,
+		},
+		{
+			// A client scope's package.json is the user's; the SDK fills "type"
+			// in only when it is missing.
+			name:        "a scope without a type gets module",
+			packageJSON: `{"name":"my-app"}`,
+			coreRel:     "./clients/dagger",
+			clients:     []string{"b=./clients/b"},
+			expected:    `{"name":"my-app","type":"module","dependencies":{"@dagger.io/dagger":"file:./clients/dagger","@dagger.io/b":"file:./clients/b","typescript":"5.9.3"}}`,
+		},
+		{
+			// An explicit value, commonjs included, is the user's choice: the
+			// generated packages carry their own "type": "module" and load as
+			// ESM regardless of what the scope's own code is.
+			name:        "an explicit type is kept",
+			packageJSON: `{"name":"my-app","type":"commonjs"}`,
+			coreRel:     "./clients/dagger",
+			clients:     []string{"b=./clients/b"},
+			expected:    `{"name":"my-app","type":"commonjs","dependencies":{"@dagger.io/dagger":"file:./clients/dagger","@dagger.io/b":"file:./clients/b","typescript":"5.9.3"}}`,
 		},
 		{
 			// A client the user installed from another scope for a self-call
