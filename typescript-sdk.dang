@@ -253,8 +253,15 @@ type TypescriptSdk {
       # its scope. Asking the engine gives the wrong answer
       # rather than no answer: sourceSubpath comes back unset, moduleSourcePath
       # reads that as ".", and generation then looks for src/ at the workspace
-      # root instead of inside the module.
-      let source = if (legacyRuntime == false) { scope } else { moduleSourcePath(configured, scope) }
+      # root instead of inside the module. A `[runtime]` module whose files are
+      # somewhere else cannot move onto an entrypoint at all —
+      # entrypointSourcePath says so instead of generating for a directory that
+      # is not there.
+      let source = if (legacyRuntime == false) {
+        entrypointSourcePath(seeded, scope, name, hasToml or hasJSON)
+      } else {
+        moduleSourcePath(configured, scope)
+      }
       # Before anything below loads the module, not on the way out. A module
       # source read off a workspace honours the module's .gitignore, so the
       # `/sdk` a pre-1.0 engine left there hides the staged sdk/ from the self
@@ -2013,6 +2020,32 @@ type TypescriptSdk {
   let moduleSourcePath(ws: Workspace!, scope: String!): String! {
     let subpath = ws.moduleSource("/" + scope).sourceSubpath
     if (subpath == "" or subpath == ".") { "." } else { subpath }
+  }
+
+  """
+  The source directory an entrypoint module generates into: its scope, or a
+  refusal.
+
+  Moving a module onto an entrypoint cannot move its files, and the manifest it
+  comes out with has no `source` field to record where they are — so the module
+  root is the source directory. The config the scope arrived with may say
+  otherwise — a pre-1.0 dagger.json aiming `source` at a subdirectory, which
+  `dagger init` wrote inside an existing project, or the `[runtime]` manifest
+  migration carried it into. Refuse rather than generate against a directory
+  that is not there — unguarded the run dies on `stat <scope>/src: no such file
+  or directory`, with nothing naming the setting that keeps the layout the
+  module already has.
+  """
+  let entrypointSourcePath(ws: Workspace!, scope: String!, name: String!, hasConfig: Boolean!): String! {
+    let declared = if (hasConfig) { moduleSourcePath(ws, scope) } else { "." }
+    if (declared == "." or declared == scope) {
+      scope
+    } else {
+      raise "module \"" + name + "\" keeps its source in " + declared +
+        ", and an entrypoint manifest has no `source` field to record that: set " +
+        "legacyRuntime = true in the scope's settings in dagger.toml to keep its " +
+        "[runtime] layout, or move its files to " + scope
+    }
   }
 
   """
