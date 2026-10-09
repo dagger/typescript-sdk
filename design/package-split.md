@@ -11,11 +11,13 @@ dual-package hazard is measured rather than assumed, on npm, bun and deno — se
 proposed package graph against a local verdaccio; the method is described where the
 results are, so it can be rebuilt.
 
-**Steps 1 and 2 have landed** — `library/src` is laid out in layers, the dead
-subgraph is gone, and `e2e:registry` runs a real registry so the package graph can
-be tested by installing it rather than by reasoning about it. Several claims below
-moved from argued to measured as a result, and one of them changed. Nothing
-published has changed. Sequencing is at the end.
+**Steps 1 and 2 have landed, and step 3 is half done** — `library/src` is laid out
+in layers, the dead subgraph is gone, `e2e:registry` runs a real registry so the
+package graph can be tested by installing it rather than by reasoning about it, and
+`session`, `module` and `telemetry` now build as packages and load from that
+registry on all three runtimes. Several claims below moved from argued to measured
+along the way, and three of them changed. Nothing is published to npmjs yet.
+Sequencing is at the end.
 
 ## What is actually tangled
 
@@ -58,7 +60,7 @@ ownership, local development, and singletons — not the import graph.
 |---|---|---|
 | `@dagger.io/session` | `Context`, `BaseClient`, `Connection`, `computeQuery`, errors, `ConnectOpts`, `connect`/`connection`, **provisioning** | `graphql-request`, `graphql`, `node-fetch`, `@opentelemetry/api`, `adm-zip`, `tar`, `execa`, `env-paths`, `node-color-log` |
 | `@dagger.io/core` | generated core bindings + `dag` | `@dagger.io/session` — and nothing else, now that `core/connect.ts` no longer annotates a callback parameter with `graphql-request`'s `GraphQLClient`. The annotation restated a type `withGQLClient` already declares, so dropping it took the import with it; `core/` references `graphql-request` nowhere. |
-| `@dagger.io/module` | decorators, registry | `@dagger.io/core`, `reflect-metadata` |
+| `@dagger.io/module` | decorators, registry | `@dagger.io/session`, `reflect-metadata` — **not** `core`. `decorators.ts` and `registry.ts` have exactly two cross-layer imports, both into `session` (`errors/index.js`, `shared.js`). The 39 others under `module/` are all in `introspector/`, which is generation-time and published nowhere. |
 | `@dagger.io/telemetry` | otel wiring | the otel SDK |
 | `@dagger.io/dagger` | **facade.** re-exports all four | the four above |
 
@@ -177,6 +179,31 @@ build is part of step 3 rather than a detail of it, and it also lands on the
 dagger/dagger pipeline that generates `core`: generating the bindings is not
 enough, it has to compile them.
 
+### The facade is built from this tree after all
+
+Two things stood in the way, and both are recorded because step 4 would otherwise
+rediscover them.
+
+**The introspector reads source and discards declarations.** Its scan filters
+`.d.ts` files out of the program, so when the facade imported the layers as
+packages — resolving to `core/dist/index.d.ts` — a fixture that reached the facade
+by relative path lost every type declared in `core`: `could not resolve type
+reference for CollectionDelta`. The fix was not in the facade. The one fixture that
+needs resolvable *types* (`testdata/collections`) now imports `decorators.js` and
+`core/client.gen.js` directly, by source path; the other six only use decorator
+*names*, and an unresolved name still prints as itself, which is all they need.
+One vendored fixture file, recorded in `library/VENDOR.md`.
+
+**Any package containing more than one layer has to depend on the others.** `tsc`
+does not rewrite a specifier on emit, so there is no such thing as "the whole
+library as one package" — the facade depends on the four packages, which is what
+it was always meant to be.
+
+Manifest honesty is checked again rather than built in. The manifests are
+hand-written, so `packager:manifest-is-honest-check` compares each published
+package's imports against what it declares, over the built package because that is
+JavaScript and `import type` is already gone.
+
 ## Who publishes what
 
 The split line is not "who wrote the code". It is **what the version number
@@ -269,9 +296,53 @@ run.
 Three different problems, three different tools. The experiments in "The hazard,
 measured" rule one popular tool out.
 
-**Inside typescript-sdk** — `session` ← `module`, `telemetry`. Use **npm
-workspaces**. One install at the repo root, packages resolve to each other by
-symlink, edits are live, no publish. This is the common case and it is solved.
+**Inside typescript-sdk** — `session` ← `module`, `telemetry`. **npm workspaces**,
+declared in `library/package.json` over the existing `src/<layer>/` directories,
+each of which carries a committed `package.json` and a `tsconfig.json`. One install
+at the root symlinks `node_modules/@dagger.io/{session,core,module,telemetry}` to
+the layers; `tsc -b src/core src/module src/telemetry` builds all four into their
+own `dist/`, in dependency order, because the tsconfigs reference each other.
+`core` is built here too even though dagger/dagger publishes it: the facade and the
+bundle import it.
+
+The first attempt resolved the specifiers to *source* through `tsconfig` `paths`
+instead, to avoid a build step. That is not an option, measured: the facade has to
+import the layers too, and the moment some importers resolve to source and others
+to `dist/`, the bundle carries each layer twice —
+`Symbol.for("@dagger.io/session.shared")` was defined twice in it, which is the
+dual-package hazard reconstructed inside a single file. One resolution story or
+none. The price is that the bundle, the test suite and a publish all build the
+packages first, and `tsc -b` makes that one line.
+
+**bun 1.3.0 does not link these workspaces.** `bun install` in the image the bundle
+was built with reported 416 packages and created no `node_modules/@dagger.io/*` at
+all, with or without a private root, so the bundle build failed on
+`Could not resolve: "@dagger.io/core"` and the test suite on
+`Cannot find module '@dagger.io/telemetry'`. 1.3.14 links all four. The packager's
+image moved to 1.3.14 — ahead of the bun the engine builds its own bundle with, and
+the first time that pin has diverged from it.
+
+**And the declaration rollup has to inline the layers.** `rollup-plugin-dts` leaves
+`node_modules` external, so with the facade importing the layers as packages
+`bundle/core.d.ts` came out as seven lines of `export * from '@dagger.io/...'` —
+and every generated client scope failed to type-check against it with
+`Property '_ctx' does not exist on type 'Address'`, because `BaseClient` was no
+longer declared anywhere it could see. `rollup.dts.config.mjs` now resolves
+`@dagger.io/*` to `src/<layer>/dist/index.d.ts` so they inline. Found by the full
+suite rather than by anything local, which is the argument for running it.
+
+Two facts kept for the publishing side:
+
+- **`workspace:*` is unpublishable through npm.** npm 11.6.2 packs the protocol
+  verbatim and the consumer gets
+  `EUNSUPPORTEDPROTOCOL: Unsupported URL Type "workspace:"`. bun *does* rewrite it
+  (`bun pm pack` resolves the version) but only once `bun install` has run, which
+  couples publishing to bun. So the manifests pin their siblings as plain versions
+  — `0.0.0`, the placeholder `library/package.json` has always carried — and
+  `release-version.cjs` stamps the real version onto both the package and its
+  sibling pins when one is built for publishing.
+- **Independent publishing is not the hard part.** `npm publish -w <pkg>` publishes
+  one member at its own version, which is what the version table above needs.
 
 **Across repos** — "I changed `session` and want to see it under `core`, which is
 generated in dagger/dagger." Use **npm `overrides`** in the consuming project:
@@ -325,6 +396,22 @@ sources.** The experiments turned up three, and they need different answers:
 2. Poll from a cold cache until both resolve — `npm view @dagger.io/core@X version
    --prefer-online` in a fresh container, with backoff — then run a smoke test.
 3. `npm dist-tag add @dagger.io/core@X latest`, then the facade.
+
+**Rehearsed, and one correction.** `e2e:registry:release-rehearsal-check` runs all
+three steps against a real registry with the three published layers: 1.0.0 out the
+ordinary way, 2.0.0 out under `next`, then the flip. `latest 1.0.0 next 2.0.0`
+before, `2.0.0` after, with an install-and-import either side of the flip — so the
+middle step really is a gate and the flip really is the only user-visible moment.
+
+The correction is step 1's "nobody on `latest` sees either", which is **false for
+the first publish of a package name**: publishing a brand-new package under
+`--tag next` leaves `latest: 1.0.0 next: 1.0.0`, because a package has to have a
+`latest` and the registry assigns one. It is true for every subsequent release,
+which is the case that matters — nothing is installing a package that did not
+exist, so there is nobody to stage the first release away from. The rehearsal
+therefore models an upgrade rather than a first release, and the first publish of
+`session`, `module` and `telemetry` will be visible on `latest` the moment it
+lands.
 
 The user-visible switch is step 3 and takes seconds. If step 2 never succeeds you
 simply never flip, and no user saw it — which matters because `npm unpublish` is
@@ -754,7 +841,29 @@ and the pre-v1 tree gets moved for nothing.
    clears it. What is left is the release rehearsal itself, which needs something
    published to rehearse.
 3. **Publish `session`, `module`, `telemetry`.** Nothing consumes them yet, so a
-   mistake here costs a version bump and nothing else.
+   mistake here costs a version bump and nothing else. *The packages exist:*
+   `packager:publishable-package` builds one per layer, and
+   `e2e:registry:published-layers-check` installs all three from a registry and
+   imports them on node, bun and deno — which is the first time `module` reaches
+   `session` through `@dagger.io/session` and a resolver rather than a relative
+   path. The release rehearsal is done too —
+   `e2e:registry:release-rehearsal-check` stages an upgrade under `next` and flips
+   it, which is what step 2 was still missing. What is left is publishing them to
+   npmjs for real.
+
+   Their manifests are committed, in `library/src/<layer>/package.json`, and
+   `packager:manifest-is-honest-check` keeps each one matching what its layer
+   actually imports. What they declare:
+
+   | Package | Dependencies |
+   |---|---|
+   | `@dagger.io/session` | `@opentelemetry/api`, `adm-zip`, `env-paths`, `execa`, `graphql-request`, `node-color-log`, `node-fetch`, `tar` |
+   | `@dagger.io/module` | `@dagger.io/session`, `reflect-metadata` |
+   | `@dagger.io/telemetry` | `@opentelemetry/{api,core,exporter-trace-otlp-proto,sdk-node,sdk-trace-base}` |
+
+   `graphql` is absent from `session` and that is correct: the library's only use
+   of it is two `import type`s, erased by the compile. It arrives anyway as
+   `graphql-request`'s peer, which npm installs automatically.
 
 *Then in dagger/dagger:*
 

@@ -14,8 +14,9 @@ type Packager {
 
   """
   Directory holding the library's own generated bindings, relative to
-  libraryPath. Matches the layout of the library source they are compiled with,
-  where the runtime they import sits at ../session/context.js.
+  libraryPath. They reach the runtime through @dagger.io/session — the package
+  they will be published alongside — which tsconfig paths resolve to
+  src/session/index.ts, so nothing has to be rewritten at packaging time.
   """
   let bindingsPath: String! = "src/core"
 
@@ -64,6 +65,11 @@ type Packager {
       .withDirectory("/src", ws.directory("/" + libraryPath))
       .withWorkdir("/src")
       .withExec(["bun", "install", "--frozen-lockfile"])
+      # The facade imports the four layers as packages, which resolve through
+      # the workspace symlinks to each layer's dist/ — so the layers are built
+      # before anything bundles them. tsc -b follows the project references, so
+      # session comes first without being named.
+      .withExec(["bun", "x", "tsc", "-b", "src/core", "src/module", "src/telemetry"])
       .withExec(["bun", "build", "./src/index.ts", "--external=typescript", "--target=node", "--outfile", "/out/core.js"])
       # `bun x`, not a global tsc: the declarations we ship have to come from the
       # compiler the lockfile pins, the same one typescript-version.txt records
@@ -105,60 +111,106 @@ type Packager {
   let bundlePath: String! = "bundle"
 
   """
-  The library compiled to JavaScript and ready to `npm publish`.
+  The four layers built as packages, each into its own dist/.
 
-  This is the shape `library/package.json` has always described — `main:
-  dist/src/index.js`, `files: ["dist/"]` — and that nothing built, because nothing
-  here is published yet. It has to exist before anything can be:
-  `e2e:registry:publish-install-check` establishes that node and deno both refuse
-  to load TypeScript from under node_modules, so the source tree a scope carries
-  today cannot be what gets published. See design/package-split.md.
-
-  Not committed and not a `@generate` function. The bundle is committed because
-  module generation reads it; this is only ever read by a publish, so building it
-  on demand keeps 1.8 MB of derived files out of the tree.
-
-  The introspector is dropped before the compile. It is generation-time, no
-  published entry point reaches it, and it is the only thing in here that imports
-  the TypeScript compiler — which is what lets the manifest below drop
-  `typescript`, a 24 MB dependency a consumer would otherwise install to run code
-  that never calls it. Same reasoning as `moduleBundleCheck`, one layer out.
+  `tsc -b` over the per-layer tsconfigs, which reference each other, so the build
+  order falls out of the references rather than being spelled here. One container
+  for all four because they share an install and a compiler.
   """
-  publishable(ws: Workspace!, version: String! = "0.0.0"): Directory! {
-    let built = bun
+  let packagesBuilt(ws: Workspace!): Container! {
+    bun
       .withDirectory("/src", ws.directory("/" + libraryPath))
       .withWorkdir("/src")
-      .withoutDirectory("/src/src/module/introspector")
       .withExec(["bun", "install", "--frozen-lockfile"])
-      .withExec(["bun", "x", "tsc"])
+      .withExec(["bun", "x", "tsc", "-b", "src/core", "src/module", "src/telemetry"])
+  }
+
+  """
+  The scripts that check and stamp a package manifest, mounted together because
+  audit-imports.cjs requires imports.cjs beside it.
+  """
+  let packageTools: Directory! {
+    directory
+      .withFile("imports.cjs", currentModule.source.file("imports.cjs"))
+      .withFile("audit-imports.cjs", currentModule.source.file("audit-imports.cjs"))
+      .withFile("release-version.cjs", currentModule.source.file("release-version.cjs"))
+  }
+
+  """
+  The layers that ship as packages of their own, published from this repo.
+
+  `core` is absent on purpose: it is generated against an engine release and
+  published from dagger/dagger, so its version is the engine's rather than this
+  repo's. It is still built here, because the facade and the bundle import it.
+  """
+  publishedLayers: [String!]! {
+    ["session", "module", "telemetry"]
+  }
+
+  """
+  One layer, built and ready to `npm publish`.
+
+  The package is what sits in library/src/<layer>: its committed package.json
+  and the dist/ its own tsconfig emits. The only thing added is the version. The
+  manifests are committed with 0.0.0 — the placeholder library/package.json has
+  always carried, because nothing in this tree is a release until something cuts
+  one — and release-version.cjs stamps the real one on, moving the sibling pins
+  with it so `session` and the packages over it only ever ship together.
+  """
+  publishablePackage(
+    ws: Workspace!,
+    layer: String!,
+    version: String! = "0.0.0",
+  ): Directory! {
+    let pkg = "/src/src/" + layer
+    let built = packagesBuilt(ws)
+      .withDirectory("/tools", packageTools)
       .withEnvVariable("PUBLISH_VERSION", version)
-      # Derived from the vendored manifest rather than written out here, so the
-      # dependency list cannot drift from the one the bundle is built against.
-      # devDependencies and resolutions go because a consumer installs neither.
-      .withExec(["node", "-e",
-        "const p = require('/src/package.json');" +
-        "delete p.dependencies.typescript;" +
-        "delete p.devDependencies;" +
-        "delete p.resolutions;" +
-        "p.version = process.env.PUBLISH_VERSION;" +
-        "require('fs').writeFileSync('/manifest.json', JSON.stringify(p, null, 2) + '\\n')"])
+      .withExec(["node", "/tools/release-version.cjs", pkg + "/package.json", "/manifest.json"])
 
     directory
-      .withDirectory("dist", built.directory("/src/dist"))
+      .withDirectory("dist", built.directory(pkg + "/dist"))
       .withFile("package.json", built.file("/manifest.json"))
   }
 
   """
-  Bun toolchain the bundle is built with, pinned to the version and digest the
-  engine builds its own with. NodeJS comes along because the declaration build
-  shells out to tsc.
+  Each published manifest declares what its package imports, and nothing else.
+
+  The manifests are hand-written, so this is where a dependency added to a layer
+  but not to its manifest shows up — before a consumer installs the package and
+  the import fails. It runs over the built package because that is JavaScript:
+  `import type` is erased by then, and a type-only import is not a dependency.
+  """
+  manifestIsHonestCheck(ws: Workspace!): Void @check {
+    publishedLayers.each { layer =>
+      bun
+        .withDirectory("/pkg", publishablePackage(ws, layer))
+        .withDirectory("/tools", packageTools)
+        .withExec(["node", "/tools/audit-imports.cjs", "/pkg"])
+        .sync
+    }
+
+    null
+  }
+
+  """
+  Bun toolchain the library is built with, pinned by digest. NodeJS comes along
+  because the declaration build shells out to tsc.
+
+  1.3.14, ahead of the 1.3.0 the engine builds its own bundle with. Not by
+  choice: `bun install` in 1.3.0 does not link the workspace members under
+  library/src into node_modules at all — 416 packages installed, none of them
+  @dagger.io/* — so anything resolving the layers at runtime (the bundle, the
+  test suite) fails with "Cannot find module '@dagger.io/telemetry'". 1.3.14
+  links all four. Reproduced in both images on the same tree, with and without
+  a private root.
 
   No TypeScript here: every step that needs a compiler takes the one the
   vendored lockfile resolves, so the image stays free of a version nothing pins.
   """
   let bun: Container! {
     container
-      .from("oven/bun:1.3.0-alpine@sha256:37e6b1cbe053939bccf6ae4507977ed957eaa6e7f275670b72ad6348e0d2c11f")
+      .from("oven/bun:1.3.14-alpine@sha256:5acc90a93e91ff07bf72aa90a7c9f0fa189765aec90b47bdbf2152d2196383c0")
       .withoutEntrypoint
       .withExec(["apk", "add", "nodejs"])
   }
@@ -187,33 +239,6 @@ type Packager {
         "dispatch. Something re-exported from library/src/index.ts reaches the " +
         "introspector — see library/VENDOR.md."
     }
-
-    null
-  }
-
-  """
-  The published manifest declares what the published code imports, and nothing
-  else.
-
-  Both directions are bugs the split would ship, and both exist in the tree this
-  check was written against. A dependency imported but not declared resolves today
-  only because something else happens to pull it in — fine until that something
-  changes its own dependencies, or until a consumer uses a resolver that does not
-  hoist. A dependency declared but never imported is weight every consumer
-  installs for nothing, and the install-size numbers in design/package-split.md are
-  the argument for caring.
-
-  Run over `publishable`, so the input is compiled JavaScript. That is what makes
-  the comparison meaningful: `import type` is erased by then, and a type-only
-  import is not a runtime dependency. It is also why this cannot be done against
-  the bundle, which inlines its whole closure and imports nothing.
-  """
-  manifestIsHonestCheck(ws: Workspace!): Void @check {
-    bun
-      .withDirectory("/pkg", publishable(ws))
-      .withFile("/audit.cjs", currentModule.source.file("audit-imports.cjs"))
-      .withExec(["node", "/audit.cjs", "/pkg"])
-      .sync
 
     null
   }
@@ -319,6 +344,9 @@ type Packager {
       .withDirectory("/src", ws.directory("/" + libraryPath))
       .withWorkdir("/src")
       .withExec(["bun", "install"])
+      # The specs scan fixtures that reach the facade, and the facade resolves
+      # the layers through their dist/ — see libraryBundle.
+      .withExec(["bun", "x", "tsc", "-b", "src/core", "src/module", "src/telemetry"])
       .withExec(["bun", "run", "--bun", "mocha"])
       .sync
 

@@ -1,9 +1,9 @@
 import * as graphql_request from 'graphql-request';
-import { GraphQLClient, ClientError } from 'graphql-request';
+import { ClientError, GraphQLClient } from 'graphql-request';
 export { GraphQLClient } from 'graphql-request';
 import * as opentelemetry from '@opentelemetry/api';
-import { GraphQLErrorExtensions } from 'graphql';
 import { Writable } from 'node:stream';
+import { GraphQLErrorExtensions } from 'graphql';
 
 /**
  * Tracer encapsulates the OpenTelemetry Tracer.
@@ -47,6 +47,292 @@ declare class Tracer {
  */
 declare function getTracer(name?: string): Tracer;
 
+declare const ERROR_CODES: {
+    /**
+     * {@link GraphQLRequestError}
+     */
+    readonly GraphQLRequestError: "D100";
+    /**
+     * {@link UnknownDaggerError}
+     */
+    readonly UnknownDaggerError: "D101";
+    /**
+     * {@link TooManyNestedObjectsError}
+     */
+    readonly TooManyNestedObjectsError: "D102";
+    /**
+     * {@link EngineSessionConnectParamsParseError}
+     */
+    readonly EngineSessionConnectParamsParseError: "D103";
+    /**
+     * {@link EngineSessionConnectionTimeoutError}
+     */
+    readonly EngineSessionConnectionTimeoutError: "D104";
+    /**
+     * {@link EngineSessionError}
+     */
+    readonly EngineSessionError: "D105";
+    /**
+     * {@link InitEngineSessionBinaryError}
+     */
+    readonly InitEngineSessionBinaryError: "D106";
+    /**
+     * {@link DockerImageRefValidationError}
+     */
+    readonly DockerImageRefValidationError: "D107";
+    /**
+     * {@link NotAwaitedRequestError}
+     */
+    readonly NotAwaitedRequestError: "D108";
+    /**
+     * (@link ExecError}
+     */
+    readonly ExecError: "D109";
+    /**
+     * {@link IntrospectionError}
+     */
+    readonly IntrospectionError: "D110";
+};
+type ErrorCodesType = typeof ERROR_CODES;
+type ErrorNames = keyof ErrorCodesType;
+type ErrorCodes = ErrorCodesType[ErrorNames];
+
+interface DaggerSDKErrorOptions {
+    cause?: Error;
+}
+/**
+ * The base error. Every other error inherits this error.
+ */
+declare abstract class DaggerSDKError extends Error {
+    /**
+     * The name of the dagger error.
+     */
+    abstract readonly name: ErrorNames;
+    /**
+     * The dagger specific error code.
+     * Use this to identify dagger errors programmatically.
+     */
+    abstract readonly code: ErrorCodes;
+    /**
+     * The original error, which caused the DaggerSDKError.
+     */
+    cause?: Error;
+    protected constructor(message: string, options?: DaggerSDKErrorOptions);
+    /**
+     * @hidden
+     */
+    get [Symbol.toStringTag](): "GraphQLRequestError" | "UnknownDaggerError" | "TooManyNestedObjectsError" | "EngineSessionConnectParamsParseError" | "EngineSessionConnectionTimeoutError" | "EngineSessionError" | "InitEngineSessionBinaryError" | "DockerImageRefValidationError" | "NotAwaitedRequestError" | "ExecError" | "IntrospectionError";
+    /**
+     * Pretty prints the error
+     */
+    printStackTrace(): void;
+}
+
+/**
+ *  This error is thrown if the dagger SDK does not identify the error and just wraps the cause.
+ */
+declare class UnknownDaggerError extends DaggerSDKError {
+    name: "UnknownDaggerError";
+    code: "D101";
+    /**
+     * @hidden
+     */
+    constructor(message: string, options: DaggerSDKErrorOptions);
+}
+
+interface DockerImageRefValidationErrorOptions extends DaggerSDKErrorOptions {
+    ref: string;
+}
+/**
+ *  This error is thrown if the passed image reference does not pass validation and is not compliant with the
+ *  DockerImage constructor.
+ */
+declare class DockerImageRefValidationError extends DaggerSDKError {
+    name: "DockerImageRefValidationError";
+    code: "D107";
+    /**
+     *  The docker image reference, which caused the error.
+     */
+    ref: string;
+    /**
+     *  @hidden
+     */
+    constructor(message: string, options: DockerImageRefValidationErrorOptions);
+}
+
+interface EngineSessionConnectParamsParseErrorOptions extends DaggerSDKErrorOptions {
+    parsedLine: string;
+}
+/**
+ * This error is thrown if the EngineSession does not manage to parse the required connection parameters from the session binary
+ */
+declare class EngineSessionConnectParamsParseError extends DaggerSDKError {
+    name: "EngineSessionConnectParamsParseError";
+    code: "D103";
+    /**
+     *  the line, which caused the error during parsing, if the error was caused because of parsing.
+     */
+    parsedLine: string;
+    /**
+     * @hidden
+     */
+    constructor(message: string, options: EngineSessionConnectParamsParseErrorOptions);
+}
+
+interface ExecErrorOptions extends DaggerSDKErrorOptions {
+    cmd: string[];
+    exitCode: number;
+    stdout: string;
+    stderr: string;
+    extensions?: GraphQLErrorExtensions;
+}
+/**
+ *  API error from an exec operation in a pipeline.
+ */
+declare class ExecError extends DaggerSDKError {
+    name: "ExecError";
+    code: "D109";
+    /**
+     *  The command that caused the error.
+     */
+    cmd: string[];
+    /**
+     *  The exit code of the command.
+     */
+    exitCode: number;
+    /**
+     * The stdout of the command.
+     */
+    stdout: string;
+    /**
+     * The stderr of the command.
+     */
+    stderr: string;
+    /**
+     * GraphQL error extensions
+     */
+    extensions?: GraphQLErrorExtensions;
+    /**
+     *  @hidden
+     */
+    constructor(message: string, options: ExecErrorOptions);
+}
+
+interface GraphQLRequestErrorOptions extends DaggerSDKErrorOptions {
+    error: ClientError;
+}
+/**
+ *  This error originates from the dagger engine. It means that some error was thrown and sent back via GraphQL.
+ */
+declare class GraphQLRequestError extends DaggerSDKError {
+    name: "GraphQLRequestError";
+    code: "D100";
+    /**
+     *  The query and variables, which caused the error.
+     */
+    requestContext: ClientError["request"];
+    /**
+     *  the GraphQL response containing the error.
+     */
+    response: ClientError["response"];
+    /**
+     *  The GraphQL error extentions.
+     */
+    extensions?: GraphQLErrorExtensions;
+    /**
+     *  @hidden
+     */
+    constructor(message: string, options: GraphQLRequestErrorOptions);
+}
+
+/**
+ *  This error is thrown if the dagger binary cannot be copied from the dagger docker image and copied to the local host.
+ */
+declare class InitEngineSessionBinaryError extends DaggerSDKError {
+    name: "InitEngineSessionBinaryError";
+    code: "D106";
+    /**
+     *  @hidden
+     */
+    constructor(message: string, options?: DaggerSDKErrorOptions);
+}
+
+interface TooManyNestedObjectsErrorOptions extends DaggerSDKErrorOptions {
+    response: unknown;
+}
+/**
+ *  Dagger only expects one response value from the engine. If the engine returns more than one value this error is thrown.
+ */
+declare class TooManyNestedObjectsError extends DaggerSDKError {
+    name: "TooManyNestedObjectsError";
+    code: "D102";
+    /**
+     *  the response containing more than one value.
+     */
+    response: unknown;
+    /**
+     * @hidden
+     */
+    constructor(message: string, options: TooManyNestedObjectsErrorOptions);
+}
+
+type EngineSessionErrorOptions = DaggerSDKErrorOptions;
+/**
+ * This error is thrown if the EngineSession does not manage to parse the required port successfully because a EOF is read before any valid port.
+ * This usually happens if no connection can be established.
+ */
+declare class EngineSessionError extends DaggerSDKError {
+    name: "EngineSessionError";
+    code: "D105";
+    /**
+     * @hidden
+     */
+    constructor(message: string, options?: EngineSessionErrorOptions);
+}
+
+interface EngineSessionConnectionTimeoutErrorOptions extends DaggerSDKErrorOptions {
+    timeOutDuration: number;
+}
+/**
+ * This error is thrown if the EngineSession does not manage to parse the required port successfully because the sessions connection timed out.
+ */
+declare class EngineSessionConnectionTimeoutError extends DaggerSDKError {
+    name: "EngineSessionConnectionTimeoutError";
+    code: "D104";
+    /**
+     * The duration until the timeout occurred in ms.
+     */
+    timeOutDuration: number;
+    /**
+     * @hidden
+     */
+    constructor(message: string, options: EngineSessionConnectionTimeoutErrorOptions);
+}
+
+/**
+ * This error is thrown when the compute function isn't awaited.
+ */
+declare class NotAwaitedRequestError extends DaggerSDKError {
+    name: "NotAwaitedRequestError";
+    code: "D108";
+    /**
+     * @hidden
+     */
+    constructor(message: string, options?: DaggerSDKErrorOptions);
+}
+
+declare class FunctionNotFound extends DaggerSDKError {
+    name: "ExecError";
+    code: "D109";
+    constructor(message: string, options?: DaggerSDKErrorOptions);
+}
+
+declare class IntrospectionError extends DaggerSDKError {
+    name: "IntrospectionError";
+    code: "D110";
+    constructor(message: string, options?: DaggerSDKErrorOptions);
+}
+
 /**
  * Wraps the GraphQL client to allow lazy initialization and setting
  * the GQL client of the global Dagger client instance (`dag`).
@@ -65,12 +351,26 @@ declare class Connection {
      */
     ensureServed(key: string, serve: () => Promise<void>): Promise<void>;
 }
+declare const globalConnection: Connection;
 
 type QueryTree = {
     operation: string;
     args?: Record<string, unknown>;
     inlineType?: string;
 };
+type Metadata = {
+    [key: string]: {
+        is_enum?: boolean;
+        value_to_name?: (value: any) => string;
+    };
+};
+/**
+ * Convert querytree into a Graphql query then compute it
+ * @param q | QueryTree[]
+ * @param client | GraphQLClient
+ * @returns
+ */
+declare function computeQuery<T>(q: QueryTree[], client: GraphQLClient): Promise<T>;
 
 /**
  * A module a generated client serves into the session before its first query.
@@ -121,6 +421,68 @@ declare class BaseClient {
      */
     constructor(_ctx?: Context);
 }
+
+/**
+ * ConnectOpts defines option used to connect to an engine.
+ */
+interface ConnectOpts {
+    /**
+     * Use to overwrite Dagger workdir
+     * @defaultValue process.cwd()
+     */
+    Workdir?: string;
+    /**
+     * Opt into loading workspace modules for this connection.
+     * By default, only the core API is exposed.
+     */
+    LoadWorkspaceModules?: boolean;
+    /**
+       * Enable logs output
+       * @example
+       * LogOutput
+       * ```ts
+       * connect(async (client: Client) => {
+      const source = await client.host().workdir().id()
+      ...
+      }, {LogOutput: process.stdout})
+       ```
+       */
+    LogOutput?: Writable;
+}
+
+/**
+ * withSession establishes a Dagger session, points the global client at it for
+ * the duration of `fct`, and tears it down again.
+ *
+ * This is the session layer's whole job: no tracing, no bindings. `connection`
+ * is this plus the tracer's lifetime, and it lives above both.
+ */
+declare function withSession(fct: () => Promise<void>, cfg?: ConnectOpts): Promise<void>;
+
+/**
+ * Execute the callback with a GraphQL client connected to the Dagger engine.
+ * It automatically provisions the engine if needed.
+ */
+declare function withGQLClient<T>(connectOpts: ConnectOpts, cb: (gqlClient: GraphQLClient) => Promise<T>): Promise<T>;
+
+/**
+ * Hold a process-wide singleton on `globalThis` rather than in module scope.
+ *
+ * Module scope is not process scope. Once the SDK is several packages, a
+ * resolver is free to install two copies of the session package — conflicting
+ * ranges, a failed hoist, an `npm link` — and each copy evaluates its own
+ * module-level `new`. The symptom is silent and points nowhere near
+ * node_modules: decorators register into one registry while the dispatcher
+ * reads another, or `connect()` populates a connection `dag` cannot see.
+ *
+ * `Symbol.for` resolves through the cross-realm symbol registry, so duplicate
+ * copies of this very file still agree on the slot and share one instance.
+ *
+ * The first copy to evaluate wins, which means the shape stored here is a
+ * compatibility surface between versions that may run side by side: only ever
+ * add to it.
+ */
+declare function shared<T>(key: string, create: () => T): T;
 
 /**
  * Declare a number as float in the Dagger API.
@@ -9318,319 +9680,13 @@ declare class WorkspaceSDK extends BaseClient {
 }
 declare const dag: Client;
 
-declare const ERROR_CODES: {
-    /**
-     * {@link GraphQLRequestError}
-     */
-    readonly GraphQLRequestError: "D100";
-    /**
-     * {@link UnknownDaggerError}
-     */
-    readonly UnknownDaggerError: "D101";
-    /**
-     * {@link TooManyNestedObjectsError}
-     */
-    readonly TooManyNestedObjectsError: "D102";
-    /**
-     * {@link EngineSessionConnectParamsParseError}
-     */
-    readonly EngineSessionConnectParamsParseError: "D103";
-    /**
-     * {@link EngineSessionConnectionTimeoutError}
-     */
-    readonly EngineSessionConnectionTimeoutError: "D104";
-    /**
-     * {@link EngineSessionError}
-     */
-    readonly EngineSessionError: "D105";
-    /**
-     * {@link InitEngineSessionBinaryError}
-     */
-    readonly InitEngineSessionBinaryError: "D106";
-    /**
-     * {@link DockerImageRefValidationError}
-     */
-    readonly DockerImageRefValidationError: "D107";
-    /**
-     * {@link NotAwaitedRequestError}
-     */
-    readonly NotAwaitedRequestError: "D108";
-    /**
-     * (@link ExecError}
-     */
-    readonly ExecError: "D109";
-    /**
-     * {@link IntrospectionError}
-     */
-    readonly IntrospectionError: "D110";
-};
-type ErrorCodesType = typeof ERROR_CODES;
-type ErrorNames = keyof ErrorCodesType;
-type ErrorCodes = ErrorCodesType[ErrorNames];
-
-interface DaggerSDKErrorOptions {
-    cause?: Error;
-}
+type CallbackFct = (client: Client) => Promise<void>;
 /**
- * The base error. Every other error inherits this error.
+ * connect runs GraphQL server and initializes a
+ * GraphQL client to execute query on it through its callback.
+ * This implementation is based on the existing Go SDK.
  */
-declare abstract class DaggerSDKError extends Error {
-    /**
-     * The name of the dagger error.
-     */
-    abstract readonly name: ErrorNames;
-    /**
-     * The dagger specific error code.
-     * Use this to identify dagger errors programmatically.
-     */
-    abstract readonly code: ErrorCodes;
-    /**
-     * The original error, which caused the DaggerSDKError.
-     */
-    cause?: Error;
-    protected constructor(message: string, options?: DaggerSDKErrorOptions);
-    /**
-     * @hidden
-     */
-    get [Symbol.toStringTag](): "GraphQLRequestError" | "UnknownDaggerError" | "TooManyNestedObjectsError" | "EngineSessionConnectParamsParseError" | "EngineSessionConnectionTimeoutError" | "EngineSessionError" | "InitEngineSessionBinaryError" | "DockerImageRefValidationError" | "NotAwaitedRequestError" | "ExecError" | "IntrospectionError";
-    /**
-     * Pretty prints the error
-     */
-    printStackTrace(): void;
-}
-
-/**
- *  This error is thrown if the dagger SDK does not identify the error and just wraps the cause.
- */
-declare class UnknownDaggerError extends DaggerSDKError {
-    name: "UnknownDaggerError";
-    code: "D101";
-    /**
-     * @hidden
-     */
-    constructor(message: string, options: DaggerSDKErrorOptions);
-}
-
-interface DockerImageRefValidationErrorOptions extends DaggerSDKErrorOptions {
-    ref: string;
-}
-/**
- *  This error is thrown if the passed image reference does not pass validation and is not compliant with the
- *  DockerImage constructor.
- */
-declare class DockerImageRefValidationError extends DaggerSDKError {
-    name: "DockerImageRefValidationError";
-    code: "D107";
-    /**
-     *  The docker image reference, which caused the error.
-     */
-    ref: string;
-    /**
-     *  @hidden
-     */
-    constructor(message: string, options: DockerImageRefValidationErrorOptions);
-}
-
-interface EngineSessionConnectParamsParseErrorOptions extends DaggerSDKErrorOptions {
-    parsedLine: string;
-}
-/**
- * This error is thrown if the EngineSession does not manage to parse the required connection parameters from the session binary
- */
-declare class EngineSessionConnectParamsParseError extends DaggerSDKError {
-    name: "EngineSessionConnectParamsParseError";
-    code: "D103";
-    /**
-     *  the line, which caused the error during parsing, if the error was caused because of parsing.
-     */
-    parsedLine: string;
-    /**
-     * @hidden
-     */
-    constructor(message: string, options: EngineSessionConnectParamsParseErrorOptions);
-}
-
-interface ExecErrorOptions extends DaggerSDKErrorOptions {
-    cmd: string[];
-    exitCode: number;
-    stdout: string;
-    stderr: string;
-    extensions?: GraphQLErrorExtensions;
-}
-/**
- *  API error from an exec operation in a pipeline.
- */
-declare class ExecError extends DaggerSDKError {
-    name: "ExecError";
-    code: "D109";
-    /**
-     *  The command that caused the error.
-     */
-    cmd: string[];
-    /**
-     *  The exit code of the command.
-     */
-    exitCode: number;
-    /**
-     * The stdout of the command.
-     */
-    stdout: string;
-    /**
-     * The stderr of the command.
-     */
-    stderr: string;
-    /**
-     * GraphQL error extensions
-     */
-    extensions?: GraphQLErrorExtensions;
-    /**
-     *  @hidden
-     */
-    constructor(message: string, options: ExecErrorOptions);
-}
-
-interface GraphQLRequestErrorOptions extends DaggerSDKErrorOptions {
-    error: ClientError;
-}
-/**
- *  This error originates from the dagger engine. It means that some error was thrown and sent back via GraphQL.
- */
-declare class GraphQLRequestError extends DaggerSDKError {
-    name: "GraphQLRequestError";
-    code: "D100";
-    /**
-     *  The query and variables, which caused the error.
-     */
-    requestContext: ClientError["request"];
-    /**
-     *  the GraphQL response containing the error.
-     */
-    response: ClientError["response"];
-    /**
-     *  The GraphQL error extentions.
-     */
-    extensions?: GraphQLErrorExtensions;
-    /**
-     *  @hidden
-     */
-    constructor(message: string, options: GraphQLRequestErrorOptions);
-}
-
-/**
- *  This error is thrown if the dagger binary cannot be copied from the dagger docker image and copied to the local host.
- */
-declare class InitEngineSessionBinaryError extends DaggerSDKError {
-    name: "InitEngineSessionBinaryError";
-    code: "D106";
-    /**
-     *  @hidden
-     */
-    constructor(message: string, options?: DaggerSDKErrorOptions);
-}
-
-interface TooManyNestedObjectsErrorOptions extends DaggerSDKErrorOptions {
-    response: unknown;
-}
-/**
- *  Dagger only expects one response value from the engine. If the engine returns more than one value this error is thrown.
- */
-declare class TooManyNestedObjectsError extends DaggerSDKError {
-    name: "TooManyNestedObjectsError";
-    code: "D102";
-    /**
-     *  the response containing more than one value.
-     */
-    response: unknown;
-    /**
-     * @hidden
-     */
-    constructor(message: string, options: TooManyNestedObjectsErrorOptions);
-}
-
-type EngineSessionErrorOptions = DaggerSDKErrorOptions;
-/**
- * This error is thrown if the EngineSession does not manage to parse the required port successfully because a EOF is read before any valid port.
- * This usually happens if no connection can be established.
- */
-declare class EngineSessionError extends DaggerSDKError {
-    name: "EngineSessionError";
-    code: "D105";
-    /**
-     * @hidden
-     */
-    constructor(message: string, options?: EngineSessionErrorOptions);
-}
-
-interface EngineSessionConnectionTimeoutErrorOptions extends DaggerSDKErrorOptions {
-    timeOutDuration: number;
-}
-/**
- * This error is thrown if the EngineSession does not manage to parse the required port successfully because the sessions connection timed out.
- */
-declare class EngineSessionConnectionTimeoutError extends DaggerSDKError {
-    name: "EngineSessionConnectionTimeoutError";
-    code: "D104";
-    /**
-     * The duration until the timeout occurred in ms.
-     */
-    timeOutDuration: number;
-    /**
-     * @hidden
-     */
-    constructor(message: string, options: EngineSessionConnectionTimeoutErrorOptions);
-}
-
-/**
- * This error is thrown when the compute function isn't awaited.
- */
-declare class NotAwaitedRequestError extends DaggerSDKError {
-    name: "NotAwaitedRequestError";
-    code: "D108";
-    /**
-     * @hidden
-     */
-    constructor(message: string, options?: DaggerSDKErrorOptions);
-}
-
-declare class FunctionNotFound extends DaggerSDKError {
-    name: "ExecError";
-    code: "D109";
-    constructor(message: string, options?: DaggerSDKErrorOptions);
-}
-
-declare class IntrospectionError extends DaggerSDKError {
-    name: "IntrospectionError";
-    code: "D110";
-    constructor(message: string, options?: DaggerSDKErrorOptions);
-}
-
-/**
- * ConnectOpts defines option used to connect to an engine.
- */
-interface ConnectOpts {
-    /**
-     * Use to overwrite Dagger workdir
-     * @defaultValue process.cwd()
-     */
-    Workdir?: string;
-    /**
-     * Opt into loading workspace modules for this connection.
-     * By default, only the core API is exposed.
-     */
-    LoadWorkspaceModules?: boolean;
-    /**
-       * Enable logs output
-       * @example
-       * LogOutput
-       * ```ts
-       * connect(async (client: Client) => {
-      const source = await client.host().workdir().id()
-      ...
-      }, {LogOutput: process.stdout})
-       ```
-       */
-    LogOutput?: Writable;
-}
+declare function connect(cb: CallbackFct, config?: ConnectOpts): Promise<void>;
 
 /**
  * connection executes the given function using the default global Dagger client.
@@ -9650,14 +9706,6 @@ interface ConnectOpts {
  * ```
  */
 declare function connection(fct: () => Promise<void>, cfg?: ConnectOpts): Promise<void>;
-
-type CallbackFct = (client: Client) => Promise<void>;
-/**
- * connect runs GraphQL server and initializes a
- * GraphQL client to execute query on it through its callback.
- * This implementation is based on the existing Go SDK.
- */
-declare function connect(cb: CallbackFct, config?: ConnectOpts): Promise<void>;
 
 type Class = {
     new (...args: any[]): any;
@@ -9788,5 +9836,5 @@ declare const enumType: () => (<T extends Class>(constructor: T) => T);
  */
 declare const argument: (opts?: ArgumentOptions) => ((target: object, propertyKey: string | undefined, parameterIndex: number) => void);
 
-export { Address, Agent, AgentMessage, AgentMessageDelivery, AgentMessageDeliveryNameToValue, AgentMessageDeliveryValueToName, AgentState, AgentStateNameToValue, AgentStateValueToName, Artifact, ArtifactDimension, ArtifactDimensionKey, ArtifactDimensionKind, ArtifactDimensionKindNameToValue, ArtifactDimensionKindValueToName, ArtifactPath, ArtifactResult, Artifacts, BaseClient, CacheSharingMode, CacheSharingModeNameToValue, CacheSharingModeValueToName, CacheVolume, Changeset, ChangesetMergeConflict, ChangesetMergeConflictNameToValue, ChangesetMergeConflictValueToName, ChangesetsMergeConflict, ChangesetsMergeConflictNameToValue, ChangesetsMergeConflictValueToName, Check, Client, ClientFilesyncMirror, Cloud, CollectionDelta, CollectionTypeDef, Command, Container, Context, CurrentModule, DaggerSDKError, DiffStat, DiffStatKind, DiffStatKindNameToValue, DiffStatKindValueToName, Directory, DockerImageRefValidationError, ERROR_CODES, Engine, EngineCache, EngineCacheEntry, EngineCacheEntrySet, EngineSessionConnectParamsParseError, EngineSessionConnectionTimeoutError, EngineSessionError, EnumTypeDef, EnumValueTypeDef, EnvFile, EnvVariable, Error$1 as Error, ErrorValue, ExecError, ExistsType, ExistsTypeNameToValue, ExistsTypeValueToName, Expertise, FieldTypeDef, File, FileType, FileTypeNameToValue, FileTypeValueToName, FunctionArg, FunctionCachePolicy, FunctionCachePolicyNameToValue, FunctionCachePolicyValueToName, FunctionCall, FunctionCallArgValue, FunctionNotFound, Function_, GeneratedCode, Generator, GitBundle, GitBundleRef, GitCommit, GitPushDisposition, GitPushDispositionNameToValue, GitPushDispositionValueToName, GitPushResult, GitRef, GitRepository, GraphQLRequestError, HTTPState, HealthcheckConfig, Host, ImageLayerCompression, ImageLayerCompressionNameToValue, ImageLayerCompressionValueToName, ImageMediaTypes, ImageMediaTypesNameToValue, ImageMediaTypesValueToName, InitEngineSessionBinaryError, InputTypeDef, InterfaceTypeDef, IntrospectionError, JSONValue, LLM, LLMContentBlock, LLMContentBlockKind, LLMContentBlockKindNameToValue, LLMContentBlockKindValueToName, LLMMessage, LLMMessageOrigin, LLMMessageOriginKind, LLMMessageOriginKindNameToValue, LLMMessageOriginKindValueToName, LLMMessageRole, LLMMessageRoleNameToValue, LLMMessageRoleValueToName, LLMSkill, LLMTokenUsage, Label, ListTypeDef, ModuleConfigClient, ModuleSource, ModuleSourceExperimentalFeature, ModuleSourceExperimentalFeatureNameToValue, ModuleSourceExperimentalFeatureValueToName, ModuleSourceKind, ModuleSourceKindNameToValue, ModuleSourceKindValueToName, Module_, NetworkProtocol, NetworkProtocolNameToValue, NetworkProtocolValueToName, NotAwaitedRequestError, ObjectTypeDef, PatchConflict, PatchConflictNameToValue, PatchConflictValueToName, Port, RegistryProtocol, RegistryProtocolNameToValue, RegistryProtocolValueToName, RemoteGitMirror, ReturnType, ReturnTypeNameToValue, ReturnTypeValueToName, SDKConfig, ScalarTypeDef, Schema, SearchResult, SearchSubmatch, Secret, Service, Socket, SourceMap, Stat, Terminal, TooManyNestedObjectsError, TypeDef, TypeDefKind, TypeDefKindNameToValue, TypeDefKindValueToName, UnknownDaggerError, Volume, Workspace, WorkspaceCommitPick, WorkspaceCommitPickReason, WorkspaceCommitPickReasonNameToValue, WorkspaceCommitPickReasonValueToName, WorkspaceCommitPickStatus, WorkspaceCommitPickStatusNameToValue, WorkspaceCommitPickStatusValueToName, WorkspaceGit, WorkspaceMigration, WorkspaceMigrationStep, WorkspaceModule, WorkspaceModuleSetting, WorkspaceSDK, _ExportableClient, _NodeClient, _SyncerClient, agent, argument, check, collection, connect, connection, dag, delta, enumType, field, func, generate, get, getRegisteredClass, getTracer, keys, object, up };
-export type { AddressDirectoryOpts, AddressFileOpts, AgentNotifyOpts, AgentPauseOpts, AgentSendOpts, AgentStopOpts, ArtifactUriOpts, ArtifactValueOpts, ArtifactsFilterDirectivesOpts, ArtifactsFilterParentDirectivesOpts, ArtifactsFilterParentTypesOpts, ArtifactsFilterTypesOpts, ArtifactsPathDefinitionsOpts, ArtifactsValuesOpts, BuildArg, Bytes, CallbackFct, ChangesetFilterOpts, ChangesetWithChangesetOpts, ChangesetWithChangesetsOpts, ClientBlobOpts, ClientCacheVolumeOpts, ClientContainerOpts, ClientCurrentTypeDefsOpts, ClientEngineVolumeOpts, ClientEnvFileOpts, ClientFileOpts, ClientGitOpts, ClientHttpOpts, ClientLLMOpts, ClientModuleSourceOpts, ClientSecretOpts, ClientServeModuleOpts, ClientSshfsVolumeOpts, ConnectOpts, ContainerAsServiceOpts, ContainerAsTarballOpts, ContainerDirectoryOpts, ContainerExistsOpts, ContainerExportImageOpts, ContainerExportOpts, ContainerFileOpts, ContainerFromOpts, ContainerImportOpts, ContainerLayerOpts, ContainerManifestOpts, ContainerPublishOpts, ContainerShellOpts, ContainerStatOpts, ContainerTerminalOpts, ContainerUpOpts, ContainerWithDefaultTerminalCmdOpts, ContainerWithDirectoryOpts, ContainerWithDockerHealthcheckOpts, ContainerWithEntrypointOpts, ContainerWithEnvVariableOpts, ContainerWithExecOpts, ContainerWithExposedPortOpts, ContainerWithFileOpts, ContainerWithFilesOpts, ContainerWithMountedCacheOpts, ContainerWithMountedDirectoryOpts, ContainerWithMountedFileOpts, ContainerWithMountedSecretOpts, ContainerWithMountedTempOpts, ContainerWithMountedVolumeOpts, ContainerWithNewFileOpts, ContainerWithRunOpts, ContainerWithShellOpts, ContainerWithSymlinkOpts, ContainerWithUnixSocketOpts, ContainerWithWorkdirOpts, ContainerWithoutDirectoryOpts, ContainerWithoutEntrypointOpts, ContainerWithoutExposedPortOpts, ContainerWithoutFileOpts, ContainerWithoutFilesOpts, ContainerWithoutMountOpts, ContainerWithoutUnixSocketOpts, CurrentModuleWorkdirOpts, DirectoryAsModuleOpts, DirectoryAsModuleSourceOpts, DirectoryAsWorkspaceOpts, DirectoryDockerBuildOpts, DirectoryEntriesOpts, DirectoryExistsOpts, DirectoryExportOpts, DirectoryFilterOpts, DirectorySearchOpts, DirectoryStatOpts, DirectoryTerminalOpts, DirectoryWithDirectoryOpts, DirectoryWithFileOpts, DirectoryWithFilesOpts, DirectoryWithNewDirectoryOpts, DirectoryWithNewFileOpts, DirectoryWithPatchFileOpts, DirectoryWithPatchOpts, EngineCacheEntrySetOpts, EngineCachePruneOpts, EnvFileGetOpts, EnvFileVariablesOpts, Exportable, FileAsEnvFileOpts, FileContentsOpts, FileDigestOpts, FileExportOpts, FileSearchOpts, FileWithReplacedOpts, FunctionWithArgOpts, FunctionWithCachePolicyOpts, FunctionWithDeprecatedOpts, GitCommitAncestorReleaseTagOpts, GitCommitChangesOpts, GitCommitReleaseTagOpts, GitCommitTreeOpts, GitRefAsWorkspaceOpts, GitRefLogOpts, GitRefPushOpts, GitRefTreeOpts, GitRefWithCommitOpts, GitRepositoryAsWorkspaceOpts, GitRepositoryBranchesOpts, GitRepositoryBundleOpts, GitRepositoryLatestOpts, GitRepositoryTagsOpts, GitRepositoryWithBundleOpts, GitRepositoryWithRemoteOpts, HostDirectoryOpts, HostFileOpts, HostFindUpOpts, HostServiceOpts, HostTunnelOpts, ID, JSON, JSONValueContentsOpts, LLMContentBlockInput, LLMLoopOpts, LLMMessageOriginInput, LLMSpawnOpts, LLMStepOpts, LLMWithContentFileOpts, LLMWithContentOpts, LLMWithModelOpts, LLMWithPromptOpts, LLMWithResponseOpts, LLMWithToolResultOpts, LLMWithToolsOpts, ModuleServeOpts, Node, PipelineLabel, Platform, PortForward, ServiceEndpointOpts, ServicePortsOpts, ServiceStopOpts, ServiceTerminalOpts, ServiceUpOpts, Syncer, TypeDefWithEnumMemberOpts, TypeDefWithEnumOpts, TypeDefWithEnumValueOpts, TypeDefWithFieldOpts, TypeDefWithInterfaceOpts, TypeDefWithObjectOpts, TypeDefWithScalarOpts, Void, WorkspaceArtifactsOpts, WorkspaceChangesOpts, WorkspaceCompareCommitsFromOpts, WorkspaceConfigReadOpts, WorkspaceDirectoryOpts, WorkspaceExportOpts, WorkspaceFindRootsOpts, WorkspaceFindUpOpts, WorkspaceMigrateModuleOpts, WorkspaceMigrateOpts, WorkspaceSearchOpts, WorkspaceWithClientOpts, WorkspaceWithCommitOpts, WorkspaceWithCommitsFromOpts, WorkspaceWithConfigEnvOpts, WorkspaceWithConfigValueOpts, WorkspaceWithFileOpts, WorkspaceWithInitModuleOpts, WorkspaceWithModuleOpts, WorkspaceWithNewFileOpts, WorkspaceWithResetOpts, WorkspaceWithSdkOpts, WorkspaceWithUpdatedClientsOpts, WorkspaceWithUpdatedLockOpts, WorkspaceWithUpdatedModulesOpts, WorkspaceWithoutClientOpts, WorkspaceWithoutConfigEnvOpts, WorkspaceWithoutConfigValueOpts, WorkspaceWithoutModuleOpts, WorkspaceWithoutSdkOpts, __DirectiveArgsOpts, __FieldArgsOpts, __TypeEnumValuesOpts, __TypeFieldsOpts, __TypeInputFieldsOpts, float };
+export { Address, Agent, AgentMessage, AgentMessageDelivery, AgentMessageDeliveryNameToValue, AgentMessageDeliveryValueToName, AgentState, AgentStateNameToValue, AgentStateValueToName, Artifact, ArtifactDimension, ArtifactDimensionKey, ArtifactDimensionKind, ArtifactDimensionKindNameToValue, ArtifactDimensionKindValueToName, ArtifactPath, ArtifactResult, Artifacts, BaseClient, CacheSharingMode, CacheSharingModeNameToValue, CacheSharingModeValueToName, CacheVolume, Changeset, ChangesetMergeConflict, ChangesetMergeConflictNameToValue, ChangesetMergeConflictValueToName, ChangesetsMergeConflict, ChangesetsMergeConflictNameToValue, ChangesetsMergeConflictValueToName, Check, Client, ClientFilesyncMirror, Cloud, CollectionDelta, CollectionTypeDef, Command, Connection, Container, Context, CurrentModule, DaggerSDKError, DiffStat, DiffStatKind, DiffStatKindNameToValue, DiffStatKindValueToName, Directory, DockerImageRefValidationError, ERROR_CODES, Engine, EngineCache, EngineCacheEntry, EngineCacheEntrySet, EngineSessionConnectParamsParseError, EngineSessionConnectionTimeoutError, EngineSessionError, EnumTypeDef, EnumValueTypeDef, EnvFile, EnvVariable, Error$1 as Error, ErrorValue, ExecError, ExistsType, ExistsTypeNameToValue, ExistsTypeValueToName, Expertise, FieldTypeDef, File, FileType, FileTypeNameToValue, FileTypeValueToName, FunctionArg, FunctionCachePolicy, FunctionCachePolicyNameToValue, FunctionCachePolicyValueToName, FunctionCall, FunctionCallArgValue, FunctionNotFound, Function_, GeneratedCode, Generator, GitBundle, GitBundleRef, GitCommit, GitPushDisposition, GitPushDispositionNameToValue, GitPushDispositionValueToName, GitPushResult, GitRef, GitRepository, GraphQLRequestError, HTTPState, HealthcheckConfig, Host, ImageLayerCompression, ImageLayerCompressionNameToValue, ImageLayerCompressionValueToName, ImageMediaTypes, ImageMediaTypesNameToValue, ImageMediaTypesValueToName, InitEngineSessionBinaryError, InputTypeDef, InterfaceTypeDef, IntrospectionError, JSONValue, LLM, LLMContentBlock, LLMContentBlockKind, LLMContentBlockKindNameToValue, LLMContentBlockKindValueToName, LLMMessage, LLMMessageOrigin, LLMMessageOriginKind, LLMMessageOriginKindNameToValue, LLMMessageOriginKindValueToName, LLMMessageRole, LLMMessageRoleNameToValue, LLMMessageRoleValueToName, LLMSkill, LLMTokenUsage, Label, ListTypeDef, ModuleConfigClient, ModuleSource, ModuleSourceExperimentalFeature, ModuleSourceExperimentalFeatureNameToValue, ModuleSourceExperimentalFeatureValueToName, ModuleSourceKind, ModuleSourceKindNameToValue, ModuleSourceKindValueToName, Module_, NetworkProtocol, NetworkProtocolNameToValue, NetworkProtocolValueToName, NotAwaitedRequestError, ObjectTypeDef, PatchConflict, PatchConflictNameToValue, PatchConflictValueToName, Port, RegistryProtocol, RegistryProtocolNameToValue, RegistryProtocolValueToName, RemoteGitMirror, ReturnType, ReturnTypeNameToValue, ReturnTypeValueToName, SDKConfig, ScalarTypeDef, Schema, SearchResult, SearchSubmatch, Secret, Service, Socket, SourceMap, Stat, Terminal, TooManyNestedObjectsError, TypeDef, TypeDefKind, TypeDefKindNameToValue, TypeDefKindValueToName, UnknownDaggerError, Volume, Workspace, WorkspaceCommitPick, WorkspaceCommitPickReason, WorkspaceCommitPickReasonNameToValue, WorkspaceCommitPickReasonValueToName, WorkspaceCommitPickStatus, WorkspaceCommitPickStatusNameToValue, WorkspaceCommitPickStatusValueToName, WorkspaceGit, WorkspaceMigration, WorkspaceMigrationStep, WorkspaceModule, WorkspaceModuleSetting, WorkspaceSDK, _ExportableClient, _NodeClient, _SyncerClient, agent, argument, check, collection, computeQuery, connect, connection, dag, delta, enumType, field, func, generate, get, getRegisteredClass, getTracer, globalConnection, keys, object, shared, up, withGQLClient, withSession };
+export type { AddressDirectoryOpts, AddressFileOpts, AgentNotifyOpts, AgentPauseOpts, AgentSendOpts, AgentStopOpts, ArtifactUriOpts, ArtifactValueOpts, ArtifactsFilterDirectivesOpts, ArtifactsFilterParentDirectivesOpts, ArtifactsFilterParentTypesOpts, ArtifactsFilterTypesOpts, ArtifactsPathDefinitionsOpts, ArtifactsValuesOpts, BuildArg, Bytes, CallbackFct, ChangesetFilterOpts, ChangesetWithChangesetOpts, ChangesetWithChangesetsOpts, ClientBlobOpts, ClientCacheVolumeOpts, ClientContainerOpts, ClientCurrentTypeDefsOpts, ClientEngineVolumeOpts, ClientEnvFileOpts, ClientFileOpts, ClientGitOpts, ClientHttpOpts, ClientLLMOpts, ClientModuleSourceOpts, ClientSecretOpts, ClientServeModuleOpts, ClientSshfsVolumeOpts, ConnectOpts, ContainerAsServiceOpts, ContainerAsTarballOpts, ContainerDirectoryOpts, ContainerExistsOpts, ContainerExportImageOpts, ContainerExportOpts, ContainerFileOpts, ContainerFromOpts, ContainerImportOpts, ContainerLayerOpts, ContainerManifestOpts, ContainerPublishOpts, ContainerShellOpts, ContainerStatOpts, ContainerTerminalOpts, ContainerUpOpts, ContainerWithDefaultTerminalCmdOpts, ContainerWithDirectoryOpts, ContainerWithDockerHealthcheckOpts, ContainerWithEntrypointOpts, ContainerWithEnvVariableOpts, ContainerWithExecOpts, ContainerWithExposedPortOpts, ContainerWithFileOpts, ContainerWithFilesOpts, ContainerWithMountedCacheOpts, ContainerWithMountedDirectoryOpts, ContainerWithMountedFileOpts, ContainerWithMountedSecretOpts, ContainerWithMountedTempOpts, ContainerWithMountedVolumeOpts, ContainerWithNewFileOpts, ContainerWithRunOpts, ContainerWithShellOpts, ContainerWithSymlinkOpts, ContainerWithUnixSocketOpts, ContainerWithWorkdirOpts, ContainerWithoutDirectoryOpts, ContainerWithoutEntrypointOpts, ContainerWithoutExposedPortOpts, ContainerWithoutFileOpts, ContainerWithoutFilesOpts, ContainerWithoutMountOpts, ContainerWithoutUnixSocketOpts, CurrentModuleWorkdirOpts, DirectoryAsModuleOpts, DirectoryAsModuleSourceOpts, DirectoryAsWorkspaceOpts, DirectoryDockerBuildOpts, DirectoryEntriesOpts, DirectoryExistsOpts, DirectoryExportOpts, DirectoryFilterOpts, DirectorySearchOpts, DirectoryStatOpts, DirectoryTerminalOpts, DirectoryWithDirectoryOpts, DirectoryWithFileOpts, DirectoryWithFilesOpts, DirectoryWithNewDirectoryOpts, DirectoryWithNewFileOpts, DirectoryWithPatchFileOpts, DirectoryWithPatchOpts, EngineCacheEntrySetOpts, EngineCachePruneOpts, EnvFileGetOpts, EnvFileVariablesOpts, Exportable, FileAsEnvFileOpts, FileContentsOpts, FileDigestOpts, FileExportOpts, FileSearchOpts, FileWithReplacedOpts, FunctionWithArgOpts, FunctionWithCachePolicyOpts, FunctionWithDeprecatedOpts, GitCommitAncestorReleaseTagOpts, GitCommitChangesOpts, GitCommitReleaseTagOpts, GitCommitTreeOpts, GitRefAsWorkspaceOpts, GitRefLogOpts, GitRefPushOpts, GitRefTreeOpts, GitRefWithCommitOpts, GitRepositoryAsWorkspaceOpts, GitRepositoryBranchesOpts, GitRepositoryBundleOpts, GitRepositoryLatestOpts, GitRepositoryTagsOpts, GitRepositoryWithBundleOpts, GitRepositoryWithRemoteOpts, HostDirectoryOpts, HostFileOpts, HostFindUpOpts, HostServiceOpts, HostTunnelOpts, ID, JSON, JSONValueContentsOpts, LLMContentBlockInput, LLMLoopOpts, LLMMessageOriginInput, LLMSpawnOpts, LLMStepOpts, LLMWithContentFileOpts, LLMWithContentOpts, LLMWithModelOpts, LLMWithPromptOpts, LLMWithResponseOpts, LLMWithToolResultOpts, LLMWithToolsOpts, Metadata, ModuleServeOpts, Node, PipelineLabel, Platform, PortForward, QueryTree, ServeSpec, ServiceEndpointOpts, ServicePortsOpts, ServiceStopOpts, ServiceTerminalOpts, ServiceUpOpts, Syncer, TypeDefWithEnumMemberOpts, TypeDefWithEnumOpts, TypeDefWithEnumValueOpts, TypeDefWithFieldOpts, TypeDefWithInterfaceOpts, TypeDefWithObjectOpts, TypeDefWithScalarOpts, Void, WorkspaceArtifactsOpts, WorkspaceChangesOpts, WorkspaceCompareCommitsFromOpts, WorkspaceConfigReadOpts, WorkspaceDirectoryOpts, WorkspaceExportOpts, WorkspaceFindRootsOpts, WorkspaceFindUpOpts, WorkspaceMigrateModuleOpts, WorkspaceMigrateOpts, WorkspaceSearchOpts, WorkspaceWithClientOpts, WorkspaceWithCommitOpts, WorkspaceWithCommitsFromOpts, WorkspaceWithConfigEnvOpts, WorkspaceWithConfigValueOpts, WorkspaceWithFileOpts, WorkspaceWithInitModuleOpts, WorkspaceWithModuleOpts, WorkspaceWithNewFileOpts, WorkspaceWithResetOpts, WorkspaceWithSdkOpts, WorkspaceWithUpdatedClientsOpts, WorkspaceWithUpdatedLockOpts, WorkspaceWithUpdatedModulesOpts, WorkspaceWithoutClientOpts, WorkspaceWithoutConfigEnvOpts, WorkspaceWithoutConfigValueOpts, WorkspaceWithoutModuleOpts, WorkspaceWithoutSdkOpts, __DirectiveArgsOpts, __FieldArgsOpts, __TypeEnumValuesOpts, __TypeFieldsOpts, __TypeInputFieldsOpts, float };

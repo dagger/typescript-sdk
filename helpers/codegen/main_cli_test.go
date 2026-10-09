@@ -345,7 +345,7 @@ func TestRunLibrary(t *testing.T) {
 	// by relative path rather than through the bundle or the package name.
 	contents, err := os.ReadFile(filepath.Join(out, "client.gen.ts"))
 	require.NoError(t, err)
-	require.Contains(t, string(contents), `from "../session/context.js"`)
+	require.Contains(t, string(contents), `from "@dagger.io/session"`)
 }
 
 func TestRunEntrypoint(t *testing.T) {

@@ -119,7 +119,7 @@ func TestGenerateLibrary_ImportsRuntimeFromSource(t *testing.T) {
 	require.NoError(t, err)
 
 	core := readOverlay(t, state, "client.gen.ts")
-	require.Contains(t, core, `from "../session/context.js"`)
+	require.Contains(t, core, `from "@dagger.io/session"`)
 	require.NotContains(t, core, `from "./core.js"`)
 	require.NotContains(t, core, `from "@dagger.io/dagger"`)
 }

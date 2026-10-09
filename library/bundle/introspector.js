@@ -4,1508 +4,684 @@ var __getProtoOf = Object.getPrototypeOf;
 var __defProp = Object.defineProperty;
 var __getOwnPropNames = Object.getOwnPropertyNames;
 var __hasOwnProp = Object.prototype.hasOwnProperty;
+function __accessProp(key) {
+  return this[key];
+}
+var __toESMCache_node;
+var __toESMCache_esm;
 var __toESM = (mod, isNodeMode, target) => {
+  var canCache = mod != null && typeof mod === "object";
+  if (canCache) {
+    var cache = isNodeMode ? __toESMCache_node ??= new WeakMap : __toESMCache_esm ??= new WeakMap;
+    var cached = cache.get(mod);
+    if (cached)
+      return cached;
+  }
   target = mod != null ? __create(__getProtoOf(mod)) : {};
   const to = isNodeMode || !mod || !mod.__esModule ? __defProp(target, "default", { value: mod, enumerable: true }) : target;
   for (let key of __getOwnPropNames(mod))
     if (!__hasOwnProp.call(to, key))
       __defProp(to, key, {
-        get: () => mod[key],
+        get: __accessProp.bind(mod, key),
         enumerable: true
       });
+  if (canCache)
+    cache.set(mod, to);
   return to;
 };
 var __commonJS = (cb, mod) => () => (mod || cb((mod = { exports: {} }).exports, mod), mod.exports);
+var __returnValue = (v) => v;
+function __exportSetter(name, newValue) {
+  this[name] = __returnValue.bind(null, newValue);
+}
 var __export = (target, all) => {
   for (var name in all)
     __defProp(target, name, {
       get: all[name],
       enumerable: true,
       configurable: true,
-      set: (newValue) => all[name] = () => newValue
+      set: __exportSetter.bind(all, name)
     });
 };
 var __esm = (fn, res) => () => (fn && (res = fn(fn = 0)), res);
 var __require = /* @__PURE__ */ createRequire(import.meta.url);
 
-// node_modules/@opentelemetry/api/build/src/version.js
-var require_version = __commonJS((exports) => {
-  Object.defineProperty(exports, "__esModule", { value: true });
-  exports.VERSION = undefined;
-  exports.VERSION = "1.9.1";
-});
+// node_modules/node-color-log/index.js
+var require_node_color_log = __commonJS((exports, module) => {
+  var CONFIG = {
+    SYSTEM: {
+      reset: "\x1B[0m",
+      bold: "\x1B[1m",
+      dim: "\x1B[2m",
+      italic: "\x1B[3m",
+      underscore: "\x1B[4m",
+      reverse: "\x1B[7m",
+      strikethrough: "\x1B[9m",
+      backoneline: "\x1B[1A",
+      cleanthisline: "\x1B[K"
+    },
+    FONT: {
+      black: "\x1B[30m",
+      red: "\x1B[31m",
+      green: "\x1B[32m",
+      yellow: "\x1B[33m",
+      blue: "\x1B[34m",
+      magenta: "\x1B[35m",
+      cyan: "\x1B[36m",
+      white: "\x1B[37m"
+    },
+    BACKGROUND: {
+      black: "\x1B[40m",
+      red: "\x1B[41m",
+      green: "\x1B[42m",
+      yellow: "\x1B[43m",
+      blue: "\x1B[44m",
+      magenta: "\x1B[45m",
+      cyan: "\x1B[46m",
+      white: "\x1B[47m"
+    }
+  };
+  var LEVELS = ["success", "debug", "info", "warn", "error", "disable"];
 
-// node_modules/@opentelemetry/api/build/src/internal/semver.js
-var require_semver = __commonJS((exports) => {
-  Object.defineProperty(exports, "__esModule", { value: true });
-  exports.isCompatible = exports._makeCompatibilityCheck = undefined;
-  var version_1 = require_version();
-  var re = /^(\d+)\.(\d+)\.(\d+)(-(.+))?$/;
-  function _makeCompatibilityCheck(ownVersion) {
-    const acceptedVersions = new Set([ownVersion]);
-    const rejectedVersions = new Set;
-    const myVersionMatch = ownVersion.match(re);
-    if (!myVersionMatch) {
-      return () => false;
-    }
-    const ownVersionParsed = {
-      major: +myVersionMatch[1],
-      minor: +myVersionMatch[2],
-      patch: +myVersionMatch[3],
-      prerelease: myVersionMatch[4]
-    };
-    if (ownVersionParsed.prerelease != null) {
-      return function isExactmatch(globalVersion) {
-        return globalVersion === ownVersion;
+  class Logger {
+    constructor(name) {
+      this.command = "";
+      this.lastCommand = "";
+      this.name = name || "";
+      const level = typeof process !== "undefined" ? process.env.LOGGER : undefined;
+      if (this.isLevelValid(level)) {
+        this.level = level;
+      }
+      this.noColor = false;
+      this._getDate = () => new Date().toISOString();
+      this._customizedConsole = console;
+      this._enableFileAndLine = {
+        enable: false,
+        isShortFile: false
       };
     }
-    function _reject(v) {
-      rejectedVersions.add(v);
-      return false;
+    createNamedLogger(name) {
+      return new Logger(name);
     }
-    function _accept(v) {
-      acceptedVersions.add(v);
-      return true;
+    setLevel(level) {
+      if (this.isLevelValid(level)) {
+        this.level = level;
+      } else {
+        throw new Error("Level you are trying to set is invalid");
+      }
     }
-    return function isCompatible(globalVersion) {
-      if (acceptedVersions.has(globalVersion)) {
-        return true;
+    setLogStream(newStream) {
+      if (newStream && newStream.writable) {
+        this._customizedConsole = new console.Console(newStream);
+      } else {
+        throw new Error("invalid writable stream object");
       }
-      if (rejectedVersions.has(globalVersion)) {
-        return false;
+      return this;
+    }
+    setLevelNoColor() {
+      this.noColor = true;
+    }
+    setLevelColor() {
+      this.noColor = false;
+    }
+    isLevelValid(level) {
+      return LEVELS.includes(level);
+    }
+    isAllowedLevel(level) {
+      return this.level ? LEVELS.indexOf(this.level) <= LEVELS.indexOf(level) : true;
+    }
+    enableFileAndLine(enable, isShortFile = false) {
+      if (typeof enable === "boolean") {
+        this._enableFileAndLine.enable = enable;
+        this._enableFileAndLine.isShortFile = isShortFile;
+      } else {
+        console.error("node-color-log warning: enableFileAndLine should be a boolean value.");
       }
-      const globalVersionMatch = globalVersion.match(re);
-      if (!globalVersionMatch) {
-        return _reject(globalVersion);
+    }
+    log(...args) {
+      this.append(...args);
+      if (!this.noColor) {
+        this.command += CONFIG.SYSTEM.reset;
       }
-      const globalVersionParsed = {
-        major: +globalVersionMatch[1],
-        minor: +globalVersionMatch[2],
-        patch: +globalVersionMatch[3],
-        prerelease: globalVersionMatch[4]
-      };
-      if (globalVersionParsed.prerelease != null) {
-        return _reject(globalVersion);
+      this._print(this.command);
+      this.lastCommand = this.command;
+      this.command = "";
+      return this;
+    }
+    joint() {
+      console.error("node-color-log warning: `joint` is deprecated, please use `append`");
+      this._print(CONFIG.SYSTEM.backoneline + CONFIG.SYSTEM.cleanthisline);
+      this.command = "";
+      this.lastCommand = this.lastCommand.replace(CONFIG.SYSTEM.backoneline, "");
+      this.command += CONFIG.SYSTEM.backoneline;
+      this.command += this.lastCommand;
+      return this;
+    }
+    setDate(callback) {
+      this._getDate = callback;
+    }
+    getPrefix() {
+      let prefix = `${this._getDate()}`;
+      if (this.name) {
+        prefix += ` [${this.name}]`;
       }
-      if (ownVersionParsed.major !== globalVersionParsed.major) {
-        return _reject(globalVersion);
-      }
-      if (ownVersionParsed.major === 0) {
-        if (ownVersionParsed.minor === globalVersionParsed.minor && ownVersionParsed.patch <= globalVersionParsed.patch) {
-          return _accept(globalVersion);
+      if (this._enableFileAndLine.enable) {
+        const fileAndLine = getFileAndLine(this._enableFileAndLine.isShortFile);
+        if (fileAndLine) {
+          prefix += `[${fileAndLine}]`;
         }
-        return _reject(globalVersion);
       }
-      if (ownVersionParsed.minor <= globalVersionParsed.minor) {
-        return _accept(globalVersion);
+      return prefix;
+    }
+    color(ticket) {
+      if (ticket in CONFIG.FONT) {
+        this.command += CONFIG.FONT[ticket];
+      } else {
+        console.error("node-color-log warning: Font color not found! Use the default.");
       }
-      return _reject(globalVersion);
-    };
-  }
-  exports._makeCompatibilityCheck = _makeCompatibilityCheck;
-  exports.isCompatible = _makeCompatibilityCheck(version_1.VERSION);
-});
-
-// node_modules/@opentelemetry/api/build/src/internal/global-utils.js
-var require_global_utils = __commonJS((exports) => {
-  Object.defineProperty(exports, "__esModule", { value: true });
-  exports.unregisterGlobal = exports.getGlobal = exports.registerGlobal = undefined;
-  var version_1 = require_version();
-  var semver_1 = require_semver();
-  var major = version_1.VERSION.split(".")[0];
-  var GLOBAL_OPENTELEMETRY_API_KEY = Symbol.for(`opentelemetry.js.api.${major}`);
-  var _global = typeof globalThis === "object" ? globalThis : typeof self === "object" ? self : typeof window === "object" ? window : typeof global === "object" ? global : {};
-  function registerGlobal(type, instance, diag, allowOverride = false) {
-    var _a;
-    const api = _global[GLOBAL_OPENTELEMETRY_API_KEY] = (_a = _global[GLOBAL_OPENTELEMETRY_API_KEY]) !== null && _a !== undefined ? _a : {
-      version: version_1.VERSION
-    };
-    if (!allowOverride && api[type]) {
-      const err = new Error(`@opentelemetry/api: Attempted duplicate registration of API: ${type}`);
-      diag.error(err.stack || err.message);
-      return false;
+      return this;
     }
-    if (api.version !== version_1.VERSION) {
-      const err = new Error(`@opentelemetry/api: Registration of version v${api.version} for ${type} does not match previously registered API v${version_1.VERSION}`);
-      diag.error(err.stack || err.message);
-      return false;
+    bgColor(ticket) {
+      if (ticket in CONFIG.BACKGROUND) {
+        this.command += CONFIG.BACKGROUND[ticket];
+      } else {
+        console.error("node-color-log warning: Background color not found! Use the default.");
+      }
+      return this;
     }
-    api[type] = instance;
-    diag.debug(`@opentelemetry/api: Registered a global for ${type} v${version_1.VERSION}.`);
-    return true;
-  }
-  exports.registerGlobal = registerGlobal;
-  function getGlobal(type) {
-    var _a, _b;
-    const globalVersion = (_a = _global[GLOBAL_OPENTELEMETRY_API_KEY]) === null || _a === undefined ? undefined : _a.version;
-    if (!globalVersion || !(0, semver_1.isCompatible)(globalVersion)) {
-      return;
+    bold() {
+      this.command += CONFIG.SYSTEM.bold;
+      return this;
     }
-    return (_b = _global[GLOBAL_OPENTELEMETRY_API_KEY]) === null || _b === undefined ? undefined : _b[type];
-  }
-  exports.getGlobal = getGlobal;
-  function unregisterGlobal(type, diag) {
-    diag.debug(`@opentelemetry/api: Unregistering a global for ${type} v${version_1.VERSION}.`);
-    const api = _global[GLOBAL_OPENTELEMETRY_API_KEY];
-    if (api) {
-      delete api[type];
+    dim() {
+      this.command += CONFIG.SYSTEM.dim;
+      return this;
     }
-  }
-  exports.unregisterGlobal = unregisterGlobal;
-});
-
-// node_modules/@opentelemetry/api/build/src/diag/ComponentLogger.js
-var require_ComponentLogger = __commonJS((exports) => {
-  Object.defineProperty(exports, "__esModule", { value: true });
-  exports.DiagComponentLogger = undefined;
-  var global_utils_1 = require_global_utils();
-
-  class DiagComponentLogger {
-    constructor(props) {
-      this._namespace = props.namespace || "DiagComponentLogger";
+    underscore() {
+      this.command += CONFIG.SYSTEM.underscore;
+      return this;
     }
-    debug(...args) {
-      return logProxy("debug", this._namespace, args);
+    strikethrough() {
+      this.command += CONFIG.SYSTEM.strikethrough;
+      return this;
+    }
+    reverse() {
+      this.command += CONFIG.SYSTEM.reverse;
+      return this;
+    }
+    italic() {
+      this.command += CONFIG.SYSTEM.italic;
+      return this;
+    }
+    fontColorLog(ticket, text, setting) {
+      let command = "";
+      if (setting) {
+        command += this.checkSetting(setting);
+      }
+      if (ticket in CONFIG.FONT) {
+        command += CONFIG.FONT[ticket];
+      } else {
+        console.error("node-color-log warning: Font color not found! Use the default.");
+      }
+      command += text;
+      command += CONFIG.SYSTEM.reset;
+      this.lastCommand = command;
+      this._print(command);
+    }
+    bgColorLog(ticket, text, setting) {
+      let command = "";
+      if (setting) {
+        command += this.checkSetting(setting);
+      }
+      if (ticket in CONFIG.BACKGROUND) {
+        command += CONFIG.BACKGROUND[ticket];
+      } else {
+        console.error("node-color-log warning: Background color not found! Use the default.");
+      }
+      command += text;
+      command += CONFIG.SYSTEM.reset;
+      this.lastCommand = command;
+      this._print(command);
+    }
+    colorLog(ticketObj, text, setting) {
+      let command = "";
+      if (setting) {
+        command += this.checkSetting(setting);
+      }
+      if (ticketObj.font !== undefined) {
+        if (ticketObj.font in CONFIG.FONT) {
+          command += CONFIG.FONT[ticketObj.font];
+        } else {
+          console.error("node-color-log warning: Font color not found! Use the default.");
+        }
+      }
+      if (ticketObj.bg !== undefined) {
+        if (ticketObj.bg in CONFIG.BACKGROUND) {
+          command += CONFIG.BACKGROUND[ticketObj.bg];
+        } else {
+          console.error("node-color-log warning: Background color not found! Use the default.");
+        }
+      }
+      command += text;
+      command += CONFIG.SYSTEM.reset;
+      this.lastCommand = command;
+      this._print(command);
     }
     error(...args) {
-      return logProxy("error", this._namespace, args);
-    }
-    info(...args) {
-      return logProxy("info", this._namespace, args);
+      if (!this.isAllowedLevel("error"))
+        return;
+      if (this.noColor) {
+        const d = this.getPrefix();
+        this.log(d, " [ERROR] ", ...args);
+      } else {
+        const d = this.getPrefix();
+        this.append(d + " ").bgColor("red").append("[ERROR]").reset().append(" ").color("red").log(...args);
+      }
     }
     warn(...args) {
-      return logProxy("warn", this._namespace, args);
-    }
-    verbose(...args) {
-      return logProxy("verbose", this._namespace, args);
-    }
-  }
-  exports.DiagComponentLogger = DiagComponentLogger;
-  function logProxy(funcName, namespace, args) {
-    const logger = (0, global_utils_1.getGlobal)("diag");
-    if (!logger) {
-      return;
-    }
-    return logger[funcName](namespace, ...args);
-  }
-});
-
-// node_modules/@opentelemetry/api/build/src/diag/types.js
-var require_types = __commonJS((exports) => {
-  Object.defineProperty(exports, "__esModule", { value: true });
-  exports.DiagLogLevel = undefined;
-  var DiagLogLevel;
-  (function(DiagLogLevel2) {
-    DiagLogLevel2[DiagLogLevel2["NONE"] = 0] = "NONE";
-    DiagLogLevel2[DiagLogLevel2["ERROR"] = 30] = "ERROR";
-    DiagLogLevel2[DiagLogLevel2["WARN"] = 50] = "WARN";
-    DiagLogLevel2[DiagLogLevel2["INFO"] = 60] = "INFO";
-    DiagLogLevel2[DiagLogLevel2["DEBUG"] = 70] = "DEBUG";
-    DiagLogLevel2[DiagLogLevel2["VERBOSE"] = 80] = "VERBOSE";
-    DiagLogLevel2[DiagLogLevel2["ALL"] = 9999] = "ALL";
-  })(DiagLogLevel = exports.DiagLogLevel || (exports.DiagLogLevel = {}));
-});
-
-// node_modules/@opentelemetry/api/build/src/diag/internal/logLevelLogger.js
-var require_logLevelLogger = __commonJS((exports) => {
-  Object.defineProperty(exports, "__esModule", { value: true });
-  exports.createLogLevelDiagLogger = undefined;
-  var types_1 = require_types();
-  function createLogLevelDiagLogger(maxLevel, logger) {
-    if (maxLevel < types_1.DiagLogLevel.NONE) {
-      maxLevel = types_1.DiagLogLevel.NONE;
-    } else if (maxLevel > types_1.DiagLogLevel.ALL) {
-      maxLevel = types_1.DiagLogLevel.ALL;
-    }
-    logger = logger || {};
-    function _filterFunc(funcName, theLevel) {
-      const theFunc = logger[funcName];
-      if (typeof theFunc === "function" && maxLevel >= theLevel) {
-        return theFunc.bind(logger);
-      }
-      return function() {};
-    }
-    return {
-      error: _filterFunc("error", types_1.DiagLogLevel.ERROR),
-      warn: _filterFunc("warn", types_1.DiagLogLevel.WARN),
-      info: _filterFunc("info", types_1.DiagLogLevel.INFO),
-      debug: _filterFunc("debug", types_1.DiagLogLevel.DEBUG),
-      verbose: _filterFunc("verbose", types_1.DiagLogLevel.VERBOSE)
-    };
-  }
-  exports.createLogLevelDiagLogger = createLogLevelDiagLogger;
-});
-
-// node_modules/@opentelemetry/api/build/src/api/diag.js
-var require_diag = __commonJS((exports) => {
-  Object.defineProperty(exports, "__esModule", { value: true });
-  exports.DiagAPI = undefined;
-  var ComponentLogger_1 = require_ComponentLogger();
-  var logLevelLogger_1 = require_logLevelLogger();
-  var types_1 = require_types();
-  var global_utils_1 = require_global_utils();
-  var API_NAME = "diag";
-
-  class DiagAPI {
-    static instance() {
-      if (!this._instance) {
-        this._instance = new DiagAPI;
-      }
-      return this._instance;
-    }
-    constructor() {
-      function _logProxy(funcName) {
-        return function(...args) {
-          const logger = (0, global_utils_1.getGlobal)("diag");
-          if (!logger)
-            return;
-          return logger[funcName](...args);
-        };
-      }
-      const self2 = this;
-      const setLogger = (logger, optionsOrLogLevel = { logLevel: types_1.DiagLogLevel.INFO }) => {
-        var _a, _b, _c;
-        if (logger === self2) {
-          const err = new Error("Cannot use diag as the logger for itself. Please use a DiagLogger implementation like ConsoleDiagLogger or a custom implementation");
-          self2.error((_a = err.stack) !== null && _a !== undefined ? _a : err.message);
-          return false;
-        }
-        if (typeof optionsOrLogLevel === "number") {
-          optionsOrLogLevel = {
-            logLevel: optionsOrLogLevel
-          };
-        }
-        const oldLogger = (0, global_utils_1.getGlobal)("diag");
-        const newLogger = (0, logLevelLogger_1.createLogLevelDiagLogger)((_b = optionsOrLogLevel.logLevel) !== null && _b !== undefined ? _b : types_1.DiagLogLevel.INFO, logger);
-        if (oldLogger && !optionsOrLogLevel.suppressOverrideMessage) {
-          const stack = (_c = new Error().stack) !== null && _c !== undefined ? _c : "<failed to generate stacktrace>";
-          oldLogger.warn(`Current logger will be overwritten from ${stack}`);
-          newLogger.warn(`Current logger will overwrite one already registered from ${stack}`);
-        }
-        return (0, global_utils_1.registerGlobal)("diag", newLogger, self2, true);
-      };
-      self2.setLogger = setLogger;
-      self2.disable = () => {
-        (0, global_utils_1.unregisterGlobal)(API_NAME, self2);
-      };
-      self2.createComponentLogger = (options) => {
-        return new ComponentLogger_1.DiagComponentLogger(options);
-      };
-      self2.verbose = _logProxy("verbose");
-      self2.debug = _logProxy("debug");
-      self2.info = _logProxy("info");
-      self2.warn = _logProxy("warn");
-      self2.error = _logProxy("error");
-    }
-  }
-  exports.DiagAPI = DiagAPI;
-});
-
-// node_modules/@opentelemetry/api/build/src/baggage/internal/baggage-impl.js
-var require_baggage_impl = __commonJS((exports) => {
-  Object.defineProperty(exports, "__esModule", { value: true });
-  exports.BaggageImpl = undefined;
-
-  class BaggageImpl {
-    constructor(entries) {
-      this._entries = entries ? new Map(entries) : new Map;
-    }
-    getEntry(key) {
-      const entry = this._entries.get(key);
-      if (!entry) {
+      if (!this.isAllowedLevel("warn"))
         return;
-      }
-      return Object.assign({}, entry);
-    }
-    getAllEntries() {
-      return Array.from(this._entries.entries());
-    }
-    setEntry(key, entry) {
-      const newBaggage = new BaggageImpl(this._entries);
-      newBaggage._entries.set(key, entry);
-      return newBaggage;
-    }
-    removeEntry(key) {
-      const newBaggage = new BaggageImpl(this._entries);
-      newBaggage._entries.delete(key);
-      return newBaggage;
-    }
-    removeEntries(...keys) {
-      const newBaggage = new BaggageImpl(this._entries);
-      for (const key of keys) {
-        newBaggage._entries.delete(key);
-      }
-      return newBaggage;
-    }
-    clear() {
-      return new BaggageImpl;
-    }
-  }
-  exports.BaggageImpl = BaggageImpl;
-});
-
-// node_modules/@opentelemetry/api/build/src/baggage/internal/symbol.js
-var require_symbol = __commonJS((exports) => {
-  Object.defineProperty(exports, "__esModule", { value: true });
-  exports.baggageEntryMetadataSymbol = undefined;
-  exports.baggageEntryMetadataSymbol = Symbol("BaggageEntryMetadata");
-});
-
-// node_modules/@opentelemetry/api/build/src/baggage/utils.js
-var require_utils = __commonJS((exports) => {
-  Object.defineProperty(exports, "__esModule", { value: true });
-  exports.baggageEntryMetadataFromString = exports.createBaggage = undefined;
-  var diag_1 = require_diag();
-  var baggage_impl_1 = require_baggage_impl();
-  var symbol_1 = require_symbol();
-  var diag = diag_1.DiagAPI.instance();
-  function createBaggage(entries = {}) {
-    return new baggage_impl_1.BaggageImpl(new Map(Object.entries(entries)));
-  }
-  exports.createBaggage = createBaggage;
-  function baggageEntryMetadataFromString(str) {
-    if (typeof str !== "string") {
-      diag.error(`Cannot create baggage metadata from unknown type: ${typeof str}`);
-      str = "";
-    }
-    return {
-      __TYPE__: symbol_1.baggageEntryMetadataSymbol,
-      toString() {
-        return str;
-      }
-    };
-  }
-  exports.baggageEntryMetadataFromString = baggageEntryMetadataFromString;
-});
-
-// node_modules/@opentelemetry/api/build/src/context/context.js
-var require_context = __commonJS((exports) => {
-  Object.defineProperty(exports, "__esModule", { value: true });
-  exports.ROOT_CONTEXT = exports.createContextKey = undefined;
-  function createContextKey(description) {
-    return Symbol.for(description);
-  }
-  exports.createContextKey = createContextKey;
-
-  class BaseContext {
-    constructor(parentContext) {
-      const self2 = this;
-      self2._currentContext = parentContext ? new Map(parentContext) : new Map;
-      self2.getValue = (key) => self2._currentContext.get(key);
-      self2.setValue = (key, value) => {
-        const context = new BaseContext(self2._currentContext);
-        context._currentContext.set(key, value);
-        return context;
-      };
-      self2.deleteValue = (key) => {
-        const context = new BaseContext(self2._currentContext);
-        context._currentContext.delete(key);
-        return context;
-      };
-    }
-  }
-  exports.ROOT_CONTEXT = new BaseContext;
-});
-
-// node_modules/@opentelemetry/api/build/src/diag/consoleLogger.js
-var require_consoleLogger = __commonJS((exports) => {
-  Object.defineProperty(exports, "__esModule", { value: true });
-  exports.DiagConsoleLogger = exports._originalConsoleMethods = undefined;
-  var consoleMap = [
-    { n: "error", c: "error" },
-    { n: "warn", c: "warn" },
-    { n: "info", c: "info" },
-    { n: "debug", c: "debug" },
-    { n: "verbose", c: "trace" }
-  ];
-  exports._originalConsoleMethods = {};
-  if (typeof console !== "undefined") {
-    const keys = [
-      "error",
-      "warn",
-      "info",
-      "debug",
-      "trace",
-      "log"
-    ];
-    for (const key of keys) {
-      if (typeof console[key] === "function") {
-        exports._originalConsoleMethods[key] = console[key];
-      }
-    }
-  }
-
-  class DiagConsoleLogger {
-    constructor() {
-      function _consoleFunc(funcName) {
-        return function(...args) {
-          let theFunc = exports._originalConsoleMethods[funcName];
-          if (typeof theFunc !== "function") {
-            theFunc = exports._originalConsoleMethods["log"];
-          }
-          if (typeof theFunc !== "function" && console) {
-            theFunc = console[funcName];
-            if (typeof theFunc !== "function") {
-              theFunc = console.log;
-            }
-          }
-          if (typeof theFunc === "function") {
-            return theFunc.apply(console, args);
-          }
-        };
-      }
-      for (let i = 0;i < consoleMap.length; i++) {
-        this[consoleMap[i].n] = _consoleFunc(consoleMap[i].c);
-      }
-    }
-  }
-  exports.DiagConsoleLogger = DiagConsoleLogger;
-});
-
-// node_modules/@opentelemetry/api/build/src/metrics/NoopMeter.js
-var require_NoopMeter = __commonJS((exports) => {
-  Object.defineProperty(exports, "__esModule", { value: true });
-  exports.createNoopMeter = exports.NOOP_OBSERVABLE_UP_DOWN_COUNTER_METRIC = exports.NOOP_OBSERVABLE_GAUGE_METRIC = exports.NOOP_OBSERVABLE_COUNTER_METRIC = exports.NOOP_UP_DOWN_COUNTER_METRIC = exports.NOOP_HISTOGRAM_METRIC = exports.NOOP_GAUGE_METRIC = exports.NOOP_COUNTER_METRIC = exports.NOOP_METER = exports.NoopObservableUpDownCounterMetric = exports.NoopObservableGaugeMetric = exports.NoopObservableCounterMetric = exports.NoopObservableMetric = exports.NoopHistogramMetric = exports.NoopGaugeMetric = exports.NoopUpDownCounterMetric = exports.NoopCounterMetric = exports.NoopMetric = exports.NoopMeter = undefined;
-
-  class NoopMeter {
-    constructor() {}
-    createGauge(_name, _options) {
-      return exports.NOOP_GAUGE_METRIC;
-    }
-    createHistogram(_name, _options) {
-      return exports.NOOP_HISTOGRAM_METRIC;
-    }
-    createCounter(_name, _options) {
-      return exports.NOOP_COUNTER_METRIC;
-    }
-    createUpDownCounter(_name, _options) {
-      return exports.NOOP_UP_DOWN_COUNTER_METRIC;
-    }
-    createObservableGauge(_name, _options) {
-      return exports.NOOP_OBSERVABLE_GAUGE_METRIC;
-    }
-    createObservableCounter(_name, _options) {
-      return exports.NOOP_OBSERVABLE_COUNTER_METRIC;
-    }
-    createObservableUpDownCounter(_name, _options) {
-      return exports.NOOP_OBSERVABLE_UP_DOWN_COUNTER_METRIC;
-    }
-    addBatchObservableCallback(_callback, _observables) {}
-    removeBatchObservableCallback(_callback) {}
-  }
-  exports.NoopMeter = NoopMeter;
-
-  class NoopMetric {
-  }
-  exports.NoopMetric = NoopMetric;
-
-  class NoopCounterMetric extends NoopMetric {
-    add(_value, _attributes) {}
-  }
-  exports.NoopCounterMetric = NoopCounterMetric;
-
-  class NoopUpDownCounterMetric extends NoopMetric {
-    add(_value, _attributes) {}
-  }
-  exports.NoopUpDownCounterMetric = NoopUpDownCounterMetric;
-
-  class NoopGaugeMetric extends NoopMetric {
-    record(_value, _attributes) {}
-  }
-  exports.NoopGaugeMetric = NoopGaugeMetric;
-
-  class NoopHistogramMetric extends NoopMetric {
-    record(_value, _attributes) {}
-  }
-  exports.NoopHistogramMetric = NoopHistogramMetric;
-
-  class NoopObservableMetric {
-    addCallback(_callback) {}
-    removeCallback(_callback) {}
-  }
-  exports.NoopObservableMetric = NoopObservableMetric;
-
-  class NoopObservableCounterMetric extends NoopObservableMetric {
-  }
-  exports.NoopObservableCounterMetric = NoopObservableCounterMetric;
-
-  class NoopObservableGaugeMetric extends NoopObservableMetric {
-  }
-  exports.NoopObservableGaugeMetric = NoopObservableGaugeMetric;
-
-  class NoopObservableUpDownCounterMetric extends NoopObservableMetric {
-  }
-  exports.NoopObservableUpDownCounterMetric = NoopObservableUpDownCounterMetric;
-  exports.NOOP_METER = new NoopMeter;
-  exports.NOOP_COUNTER_METRIC = new NoopCounterMetric;
-  exports.NOOP_GAUGE_METRIC = new NoopGaugeMetric;
-  exports.NOOP_HISTOGRAM_METRIC = new NoopHistogramMetric;
-  exports.NOOP_UP_DOWN_COUNTER_METRIC = new NoopUpDownCounterMetric;
-  exports.NOOP_OBSERVABLE_COUNTER_METRIC = new NoopObservableCounterMetric;
-  exports.NOOP_OBSERVABLE_GAUGE_METRIC = new NoopObservableGaugeMetric;
-  exports.NOOP_OBSERVABLE_UP_DOWN_COUNTER_METRIC = new NoopObservableUpDownCounterMetric;
-  function createNoopMeter() {
-    return exports.NOOP_METER;
-  }
-  exports.createNoopMeter = createNoopMeter;
-});
-
-// node_modules/@opentelemetry/api/build/src/metrics/Metric.js
-var require_Metric = __commonJS((exports) => {
-  Object.defineProperty(exports, "__esModule", { value: true });
-  exports.ValueType = undefined;
-  var ValueType;
-  (function(ValueType2) {
-    ValueType2[ValueType2["INT"] = 0] = "INT";
-    ValueType2[ValueType2["DOUBLE"] = 1] = "DOUBLE";
-  })(ValueType = exports.ValueType || (exports.ValueType = {}));
-});
-
-// node_modules/@opentelemetry/api/build/src/propagation/TextMapPropagator.js
-var require_TextMapPropagator = __commonJS((exports) => {
-  Object.defineProperty(exports, "__esModule", { value: true });
-  exports.defaultTextMapSetter = exports.defaultTextMapGetter = undefined;
-  exports.defaultTextMapGetter = {
-    get(carrier, key) {
-      if (carrier == null) {
-        return;
-      }
-      return carrier[key];
-    },
-    keys(carrier) {
-      if (carrier == null) {
-        return [];
-      }
-      return Object.keys(carrier);
-    }
-  };
-  exports.defaultTextMapSetter = {
-    set(carrier, key, value) {
-      if (carrier == null) {
-        return;
-      }
-      carrier[key] = value;
-    }
-  };
-});
-
-// node_modules/@opentelemetry/api/build/src/context/NoopContextManager.js
-var require_NoopContextManager = __commonJS((exports) => {
-  Object.defineProperty(exports, "__esModule", { value: true });
-  exports.NoopContextManager = undefined;
-  var context_1 = require_context();
-
-  class NoopContextManager {
-    active() {
-      return context_1.ROOT_CONTEXT;
-    }
-    with(_context, fn, thisArg, ...args) {
-      return fn.call(thisArg, ...args);
-    }
-    bind(_context, target) {
-      return target;
-    }
-    enable() {
-      return this;
-    }
-    disable() {
-      return this;
-    }
-  }
-  exports.NoopContextManager = NoopContextManager;
-});
-
-// node_modules/@opentelemetry/api/build/src/api/context.js
-var require_context2 = __commonJS((exports) => {
-  Object.defineProperty(exports, "__esModule", { value: true });
-  exports.ContextAPI = undefined;
-  var NoopContextManager_1 = require_NoopContextManager();
-  var global_utils_1 = require_global_utils();
-  var diag_1 = require_diag();
-  var API_NAME = "context";
-  var NOOP_CONTEXT_MANAGER = new NoopContextManager_1.NoopContextManager;
-
-  class ContextAPI {
-    constructor() {}
-    static getInstance() {
-      if (!this._instance) {
-        this._instance = new ContextAPI;
-      }
-      return this._instance;
-    }
-    setGlobalContextManager(contextManager) {
-      return (0, global_utils_1.registerGlobal)(API_NAME, contextManager, diag_1.DiagAPI.instance());
-    }
-    active() {
-      return this._getContextManager().active();
-    }
-    with(context, fn, thisArg, ...args) {
-      return this._getContextManager().with(context, fn, thisArg, ...args);
-    }
-    bind(context, target) {
-      return this._getContextManager().bind(context, target);
-    }
-    _getContextManager() {
-      return (0, global_utils_1.getGlobal)(API_NAME) || NOOP_CONTEXT_MANAGER;
-    }
-    disable() {
-      this._getContextManager().disable();
-      (0, global_utils_1.unregisterGlobal)(API_NAME, diag_1.DiagAPI.instance());
-    }
-  }
-  exports.ContextAPI = ContextAPI;
-});
-
-// node_modules/@opentelemetry/api/build/src/trace/trace_flags.js
-var require_trace_flags = __commonJS((exports) => {
-  Object.defineProperty(exports, "__esModule", { value: true });
-  exports.TraceFlags = undefined;
-  var TraceFlags;
-  (function(TraceFlags2) {
-    TraceFlags2[TraceFlags2["NONE"] = 0] = "NONE";
-    TraceFlags2[TraceFlags2["SAMPLED"] = 1] = "SAMPLED";
-  })(TraceFlags = exports.TraceFlags || (exports.TraceFlags = {}));
-});
-
-// node_modules/@opentelemetry/api/build/src/trace/invalid-span-constants.js
-var require_invalid_span_constants = __commonJS((exports) => {
-  Object.defineProperty(exports, "__esModule", { value: true });
-  exports.INVALID_SPAN_CONTEXT = exports.INVALID_TRACEID = exports.INVALID_SPANID = undefined;
-  var trace_flags_1 = require_trace_flags();
-  exports.INVALID_SPANID = "0000000000000000";
-  exports.INVALID_TRACEID = "00000000000000000000000000000000";
-  exports.INVALID_SPAN_CONTEXT = {
-    traceId: exports.INVALID_TRACEID,
-    spanId: exports.INVALID_SPANID,
-    traceFlags: trace_flags_1.TraceFlags.NONE
-  };
-});
-
-// node_modules/@opentelemetry/api/build/src/trace/NonRecordingSpan.js
-var require_NonRecordingSpan = __commonJS((exports) => {
-  Object.defineProperty(exports, "__esModule", { value: true });
-  exports.NonRecordingSpan = undefined;
-  var invalid_span_constants_1 = require_invalid_span_constants();
-
-  class NonRecordingSpan {
-    constructor(spanContext = invalid_span_constants_1.INVALID_SPAN_CONTEXT) {
-      this._spanContext = spanContext;
-    }
-    spanContext() {
-      return this._spanContext;
-    }
-    setAttribute(_key, _value) {
-      return this;
-    }
-    setAttributes(_attributes) {
-      return this;
-    }
-    addEvent(_name, _attributes) {
-      return this;
-    }
-    addLink(_link) {
-      return this;
-    }
-    addLinks(_links) {
-      return this;
-    }
-    setStatus(_status) {
-      return this;
-    }
-    updateName(_name) {
-      return this;
-    }
-    end(_endTime) {}
-    isRecording() {
-      return false;
-    }
-    recordException(_exception, _time) {}
-  }
-  exports.NonRecordingSpan = NonRecordingSpan;
-});
-
-// node_modules/@opentelemetry/api/build/src/trace/context-utils.js
-var require_context_utils = __commonJS((exports) => {
-  Object.defineProperty(exports, "__esModule", { value: true });
-  exports.getSpanContext = exports.setSpanContext = exports.deleteSpan = exports.setSpan = exports.getActiveSpan = exports.getSpan = undefined;
-  var context_1 = require_context();
-  var NonRecordingSpan_1 = require_NonRecordingSpan();
-  var context_2 = require_context2();
-  var SPAN_KEY = (0, context_1.createContextKey)("OpenTelemetry Context Key SPAN");
-  function getSpan(context) {
-    return context.getValue(SPAN_KEY) || undefined;
-  }
-  exports.getSpan = getSpan;
-  function getActiveSpan() {
-    return getSpan(context_2.ContextAPI.getInstance().active());
-  }
-  exports.getActiveSpan = getActiveSpan;
-  function setSpan(context, span) {
-    return context.setValue(SPAN_KEY, span);
-  }
-  exports.setSpan = setSpan;
-  function deleteSpan(context) {
-    return context.deleteValue(SPAN_KEY);
-  }
-  exports.deleteSpan = deleteSpan;
-  function setSpanContext(context, spanContext) {
-    return setSpan(context, new NonRecordingSpan_1.NonRecordingSpan(spanContext));
-  }
-  exports.setSpanContext = setSpanContext;
-  function getSpanContext(context) {
-    var _a;
-    return (_a = getSpan(context)) === null || _a === undefined ? undefined : _a.spanContext();
-  }
-  exports.getSpanContext = getSpanContext;
-});
-
-// node_modules/@opentelemetry/api/build/src/trace/spancontext-utils.js
-var require_spancontext_utils = __commonJS((exports) => {
-  Object.defineProperty(exports, "__esModule", { value: true });
-  exports.wrapSpanContext = exports.isSpanContextValid = exports.isValidSpanId = exports.isValidTraceId = undefined;
-  var invalid_span_constants_1 = require_invalid_span_constants();
-  var NonRecordingSpan_1 = require_NonRecordingSpan();
-  var isHex = new Uint8Array([
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    1,
-    1,
-    1,
-    1,
-    1,
-    1,
-    1,
-    1,
-    1,
-    1,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    1,
-    1,
-    1,
-    1,
-    1,
-    1,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    1,
-    1,
-    1,
-    1,
-    1,
-    1
-  ]);
-  function isValidHex(id, length) {
-    if (typeof id !== "string" || id.length !== length)
-      return false;
-    let r = 0;
-    for (let i = 0;i < id.length; i += 4) {
-      r += (isHex[id.charCodeAt(i)] | 0) + (isHex[id.charCodeAt(i + 1)] | 0) + (isHex[id.charCodeAt(i + 2)] | 0) + (isHex[id.charCodeAt(i + 3)] | 0);
-    }
-    return r === length;
-  }
-  function isValidTraceId(traceId) {
-    return isValidHex(traceId, 32) && traceId !== invalid_span_constants_1.INVALID_TRACEID;
-  }
-  exports.isValidTraceId = isValidTraceId;
-  function isValidSpanId(spanId) {
-    return isValidHex(spanId, 16) && spanId !== invalid_span_constants_1.INVALID_SPANID;
-  }
-  exports.isValidSpanId = isValidSpanId;
-  function isSpanContextValid(spanContext) {
-    return isValidTraceId(spanContext.traceId) && isValidSpanId(spanContext.spanId);
-  }
-  exports.isSpanContextValid = isSpanContextValid;
-  function wrapSpanContext(spanContext) {
-    return new NonRecordingSpan_1.NonRecordingSpan(spanContext);
-  }
-  exports.wrapSpanContext = wrapSpanContext;
-});
-
-// node_modules/@opentelemetry/api/build/src/trace/NoopTracer.js
-var require_NoopTracer = __commonJS((exports) => {
-  Object.defineProperty(exports, "__esModule", { value: true });
-  exports.NoopTracer = undefined;
-  var context_1 = require_context2();
-  var context_utils_1 = require_context_utils();
-  var NonRecordingSpan_1 = require_NonRecordingSpan();
-  var spancontext_utils_1 = require_spancontext_utils();
-  var contextApi = context_1.ContextAPI.getInstance();
-
-  class NoopTracer {
-    startSpan(name, options, context = contextApi.active()) {
-      const root = Boolean(options === null || options === undefined ? undefined : options.root);
-      if (root) {
-        return new NonRecordingSpan_1.NonRecordingSpan;
-      }
-      const parentFromContext = context && (0, context_utils_1.getSpanContext)(context);
-      if (isSpanContext(parentFromContext) && (0, spancontext_utils_1.isSpanContextValid)(parentFromContext)) {
-        return new NonRecordingSpan_1.NonRecordingSpan(parentFromContext);
+      if (this.noColor) {
+        const d = this.getPrefix();
+        this.log(d, " [WARN] ", ...args);
       } else {
-        return new NonRecordingSpan_1.NonRecordingSpan;
+        const d = this.getPrefix();
+        this.append(d + " ").bgColor("yellow").color("black").append("[WARN]").reset().append(" ").color("yellow").log(...args);
       }
     }
-    startActiveSpan(name, arg2, arg3, arg4) {
-      let opts;
-      let ctx;
-      let fn;
-      if (arguments.length < 2) {
+    info(...args) {
+      if (!this.isAllowedLevel("info"))
         return;
-      } else if (arguments.length === 2) {
-        fn = arg2;
-      } else if (arguments.length === 3) {
-        opts = arg2;
-        fn = arg3;
+      if (this.noColor) {
+        const d = this.getPrefix();
+        this.log(d, " [INFO] ", ...args);
       } else {
-        opts = arg2;
-        ctx = arg3;
-        fn = arg4;
+        const d = this.getPrefix();
+        this.append(d + " ").bgColor("green").color("black").append("[INFO]").reset().append(" ").color("green").log(...args);
       }
-      const parentContext = ctx !== null && ctx !== undefined ? ctx : contextApi.active();
-      const span = this.startSpan(name, opts, parentContext);
-      const contextWithSpanSet = (0, context_utils_1.setSpan)(parentContext, span);
-      return contextApi.with(contextWithSpanSet, fn, undefined, span);
     }
-  }
-  exports.NoopTracer = NoopTracer;
-  function isSpanContext(spanContext) {
-    return spanContext !== null && typeof spanContext === "object" && "spanId" in spanContext && typeof spanContext["spanId"] === "string" && "traceId" in spanContext && typeof spanContext["traceId"] === "string" && "traceFlags" in spanContext && typeof spanContext["traceFlags"] === "number";
-  }
-});
-
-// node_modules/@opentelemetry/api/build/src/trace/ProxyTracer.js
-var require_ProxyTracer = __commonJS((exports) => {
-  Object.defineProperty(exports, "__esModule", { value: true });
-  exports.ProxyTracer = undefined;
-  var NoopTracer_1 = require_NoopTracer();
-  var NOOP_TRACER = new NoopTracer_1.NoopTracer;
-
-  class ProxyTracer {
-    constructor(provider, name, version, options) {
-      this._provider = provider;
-      this.name = name;
-      this.version = version;
-      this.options = options;
-    }
-    startSpan(name, options, context) {
-      return this._getTracer().startSpan(name, options, context);
-    }
-    startActiveSpan(_name, _options, _context, _fn) {
-      const tracer = this._getTracer();
-      return Reflect.apply(tracer.startActiveSpan, tracer, arguments);
-    }
-    _getTracer() {
-      if (this._delegate) {
-        return this._delegate;
-      }
-      const tracer = this._provider.getDelegateTracer(this.name, this.version, this.options);
-      if (!tracer) {
-        return NOOP_TRACER;
-      }
-      this._delegate = tracer;
-      return this._delegate;
-    }
-  }
-  exports.ProxyTracer = ProxyTracer;
-});
-
-// node_modules/@opentelemetry/api/build/src/trace/NoopTracerProvider.js
-var require_NoopTracerProvider = __commonJS((exports) => {
-  Object.defineProperty(exports, "__esModule", { value: true });
-  exports.NoopTracerProvider = undefined;
-  var NoopTracer_1 = require_NoopTracer();
-
-  class NoopTracerProvider {
-    getTracer(_name, _version, _options) {
-      return new NoopTracer_1.NoopTracer;
-    }
-  }
-  exports.NoopTracerProvider = NoopTracerProvider;
-});
-
-// node_modules/@opentelemetry/api/build/src/trace/ProxyTracerProvider.js
-var require_ProxyTracerProvider = __commonJS((exports) => {
-  Object.defineProperty(exports, "__esModule", { value: true });
-  exports.ProxyTracerProvider = undefined;
-  var ProxyTracer_1 = require_ProxyTracer();
-  var NoopTracerProvider_1 = require_NoopTracerProvider();
-  var NOOP_TRACER_PROVIDER = new NoopTracerProvider_1.NoopTracerProvider;
-
-  class ProxyTracerProvider {
-    getTracer(name, version, options) {
-      var _a;
-      return (_a = this.getDelegateTracer(name, version, options)) !== null && _a !== undefined ? _a : new ProxyTracer_1.ProxyTracer(this, name, version, options);
-    }
-    getDelegate() {
-      var _a;
-      return (_a = this._delegate) !== null && _a !== undefined ? _a : NOOP_TRACER_PROVIDER;
-    }
-    setDelegate(delegate) {
-      this._delegate = delegate;
-    }
-    getDelegateTracer(name, version, options) {
-      var _a;
-      return (_a = this._delegate) === null || _a === undefined ? undefined : _a.getTracer(name, version, options);
-    }
-  }
-  exports.ProxyTracerProvider = ProxyTracerProvider;
-});
-
-// node_modules/@opentelemetry/api/build/src/trace/SamplingResult.js
-var require_SamplingResult = __commonJS((exports) => {
-  Object.defineProperty(exports, "__esModule", { value: true });
-  exports.SamplingDecision = undefined;
-  var SamplingDecision;
-  (function(SamplingDecision2) {
-    SamplingDecision2[SamplingDecision2["NOT_RECORD"] = 0] = "NOT_RECORD";
-    SamplingDecision2[SamplingDecision2["RECORD"] = 1] = "RECORD";
-    SamplingDecision2[SamplingDecision2["RECORD_AND_SAMPLED"] = 2] = "RECORD_AND_SAMPLED";
-  })(SamplingDecision = exports.SamplingDecision || (exports.SamplingDecision = {}));
-});
-
-// node_modules/@opentelemetry/api/build/src/trace/span_kind.js
-var require_span_kind = __commonJS((exports) => {
-  Object.defineProperty(exports, "__esModule", { value: true });
-  exports.SpanKind = undefined;
-  var SpanKind;
-  (function(SpanKind2) {
-    SpanKind2[SpanKind2["INTERNAL"] = 0] = "INTERNAL";
-    SpanKind2[SpanKind2["SERVER"] = 1] = "SERVER";
-    SpanKind2[SpanKind2["CLIENT"] = 2] = "CLIENT";
-    SpanKind2[SpanKind2["PRODUCER"] = 3] = "PRODUCER";
-    SpanKind2[SpanKind2["CONSUMER"] = 4] = "CONSUMER";
-  })(SpanKind = exports.SpanKind || (exports.SpanKind = {}));
-});
-
-// node_modules/@opentelemetry/api/build/src/trace/status.js
-var require_status = __commonJS((exports) => {
-  Object.defineProperty(exports, "__esModule", { value: true });
-  exports.SpanStatusCode = undefined;
-  var SpanStatusCode;
-  (function(SpanStatusCode2) {
-    SpanStatusCode2[SpanStatusCode2["UNSET"] = 0] = "UNSET";
-    SpanStatusCode2[SpanStatusCode2["OK"] = 1] = "OK";
-    SpanStatusCode2[SpanStatusCode2["ERROR"] = 2] = "ERROR";
-  })(SpanStatusCode = exports.SpanStatusCode || (exports.SpanStatusCode = {}));
-});
-
-// node_modules/@opentelemetry/api/build/src/trace/internal/tracestate-validators.js
-var require_tracestate_validators = __commonJS((exports) => {
-  Object.defineProperty(exports, "__esModule", { value: true });
-  exports.validateValue = exports.validateKey = undefined;
-  var VALID_KEY_CHAR_RANGE = "[_0-9a-z-*/]";
-  var VALID_KEY = `[a-z]${VALID_KEY_CHAR_RANGE}{0,255}`;
-  var VALID_VENDOR_KEY = `[a-z0-9]${VALID_KEY_CHAR_RANGE}{0,240}@[a-z]${VALID_KEY_CHAR_RANGE}{0,13}`;
-  var VALID_KEY_REGEX = new RegExp(`^(?:${VALID_KEY}|${VALID_VENDOR_KEY})$`);
-  var VALID_VALUE_BASE_REGEX = /^[ -~]{0,255}[!-~]$/;
-  var INVALID_VALUE_COMMA_EQUAL_REGEX = /,|=/;
-  function validateKey(key) {
-    return VALID_KEY_REGEX.test(key);
-  }
-  exports.validateKey = validateKey;
-  function validateValue(value) {
-    return VALID_VALUE_BASE_REGEX.test(value) && !INVALID_VALUE_COMMA_EQUAL_REGEX.test(value);
-  }
-  exports.validateValue = validateValue;
-});
-
-// node_modules/@opentelemetry/api/build/src/trace/internal/tracestate-impl.js
-var require_tracestate_impl = __commonJS((exports) => {
-  Object.defineProperty(exports, "__esModule", { value: true });
-  exports.TraceStateImpl = undefined;
-  var tracestate_validators_1 = require_tracestate_validators();
-  var MAX_TRACE_STATE_ITEMS = 32;
-  var MAX_TRACE_STATE_LEN = 512;
-  var LIST_MEMBERS_SEPARATOR = ",";
-  var LIST_MEMBER_KEY_VALUE_SPLITTER = "=";
-
-  class TraceStateImpl {
-    constructor(rawTraceState) {
-      this._internalState = new Map;
-      if (rawTraceState)
-        this._parse(rawTraceState);
-    }
-    set(key, value) {
-      const traceState = this._clone();
-      if (traceState._internalState.has(key)) {
-        traceState._internalState.delete(key);
-      }
-      traceState._internalState.set(key, value);
-      return traceState;
-    }
-    unset(key) {
-      const traceState = this._clone();
-      traceState._internalState.delete(key);
-      return traceState;
-    }
-    get(key) {
-      return this._internalState.get(key);
-    }
-    serialize() {
-      return Array.from(this._internalState.keys()).reduceRight((agg, key) => {
-        agg.push(key + LIST_MEMBER_KEY_VALUE_SPLITTER + this.get(key));
-        return agg;
-      }, []).join(LIST_MEMBERS_SEPARATOR);
-    }
-    _parse(rawTraceState) {
-      if (rawTraceState.length > MAX_TRACE_STATE_LEN)
+    debug(...args) {
+      if (!this.isAllowedLevel("debug"))
         return;
-      this._internalState = rawTraceState.split(LIST_MEMBERS_SEPARATOR).reduceRight((agg, part) => {
-        const listMember = part.trim();
-        const i = listMember.indexOf(LIST_MEMBER_KEY_VALUE_SPLITTER);
-        if (i !== -1) {
-          const key = listMember.slice(0, i);
-          const value = listMember.slice(i + 1, part.length);
-          if ((0, tracestate_validators_1.validateKey)(key) && (0, tracestate_validators_1.validateValue)(value)) {
-            agg.set(key, value);
-          } else {}
+      if (this.noColor) {
+        const d = this.getPrefix();
+        this.log(d, " [DEBUG] ", ...args);
+      } else {
+        const d = this.getPrefix();
+        this.append(d + " ").bgColor("cyan").color("black").append("[DEBUG]").reset().append(" ").color("cyan").log(...args);
+      }
+    }
+    success(...args) {
+      if (!this.isAllowedLevel("success"))
+        return;
+      if (this.noColor) {
+        const d = this.getPrefix();
+        this.log(d, " [SUCCESS] ", ...args);
+      } else {
+        const d = this.getPrefix();
+        this.append(d + " ").bgColor("green").color("black").append("[SUCCESS]").reset().append(" ").color("green").log(...args);
+      }
+    }
+    checkSetting(setting) {
+      const validSetting = ["bold", "italic", "dim", "underscore", "reverse", "strikethrough"];
+      let command = "";
+      for (const item in setting) {
+        if (validSetting.indexOf(item) !== -1) {
+          if (setting[item] === true) {
+            command += CONFIG.SYSTEM[item];
+          } else if (setting[item] !== false) {
+            console.error(`node-color-log warning: The value ${item} should be boolean.`);
+          }
+        } else {
+          console.error(`node-color-log warning: ${item} is not valid in setting.`);
         }
-        return agg;
-      }, new Map);
-      if (this._internalState.size > MAX_TRACE_STATE_ITEMS) {
-        this._internalState = new Map(Array.from(this._internalState.entries()).reverse().slice(0, MAX_TRACE_STATE_ITEMS));
+      }
+      return command;
+    }
+    _print(...args) {
+      this._customizedConsole.error(...args);
+    }
+    append(...args) {
+      for (const idx in args) {
+        const arg = args[idx];
+        if (typeof arg === "string") {
+          this.command += arg;
+        } else {
+          try {
+            this.command += JSON.stringify(arg);
+          } catch {
+            this.command += arg;
+          }
+        }
+        if (args.length > 1 && idx < args.length - 1) {
+          this.command += " ";
+        }
+      }
+      return this;
+    }
+    reset() {
+      this.command += CONFIG.SYSTEM.reset;
+      return this;
+    }
+  }
+  function parseStackFrame(line, isShortFile = false) {
+    if (typeof line !== "string" || line.length === 0) {
+      return "";
+    }
+    let start = line.lastIndexOf("(");
+    let end = line.lastIndexOf(")");
+    let fileAndLine;
+    if (start !== -1 && end !== -1 && start < end) {
+      fileAndLine = line.substring(start + 1, end);
+    } else {
+      const atPrefix = line.indexOf("at ");
+      fileAndLine = atPrefix !== -1 ? line.substring(atPrefix + 3).trim() : line.trim();
+    }
+    const lastColon = fileAndLine.lastIndexOf(":");
+    if (lastColon === -1) {
+      return "";
+    }
+    const secondLastColon = fileAndLine.lastIndexOf(":", lastColon - 1);
+    const isDigits = (s) => s.length > 0 && /^\d+$/.test(s);
+    const lastSeg = fileAndLine.substring(lastColon + 1);
+    const midSeg = secondLastColon === -1 ? "" : fileAndLine.substring(secondLastColon + 1, lastColon);
+    let fileName;
+    let lineNumber;
+    if (secondLastColon !== -1 && isDigits(midSeg) && isDigits(lastSeg)) {
+      fileName = fileAndLine.substring(0, secondLastColon);
+      lineNumber = midSeg;
+    } else if (isDigits(lastSeg)) {
+      fileName = fileAndLine.substring(0, lastColon);
+      lineNumber = lastSeg;
+    } else {
+      return "";
+    }
+    if (isShortFile) {
+      const segments = fileName.split(/[\\/]/);
+      fileName = segments[segments.length - 1];
+    }
+    return `${fileName}:${lineNumber}`;
+  }
+  function getFileAndLine(isShortFile = false) {
+    const e = new Error;
+    const lines = e.stack.split(`
+`);
+    let line = "";
+    for (let i = lines.length - 1;i >= 0; i--) {
+      const currentLine = lines[i];
+      if (currentLine.includes("Logger.") || currentLine.includes("node-color-log/index.js")) {
+        if (i + 1 >= lines.length) {
+          return "";
+        }
+        line = lines[i + 1].trim();
+        break;
       }
     }
-    _keys() {
-      return Array.from(this._internalState.keys()).reverse();
-    }
-    _clone() {
-      const traceState = new TraceStateImpl;
-      traceState._internalState = new Map(this._internalState);
-      return traceState;
-    }
+    return parseStackFrame(line, isShortFile);
   }
-  exports.TraceStateImpl = TraceStateImpl;
+  var logger = new Logger;
+  logger._internal = { parseStackFrame };
+  module.exports = logger;
 });
 
-// node_modules/@opentelemetry/api/build/src/trace/internal/utils.js
-var require_utils2 = __commonJS((exports) => {
-  Object.defineProperty(exports, "__esModule", { value: true });
-  exports.createTraceState = undefined;
-  var tracestate_impl_1 = require_tracestate_impl();
-  function createTraceState(rawTraceState) {
-    return new tracestate_impl_1.TraceStateImpl(rawTraceState);
-  }
-  exports.createTraceState = createTraceState;
+// src/session/dist/utils.js
+function isDeno() {
+  return typeof globalThis.Deno !== "undefined";
+}
+function isBun() {
+  return typeof globalThis.Bun !== "undefined";
+}
+var import_node_color_log, log = (stack) => import_node_color_log.default.bgColor("red").color("black").log(stack);
+var init_utils = __esm(() => {
+  import_node_color_log = __toESM(require_node_color_log(), 1);
 });
 
-// node_modules/@opentelemetry/api/build/src/context-api.js
-var require_context_api = __commonJS((exports) => {
-  Object.defineProperty(exports, "__esModule", { value: true });
-  exports.context = undefined;
-  var context_1 = require_context2();
-  exports.context = context_1.ContextAPI.getInstance();
-});
-
-// node_modules/@opentelemetry/api/build/src/diag-api.js
-var require_diag_api = __commonJS((exports) => {
-  Object.defineProperty(exports, "__esModule", { value: true });
-  exports.diag = undefined;
-  var diag_1 = require_diag();
-  exports.diag = diag_1.DiagAPI.instance();
-});
-
-// node_modules/@opentelemetry/api/build/src/metrics/NoopMeterProvider.js
-var require_NoopMeterProvider = __commonJS((exports) => {
-  Object.defineProperty(exports, "__esModule", { value: true });
-  exports.NOOP_METER_PROVIDER = exports.NoopMeterProvider = undefined;
-  var NoopMeter_1 = require_NoopMeter();
-
-  class NoopMeterProvider {
-    getMeter(_name, _version, _options) {
-      return NoopMeter_1.NOOP_METER;
+// src/session/dist/errors/DaggerSDKError.js
+var DaggerSDKError;
+var init_DaggerSDKError = __esm(() => {
+  init_utils();
+  DaggerSDKError = class DaggerSDKError extends Error {
+    cause;
+    constructor(message, options) {
+      super(message);
+      this.cause = options?.cause;
     }
-  }
-  exports.NoopMeterProvider = NoopMeterProvider;
-  exports.NOOP_METER_PROVIDER = new NoopMeterProvider;
-});
-
-// node_modules/@opentelemetry/api/build/src/api/metrics.js
-var require_metrics = __commonJS((exports) => {
-  Object.defineProperty(exports, "__esModule", { value: true });
-  exports.MetricsAPI = undefined;
-  var NoopMeterProvider_1 = require_NoopMeterProvider();
-  var global_utils_1 = require_global_utils();
-  var diag_1 = require_diag();
-  var API_NAME = "metrics";
-
-  class MetricsAPI {
-    constructor() {}
-    static getInstance() {
-      if (!this._instance) {
-        this._instance = new MetricsAPI;
-      }
-      return this._instance;
+    get [Symbol.toStringTag]() {
+      return this.name;
     }
-    setGlobalMeterProvider(provider) {
-      return (0, global_utils_1.registerGlobal)(API_NAME, provider, diag_1.DiagAPI.instance());
+    printStackTrace() {
+      log(this.stack);
     }
-    getMeterProvider() {
-      return (0, global_utils_1.getGlobal)(API_NAME) || NoopMeterProvider_1.NOOP_METER_PROVIDER;
-    }
-    getMeter(name, version, options) {
-      return this.getMeterProvider().getMeter(name, version, options);
-    }
-    disable() {
-      (0, global_utils_1.unregisterGlobal)(API_NAME, diag_1.DiagAPI.instance());
-    }
-  }
-  exports.MetricsAPI = MetricsAPI;
-});
-
-// node_modules/@opentelemetry/api/build/src/metrics-api.js
-var require_metrics_api = __commonJS((exports) => {
-  Object.defineProperty(exports, "__esModule", { value: true });
-  exports.metrics = undefined;
-  var metrics_1 = require_metrics();
-  exports.metrics = metrics_1.MetricsAPI.getInstance();
-});
-
-// node_modules/@opentelemetry/api/build/src/propagation/NoopTextMapPropagator.js
-var require_NoopTextMapPropagator = __commonJS((exports) => {
-  Object.defineProperty(exports, "__esModule", { value: true });
-  exports.NoopTextMapPropagator = undefined;
-
-  class NoopTextMapPropagator {
-    inject(_context, _carrier) {}
-    extract(context, _carrier) {
-      return context;
-    }
-    fields() {
-      return [];
-    }
-  }
-  exports.NoopTextMapPropagator = NoopTextMapPropagator;
-});
-
-// node_modules/@opentelemetry/api/build/src/baggage/context-helpers.js
-var require_context_helpers = __commonJS((exports) => {
-  Object.defineProperty(exports, "__esModule", { value: true });
-  exports.deleteBaggage = exports.setBaggage = exports.getActiveBaggage = exports.getBaggage = undefined;
-  var context_1 = require_context2();
-  var context_2 = require_context();
-  var BAGGAGE_KEY = (0, context_2.createContextKey)("OpenTelemetry Baggage Key");
-  function getBaggage(context) {
-    return context.getValue(BAGGAGE_KEY) || undefined;
-  }
-  exports.getBaggage = getBaggage;
-  function getActiveBaggage() {
-    return getBaggage(context_1.ContextAPI.getInstance().active());
-  }
-  exports.getActiveBaggage = getActiveBaggage;
-  function setBaggage(context, baggage) {
-    return context.setValue(BAGGAGE_KEY, baggage);
-  }
-  exports.setBaggage = setBaggage;
-  function deleteBaggage(context) {
-    return context.deleteValue(BAGGAGE_KEY);
-  }
-  exports.deleteBaggage = deleteBaggage;
-});
-
-// node_modules/@opentelemetry/api/build/src/api/propagation.js
-var require_propagation = __commonJS((exports) => {
-  Object.defineProperty(exports, "__esModule", { value: true });
-  exports.PropagationAPI = undefined;
-  var global_utils_1 = require_global_utils();
-  var NoopTextMapPropagator_1 = require_NoopTextMapPropagator();
-  var TextMapPropagator_1 = require_TextMapPropagator();
-  var context_helpers_1 = require_context_helpers();
-  var utils_1 = require_utils();
-  var diag_1 = require_diag();
-  var API_NAME = "propagation";
-  var NOOP_TEXT_MAP_PROPAGATOR = new NoopTextMapPropagator_1.NoopTextMapPropagator;
-
-  class PropagationAPI {
-    constructor() {
-      this.createBaggage = utils_1.createBaggage;
-      this.getBaggage = context_helpers_1.getBaggage;
-      this.getActiveBaggage = context_helpers_1.getActiveBaggage;
-      this.setBaggage = context_helpers_1.setBaggage;
-      this.deleteBaggage = context_helpers_1.deleteBaggage;
-    }
-    static getInstance() {
-      if (!this._instance) {
-        this._instance = new PropagationAPI;
-      }
-      return this._instance;
-    }
-    setGlobalPropagator(propagator) {
-      return (0, global_utils_1.registerGlobal)(API_NAME, propagator, diag_1.DiagAPI.instance());
-    }
-    inject(context, carrier, setter = TextMapPropagator_1.defaultTextMapSetter) {
-      return this._getGlobalPropagator().inject(context, carrier, setter);
-    }
-    extract(context, carrier, getter = TextMapPropagator_1.defaultTextMapGetter) {
-      return this._getGlobalPropagator().extract(context, carrier, getter);
-    }
-    fields() {
-      return this._getGlobalPropagator().fields();
-    }
-    disable() {
-      (0, global_utils_1.unregisterGlobal)(API_NAME, diag_1.DiagAPI.instance());
-    }
-    _getGlobalPropagator() {
-      return (0, global_utils_1.getGlobal)(API_NAME) || NOOP_TEXT_MAP_PROPAGATOR;
-    }
-  }
-  exports.PropagationAPI = PropagationAPI;
-});
-
-// node_modules/@opentelemetry/api/build/src/propagation-api.js
-var require_propagation_api = __commonJS((exports) => {
-  Object.defineProperty(exports, "__esModule", { value: true });
-  exports.propagation = undefined;
-  var propagation_1 = require_propagation();
-  exports.propagation = propagation_1.PropagationAPI.getInstance();
-});
-
-// node_modules/@opentelemetry/api/build/src/api/trace.js
-var require_trace = __commonJS((exports) => {
-  Object.defineProperty(exports, "__esModule", { value: true });
-  exports.TraceAPI = undefined;
-  var global_utils_1 = require_global_utils();
-  var ProxyTracerProvider_1 = require_ProxyTracerProvider();
-  var spancontext_utils_1 = require_spancontext_utils();
-  var context_utils_1 = require_context_utils();
-  var diag_1 = require_diag();
-  var API_NAME = "trace";
-
-  class TraceAPI {
-    constructor() {
-      this._proxyTracerProvider = new ProxyTracerProvider_1.ProxyTracerProvider;
-      this.wrapSpanContext = spancontext_utils_1.wrapSpanContext;
-      this.isSpanContextValid = spancontext_utils_1.isSpanContextValid;
-      this.deleteSpan = context_utils_1.deleteSpan;
-      this.getSpan = context_utils_1.getSpan;
-      this.getActiveSpan = context_utils_1.getActiveSpan;
-      this.getSpanContext = context_utils_1.getSpanContext;
-      this.setSpan = context_utils_1.setSpan;
-      this.setSpanContext = context_utils_1.setSpanContext;
-    }
-    static getInstance() {
-      if (!this._instance) {
-        this._instance = new TraceAPI;
-      }
-      return this._instance;
-    }
-    setGlobalTracerProvider(provider) {
-      const success = (0, global_utils_1.registerGlobal)(API_NAME, this._proxyTracerProvider, diag_1.DiagAPI.instance());
-      if (success) {
-        this._proxyTracerProvider.setDelegate(provider);
-      }
-      return success;
-    }
-    getTracerProvider() {
-      return (0, global_utils_1.getGlobal)(API_NAME) || this._proxyTracerProvider;
-    }
-    getTracer(name, version) {
-      return this.getTracerProvider().getTracer(name, version);
-    }
-    disable() {
-      (0, global_utils_1.unregisterGlobal)(API_NAME, diag_1.DiagAPI.instance());
-      this._proxyTracerProvider = new ProxyTracerProvider_1.ProxyTracerProvider;
-    }
-  }
-  exports.TraceAPI = TraceAPI;
-});
-
-// node_modules/@opentelemetry/api/build/src/trace-api.js
-var require_trace_api = __commonJS((exports) => {
-  Object.defineProperty(exports, "__esModule", { value: true });
-  exports.trace = undefined;
-  var trace_1 = require_trace();
-  exports.trace = trace_1.TraceAPI.getInstance();
-});
-
-// node_modules/@opentelemetry/api/build/src/index.js
-var require_src = __commonJS((exports) => {
-  Object.defineProperty(exports, "__esModule", { value: true });
-  exports.trace = exports.propagation = exports.metrics = exports.diag = exports.context = exports.INVALID_SPAN_CONTEXT = exports.INVALID_TRACEID = exports.INVALID_SPANID = exports.isValidSpanId = exports.isValidTraceId = exports.isSpanContextValid = exports.createTraceState = exports.TraceFlags = exports.SpanStatusCode = exports.SpanKind = exports.SamplingDecision = exports.ProxyTracerProvider = exports.ProxyTracer = exports.defaultTextMapSetter = exports.defaultTextMapGetter = exports.ValueType = exports.createNoopMeter = exports.DiagLogLevel = exports.DiagConsoleLogger = exports.ROOT_CONTEXT = exports.createContextKey = exports.baggageEntryMetadataFromString = undefined;
-  var utils_1 = require_utils();
-  Object.defineProperty(exports, "baggageEntryMetadataFromString", { enumerable: true, get: function() {
-    return utils_1.baggageEntryMetadataFromString;
-  } });
-  var context_1 = require_context();
-  Object.defineProperty(exports, "createContextKey", { enumerable: true, get: function() {
-    return context_1.createContextKey;
-  } });
-  Object.defineProperty(exports, "ROOT_CONTEXT", { enumerable: true, get: function() {
-    return context_1.ROOT_CONTEXT;
-  } });
-  var consoleLogger_1 = require_consoleLogger();
-  Object.defineProperty(exports, "DiagConsoleLogger", { enumerable: true, get: function() {
-    return consoleLogger_1.DiagConsoleLogger;
-  } });
-  var types_1 = require_types();
-  Object.defineProperty(exports, "DiagLogLevel", { enumerable: true, get: function() {
-    return types_1.DiagLogLevel;
-  } });
-  var NoopMeter_1 = require_NoopMeter();
-  Object.defineProperty(exports, "createNoopMeter", { enumerable: true, get: function() {
-    return NoopMeter_1.createNoopMeter;
-  } });
-  var Metric_1 = require_Metric();
-  Object.defineProperty(exports, "ValueType", { enumerable: true, get: function() {
-    return Metric_1.ValueType;
-  } });
-  var TextMapPropagator_1 = require_TextMapPropagator();
-  Object.defineProperty(exports, "defaultTextMapGetter", { enumerable: true, get: function() {
-    return TextMapPropagator_1.defaultTextMapGetter;
-  } });
-  Object.defineProperty(exports, "defaultTextMapSetter", { enumerable: true, get: function() {
-    return TextMapPropagator_1.defaultTextMapSetter;
-  } });
-  var ProxyTracer_1 = require_ProxyTracer();
-  Object.defineProperty(exports, "ProxyTracer", { enumerable: true, get: function() {
-    return ProxyTracer_1.ProxyTracer;
-  } });
-  var ProxyTracerProvider_1 = require_ProxyTracerProvider();
-  Object.defineProperty(exports, "ProxyTracerProvider", { enumerable: true, get: function() {
-    return ProxyTracerProvider_1.ProxyTracerProvider;
-  } });
-  var SamplingResult_1 = require_SamplingResult();
-  Object.defineProperty(exports, "SamplingDecision", { enumerable: true, get: function() {
-    return SamplingResult_1.SamplingDecision;
-  } });
-  var span_kind_1 = require_span_kind();
-  Object.defineProperty(exports, "SpanKind", { enumerable: true, get: function() {
-    return span_kind_1.SpanKind;
-  } });
-  var status_1 = require_status();
-  Object.defineProperty(exports, "SpanStatusCode", { enumerable: true, get: function() {
-    return status_1.SpanStatusCode;
-  } });
-  var trace_flags_1 = require_trace_flags();
-  Object.defineProperty(exports, "TraceFlags", { enumerable: true, get: function() {
-    return trace_flags_1.TraceFlags;
-  } });
-  var utils_2 = require_utils2();
-  Object.defineProperty(exports, "createTraceState", { enumerable: true, get: function() {
-    return utils_2.createTraceState;
-  } });
-  var spancontext_utils_1 = require_spancontext_utils();
-  Object.defineProperty(exports, "isSpanContextValid", { enumerable: true, get: function() {
-    return spancontext_utils_1.isSpanContextValid;
-  } });
-  Object.defineProperty(exports, "isValidTraceId", { enumerable: true, get: function() {
-    return spancontext_utils_1.isValidTraceId;
-  } });
-  Object.defineProperty(exports, "isValidSpanId", { enumerable: true, get: function() {
-    return spancontext_utils_1.isValidSpanId;
-  } });
-  var invalid_span_constants_1 = require_invalid_span_constants();
-  Object.defineProperty(exports, "INVALID_SPANID", { enumerable: true, get: function() {
-    return invalid_span_constants_1.INVALID_SPANID;
-  } });
-  Object.defineProperty(exports, "INVALID_TRACEID", { enumerable: true, get: function() {
-    return invalid_span_constants_1.INVALID_TRACEID;
-  } });
-  Object.defineProperty(exports, "INVALID_SPAN_CONTEXT", { enumerable: true, get: function() {
-    return invalid_span_constants_1.INVALID_SPAN_CONTEXT;
-  } });
-  var context_api_1 = require_context_api();
-  Object.defineProperty(exports, "context", { enumerable: true, get: function() {
-    return context_api_1.context;
-  } });
-  var diag_api_1 = require_diag_api();
-  Object.defineProperty(exports, "diag", { enumerable: true, get: function() {
-    return diag_api_1.diag;
-  } });
-  var metrics_api_1 = require_metrics_api();
-  Object.defineProperty(exports, "metrics", { enumerable: true, get: function() {
-    return metrics_api_1.metrics;
-  } });
-  var propagation_api_1 = require_propagation_api();
-  Object.defineProperty(exports, "propagation", { enumerable: true, get: function() {
-    return propagation_api_1.propagation;
-  } });
-  var trace_api_1 = require_trace_api();
-  Object.defineProperty(exports, "trace", { enumerable: true, get: function() {
-    return trace_api_1.trace;
-  } });
-  exports.default = {
-    context: context_api_1.context,
-    diag: diag_api_1.diag,
-    metrics: metrics_api_1.metrics,
-    propagation: propagation_api_1.propagation,
-    trace: trace_api_1.trace
   };
+});
+
+// src/session/dist/errors/errors-codes.js
+var ERROR_CODES, ERROR_NAMES;
+var init_errors_codes = __esm(() => {
+  ERROR_CODES = {
+    GraphQLRequestError: "D100",
+    UnknownDaggerError: "D101",
+    TooManyNestedObjectsError: "D102",
+    EngineSessionConnectParamsParseError: "D103",
+    EngineSessionConnectionTimeoutError: "D104",
+    EngineSessionError: "D105",
+    InitEngineSessionBinaryError: "D106",
+    DockerImageRefValidationError: "D107",
+    NotAwaitedRequestError: "D108",
+    ExecError: "D109",
+    IntrospectionError: "D110"
+  };
+  ERROR_NAMES = Object.keys(ERROR_CODES).reduce((obj, item) => ({ ...obj, [item]: item }), {});
+});
+
+// src/session/dist/errors/UnknownDaggerError.js
+var UnknownDaggerError;
+var init_UnknownDaggerError = __esm(() => {
+  init_DaggerSDKError();
+  init_errors_codes();
+  UnknownDaggerError = class UnknownDaggerError extends DaggerSDKError {
+    name = ERROR_NAMES.UnknownDaggerError;
+    code = ERROR_CODES.UnknownDaggerError;
+    constructor(message, options) {
+      super(message, options);
+    }
+  };
+});
+
+// src/session/dist/errors/DockerImageRefValidationError.js
+var DockerImageRefValidationError;
+var init_DockerImageRefValidationError = __esm(() => {
+  init_DaggerSDKError();
+  init_errors_codes();
+  DockerImageRefValidationError = class DockerImageRefValidationError extends DaggerSDKError {
+    name = ERROR_NAMES.DockerImageRefValidationError;
+    code = ERROR_CODES.DockerImageRefValidationError;
+    ref;
+    constructor(message, options) {
+      super(message, options);
+      this.ref = options?.ref;
+    }
+  };
+});
+
+// src/session/dist/errors/EngineSessionConnectParamsParseError.js
+var EngineSessionConnectParamsParseError;
+var init_EngineSessionConnectParamsParseError = __esm(() => {
+  init_DaggerSDKError();
+  init_errors_codes();
+  EngineSessionConnectParamsParseError = class EngineSessionConnectParamsParseError extends DaggerSDKError {
+    name = ERROR_NAMES.EngineSessionConnectParamsParseError;
+    code = ERROR_CODES.EngineSessionConnectParamsParseError;
+    parsedLine;
+    constructor(message, options) {
+      super(message, options);
+      this.parsedLine = options.parsedLine;
+    }
+  };
+});
+
+// src/session/dist/errors/ExecError.js
+var ExecError;
+var init_ExecError = __esm(() => {
+  init_DaggerSDKError();
+  init_errors_codes();
+  ExecError = class ExecError extends DaggerSDKError {
+    name = ERROR_NAMES.ExecError;
+    code = ERROR_CODES.ExecError;
+    cmd;
+    exitCode;
+    stdout;
+    stderr;
+    extensions;
+    constructor(message, options) {
+      super(message, options);
+      this.cmd = options.cmd;
+      this.exitCode = options.exitCode;
+      this.stdout = options.stdout;
+      this.stderr = options.stderr;
+      this.extensions = options.extensions;
+    }
+  };
+});
+
+// src/session/dist/errors/GraphQLRequestError.js
+var GraphQLRequestError;
+var init_GraphQLRequestError = __esm(() => {
+  init_DaggerSDKError();
+  init_errors_codes();
+  GraphQLRequestError = class GraphQLRequestError extends DaggerSDKError {
+    name = ERROR_NAMES.GraphQLRequestError;
+    code = ERROR_CODES.GraphQLRequestError;
+    requestContext;
+    response;
+    extensions;
+    constructor(message, options) {
+      super(message, options);
+      this.requestContext = options.error.request;
+      this.response = options.error.response;
+      this.extensions = options.error.response.errors?.[0]?.extensions;
+    }
+  };
+});
+
+// src/session/dist/errors/InitEngineSessionBinaryError.js
+var InitEngineSessionBinaryError;
+var init_InitEngineSessionBinaryError = __esm(() => {
+  init_DaggerSDKError();
+  init_errors_codes();
+  InitEngineSessionBinaryError = class InitEngineSessionBinaryError extends DaggerSDKError {
+    name = ERROR_NAMES.InitEngineSessionBinaryError;
+    code = ERROR_CODES.InitEngineSessionBinaryError;
+    constructor(message, options) {
+      super(message, options);
+    }
+  };
+});
+
+// src/session/dist/errors/TooManyNestedObjectsError.js
+var TooManyNestedObjectsError;
+var init_TooManyNestedObjectsError = __esm(() => {
+  init_DaggerSDKError();
+  init_errors_codes();
+  TooManyNestedObjectsError = class TooManyNestedObjectsError extends DaggerSDKError {
+    name = ERROR_NAMES.TooManyNestedObjectsError;
+    code = ERROR_CODES.TooManyNestedObjectsError;
+    response;
+    constructor(message, options) {
+      super(message, options);
+      this.response = options.response;
+    }
+  };
+});
+
+// src/session/dist/errors/EngineSessionErrorOptions.js
+var EngineSessionError;
+var init_EngineSessionErrorOptions = __esm(() => {
+  init_DaggerSDKError();
+  init_errors_codes();
+  EngineSessionError = class EngineSessionError extends DaggerSDKError {
+    name = ERROR_NAMES.EngineSessionError;
+    code = ERROR_CODES.EngineSessionError;
+    constructor(message, options) {
+      super(message, options);
+    }
+  };
+});
+
+// src/session/dist/errors/EngineSessionConnectionTimeoutError.js
+var EngineSessionConnectionTimeoutError;
+var init_EngineSessionConnectionTimeoutError = __esm(() => {
+  init_DaggerSDKError();
+  init_errors_codes();
+  EngineSessionConnectionTimeoutError = class EngineSessionConnectionTimeoutError extends DaggerSDKError {
+    name = ERROR_NAMES.EngineSessionConnectionTimeoutError;
+    code = ERROR_CODES.EngineSessionConnectionTimeoutError;
+    timeOutDuration;
+    constructor(message, options) {
+      super(message, options);
+      this.timeOutDuration = options.timeOutDuration;
+    }
+  };
+});
+
+// src/session/dist/errors/NotAwaitedRequestError.js
+var NotAwaitedRequestError;
+var init_NotAwaitedRequestError = __esm(() => {
+  init_DaggerSDKError();
+  init_errors_codes();
+  NotAwaitedRequestError = class NotAwaitedRequestError extends DaggerSDKError {
+    name = ERROR_NAMES.NotAwaitedRequestError;
+    code = ERROR_CODES.NotAwaitedRequestError;
+    constructor(message, options) {
+      super(message, options);
+    }
+  };
+});
+
+// src/session/dist/errors/FunctionNotFound.js
+var FunctionNotFound;
+var init_FunctionNotFound = __esm(() => {
+  init_DaggerSDKError();
+  init_errors_codes();
+  FunctionNotFound = class FunctionNotFound extends DaggerSDKError {
+    name = ERROR_NAMES.ExecError;
+    code = ERROR_CODES.ExecError;
+    constructor(message, options) {
+      super(message, options);
+    }
+  };
+});
+
+// src/session/dist/errors/IntrospectionError.js
+var IntrospectionError;
+var init_IntrospectionError = __esm(() => {
+  init_DaggerSDKError();
+  init_errors_codes();
+  IntrospectionError = class IntrospectionError extends DaggerSDKError {
+    name = ERROR_NAMES.IntrospectionError;
+    code = ERROR_CODES.IntrospectionError;
+    constructor(message, options) {
+      super(message, options);
+    }
+  };
+});
+
+// src/session/dist/errors/index.js
+var init_errors = __esm(() => {
+  init_DaggerSDKError();
+  init_UnknownDaggerError();
+  init_DockerImageRefValidationError();
+  init_EngineSessionConnectParamsParseError();
+  init_ExecError();
+  init_GraphQLRequestError();
+  init_InitEngineSessionBinaryError();
+  init_TooManyNestedObjectsError();
+  init_EngineSessionErrorOptions();
+  init_EngineSessionConnectionTimeoutError();
+  init_NotAwaitedRequestError();
+  init_FunctionNotFound();
+  init_IntrospectionError();
+  init_errors_codes();
 });
 
 // node_modules/graphql-request/build/legacy/classes/ClientError.js
@@ -1606,7 +782,7 @@ var init_rawRequest = __esm(() => {
 });
 
 // node_modules/graphql/version.js
-var require_version2 = __commonJS((exports) => {
+var require_version = __commonJS((exports) => {
   Object.defineProperty(exports, "__esModule", {
     value: true
   });
@@ -2903,9 +2079,9 @@ var require_instanceOf = __commonJS((exports) => {
   exports.instanceOf = undefined;
   var _inspect = require_inspect();
   var isProduction = globalThis.process && false;
-  var instanceOf = isProduction ? function instanceOf(value, constructor) {
+  var instanceOf = isProduction ? function instanceOf2(value, constructor) {
     return value instanceof constructor;
-  } : function instanceOf(value, constructor) {
+  } : function instanceOf2(value, constructor) {
     if (value instanceof constructor) {
       return true;
     }
@@ -15988,7 +15164,7 @@ var require_graphql2 = __commonJS((exports) => {
       return _index6.visitWithTypeInfo;
     }
   });
-  var _version = require_version2();
+  var _version = require_version();
   var _graphql = require_graphql();
   var _index = require_type();
   var _index2 = require_language();
@@ -16448,7 +15624,1487 @@ var init_main = __esm(() => {
   init_analyzeDocument();
 });
 
-// node_modules/data-uri-to-buffer/dist/index.js
+// node_modules/@opentelemetry/api/build/src/version.js
+var require_version2 = __commonJS((exports) => {
+  Object.defineProperty(exports, "__esModule", { value: true });
+  exports.VERSION = undefined;
+  exports.VERSION = "1.9.1";
+});
+
+// node_modules/@opentelemetry/api/build/src/internal/semver.js
+var require_semver = __commonJS((exports) => {
+  Object.defineProperty(exports, "__esModule", { value: true });
+  exports.isCompatible = exports._makeCompatibilityCheck = undefined;
+  var version_1 = require_version2();
+  var re = /^(\d+)\.(\d+)\.(\d+)(-(.+))?$/;
+  function _makeCompatibilityCheck(ownVersion) {
+    const acceptedVersions = new Set([ownVersion]);
+    const rejectedVersions = new Set;
+    const myVersionMatch = ownVersion.match(re);
+    if (!myVersionMatch) {
+      return () => false;
+    }
+    const ownVersionParsed = {
+      major: +myVersionMatch[1],
+      minor: +myVersionMatch[2],
+      patch: +myVersionMatch[3],
+      prerelease: myVersionMatch[4]
+    };
+    if (ownVersionParsed.prerelease != null) {
+      return function isExactmatch(globalVersion) {
+        return globalVersion === ownVersion;
+      };
+    }
+    function _reject(v) {
+      rejectedVersions.add(v);
+      return false;
+    }
+    function _accept(v) {
+      acceptedVersions.add(v);
+      return true;
+    }
+    return function isCompatible(globalVersion) {
+      if (acceptedVersions.has(globalVersion)) {
+        return true;
+      }
+      if (rejectedVersions.has(globalVersion)) {
+        return false;
+      }
+      const globalVersionMatch = globalVersion.match(re);
+      if (!globalVersionMatch) {
+        return _reject(globalVersion);
+      }
+      const globalVersionParsed = {
+        major: +globalVersionMatch[1],
+        minor: +globalVersionMatch[2],
+        patch: +globalVersionMatch[3],
+        prerelease: globalVersionMatch[4]
+      };
+      if (globalVersionParsed.prerelease != null) {
+        return _reject(globalVersion);
+      }
+      if (ownVersionParsed.major !== globalVersionParsed.major) {
+        return _reject(globalVersion);
+      }
+      if (ownVersionParsed.major === 0) {
+        if (ownVersionParsed.minor === globalVersionParsed.minor && ownVersionParsed.patch <= globalVersionParsed.patch) {
+          return _accept(globalVersion);
+        }
+        return _reject(globalVersion);
+      }
+      if (ownVersionParsed.minor <= globalVersionParsed.minor) {
+        return _accept(globalVersion);
+      }
+      return _reject(globalVersion);
+    };
+  }
+  exports._makeCompatibilityCheck = _makeCompatibilityCheck;
+  exports.isCompatible = _makeCompatibilityCheck(version_1.VERSION);
+});
+
+// node_modules/@opentelemetry/api/build/src/internal/global-utils.js
+var require_global_utils = __commonJS((exports) => {
+  Object.defineProperty(exports, "__esModule", { value: true });
+  exports.unregisterGlobal = exports.getGlobal = exports.registerGlobal = undefined;
+  var version_1 = require_version2();
+  var semver_1 = require_semver();
+  var major = version_1.VERSION.split(".")[0];
+  var GLOBAL_OPENTELEMETRY_API_KEY = Symbol.for(`opentelemetry.js.api.${major}`);
+  var _global = typeof globalThis === "object" ? globalThis : typeof self === "object" ? self : typeof window === "object" ? window : typeof global === "object" ? global : {};
+  function registerGlobal(type, instance, diag, allowOverride = false) {
+    var _a;
+    const api = _global[GLOBAL_OPENTELEMETRY_API_KEY] = (_a = _global[GLOBAL_OPENTELEMETRY_API_KEY]) !== null && _a !== undefined ? _a : {
+      version: version_1.VERSION
+    };
+    if (!allowOverride && api[type]) {
+      const err = new Error(`@opentelemetry/api: Attempted duplicate registration of API: ${type}`);
+      diag.error(err.stack || err.message);
+      return false;
+    }
+    if (api.version !== version_1.VERSION) {
+      const err = new Error(`@opentelemetry/api: Registration of version v${api.version} for ${type} does not match previously registered API v${version_1.VERSION}`);
+      diag.error(err.stack || err.message);
+      return false;
+    }
+    api[type] = instance;
+    diag.debug(`@opentelemetry/api: Registered a global for ${type} v${version_1.VERSION}.`);
+    return true;
+  }
+  exports.registerGlobal = registerGlobal;
+  function getGlobal(type) {
+    var _a, _b;
+    const globalVersion = (_a = _global[GLOBAL_OPENTELEMETRY_API_KEY]) === null || _a === undefined ? undefined : _a.version;
+    if (!globalVersion || !(0, semver_1.isCompatible)(globalVersion)) {
+      return;
+    }
+    return (_b = _global[GLOBAL_OPENTELEMETRY_API_KEY]) === null || _b === undefined ? undefined : _b[type];
+  }
+  exports.getGlobal = getGlobal;
+  function unregisterGlobal(type, diag) {
+    diag.debug(`@opentelemetry/api: Unregistering a global for ${type} v${version_1.VERSION}.`);
+    const api = _global[GLOBAL_OPENTELEMETRY_API_KEY];
+    if (api) {
+      delete api[type];
+    }
+  }
+  exports.unregisterGlobal = unregisterGlobal;
+});
+
+// node_modules/@opentelemetry/api/build/src/diag/ComponentLogger.js
+var require_ComponentLogger = __commonJS((exports) => {
+  Object.defineProperty(exports, "__esModule", { value: true });
+  exports.DiagComponentLogger = undefined;
+  var global_utils_1 = require_global_utils();
+
+  class DiagComponentLogger {
+    constructor(props) {
+      this._namespace = props.namespace || "DiagComponentLogger";
+    }
+    debug(...args) {
+      return logProxy("debug", this._namespace, args);
+    }
+    error(...args) {
+      return logProxy("error", this._namespace, args);
+    }
+    info(...args) {
+      return logProxy("info", this._namespace, args);
+    }
+    warn(...args) {
+      return logProxy("warn", this._namespace, args);
+    }
+    verbose(...args) {
+      return logProxy("verbose", this._namespace, args);
+    }
+  }
+  exports.DiagComponentLogger = DiagComponentLogger;
+  function logProxy(funcName, namespace, args) {
+    const logger2 = (0, global_utils_1.getGlobal)("diag");
+    if (!logger2) {
+      return;
+    }
+    return logger2[funcName](namespace, ...args);
+  }
+});
+
+// node_modules/@opentelemetry/api/build/src/diag/types.js
+var require_types = __commonJS((exports) => {
+  Object.defineProperty(exports, "__esModule", { value: true });
+  exports.DiagLogLevel = undefined;
+  var DiagLogLevel;
+  (function(DiagLogLevel2) {
+    DiagLogLevel2[DiagLogLevel2["NONE"] = 0] = "NONE";
+    DiagLogLevel2[DiagLogLevel2["ERROR"] = 30] = "ERROR";
+    DiagLogLevel2[DiagLogLevel2["WARN"] = 50] = "WARN";
+    DiagLogLevel2[DiagLogLevel2["INFO"] = 60] = "INFO";
+    DiagLogLevel2[DiagLogLevel2["DEBUG"] = 70] = "DEBUG";
+    DiagLogLevel2[DiagLogLevel2["VERBOSE"] = 80] = "VERBOSE";
+    DiagLogLevel2[DiagLogLevel2["ALL"] = 9999] = "ALL";
+  })(DiagLogLevel = exports.DiagLogLevel || (exports.DiagLogLevel = {}));
+});
+
+// node_modules/@opentelemetry/api/build/src/diag/internal/logLevelLogger.js
+var require_logLevelLogger = __commonJS((exports) => {
+  Object.defineProperty(exports, "__esModule", { value: true });
+  exports.createLogLevelDiagLogger = undefined;
+  var types_1 = require_types();
+  function createLogLevelDiagLogger(maxLevel, logger2) {
+    if (maxLevel < types_1.DiagLogLevel.NONE) {
+      maxLevel = types_1.DiagLogLevel.NONE;
+    } else if (maxLevel > types_1.DiagLogLevel.ALL) {
+      maxLevel = types_1.DiagLogLevel.ALL;
+    }
+    logger2 = logger2 || {};
+    function _filterFunc(funcName, theLevel) {
+      const theFunc = logger2[funcName];
+      if (typeof theFunc === "function" && maxLevel >= theLevel) {
+        return theFunc.bind(logger2);
+      }
+      return function() {};
+    }
+    return {
+      error: _filterFunc("error", types_1.DiagLogLevel.ERROR),
+      warn: _filterFunc("warn", types_1.DiagLogLevel.WARN),
+      info: _filterFunc("info", types_1.DiagLogLevel.INFO),
+      debug: _filterFunc("debug", types_1.DiagLogLevel.DEBUG),
+      verbose: _filterFunc("verbose", types_1.DiagLogLevel.VERBOSE)
+    };
+  }
+  exports.createLogLevelDiagLogger = createLogLevelDiagLogger;
+});
+
+// node_modules/@opentelemetry/api/build/src/api/diag.js
+var require_diag = __commonJS((exports) => {
+  Object.defineProperty(exports, "__esModule", { value: true });
+  exports.DiagAPI = undefined;
+  var ComponentLogger_1 = require_ComponentLogger();
+  var logLevelLogger_1 = require_logLevelLogger();
+  var types_1 = require_types();
+  var global_utils_1 = require_global_utils();
+  var API_NAME = "diag";
+
+  class DiagAPI {
+    static instance() {
+      if (!this._instance) {
+        this._instance = new DiagAPI;
+      }
+      return this._instance;
+    }
+    constructor() {
+      function _logProxy(funcName) {
+        return function(...args) {
+          const logger2 = (0, global_utils_1.getGlobal)("diag");
+          if (!logger2)
+            return;
+          return logger2[funcName](...args);
+        };
+      }
+      const self2 = this;
+      const setLogger = (logger2, optionsOrLogLevel = { logLevel: types_1.DiagLogLevel.INFO }) => {
+        var _a, _b, _c;
+        if (logger2 === self2) {
+          const err = new Error("Cannot use diag as the logger for itself. Please use a DiagLogger implementation like ConsoleDiagLogger or a custom implementation");
+          self2.error((_a = err.stack) !== null && _a !== undefined ? _a : err.message);
+          return false;
+        }
+        if (typeof optionsOrLogLevel === "number") {
+          optionsOrLogLevel = {
+            logLevel: optionsOrLogLevel
+          };
+        }
+        const oldLogger = (0, global_utils_1.getGlobal)("diag");
+        const newLogger = (0, logLevelLogger_1.createLogLevelDiagLogger)((_b = optionsOrLogLevel.logLevel) !== null && _b !== undefined ? _b : types_1.DiagLogLevel.INFO, logger2);
+        if (oldLogger && !optionsOrLogLevel.suppressOverrideMessage) {
+          const stack = (_c = new Error().stack) !== null && _c !== undefined ? _c : "<failed to generate stacktrace>";
+          oldLogger.warn(`Current logger will be overwritten from ${stack}`);
+          newLogger.warn(`Current logger will overwrite one already registered from ${stack}`);
+        }
+        return (0, global_utils_1.registerGlobal)("diag", newLogger, self2, true);
+      };
+      self2.setLogger = setLogger;
+      self2.disable = () => {
+        (0, global_utils_1.unregisterGlobal)(API_NAME, self2);
+      };
+      self2.createComponentLogger = (options) => {
+        return new ComponentLogger_1.DiagComponentLogger(options);
+      };
+      self2.verbose = _logProxy("verbose");
+      self2.debug = _logProxy("debug");
+      self2.info = _logProxy("info");
+      self2.warn = _logProxy("warn");
+      self2.error = _logProxy("error");
+    }
+  }
+  exports.DiagAPI = DiagAPI;
+});
+
+// node_modules/@opentelemetry/api/build/src/baggage/internal/baggage-impl.js
+var require_baggage_impl = __commonJS((exports) => {
+  Object.defineProperty(exports, "__esModule", { value: true });
+  exports.BaggageImpl = undefined;
+
+  class BaggageImpl {
+    constructor(entries) {
+      this._entries = entries ? new Map(entries) : new Map;
+    }
+    getEntry(key) {
+      const entry = this._entries.get(key);
+      if (!entry) {
+        return;
+      }
+      return Object.assign({}, entry);
+    }
+    getAllEntries() {
+      return Array.from(this._entries.entries());
+    }
+    setEntry(key, entry) {
+      const newBaggage = new BaggageImpl(this._entries);
+      newBaggage._entries.set(key, entry);
+      return newBaggage;
+    }
+    removeEntry(key) {
+      const newBaggage = new BaggageImpl(this._entries);
+      newBaggage._entries.delete(key);
+      return newBaggage;
+    }
+    removeEntries(...keys) {
+      const newBaggage = new BaggageImpl(this._entries);
+      for (const key of keys) {
+        newBaggage._entries.delete(key);
+      }
+      return newBaggage;
+    }
+    clear() {
+      return new BaggageImpl;
+    }
+  }
+  exports.BaggageImpl = BaggageImpl;
+});
+
+// node_modules/@opentelemetry/api/build/src/baggage/internal/symbol.js
+var require_symbol = __commonJS((exports) => {
+  Object.defineProperty(exports, "__esModule", { value: true });
+  exports.baggageEntryMetadataSymbol = undefined;
+  exports.baggageEntryMetadataSymbol = Symbol("BaggageEntryMetadata");
+});
+
+// node_modules/@opentelemetry/api/build/src/baggage/utils.js
+var require_utils = __commonJS((exports) => {
+  Object.defineProperty(exports, "__esModule", { value: true });
+  exports.baggageEntryMetadataFromString = exports.createBaggage = undefined;
+  var diag_1 = require_diag();
+  var baggage_impl_1 = require_baggage_impl();
+  var symbol_1 = require_symbol();
+  var diag = diag_1.DiagAPI.instance();
+  function createBaggage(entries = {}) {
+    return new baggage_impl_1.BaggageImpl(new Map(Object.entries(entries)));
+  }
+  exports.createBaggage = createBaggage;
+  function baggageEntryMetadataFromString(str) {
+    if (typeof str !== "string") {
+      diag.error(`Cannot create baggage metadata from unknown type: ${typeof str}`);
+      str = "";
+    }
+    return {
+      __TYPE__: symbol_1.baggageEntryMetadataSymbol,
+      toString() {
+        return str;
+      }
+    };
+  }
+  exports.baggageEntryMetadataFromString = baggageEntryMetadataFromString;
+});
+
+// node_modules/@opentelemetry/api/build/src/context/context.js
+var require_context = __commonJS((exports) => {
+  Object.defineProperty(exports, "__esModule", { value: true });
+  exports.ROOT_CONTEXT = exports.createContextKey = undefined;
+  function createContextKey(description) {
+    return Symbol.for(description);
+  }
+  exports.createContextKey = createContextKey;
+
+  class BaseContext {
+    constructor(parentContext) {
+      const self2 = this;
+      self2._currentContext = parentContext ? new Map(parentContext) : new Map;
+      self2.getValue = (key) => self2._currentContext.get(key);
+      self2.setValue = (key, value) => {
+        const context = new BaseContext(self2._currentContext);
+        context._currentContext.set(key, value);
+        return context;
+      };
+      self2.deleteValue = (key) => {
+        const context = new BaseContext(self2._currentContext);
+        context._currentContext.delete(key);
+        return context;
+      };
+    }
+  }
+  exports.ROOT_CONTEXT = new BaseContext;
+});
+
+// node_modules/@opentelemetry/api/build/src/diag/consoleLogger.js
+var require_consoleLogger = __commonJS((exports) => {
+  Object.defineProperty(exports, "__esModule", { value: true });
+  exports.DiagConsoleLogger = exports._originalConsoleMethods = undefined;
+  var consoleMap = [
+    { n: "error", c: "error" },
+    { n: "warn", c: "warn" },
+    { n: "info", c: "info" },
+    { n: "debug", c: "debug" },
+    { n: "verbose", c: "trace" }
+  ];
+  exports._originalConsoleMethods = {};
+  if (typeof console !== "undefined") {
+    const keys = [
+      "error",
+      "warn",
+      "info",
+      "debug",
+      "trace",
+      "log"
+    ];
+    for (const key of keys) {
+      if (typeof console[key] === "function") {
+        exports._originalConsoleMethods[key] = console[key];
+      }
+    }
+  }
+
+  class DiagConsoleLogger {
+    constructor() {
+      function _consoleFunc(funcName) {
+        return function(...args) {
+          let theFunc = exports._originalConsoleMethods[funcName];
+          if (typeof theFunc !== "function") {
+            theFunc = exports._originalConsoleMethods["log"];
+          }
+          if (typeof theFunc !== "function" && console) {
+            theFunc = console[funcName];
+            if (typeof theFunc !== "function") {
+              theFunc = console.log;
+            }
+          }
+          if (typeof theFunc === "function") {
+            return theFunc.apply(console, args);
+          }
+        };
+      }
+      for (let i = 0;i < consoleMap.length; i++) {
+        this[consoleMap[i].n] = _consoleFunc(consoleMap[i].c);
+      }
+    }
+  }
+  exports.DiagConsoleLogger = DiagConsoleLogger;
+});
+
+// node_modules/@opentelemetry/api/build/src/metrics/NoopMeter.js
+var require_NoopMeter = __commonJS((exports) => {
+  Object.defineProperty(exports, "__esModule", { value: true });
+  exports.createNoopMeter = exports.NOOP_OBSERVABLE_UP_DOWN_COUNTER_METRIC = exports.NOOP_OBSERVABLE_GAUGE_METRIC = exports.NOOP_OBSERVABLE_COUNTER_METRIC = exports.NOOP_UP_DOWN_COUNTER_METRIC = exports.NOOP_HISTOGRAM_METRIC = exports.NOOP_GAUGE_METRIC = exports.NOOP_COUNTER_METRIC = exports.NOOP_METER = exports.NoopObservableUpDownCounterMetric = exports.NoopObservableGaugeMetric = exports.NoopObservableCounterMetric = exports.NoopObservableMetric = exports.NoopHistogramMetric = exports.NoopGaugeMetric = exports.NoopUpDownCounterMetric = exports.NoopCounterMetric = exports.NoopMetric = exports.NoopMeter = undefined;
+
+  class NoopMeter {
+    constructor() {}
+    createGauge(_name, _options) {
+      return exports.NOOP_GAUGE_METRIC;
+    }
+    createHistogram(_name, _options) {
+      return exports.NOOP_HISTOGRAM_METRIC;
+    }
+    createCounter(_name, _options) {
+      return exports.NOOP_COUNTER_METRIC;
+    }
+    createUpDownCounter(_name, _options) {
+      return exports.NOOP_UP_DOWN_COUNTER_METRIC;
+    }
+    createObservableGauge(_name, _options) {
+      return exports.NOOP_OBSERVABLE_GAUGE_METRIC;
+    }
+    createObservableCounter(_name, _options) {
+      return exports.NOOP_OBSERVABLE_COUNTER_METRIC;
+    }
+    createObservableUpDownCounter(_name, _options) {
+      return exports.NOOP_OBSERVABLE_UP_DOWN_COUNTER_METRIC;
+    }
+    addBatchObservableCallback(_callback, _observables) {}
+    removeBatchObservableCallback(_callback) {}
+  }
+  exports.NoopMeter = NoopMeter;
+
+  class NoopMetric {
+  }
+  exports.NoopMetric = NoopMetric;
+
+  class NoopCounterMetric extends NoopMetric {
+    add(_value, _attributes) {}
+  }
+  exports.NoopCounterMetric = NoopCounterMetric;
+
+  class NoopUpDownCounterMetric extends NoopMetric {
+    add(_value, _attributes) {}
+  }
+  exports.NoopUpDownCounterMetric = NoopUpDownCounterMetric;
+
+  class NoopGaugeMetric extends NoopMetric {
+    record(_value, _attributes) {}
+  }
+  exports.NoopGaugeMetric = NoopGaugeMetric;
+
+  class NoopHistogramMetric extends NoopMetric {
+    record(_value, _attributes) {}
+  }
+  exports.NoopHistogramMetric = NoopHistogramMetric;
+
+  class NoopObservableMetric {
+    addCallback(_callback) {}
+    removeCallback(_callback) {}
+  }
+  exports.NoopObservableMetric = NoopObservableMetric;
+
+  class NoopObservableCounterMetric extends NoopObservableMetric {
+  }
+  exports.NoopObservableCounterMetric = NoopObservableCounterMetric;
+
+  class NoopObservableGaugeMetric extends NoopObservableMetric {
+  }
+  exports.NoopObservableGaugeMetric = NoopObservableGaugeMetric;
+
+  class NoopObservableUpDownCounterMetric extends NoopObservableMetric {
+  }
+  exports.NoopObservableUpDownCounterMetric = NoopObservableUpDownCounterMetric;
+  exports.NOOP_METER = new NoopMeter;
+  exports.NOOP_COUNTER_METRIC = new NoopCounterMetric;
+  exports.NOOP_GAUGE_METRIC = new NoopGaugeMetric;
+  exports.NOOP_HISTOGRAM_METRIC = new NoopHistogramMetric;
+  exports.NOOP_UP_DOWN_COUNTER_METRIC = new NoopUpDownCounterMetric;
+  exports.NOOP_OBSERVABLE_COUNTER_METRIC = new NoopObservableCounterMetric;
+  exports.NOOP_OBSERVABLE_GAUGE_METRIC = new NoopObservableGaugeMetric;
+  exports.NOOP_OBSERVABLE_UP_DOWN_COUNTER_METRIC = new NoopObservableUpDownCounterMetric;
+  function createNoopMeter() {
+    return exports.NOOP_METER;
+  }
+  exports.createNoopMeter = createNoopMeter;
+});
+
+// node_modules/@opentelemetry/api/build/src/metrics/Metric.js
+var require_Metric = __commonJS((exports) => {
+  Object.defineProperty(exports, "__esModule", { value: true });
+  exports.ValueType = undefined;
+  var ValueType;
+  (function(ValueType2) {
+    ValueType2[ValueType2["INT"] = 0] = "INT";
+    ValueType2[ValueType2["DOUBLE"] = 1] = "DOUBLE";
+  })(ValueType = exports.ValueType || (exports.ValueType = {}));
+});
+
+// node_modules/@opentelemetry/api/build/src/propagation/TextMapPropagator.js
+var require_TextMapPropagator = __commonJS((exports) => {
+  Object.defineProperty(exports, "__esModule", { value: true });
+  exports.defaultTextMapSetter = exports.defaultTextMapGetter = undefined;
+  exports.defaultTextMapGetter = {
+    get(carrier, key) {
+      if (carrier == null) {
+        return;
+      }
+      return carrier[key];
+    },
+    keys(carrier) {
+      if (carrier == null) {
+        return [];
+      }
+      return Object.keys(carrier);
+    }
+  };
+  exports.defaultTextMapSetter = {
+    set(carrier, key, value) {
+      if (carrier == null) {
+        return;
+      }
+      carrier[key] = value;
+    }
+  };
+});
+
+// node_modules/@opentelemetry/api/build/src/context/NoopContextManager.js
+var require_NoopContextManager = __commonJS((exports) => {
+  Object.defineProperty(exports, "__esModule", { value: true });
+  exports.NoopContextManager = undefined;
+  var context_1 = require_context();
+
+  class NoopContextManager {
+    active() {
+      return context_1.ROOT_CONTEXT;
+    }
+    with(_context, fn, thisArg, ...args) {
+      return fn.call(thisArg, ...args);
+    }
+    bind(_context, target) {
+      return target;
+    }
+    enable() {
+      return this;
+    }
+    disable() {
+      return this;
+    }
+  }
+  exports.NoopContextManager = NoopContextManager;
+});
+
+// node_modules/@opentelemetry/api/build/src/api/context.js
+var require_context2 = __commonJS((exports) => {
+  Object.defineProperty(exports, "__esModule", { value: true });
+  exports.ContextAPI = undefined;
+  var NoopContextManager_1 = require_NoopContextManager();
+  var global_utils_1 = require_global_utils();
+  var diag_1 = require_diag();
+  var API_NAME = "context";
+  var NOOP_CONTEXT_MANAGER = new NoopContextManager_1.NoopContextManager;
+
+  class ContextAPI {
+    constructor() {}
+    static getInstance() {
+      if (!this._instance) {
+        this._instance = new ContextAPI;
+      }
+      return this._instance;
+    }
+    setGlobalContextManager(contextManager) {
+      return (0, global_utils_1.registerGlobal)(API_NAME, contextManager, diag_1.DiagAPI.instance());
+    }
+    active() {
+      return this._getContextManager().active();
+    }
+    with(context, fn, thisArg, ...args) {
+      return this._getContextManager().with(context, fn, thisArg, ...args);
+    }
+    bind(context, target) {
+      return this._getContextManager().bind(context, target);
+    }
+    _getContextManager() {
+      return (0, global_utils_1.getGlobal)(API_NAME) || NOOP_CONTEXT_MANAGER;
+    }
+    disable() {
+      this._getContextManager().disable();
+      (0, global_utils_1.unregisterGlobal)(API_NAME, diag_1.DiagAPI.instance());
+    }
+  }
+  exports.ContextAPI = ContextAPI;
+});
+
+// node_modules/@opentelemetry/api/build/src/trace/trace_flags.js
+var require_trace_flags = __commonJS((exports) => {
+  Object.defineProperty(exports, "__esModule", { value: true });
+  exports.TraceFlags = undefined;
+  var TraceFlags;
+  (function(TraceFlags2) {
+    TraceFlags2[TraceFlags2["NONE"] = 0] = "NONE";
+    TraceFlags2[TraceFlags2["SAMPLED"] = 1] = "SAMPLED";
+  })(TraceFlags = exports.TraceFlags || (exports.TraceFlags = {}));
+});
+
+// node_modules/@opentelemetry/api/build/src/trace/invalid-span-constants.js
+var require_invalid_span_constants = __commonJS((exports) => {
+  Object.defineProperty(exports, "__esModule", { value: true });
+  exports.INVALID_SPAN_CONTEXT = exports.INVALID_TRACEID = exports.INVALID_SPANID = undefined;
+  var trace_flags_1 = require_trace_flags();
+  exports.INVALID_SPANID = "0000000000000000";
+  exports.INVALID_TRACEID = "00000000000000000000000000000000";
+  exports.INVALID_SPAN_CONTEXT = {
+    traceId: exports.INVALID_TRACEID,
+    spanId: exports.INVALID_SPANID,
+    traceFlags: trace_flags_1.TraceFlags.NONE
+  };
+});
+
+// node_modules/@opentelemetry/api/build/src/trace/NonRecordingSpan.js
+var require_NonRecordingSpan = __commonJS((exports) => {
+  Object.defineProperty(exports, "__esModule", { value: true });
+  exports.NonRecordingSpan = undefined;
+  var invalid_span_constants_1 = require_invalid_span_constants();
+
+  class NonRecordingSpan {
+    constructor(spanContext = invalid_span_constants_1.INVALID_SPAN_CONTEXT) {
+      this._spanContext = spanContext;
+    }
+    spanContext() {
+      return this._spanContext;
+    }
+    setAttribute(_key, _value) {
+      return this;
+    }
+    setAttributes(_attributes) {
+      return this;
+    }
+    addEvent(_name, _attributes) {
+      return this;
+    }
+    addLink(_link) {
+      return this;
+    }
+    addLinks(_links) {
+      return this;
+    }
+    setStatus(_status) {
+      return this;
+    }
+    updateName(_name) {
+      return this;
+    }
+    end(_endTime) {}
+    isRecording() {
+      return false;
+    }
+    recordException(_exception, _time) {}
+  }
+  exports.NonRecordingSpan = NonRecordingSpan;
+});
+
+// node_modules/@opentelemetry/api/build/src/trace/context-utils.js
+var require_context_utils = __commonJS((exports) => {
+  Object.defineProperty(exports, "__esModule", { value: true });
+  exports.getSpanContext = exports.setSpanContext = exports.deleteSpan = exports.setSpan = exports.getActiveSpan = exports.getSpan = undefined;
+  var context_1 = require_context();
+  var NonRecordingSpan_1 = require_NonRecordingSpan();
+  var context_2 = require_context2();
+  var SPAN_KEY = (0, context_1.createContextKey)("OpenTelemetry Context Key SPAN");
+  function getSpan(context) {
+    return context.getValue(SPAN_KEY) || undefined;
+  }
+  exports.getSpan = getSpan;
+  function getActiveSpan() {
+    return getSpan(context_2.ContextAPI.getInstance().active());
+  }
+  exports.getActiveSpan = getActiveSpan;
+  function setSpan(context, span) {
+    return context.setValue(SPAN_KEY, span);
+  }
+  exports.setSpan = setSpan;
+  function deleteSpan(context) {
+    return context.deleteValue(SPAN_KEY);
+  }
+  exports.deleteSpan = deleteSpan;
+  function setSpanContext(context, spanContext) {
+    return setSpan(context, new NonRecordingSpan_1.NonRecordingSpan(spanContext));
+  }
+  exports.setSpanContext = setSpanContext;
+  function getSpanContext(context) {
+    var _a;
+    return (_a = getSpan(context)) === null || _a === undefined ? undefined : _a.spanContext();
+  }
+  exports.getSpanContext = getSpanContext;
+});
+
+// node_modules/@opentelemetry/api/build/src/trace/spancontext-utils.js
+var require_spancontext_utils = __commonJS((exports) => {
+  Object.defineProperty(exports, "__esModule", { value: true });
+  exports.wrapSpanContext = exports.isSpanContextValid = exports.isValidSpanId = exports.isValidTraceId = undefined;
+  var invalid_span_constants_1 = require_invalid_span_constants();
+  var NonRecordingSpan_1 = require_NonRecordingSpan();
+  var isHex = new Uint8Array([
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1
+  ]);
+  function isValidHex(id, length) {
+    if (typeof id !== "string" || id.length !== length)
+      return false;
+    let r = 0;
+    for (let i = 0;i < id.length; i += 4) {
+      r += (isHex[id.charCodeAt(i)] | 0) + (isHex[id.charCodeAt(i + 1)] | 0) + (isHex[id.charCodeAt(i + 2)] | 0) + (isHex[id.charCodeAt(i + 3)] | 0);
+    }
+    return r === length;
+  }
+  function isValidTraceId(traceId) {
+    return isValidHex(traceId, 32) && traceId !== invalid_span_constants_1.INVALID_TRACEID;
+  }
+  exports.isValidTraceId = isValidTraceId;
+  function isValidSpanId(spanId) {
+    return isValidHex(spanId, 16) && spanId !== invalid_span_constants_1.INVALID_SPANID;
+  }
+  exports.isValidSpanId = isValidSpanId;
+  function isSpanContextValid(spanContext) {
+    return isValidTraceId(spanContext.traceId) && isValidSpanId(spanContext.spanId);
+  }
+  exports.isSpanContextValid = isSpanContextValid;
+  function wrapSpanContext(spanContext) {
+    return new NonRecordingSpan_1.NonRecordingSpan(spanContext);
+  }
+  exports.wrapSpanContext = wrapSpanContext;
+});
+
+// node_modules/@opentelemetry/api/build/src/trace/NoopTracer.js
+var require_NoopTracer = __commonJS((exports) => {
+  Object.defineProperty(exports, "__esModule", { value: true });
+  exports.NoopTracer = undefined;
+  var context_1 = require_context2();
+  var context_utils_1 = require_context_utils();
+  var NonRecordingSpan_1 = require_NonRecordingSpan();
+  var spancontext_utils_1 = require_spancontext_utils();
+  var contextApi = context_1.ContextAPI.getInstance();
+
+  class NoopTracer {
+    startSpan(name, options, context = contextApi.active()) {
+      const root = Boolean(options === null || options === undefined ? undefined : options.root);
+      if (root) {
+        return new NonRecordingSpan_1.NonRecordingSpan;
+      }
+      const parentFromContext = context && (0, context_utils_1.getSpanContext)(context);
+      if (isSpanContext(parentFromContext) && (0, spancontext_utils_1.isSpanContextValid)(parentFromContext)) {
+        return new NonRecordingSpan_1.NonRecordingSpan(parentFromContext);
+      } else {
+        return new NonRecordingSpan_1.NonRecordingSpan;
+      }
+    }
+    startActiveSpan(name, arg2, arg3, arg4) {
+      let opts;
+      let ctx;
+      let fn;
+      if (arguments.length < 2) {
+        return;
+      } else if (arguments.length === 2) {
+        fn = arg2;
+      } else if (arguments.length === 3) {
+        opts = arg2;
+        fn = arg3;
+      } else {
+        opts = arg2;
+        ctx = arg3;
+        fn = arg4;
+      }
+      const parentContext = ctx !== null && ctx !== undefined ? ctx : contextApi.active();
+      const span = this.startSpan(name, opts, parentContext);
+      const contextWithSpanSet = (0, context_utils_1.setSpan)(parentContext, span);
+      return contextApi.with(contextWithSpanSet, fn, undefined, span);
+    }
+  }
+  exports.NoopTracer = NoopTracer;
+  function isSpanContext(spanContext) {
+    return spanContext !== null && typeof spanContext === "object" && "spanId" in spanContext && typeof spanContext["spanId"] === "string" && "traceId" in spanContext && typeof spanContext["traceId"] === "string" && "traceFlags" in spanContext && typeof spanContext["traceFlags"] === "number";
+  }
+});
+
+// node_modules/@opentelemetry/api/build/src/trace/ProxyTracer.js
+var require_ProxyTracer = __commonJS((exports) => {
+  Object.defineProperty(exports, "__esModule", { value: true });
+  exports.ProxyTracer = undefined;
+  var NoopTracer_1 = require_NoopTracer();
+  var NOOP_TRACER = new NoopTracer_1.NoopTracer;
+
+  class ProxyTracer {
+    constructor(provider, name, version, options) {
+      this._provider = provider;
+      this.name = name;
+      this.version = version;
+      this.options = options;
+    }
+    startSpan(name, options, context) {
+      return this._getTracer().startSpan(name, options, context);
+    }
+    startActiveSpan(_name, _options, _context, _fn) {
+      const tracer = this._getTracer();
+      return Reflect.apply(tracer.startActiveSpan, tracer, arguments);
+    }
+    _getTracer() {
+      if (this._delegate) {
+        return this._delegate;
+      }
+      const tracer = this._provider.getDelegateTracer(this.name, this.version, this.options);
+      if (!tracer) {
+        return NOOP_TRACER;
+      }
+      this._delegate = tracer;
+      return this._delegate;
+    }
+  }
+  exports.ProxyTracer = ProxyTracer;
+});
+
+// node_modules/@opentelemetry/api/build/src/trace/NoopTracerProvider.js
+var require_NoopTracerProvider = __commonJS((exports) => {
+  Object.defineProperty(exports, "__esModule", { value: true });
+  exports.NoopTracerProvider = undefined;
+  var NoopTracer_1 = require_NoopTracer();
+
+  class NoopTracerProvider {
+    getTracer(_name, _version, _options) {
+      return new NoopTracer_1.NoopTracer;
+    }
+  }
+  exports.NoopTracerProvider = NoopTracerProvider;
+});
+
+// node_modules/@opentelemetry/api/build/src/trace/ProxyTracerProvider.js
+var require_ProxyTracerProvider = __commonJS((exports) => {
+  Object.defineProperty(exports, "__esModule", { value: true });
+  exports.ProxyTracerProvider = undefined;
+  var ProxyTracer_1 = require_ProxyTracer();
+  var NoopTracerProvider_1 = require_NoopTracerProvider();
+  var NOOP_TRACER_PROVIDER = new NoopTracerProvider_1.NoopTracerProvider;
+
+  class ProxyTracerProvider {
+    getTracer(name, version, options) {
+      var _a;
+      return (_a = this.getDelegateTracer(name, version, options)) !== null && _a !== undefined ? _a : new ProxyTracer_1.ProxyTracer(this, name, version, options);
+    }
+    getDelegate() {
+      var _a;
+      return (_a = this._delegate) !== null && _a !== undefined ? _a : NOOP_TRACER_PROVIDER;
+    }
+    setDelegate(delegate) {
+      this._delegate = delegate;
+    }
+    getDelegateTracer(name, version, options) {
+      var _a;
+      return (_a = this._delegate) === null || _a === undefined ? undefined : _a.getTracer(name, version, options);
+    }
+  }
+  exports.ProxyTracerProvider = ProxyTracerProvider;
+});
+
+// node_modules/@opentelemetry/api/build/src/trace/SamplingResult.js
+var require_SamplingResult = __commonJS((exports) => {
+  Object.defineProperty(exports, "__esModule", { value: true });
+  exports.SamplingDecision = undefined;
+  var SamplingDecision;
+  (function(SamplingDecision2) {
+    SamplingDecision2[SamplingDecision2["NOT_RECORD"] = 0] = "NOT_RECORD";
+    SamplingDecision2[SamplingDecision2["RECORD"] = 1] = "RECORD";
+    SamplingDecision2[SamplingDecision2["RECORD_AND_SAMPLED"] = 2] = "RECORD_AND_SAMPLED";
+  })(SamplingDecision = exports.SamplingDecision || (exports.SamplingDecision = {}));
+});
+
+// node_modules/@opentelemetry/api/build/src/trace/span_kind.js
+var require_span_kind = __commonJS((exports) => {
+  Object.defineProperty(exports, "__esModule", { value: true });
+  exports.SpanKind = undefined;
+  var SpanKind;
+  (function(SpanKind2) {
+    SpanKind2[SpanKind2["INTERNAL"] = 0] = "INTERNAL";
+    SpanKind2[SpanKind2["SERVER"] = 1] = "SERVER";
+    SpanKind2[SpanKind2["CLIENT"] = 2] = "CLIENT";
+    SpanKind2[SpanKind2["PRODUCER"] = 3] = "PRODUCER";
+    SpanKind2[SpanKind2["CONSUMER"] = 4] = "CONSUMER";
+  })(SpanKind = exports.SpanKind || (exports.SpanKind = {}));
+});
+
+// node_modules/@opentelemetry/api/build/src/trace/status.js
+var require_status = __commonJS((exports) => {
+  Object.defineProperty(exports, "__esModule", { value: true });
+  exports.SpanStatusCode = undefined;
+  var SpanStatusCode;
+  (function(SpanStatusCode2) {
+    SpanStatusCode2[SpanStatusCode2["UNSET"] = 0] = "UNSET";
+    SpanStatusCode2[SpanStatusCode2["OK"] = 1] = "OK";
+    SpanStatusCode2[SpanStatusCode2["ERROR"] = 2] = "ERROR";
+  })(SpanStatusCode = exports.SpanStatusCode || (exports.SpanStatusCode = {}));
+});
+
+// node_modules/@opentelemetry/api/build/src/trace/internal/tracestate-validators.js
+var require_tracestate_validators = __commonJS((exports) => {
+  Object.defineProperty(exports, "__esModule", { value: true });
+  exports.validateValue = exports.validateKey = undefined;
+  var VALID_KEY_CHAR_RANGE = "[_0-9a-z-*/]";
+  var VALID_KEY = `[a-z]${VALID_KEY_CHAR_RANGE}{0,255}`;
+  var VALID_VENDOR_KEY = `[a-z0-9]${VALID_KEY_CHAR_RANGE}{0,240}@[a-z]${VALID_KEY_CHAR_RANGE}{0,13}`;
+  var VALID_KEY_REGEX = new RegExp(`^(?:${VALID_KEY}|${VALID_VENDOR_KEY})$`);
+  var VALID_VALUE_BASE_REGEX = /^[ -~]{0,255}[!-~]$/;
+  var INVALID_VALUE_COMMA_EQUAL_REGEX = /,|=/;
+  function validateKey(key) {
+    return VALID_KEY_REGEX.test(key);
+  }
+  exports.validateKey = validateKey;
+  function validateValue(value) {
+    return VALID_VALUE_BASE_REGEX.test(value) && !INVALID_VALUE_COMMA_EQUAL_REGEX.test(value);
+  }
+  exports.validateValue = validateValue;
+});
+
+// node_modules/@opentelemetry/api/build/src/trace/internal/tracestate-impl.js
+var require_tracestate_impl = __commonJS((exports) => {
+  Object.defineProperty(exports, "__esModule", { value: true });
+  exports.TraceStateImpl = undefined;
+  var tracestate_validators_1 = require_tracestate_validators();
+  var MAX_TRACE_STATE_ITEMS = 32;
+  var MAX_TRACE_STATE_LEN = 512;
+  var LIST_MEMBERS_SEPARATOR = ",";
+  var LIST_MEMBER_KEY_VALUE_SPLITTER = "=";
+
+  class TraceStateImpl {
+    constructor(rawTraceState) {
+      this._internalState = new Map;
+      if (rawTraceState)
+        this._parse(rawTraceState);
+    }
+    set(key, value) {
+      const traceState = this._clone();
+      if (traceState._internalState.has(key)) {
+        traceState._internalState.delete(key);
+      }
+      traceState._internalState.set(key, value);
+      return traceState;
+    }
+    unset(key) {
+      const traceState = this._clone();
+      traceState._internalState.delete(key);
+      return traceState;
+    }
+    get(key) {
+      return this._internalState.get(key);
+    }
+    serialize() {
+      return Array.from(this._internalState.keys()).reduceRight((agg, key) => {
+        agg.push(key + LIST_MEMBER_KEY_VALUE_SPLITTER + this.get(key));
+        return agg;
+      }, []).join(LIST_MEMBERS_SEPARATOR);
+    }
+    _parse(rawTraceState) {
+      if (rawTraceState.length > MAX_TRACE_STATE_LEN)
+        return;
+      this._internalState = rawTraceState.split(LIST_MEMBERS_SEPARATOR).reduceRight((agg, part) => {
+        const listMember = part.trim();
+        const i = listMember.indexOf(LIST_MEMBER_KEY_VALUE_SPLITTER);
+        if (i !== -1) {
+          const key = listMember.slice(0, i);
+          const value = listMember.slice(i + 1, part.length);
+          if ((0, tracestate_validators_1.validateKey)(key) && (0, tracestate_validators_1.validateValue)(value)) {
+            agg.set(key, value);
+          }
+        }
+        return agg;
+      }, new Map);
+      if (this._internalState.size > MAX_TRACE_STATE_ITEMS) {
+        this._internalState = new Map(Array.from(this._internalState.entries()).reverse().slice(0, MAX_TRACE_STATE_ITEMS));
+      }
+    }
+    _keys() {
+      return Array.from(this._internalState.keys()).reverse();
+    }
+    _clone() {
+      const traceState = new TraceStateImpl;
+      traceState._internalState = new Map(this._internalState);
+      return traceState;
+    }
+  }
+  exports.TraceStateImpl = TraceStateImpl;
+});
+
+// node_modules/@opentelemetry/api/build/src/trace/internal/utils.js
+var require_utils2 = __commonJS((exports) => {
+  Object.defineProperty(exports, "__esModule", { value: true });
+  exports.createTraceState = undefined;
+  var tracestate_impl_1 = require_tracestate_impl();
+  function createTraceState(rawTraceState) {
+    return new tracestate_impl_1.TraceStateImpl(rawTraceState);
+  }
+  exports.createTraceState = createTraceState;
+});
+
+// node_modules/@opentelemetry/api/build/src/context-api.js
+var require_context_api = __commonJS((exports) => {
+  Object.defineProperty(exports, "__esModule", { value: true });
+  exports.context = undefined;
+  var context_1 = require_context2();
+  exports.context = context_1.ContextAPI.getInstance();
+});
+
+// node_modules/@opentelemetry/api/build/src/diag-api.js
+var require_diag_api = __commonJS((exports) => {
+  Object.defineProperty(exports, "__esModule", { value: true });
+  exports.diag = undefined;
+  var diag_1 = require_diag();
+  exports.diag = diag_1.DiagAPI.instance();
+});
+
+// node_modules/@opentelemetry/api/build/src/metrics/NoopMeterProvider.js
+var require_NoopMeterProvider = __commonJS((exports) => {
+  Object.defineProperty(exports, "__esModule", { value: true });
+  exports.NOOP_METER_PROVIDER = exports.NoopMeterProvider = undefined;
+  var NoopMeter_1 = require_NoopMeter();
+
+  class NoopMeterProvider {
+    getMeter(_name, _version, _options) {
+      return NoopMeter_1.NOOP_METER;
+    }
+  }
+  exports.NoopMeterProvider = NoopMeterProvider;
+  exports.NOOP_METER_PROVIDER = new NoopMeterProvider;
+});
+
+// node_modules/@opentelemetry/api/build/src/api/metrics.js
+var require_metrics = __commonJS((exports) => {
+  Object.defineProperty(exports, "__esModule", { value: true });
+  exports.MetricsAPI = undefined;
+  var NoopMeterProvider_1 = require_NoopMeterProvider();
+  var global_utils_1 = require_global_utils();
+  var diag_1 = require_diag();
+  var API_NAME = "metrics";
+
+  class MetricsAPI {
+    constructor() {}
+    static getInstance() {
+      if (!this._instance) {
+        this._instance = new MetricsAPI;
+      }
+      return this._instance;
+    }
+    setGlobalMeterProvider(provider) {
+      return (0, global_utils_1.registerGlobal)(API_NAME, provider, diag_1.DiagAPI.instance());
+    }
+    getMeterProvider() {
+      return (0, global_utils_1.getGlobal)(API_NAME) || NoopMeterProvider_1.NOOP_METER_PROVIDER;
+    }
+    getMeter(name, version, options) {
+      return this.getMeterProvider().getMeter(name, version, options);
+    }
+    disable() {
+      (0, global_utils_1.unregisterGlobal)(API_NAME, diag_1.DiagAPI.instance());
+    }
+  }
+  exports.MetricsAPI = MetricsAPI;
+});
+
+// node_modules/@opentelemetry/api/build/src/metrics-api.js
+var require_metrics_api = __commonJS((exports) => {
+  Object.defineProperty(exports, "__esModule", { value: true });
+  exports.metrics = undefined;
+  var metrics_1 = require_metrics();
+  exports.metrics = metrics_1.MetricsAPI.getInstance();
+});
+
+// node_modules/@opentelemetry/api/build/src/propagation/NoopTextMapPropagator.js
+var require_NoopTextMapPropagator = __commonJS((exports) => {
+  Object.defineProperty(exports, "__esModule", { value: true });
+  exports.NoopTextMapPropagator = undefined;
+
+  class NoopTextMapPropagator {
+    inject(_context, _carrier) {}
+    extract(context, _carrier) {
+      return context;
+    }
+    fields() {
+      return [];
+    }
+  }
+  exports.NoopTextMapPropagator = NoopTextMapPropagator;
+});
+
+// node_modules/@opentelemetry/api/build/src/baggage/context-helpers.js
+var require_context_helpers = __commonJS((exports) => {
+  Object.defineProperty(exports, "__esModule", { value: true });
+  exports.deleteBaggage = exports.setBaggage = exports.getActiveBaggage = exports.getBaggage = undefined;
+  var context_1 = require_context2();
+  var context_2 = require_context();
+  var BAGGAGE_KEY = (0, context_2.createContextKey)("OpenTelemetry Baggage Key");
+  function getBaggage(context) {
+    return context.getValue(BAGGAGE_KEY) || undefined;
+  }
+  exports.getBaggage = getBaggage;
+  function getActiveBaggage() {
+    return getBaggage(context_1.ContextAPI.getInstance().active());
+  }
+  exports.getActiveBaggage = getActiveBaggage;
+  function setBaggage(context, baggage) {
+    return context.setValue(BAGGAGE_KEY, baggage);
+  }
+  exports.setBaggage = setBaggage;
+  function deleteBaggage(context) {
+    return context.deleteValue(BAGGAGE_KEY);
+  }
+  exports.deleteBaggage = deleteBaggage;
+});
+
+// node_modules/@opentelemetry/api/build/src/api/propagation.js
+var require_propagation = __commonJS((exports) => {
+  Object.defineProperty(exports, "__esModule", { value: true });
+  exports.PropagationAPI = undefined;
+  var global_utils_1 = require_global_utils();
+  var NoopTextMapPropagator_1 = require_NoopTextMapPropagator();
+  var TextMapPropagator_1 = require_TextMapPropagator();
+  var context_helpers_1 = require_context_helpers();
+  var utils_1 = require_utils();
+  var diag_1 = require_diag();
+  var API_NAME = "propagation";
+  var NOOP_TEXT_MAP_PROPAGATOR = new NoopTextMapPropagator_1.NoopTextMapPropagator;
+
+  class PropagationAPI {
+    constructor() {
+      this.createBaggage = utils_1.createBaggage;
+      this.getBaggage = context_helpers_1.getBaggage;
+      this.getActiveBaggage = context_helpers_1.getActiveBaggage;
+      this.setBaggage = context_helpers_1.setBaggage;
+      this.deleteBaggage = context_helpers_1.deleteBaggage;
+    }
+    static getInstance() {
+      if (!this._instance) {
+        this._instance = new PropagationAPI;
+      }
+      return this._instance;
+    }
+    setGlobalPropagator(propagator) {
+      return (0, global_utils_1.registerGlobal)(API_NAME, propagator, diag_1.DiagAPI.instance());
+    }
+    inject(context, carrier, setter = TextMapPropagator_1.defaultTextMapSetter) {
+      return this._getGlobalPropagator().inject(context, carrier, setter);
+    }
+    extract(context, carrier, getter = TextMapPropagator_1.defaultTextMapGetter) {
+      return this._getGlobalPropagator().extract(context, carrier, getter);
+    }
+    fields() {
+      return this._getGlobalPropagator().fields();
+    }
+    disable() {
+      (0, global_utils_1.unregisterGlobal)(API_NAME, diag_1.DiagAPI.instance());
+    }
+    _getGlobalPropagator() {
+      return (0, global_utils_1.getGlobal)(API_NAME) || NOOP_TEXT_MAP_PROPAGATOR;
+    }
+  }
+  exports.PropagationAPI = PropagationAPI;
+});
+
+// node_modules/@opentelemetry/api/build/src/propagation-api.js
+var require_propagation_api = __commonJS((exports) => {
+  Object.defineProperty(exports, "__esModule", { value: true });
+  exports.propagation = undefined;
+  var propagation_1 = require_propagation();
+  exports.propagation = propagation_1.PropagationAPI.getInstance();
+});
+
+// node_modules/@opentelemetry/api/build/src/api/trace.js
+var require_trace = __commonJS((exports) => {
+  Object.defineProperty(exports, "__esModule", { value: true });
+  exports.TraceAPI = undefined;
+  var global_utils_1 = require_global_utils();
+  var ProxyTracerProvider_1 = require_ProxyTracerProvider();
+  var spancontext_utils_1 = require_spancontext_utils();
+  var context_utils_1 = require_context_utils();
+  var diag_1 = require_diag();
+  var API_NAME = "trace";
+
+  class TraceAPI {
+    constructor() {
+      this._proxyTracerProvider = new ProxyTracerProvider_1.ProxyTracerProvider;
+      this.wrapSpanContext = spancontext_utils_1.wrapSpanContext;
+      this.isSpanContextValid = spancontext_utils_1.isSpanContextValid;
+      this.deleteSpan = context_utils_1.deleteSpan;
+      this.getSpan = context_utils_1.getSpan;
+      this.getActiveSpan = context_utils_1.getActiveSpan;
+      this.getSpanContext = context_utils_1.getSpanContext;
+      this.setSpan = context_utils_1.setSpan;
+      this.setSpanContext = context_utils_1.setSpanContext;
+    }
+    static getInstance() {
+      if (!this._instance) {
+        this._instance = new TraceAPI;
+      }
+      return this._instance;
+    }
+    setGlobalTracerProvider(provider) {
+      const success = (0, global_utils_1.registerGlobal)(API_NAME, this._proxyTracerProvider, diag_1.DiagAPI.instance());
+      if (success) {
+        this._proxyTracerProvider.setDelegate(provider);
+      }
+      return success;
+    }
+    getTracerProvider() {
+      return (0, global_utils_1.getGlobal)(API_NAME) || this._proxyTracerProvider;
+    }
+    getTracer(name, version) {
+      return this.getTracerProvider().getTracer(name, version);
+    }
+    disable() {
+      (0, global_utils_1.unregisterGlobal)(API_NAME, diag_1.DiagAPI.instance());
+      this._proxyTracerProvider = new ProxyTracerProvider_1.ProxyTracerProvider;
+    }
+  }
+  exports.TraceAPI = TraceAPI;
+});
+
+// node_modules/@opentelemetry/api/build/src/trace-api.js
+var require_trace_api = __commonJS((exports) => {
+  Object.defineProperty(exports, "__esModule", { value: true });
+  exports.trace = undefined;
+  var trace_1 = require_trace();
+  exports.trace = trace_1.TraceAPI.getInstance();
+});
+
+// node_modules/@opentelemetry/api/build/src/index.js
+var require_src = __commonJS((exports) => {
+  Object.defineProperty(exports, "__esModule", { value: true });
+  exports.trace = exports.propagation = exports.metrics = exports.diag = exports.context = exports.INVALID_SPAN_CONTEXT = exports.INVALID_TRACEID = exports.INVALID_SPANID = exports.isValidSpanId = exports.isValidTraceId = exports.isSpanContextValid = exports.createTraceState = exports.TraceFlags = exports.SpanStatusCode = exports.SpanKind = exports.SamplingDecision = exports.ProxyTracerProvider = exports.ProxyTracer = exports.defaultTextMapSetter = exports.defaultTextMapGetter = exports.ValueType = exports.createNoopMeter = exports.DiagLogLevel = exports.DiagConsoleLogger = exports.ROOT_CONTEXT = exports.createContextKey = exports.baggageEntryMetadataFromString = undefined;
+  var utils_1 = require_utils();
+  Object.defineProperty(exports, "baggageEntryMetadataFromString", { enumerable: true, get: function() {
+    return utils_1.baggageEntryMetadataFromString;
+  } });
+  var context_1 = require_context();
+  Object.defineProperty(exports, "createContextKey", { enumerable: true, get: function() {
+    return context_1.createContextKey;
+  } });
+  Object.defineProperty(exports, "ROOT_CONTEXT", { enumerable: true, get: function() {
+    return context_1.ROOT_CONTEXT;
+  } });
+  var consoleLogger_1 = require_consoleLogger();
+  Object.defineProperty(exports, "DiagConsoleLogger", { enumerable: true, get: function() {
+    return consoleLogger_1.DiagConsoleLogger;
+  } });
+  var types_1 = require_types();
+  Object.defineProperty(exports, "DiagLogLevel", { enumerable: true, get: function() {
+    return types_1.DiagLogLevel;
+  } });
+  var NoopMeter_1 = require_NoopMeter();
+  Object.defineProperty(exports, "createNoopMeter", { enumerable: true, get: function() {
+    return NoopMeter_1.createNoopMeter;
+  } });
+  var Metric_1 = require_Metric();
+  Object.defineProperty(exports, "ValueType", { enumerable: true, get: function() {
+    return Metric_1.ValueType;
+  } });
+  var TextMapPropagator_1 = require_TextMapPropagator();
+  Object.defineProperty(exports, "defaultTextMapGetter", { enumerable: true, get: function() {
+    return TextMapPropagator_1.defaultTextMapGetter;
+  } });
+  Object.defineProperty(exports, "defaultTextMapSetter", { enumerable: true, get: function() {
+    return TextMapPropagator_1.defaultTextMapSetter;
+  } });
+  var ProxyTracer_1 = require_ProxyTracer();
+  Object.defineProperty(exports, "ProxyTracer", { enumerable: true, get: function() {
+    return ProxyTracer_1.ProxyTracer;
+  } });
+  var ProxyTracerProvider_1 = require_ProxyTracerProvider();
+  Object.defineProperty(exports, "ProxyTracerProvider", { enumerable: true, get: function() {
+    return ProxyTracerProvider_1.ProxyTracerProvider;
+  } });
+  var SamplingResult_1 = require_SamplingResult();
+  Object.defineProperty(exports, "SamplingDecision", { enumerable: true, get: function() {
+    return SamplingResult_1.SamplingDecision;
+  } });
+  var span_kind_1 = require_span_kind();
+  Object.defineProperty(exports, "SpanKind", { enumerable: true, get: function() {
+    return span_kind_1.SpanKind;
+  } });
+  var status_1 = require_status();
+  Object.defineProperty(exports, "SpanStatusCode", { enumerable: true, get: function() {
+    return status_1.SpanStatusCode;
+  } });
+  var trace_flags_1 = require_trace_flags();
+  Object.defineProperty(exports, "TraceFlags", { enumerable: true, get: function() {
+    return trace_flags_1.TraceFlags;
+  } });
+  var utils_2 = require_utils2();
+  Object.defineProperty(exports, "createTraceState", { enumerable: true, get: function() {
+    return utils_2.createTraceState;
+  } });
+  var spancontext_utils_1 = require_spancontext_utils();
+  Object.defineProperty(exports, "isSpanContextValid", { enumerable: true, get: function() {
+    return spancontext_utils_1.isSpanContextValid;
+  } });
+  Object.defineProperty(exports, "isValidTraceId", { enumerable: true, get: function() {
+    return spancontext_utils_1.isValidTraceId;
+  } });
+  Object.defineProperty(exports, "isValidSpanId", { enumerable: true, get: function() {
+    return spancontext_utils_1.isValidSpanId;
+  } });
+  var invalid_span_constants_1 = require_invalid_span_constants();
+  Object.defineProperty(exports, "INVALID_SPANID", { enumerable: true, get: function() {
+    return invalid_span_constants_1.INVALID_SPANID;
+  } });
+  Object.defineProperty(exports, "INVALID_TRACEID", { enumerable: true, get: function() {
+    return invalid_span_constants_1.INVALID_TRACEID;
+  } });
+  Object.defineProperty(exports, "INVALID_SPAN_CONTEXT", { enumerable: true, get: function() {
+    return invalid_span_constants_1.INVALID_SPAN_CONTEXT;
+  } });
+  var context_api_1 = require_context_api();
+  Object.defineProperty(exports, "context", { enumerable: true, get: function() {
+    return context_api_1.context;
+  } });
+  var diag_api_1 = require_diag_api();
+  Object.defineProperty(exports, "diag", { enumerable: true, get: function() {
+    return diag_api_1.diag;
+  } });
+  var metrics_api_1 = require_metrics_api();
+  Object.defineProperty(exports, "metrics", { enumerable: true, get: function() {
+    return metrics_api_1.metrics;
+  } });
+  var propagation_api_1 = require_propagation_api();
+  Object.defineProperty(exports, "propagation", { enumerable: true, get: function() {
+    return propagation_api_1.propagation;
+  } });
+  var trace_api_1 = require_trace_api();
+  Object.defineProperty(exports, "trace", { enumerable: true, get: function() {
+    return trace_api_1.trace;
+  } });
+  exports.default = {
+    context: context_api_1.context,
+    diag: diag_api_1.diag,
+    metrics: metrics_api_1.metrics,
+    propagation: propagation_api_1.propagation,
+    trace: trace_api_1.trace
+  };
+});
+
+// src/session/node_modules/node-fetch/node_modules/data-uri-to-buffer/dist/index.js
 function dataUriToBuffer(uri) {
   if (!/^data:/i.test(uri)) {
     throw new TypeError('`uri` does not appear to be a Data URI (must begin with "data:")');
@@ -16490,7 +17146,7 @@ var init_dist = __esm(() => {
   dist_default = dataUriToBuffer;
 });
 
-// node_modules/web-streams-polyfill/dist/ponyfill.es2018.js
+// src/session/node_modules/node-fetch/node_modules/fetch-blob/node_modules/web-streams-polyfill/dist/ponyfill.es2018.js
 var require_ponyfill_es2018 = __commonJS((exports, module) => {
   (function(global2, factory) {
     typeof exports === "object" && typeof module !== "undefined" ? factory(exports) : typeof define === "function" && define.amd ? define(["exports"], factory) : (global2 = typeof globalThis !== "undefined" ? globalThis : global2 || self, factory(global2.WebStreamsPolyfill = {}));
@@ -18916,7 +19572,7 @@ var require_ponyfill_es2018 = __commonJS((exports, module) => {
       return isDOMExceptionConstructor(ctor) ? ctor : undefined;
     }
     function createPolyfill() {
-      const ctor = function DOMException(message, name) {
+      const ctor = function DOMException3(message, name) {
         this.message = message || "";
         this.name = name || "Error";
         if (Error.captureStackTrace) {
@@ -20553,7 +21209,7 @@ var require_ponyfill_es2018 = __commonJS((exports, module) => {
   });
 });
 
-// node_modules/fetch-blob/streams.cjs
+// src/session/node_modules/node-fetch/node_modules/fetch-blob/streams.cjs
 var require_streams = __commonJS(() => {
   var POOL_SIZE = 65536;
   if (!globalThis.ReadableStream) {
@@ -20595,7 +21251,7 @@ var require_streams = __commonJS(() => {
   } catch (error) {}
 });
 
-// node_modules/fetch-blob/index.js
+// src/session/node_modules/node-fetch/node_modules/fetch-blob/index.js
 async function* toIterator(parts, clone = true) {
   for (const part of parts) {
     if ("stream" in part) {
@@ -20752,7 +21408,7 @@ var init_fetch_blob = __esm(() => {
   fetch_blob_default = Blob2;
 });
 
-// node_modules/fetch-blob/file.js
+// src/session/node_modules/node-fetch/node_modules/fetch-blob/file.js
 var _File, File2, file_default;
 var init_file = __esm(() => {
   init_fetch_blob();
@@ -20789,7 +21445,7 @@ var init_file = __esm(() => {
   file_default = File2;
 });
 
-// node_modules/formdata-polyfill/esm.min.js
+// src/session/node_modules/node-fetch/node_modules/formdata-polyfill/esm.min.js
 function formDataToBlob(F, B = fetch_blob_default) {
   var b = `${r()}${r()}`.replace(/\./g, "").slice(-28).padStart(32, "-"), c = [], p = `--${b}\r
 Content-Disposition: form-data; name="`;
@@ -20891,7 +21547,7 @@ var init_esm_min = __esm(() => {
   };
 });
 
-// node_modules/node-fetch/src/errors/base.js
+// src/session/node_modules/node-fetch/src/errors/base.js
 var FetchBaseError;
 var init_base = __esm(() => {
   FetchBaseError = class FetchBaseError extends Error {
@@ -20909,7 +21565,7 @@ var init_base = __esm(() => {
   };
 });
 
-// node_modules/node-fetch/src/errors/fetch-error.js
+// src/session/node_modules/node-fetch/src/errors/fetch-error.js
 var FetchError;
 var init_fetch_error = __esm(() => {
   init_base();
@@ -20924,7 +21580,7 @@ var init_fetch_error = __esm(() => {
   };
 });
 
-// node_modules/node-fetch/src/utils/is.js
+// src/session/node_modules/node-fetch/src/utils/is.js
 var NAME, isURLSearchParameters = (object) => {
   return typeof object === "object" && typeof object.append === "function" && typeof object.delete === "function" && typeof object.get === "function" && typeof object.getAll === "function" && typeof object.has === "function" && typeof object.set === "function" && typeof object.sort === "function" && object[NAME] === "URLSearchParams";
 }, isBlob = (object) => {
@@ -20944,7 +21600,7 @@ var init_is = __esm(() => {
   NAME = Symbol.toStringTag;
 });
 
-// node_modules/node-domexception/index.js
+// src/session/node_modules/node-fetch/node_modules/fetch-blob/node_modules/node-domexception/index.js
 var require_node_domexception = __commonJS((exports, module) => {
   /*! node-domexception. MIT License. Jimmy Wärting <https://jimmy.warting.se/opensource> */
   if (!globalThis.DOMException) {
@@ -20958,7 +21614,7 @@ var require_node_domexception = __commonJS((exports, module) => {
   module.exports = globalThis.DOMException;
 });
 
-// node_modules/fetch-blob/from.js
+// src/session/node_modules/node-fetch/node_modules/fetch-blob/from.js
 import { statSync, createReadStream, promises as fs } from "node:fs";
 var import_node_domexception, stat, BlobDataItem;
 var init_from = __esm(() => {
@@ -20999,7 +21655,7 @@ var init_from = __esm(() => {
   };
 });
 
-// node_modules/node-fetch/src/utils/multipart-parser.js
+// src/session/node_modules/node-fetch/src/utils/multipart-parser.js
 var exports_multipart_parser = {};
 __export(exports_multipart_parser, {
   toFormData: () => toFormData
@@ -21340,7 +21996,7 @@ var init_multipart_parser = __esm(() => {
   };
 });
 
-// node_modules/node-fetch/src/body.js
+// src/session/node_modules/node-fetch/src/body.js
 import Stream, { PassThrough } from "node:stream";
 import { types, deprecate, promisify } from "node:util";
 import { Buffer as Buffer2 } from "node:buffer";
@@ -21556,7 +22212,7 @@ var init_body = __esm(() => {
   getNonSpecFormDataBoundary = deprecate((body) => body.getBoundary(), "form-data doesn't follow the spec and requires special treatment. Use alternative package", "https://github.com/node-fetch/node-fetch/issues/1167");
 });
 
-// node_modules/node-fetch/src/headers.js
+// src/session/node_modules/node-fetch/src/headers.js
 import { types as types2 } from "node:util";
 import http from "node:http";
 function fromRawHeaders(headers = []) {
@@ -21715,7 +22371,7 @@ var init_headers = __esm(() => {
   }, {}));
 });
 
-// node_modules/node-fetch/src/utils/is-redirect.js
+// src/session/node_modules/node-fetch/src/utils/is-redirect.js
 var redirectStatus, isRedirect = (code) => {
   return redirectStatus.has(code);
 };
@@ -21723,7 +22379,7 @@ var init_is_redirect = __esm(() => {
   redirectStatus = new Set([301, 302, 303, 307, 308]);
 });
 
-// node_modules/node-fetch/src/response.js
+// src/session/node_modules/node-fetch/src/response.js
 var INTERNALS2, Response;
 var init_response = __esm(() => {
   init_headers();
@@ -21834,7 +22490,7 @@ var init_response = __esm(() => {
   });
 });
 
-// node_modules/node-fetch/src/utils/get-search.js
+// src/session/node_modules/node-fetch/src/utils/get-search.js
 var getSearch = (parsedURL) => {
   if (parsedURL.search) {
     return parsedURL.search;
@@ -21844,7 +22500,7 @@ var getSearch = (parsedURL) => {
   return parsedURL.href[lastOffset - hash.length] === "?" ? "?" : "";
 };
 
-// node_modules/node-fetch/src/utils/referrer.js
+// src/session/node_modules/node-fetch/src/utils/referrer.js
 import { isIP } from "node:net";
 function stripURLForUseAsAReferrer(url, originOnly = false) {
   if (url == null) {
@@ -21986,7 +22642,7 @@ var init_referrer = __esm(() => {
   ]);
 });
 
-// node_modules/node-fetch/src/request.js
+// src/session/node_modules/node-fetch/src/request.js
 import { format as formatUrl } from "node:url";
 import { deprecate as deprecate2 } from "node:util";
 var INTERNALS3, isRequest = (object) => {
@@ -22168,7 +22824,7 @@ var init_request2 = __esm(() => {
   });
 });
 
-// node_modules/node-fetch/src/errors/abort-error.js
+// src/session/node_modules/node-fetch/src/errors/abort-error.js
 var AbortError;
 var init_abort_error = __esm(() => {
   init_base();
@@ -22179,7 +22835,7 @@ var init_abort_error = __esm(() => {
   };
 });
 
-// node_modules/node-fetch/src/index.js
+// src/session/node_modules/node-fetch/src/index.js
 import http2 from "node:http";
 import https from "node:https";
 import zlib from "node:zlib";
@@ -22465,397 +23121,7 @@ var init_src = __esm(() => {
   supportedSchemas = new Set(["data:", "http:", "https:"]);
 });
 
-// node_modules/node-color-log/index.js
-var require_node_color_log = __commonJS((exports, module) => {
-  var CONFIG = {
-    SYSTEM: {
-      reset: "\x1B[0m",
-      bold: "\x1B[1m",
-      dim: "\x1B[2m",
-      italic: "\x1B[3m",
-      underscore: "\x1B[4m",
-      reverse: "\x1B[7m",
-      strikethrough: "\x1B[9m",
-      backoneline: "\x1B[1A",
-      cleanthisline: "\x1B[K"
-    },
-    FONT: {
-      black: "\x1B[30m",
-      red: "\x1B[31m",
-      green: "\x1B[32m",
-      yellow: "\x1B[33m",
-      blue: "\x1B[34m",
-      magenta: "\x1B[35m",
-      cyan: "\x1B[36m",
-      white: "\x1B[37m"
-    },
-    BACKGROUND: {
-      black: "\x1B[40m",
-      red: "\x1B[41m",
-      green: "\x1B[42m",
-      yellow: "\x1B[43m",
-      blue: "\x1B[44m",
-      magenta: "\x1B[45m",
-      cyan: "\x1B[46m",
-      white: "\x1B[47m"
-    }
-  };
-  var LEVELS = ["success", "debug", "info", "warn", "error", "disable"];
-
-  class Logger {
-    constructor(name) {
-      this.command = "";
-      this.lastCommand = "";
-      this.name = name || "";
-      const level = typeof process !== "undefined" ? process.env.LOGGER : undefined;
-      if (this.isLevelValid(level)) {
-        this.level = level;
-      }
-      this.noColor = false;
-      this._getDate = () => new Date().toISOString();
-      this._customizedConsole = console;
-      this._enableFileAndLine = {
-        enable: false,
-        isShortFile: false
-      };
-    }
-    createNamedLogger(name) {
-      return new Logger(name);
-    }
-    setLevel(level) {
-      if (this.isLevelValid(level)) {
-        this.level = level;
-      } else {
-        throw new Error("Level you are trying to set is invalid");
-      }
-    }
-    setLogStream(newStream) {
-      if (newStream && newStream.writable) {
-        this._customizedConsole = new console.Console(newStream);
-      } else {
-        throw new Error("invalid writable stream object");
-      }
-      return this;
-    }
-    setLevelNoColor() {
-      this.noColor = true;
-    }
-    setLevelColor() {
-      this.noColor = false;
-    }
-    isLevelValid(level) {
-      return LEVELS.includes(level);
-    }
-    isAllowedLevel(level) {
-      return this.level ? LEVELS.indexOf(this.level) <= LEVELS.indexOf(level) : true;
-    }
-    enableFileAndLine(enable, isShortFile = false) {
-      if (typeof enable === "boolean") {
-        this._enableFileAndLine.enable = enable;
-        this._enableFileAndLine.isShortFile = isShortFile;
-      } else {
-        console.error("node-color-log warning: enableFileAndLine should be a boolean value.");
-      }
-    }
-    log(...args) {
-      this.append(...args);
-      if (!this.noColor) {
-        this.command += CONFIG.SYSTEM.reset;
-      }
-      this._print(this.command);
-      this.lastCommand = this.command;
-      this.command = "";
-      return this;
-    }
-    joint() {
-      console.error("node-color-log warning: `joint` is deprecated, please use `append`");
-      this._print(CONFIG.SYSTEM.backoneline + CONFIG.SYSTEM.cleanthisline);
-      this.command = "";
-      this.lastCommand = this.lastCommand.replace(CONFIG.SYSTEM.backoneline, "");
-      this.command += CONFIG.SYSTEM.backoneline;
-      this.command += this.lastCommand;
-      return this;
-    }
-    setDate(callback) {
-      this._getDate = callback;
-    }
-    getPrefix() {
-      let prefix = `${this._getDate()}`;
-      if (this.name) {
-        prefix += ` [${this.name}]`;
-      }
-      if (this._enableFileAndLine.enable) {
-        const fileAndLine = getFileAndLine(this._enableFileAndLine.isShortFile);
-        if (fileAndLine) {
-          prefix += `[${fileAndLine}]`;
-        }
-      }
-      return prefix;
-    }
-    color(ticket) {
-      if (ticket in CONFIG.FONT) {
-        this.command += CONFIG.FONT[ticket];
-      } else {
-        console.error("node-color-log warning: Font color not found! Use the default.");
-      }
-      return this;
-    }
-    bgColor(ticket) {
-      if (ticket in CONFIG.BACKGROUND) {
-        this.command += CONFIG.BACKGROUND[ticket];
-      } else {
-        console.error("node-color-log warning: Background color not found! Use the default.");
-      }
-      return this;
-    }
-    bold() {
-      this.command += CONFIG.SYSTEM.bold;
-      return this;
-    }
-    dim() {
-      this.command += CONFIG.SYSTEM.dim;
-      return this;
-    }
-    underscore() {
-      this.command += CONFIG.SYSTEM.underscore;
-      return this;
-    }
-    strikethrough() {
-      this.command += CONFIG.SYSTEM.strikethrough;
-      return this;
-    }
-    reverse() {
-      this.command += CONFIG.SYSTEM.reverse;
-      return this;
-    }
-    italic() {
-      this.command += CONFIG.SYSTEM.italic;
-      return this;
-    }
-    fontColorLog(ticket, text, setting) {
-      let command = "";
-      if (setting) {
-        command += this.checkSetting(setting);
-      }
-      if (ticket in CONFIG.FONT) {
-        command += CONFIG.FONT[ticket];
-      } else {
-        console.error("node-color-log warning: Font color not found! Use the default.");
-      }
-      command += text;
-      command += CONFIG.SYSTEM.reset;
-      this.lastCommand = command;
-      this._print(command);
-    }
-    bgColorLog(ticket, text, setting) {
-      let command = "";
-      if (setting) {
-        command += this.checkSetting(setting);
-      }
-      if (ticket in CONFIG.BACKGROUND) {
-        command += CONFIG.BACKGROUND[ticket];
-      } else {
-        console.error("node-color-log warning: Background color not found! Use the default.");
-      }
-      command += text;
-      command += CONFIG.SYSTEM.reset;
-      this.lastCommand = command;
-      this._print(command);
-    }
-    colorLog(ticketObj, text, setting) {
-      let command = "";
-      if (setting) {
-        command += this.checkSetting(setting);
-      }
-      if (ticketObj.font !== undefined) {
-        if (ticketObj.font in CONFIG.FONT) {
-          command += CONFIG.FONT[ticketObj.font];
-        } else {
-          console.error("node-color-log warning: Font color not found! Use the default.");
-        }
-      }
-      if (ticketObj.bg !== undefined) {
-        if (ticketObj.bg in CONFIG.BACKGROUND) {
-          command += CONFIG.BACKGROUND[ticketObj.bg];
-        } else {
-          console.error("node-color-log warning: Background color not found! Use the default.");
-        }
-      }
-      command += text;
-      command += CONFIG.SYSTEM.reset;
-      this.lastCommand = command;
-      this._print(command);
-    }
-    error(...args) {
-      if (!this.isAllowedLevel("error"))
-        return;
-      if (this.noColor) {
-        const d = this.getPrefix();
-        this.log(d, " [ERROR] ", ...args);
-      } else {
-        const d = this.getPrefix();
-        this.append(d + " ").bgColor("red").append("[ERROR]").reset().append(" ").color("red").log(...args);
-      }
-    }
-    warn(...args) {
-      if (!this.isAllowedLevel("warn"))
-        return;
-      if (this.noColor) {
-        const d = this.getPrefix();
-        this.log(d, " [WARN] ", ...args);
-      } else {
-        const d = this.getPrefix();
-        this.append(d + " ").bgColor("yellow").color("black").append("[WARN]").reset().append(" ").color("yellow").log(...args);
-      }
-    }
-    info(...args) {
-      if (!this.isAllowedLevel("info"))
-        return;
-      if (this.noColor) {
-        const d = this.getPrefix();
-        this.log(d, " [INFO] ", ...args);
-      } else {
-        const d = this.getPrefix();
-        this.append(d + " ").bgColor("green").color("black").append("[INFO]").reset().append(" ").color("green").log(...args);
-      }
-    }
-    debug(...args) {
-      if (!this.isAllowedLevel("debug"))
-        return;
-      if (this.noColor) {
-        const d = this.getPrefix();
-        this.log(d, " [DEBUG] ", ...args);
-      } else {
-        const d = this.getPrefix();
-        this.append(d + " ").bgColor("cyan").color("black").append("[DEBUG]").reset().append(" ").color("cyan").log(...args);
-      }
-    }
-    success(...args) {
-      if (!this.isAllowedLevel("success"))
-        return;
-      if (this.noColor) {
-        const d = this.getPrefix();
-        this.log(d, " [SUCCESS] ", ...args);
-      } else {
-        const d = this.getPrefix();
-        this.append(d + " ").bgColor("green").color("black").append("[SUCCESS]").reset().append(" ").color("green").log(...args);
-      }
-    }
-    checkSetting(setting) {
-      const validSetting = ["bold", "italic", "dim", "underscore", "reverse", "strikethrough"];
-      let command = "";
-      for (const item in setting) {
-        if (validSetting.indexOf(item) !== -1) {
-          if (setting[item] === true) {
-            command += CONFIG.SYSTEM[item];
-          } else if (setting[item] !== false) {
-            console.error(`node-color-log warning: The value ${item} should be boolean.`);
-          }
-        } else {
-          console.error(`node-color-log warning: ${item} is not valid in setting.`);
-        }
-      }
-      return command;
-    }
-    _print(...args) {
-      this._customizedConsole.error(...args);
-    }
-    append(...args) {
-      for (const idx in args) {
-        const arg = args[idx];
-        if (typeof arg === "string") {
-          this.command += arg;
-        } else {
-          try {
-            this.command += JSON.stringify(arg);
-          } catch {
-            this.command += arg;
-          }
-        }
-        if (args.length > 1 && idx < args.length - 1) {
-          this.command += " ";
-        }
-      }
-      return this;
-    }
-    reset() {
-      this.command += CONFIG.SYSTEM.reset;
-      return this;
-    }
-  }
-  function parseStackFrame(line, isShortFile = false) {
-    if (typeof line !== "string" || line.length === 0) {
-      return "";
-    }
-    let start = line.lastIndexOf("(");
-    let end = line.lastIndexOf(")");
-    let fileAndLine;
-    if (start !== -1 && end !== -1 && start < end) {
-      fileAndLine = line.substring(start + 1, end);
-    } else {
-      const atPrefix = line.indexOf("at ");
-      fileAndLine = atPrefix !== -1 ? line.substring(atPrefix + 3).trim() : line.trim();
-    }
-    const lastColon = fileAndLine.lastIndexOf(":");
-    if (lastColon === -1) {
-      return "";
-    }
-    const secondLastColon = fileAndLine.lastIndexOf(":", lastColon - 1);
-    const isDigits = (s2) => s2.length > 0 && /^\d+$/.test(s2);
-    const lastSeg = fileAndLine.substring(lastColon + 1);
-    const midSeg = secondLastColon === -1 ? "" : fileAndLine.substring(secondLastColon + 1, lastColon);
-    let fileName;
-    let lineNumber;
-    if (secondLastColon !== -1 && isDigits(midSeg) && isDigits(lastSeg)) {
-      fileName = fileAndLine.substring(0, secondLastColon);
-      lineNumber = midSeg;
-    } else if (isDigits(lastSeg)) {
-      fileName = fileAndLine.substring(0, lastColon);
-      lineNumber = lastSeg;
-    } else {
-      return "";
-    }
-    if (isShortFile) {
-      const segments = fileName.split(/[\\/]/);
-      fileName = segments[segments.length - 1];
-    }
-    return `${fileName}:${lineNumber}`;
-  }
-  function getFileAndLine(isShortFile = false) {
-    const e2 = new Error;
-    const lines = e2.stack.split(`
-`);
-    let line = "";
-    for (let i2 = lines.length - 1;i2 >= 0; i2--) {
-      const currentLine = lines[i2];
-      if (currentLine.includes("Logger.") || currentLine.includes("node-color-log/index.js")) {
-        if (i2 + 1 >= lines.length) {
-          return "";
-        }
-        line = lines[i2 + 1].trim();
-        break;
-      }
-    }
-    return parseStackFrame(line, isShortFile);
-  }
-  var logger = new Logger;
-  logger._internal = { parseStackFrame };
-  module.exports = logger;
-});
-
-// src/session/utils.ts
-function isDeno() {
-  return typeof globalThis.Deno !== "undefined";
-}
-function isBun() {
-  return typeof globalThis.Bun !== "undefined";
-}
-var import_node_color_log, log = (stack) => import_node_color_log.default.bgColor("red").color("black").log(stack);
-var init_utils = __esm(() => {
-  import_node_color_log = __toESM(require_node_color_log(), 1);
-});
-
-// src/session/graphql/client.ts
+// src/session/dist/graphql/client.js
 class CustomSetter {
   set(carrier, key, value) {
     carrier.set(key, value);
@@ -26029,7 +26295,6 @@ var init_base2 = __esm(() => {
 
 // node_modules/yoctocolors/index.js
 var init_yoctocolors = __esm(() => {
-  init_base2();
   init_base2();
 });
 
@@ -35651,255 +35916,7 @@ var init_index_min = __esm(() => {
   });
 });
 
-// src/session/errors/DaggerSDKError.ts
-var DaggerSDKError;
-var init_DaggerSDKError = __esm(() => {
-  init_utils();
-  DaggerSDKError = class DaggerSDKError extends Error {
-    cause;
-    constructor(message, options) {
-      super(message);
-      this.cause = options?.cause;
-    }
-    get [Symbol.toStringTag]() {
-      return this.name;
-    }
-    printStackTrace() {
-      log(this.stack);
-    }
-  };
-});
-
-// src/session/errors/errors-codes.ts
-var ERROR_CODES, ERROR_NAMES;
-var init_errors_codes = __esm(() => {
-  ERROR_CODES = {
-    GraphQLRequestError: "D100",
-    UnknownDaggerError: "D101",
-    TooManyNestedObjectsError: "D102",
-    EngineSessionConnectParamsParseError: "D103",
-    EngineSessionConnectionTimeoutError: "D104",
-    EngineSessionError: "D105",
-    InitEngineSessionBinaryError: "D106",
-    DockerImageRefValidationError: "D107",
-    NotAwaitedRequestError: "D108",
-    ExecError: "D109",
-    IntrospectionError: "D110"
-  };
-  ERROR_NAMES = Object.keys(ERROR_CODES).reduce((obj, item) => ({ ...obj, [item]: item }), {});
-});
-
-// src/session/errors/UnknownDaggerError.ts
-var UnknownDaggerError;
-var init_UnknownDaggerError = __esm(() => {
-  init_DaggerSDKError();
-  init_errors_codes();
-  UnknownDaggerError = class UnknownDaggerError extends DaggerSDKError {
-    name = ERROR_NAMES.UnknownDaggerError;
-    code = ERROR_CODES.UnknownDaggerError;
-    constructor(message, options) {
-      super(message, options);
-    }
-  };
-});
-
-// src/session/errors/DockerImageRefValidationError.ts
-var DockerImageRefValidationError;
-var init_DockerImageRefValidationError = __esm(() => {
-  init_DaggerSDKError();
-  init_errors_codes();
-  DockerImageRefValidationError = class DockerImageRefValidationError extends DaggerSDKError {
-    name = ERROR_NAMES.DockerImageRefValidationError;
-    code = ERROR_CODES.DockerImageRefValidationError;
-    ref;
-    constructor(message, options) {
-      super(message, options);
-      this.ref = options?.ref;
-    }
-  };
-});
-
-// src/session/errors/EngineSessionConnectParamsParseError.ts
-var EngineSessionConnectParamsParseError;
-var init_EngineSessionConnectParamsParseError = __esm(() => {
-  init_DaggerSDKError();
-  init_errors_codes();
-  EngineSessionConnectParamsParseError = class EngineSessionConnectParamsParseError extends DaggerSDKError {
-    name = ERROR_NAMES.EngineSessionConnectParamsParseError;
-    code = ERROR_CODES.EngineSessionConnectParamsParseError;
-    parsedLine;
-    constructor(message, options) {
-      super(message, options);
-      this.parsedLine = options.parsedLine;
-    }
-  };
-});
-
-// src/session/errors/ExecError.ts
-var ExecError;
-var init_ExecError = __esm(() => {
-  init_DaggerSDKError();
-  init_errors_codes();
-  ExecError = class ExecError extends DaggerSDKError {
-    name = ERROR_NAMES.ExecError;
-    code = ERROR_CODES.ExecError;
-    cmd;
-    exitCode;
-    stdout;
-    stderr;
-    extensions;
-    constructor(message, options) {
-      super(message, options);
-      this.cmd = options.cmd;
-      this.exitCode = options.exitCode;
-      this.stdout = options.stdout;
-      this.stderr = options.stderr;
-      this.extensions = options.extensions;
-    }
-  };
-});
-
-// src/session/errors/GraphQLRequestError.ts
-var GraphQLRequestError;
-var init_GraphQLRequestError = __esm(() => {
-  init_DaggerSDKError();
-  init_errors_codes();
-  GraphQLRequestError = class GraphQLRequestError extends DaggerSDKError {
-    name = ERROR_NAMES.GraphQLRequestError;
-    code = ERROR_CODES.GraphQLRequestError;
-    requestContext;
-    response;
-    extensions;
-    constructor(message, options) {
-      super(message, options);
-      this.requestContext = options.error.request;
-      this.response = options.error.response;
-      this.extensions = options.error.response.errors?.[0]?.extensions;
-    }
-  };
-});
-
-// src/session/errors/InitEngineSessionBinaryError.ts
-var InitEngineSessionBinaryError;
-var init_InitEngineSessionBinaryError = __esm(() => {
-  init_DaggerSDKError();
-  init_errors_codes();
-  InitEngineSessionBinaryError = class InitEngineSessionBinaryError extends DaggerSDKError {
-    name = ERROR_NAMES.InitEngineSessionBinaryError;
-    code = ERROR_CODES.InitEngineSessionBinaryError;
-    constructor(message, options) {
-      super(message, options);
-    }
-  };
-});
-
-// src/session/errors/TooManyNestedObjectsError.ts
-var TooManyNestedObjectsError;
-var init_TooManyNestedObjectsError = __esm(() => {
-  init_DaggerSDKError();
-  init_errors_codes();
-  TooManyNestedObjectsError = class TooManyNestedObjectsError extends DaggerSDKError {
-    name = ERROR_NAMES.TooManyNestedObjectsError;
-    code = ERROR_CODES.TooManyNestedObjectsError;
-    response;
-    constructor(message, options) {
-      super(message, options);
-      this.response = options.response;
-    }
-  };
-});
-
-// src/session/errors/EngineSessionErrorOptions.ts
-var EngineSessionError;
-var init_EngineSessionErrorOptions = __esm(() => {
-  init_DaggerSDKError();
-  init_errors_codes();
-  EngineSessionError = class EngineSessionError extends DaggerSDKError {
-    name = ERROR_NAMES.EngineSessionError;
-    code = ERROR_CODES.EngineSessionError;
-    constructor(message, options) {
-      super(message, options);
-    }
-  };
-});
-
-// src/session/errors/EngineSessionConnectionTimeoutError.ts
-var EngineSessionConnectionTimeoutError;
-var init_EngineSessionConnectionTimeoutError = __esm(() => {
-  init_DaggerSDKError();
-  init_errors_codes();
-  EngineSessionConnectionTimeoutError = class EngineSessionConnectionTimeoutError extends DaggerSDKError {
-    name = ERROR_NAMES.EngineSessionConnectionTimeoutError;
-    code = ERROR_CODES.EngineSessionConnectionTimeoutError;
-    timeOutDuration;
-    constructor(message, options) {
-      super(message, options);
-      this.timeOutDuration = options.timeOutDuration;
-    }
-  };
-});
-
-// src/session/errors/NotAwaitedRequestError.ts
-var NotAwaitedRequestError;
-var init_NotAwaitedRequestError = __esm(() => {
-  init_DaggerSDKError();
-  init_errors_codes();
-  NotAwaitedRequestError = class NotAwaitedRequestError extends DaggerSDKError {
-    name = ERROR_NAMES.NotAwaitedRequestError;
-    code = ERROR_CODES.NotAwaitedRequestError;
-    constructor(message, options) {
-      super(message, options);
-    }
-  };
-});
-
-// src/session/errors/FunctionNotFound.ts
-var FunctionNotFound;
-var init_FunctionNotFound = __esm(() => {
-  init_DaggerSDKError();
-  init_errors_codes();
-  FunctionNotFound = class FunctionNotFound extends DaggerSDKError {
-    name = ERROR_NAMES.ExecError;
-    code = ERROR_CODES.ExecError;
-    constructor(message, options) {
-      super(message, options);
-    }
-  };
-});
-
-// src/session/errors/IntrospectionError.ts
-var IntrospectionError;
-var init_IntrospectionError = __esm(() => {
-  init_DaggerSDKError();
-  init_errors_codes();
-  IntrospectionError = class IntrospectionError extends DaggerSDKError {
-    name = ERROR_NAMES.IntrospectionError;
-    code = ERROR_CODES.IntrospectionError;
-    constructor(message, options) {
-      super(message, options);
-    }
-  };
-});
-
-// src/session/errors/index.ts
-var init_errors = __esm(() => {
-  init_DaggerSDKError();
-  init_UnknownDaggerError();
-  init_DockerImageRefValidationError();
-  init_EngineSessionConnectParamsParseError();
-  init_ExecError();
-  init_GraphQLRequestError();
-  init_InitEngineSessionBinaryError();
-  init_TooManyNestedObjectsError();
-  init_EngineSessionErrorOptions();
-  init_EngineSessionConnectionTimeoutError();
-  init_NotAwaitedRequestError();
-  init_FunctionNotFound();
-  init_IntrospectionError();
-  init_errors_codes();
-});
-
-// src/session/provisioning/bin.ts
+// src/session/dist/provisioning/bin.js
 import * as crypto2 from "crypto";
 import * as fs3 from "fs";
 import * as os3 from "os";
@@ -36291,10 +36308,10 @@ var init_bin = __esm(() => {
   };
 });
 
-// src/session/provisioning/default.ts
+// src/session/dist/provisioning/default.js
 var CLI_VERSION = "1.0.0-beta.11";
 
-// src/session/provisioning/index.ts
+// src/session/dist/provisioning/index.js
 var exports_provisioning = {};
 __export(exports_provisioning, {
   withEngineSession: () => withEngineSession
@@ -36314,7 +36331,7 @@ var init_provisioning = __esm(() => {
   init_bin();
 });
 
-// node_modules/@opentelemetry/core/build/src/trace/suppress-tracing.js
+// src/telemetry/node_modules/@opentelemetry/core/build/src/trace/suppress-tracing.js
 var require_suppress_tracing = __commonJS((exports) => {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.isTracingSuppressed = exports.unsuppressTracing = exports.suppressTracing = undefined;
@@ -36334,7 +36351,7 @@ var require_suppress_tracing = __commonJS((exports) => {
   exports.isTracingSuppressed = isTracingSuppressed;
 });
 
-// node_modules/@opentelemetry/core/build/src/baggage/constants.js
+// src/telemetry/node_modules/@opentelemetry/core/build/src/baggage/constants.js
 var require_constants2 = __commonJS((exports) => {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.BAGGAGE_MAX_TOTAL_LENGTH = exports.BAGGAGE_MAX_PER_NAME_VALUE_PAIRS = exports.BAGGAGE_MAX_NAME_VALUE_PAIRS = exports.BAGGAGE_HEADER = exports.BAGGAGE_ITEMS_SEPARATOR = exports.BAGGAGE_PROPERTIES_SEPARATOR = exports.BAGGAGE_KEY_PAIR_SEPARATOR = undefined;
@@ -36347,7 +36364,7 @@ var require_constants2 = __commonJS((exports) => {
   exports.BAGGAGE_MAX_TOTAL_LENGTH = 8192;
 });
 
-// node_modules/@opentelemetry/core/build/src/baggage/utils.js
+// src/telemetry/node_modules/@opentelemetry/core/build/src/baggage/utils.js
 var require_utils4 = __commonJS((exports) => {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.parseKeyPairsIntoRecord = exports.parseBaggageHeaderString = exports.parsePairKeyValue = exports.getKeyPairs = exports.serializeKeyPairs = undefined;
@@ -36437,7 +36454,7 @@ var require_utils4 = __commonJS((exports) => {
   exports.parseKeyPairsIntoRecord = parseKeyPairsIntoRecord;
 });
 
-// node_modules/@opentelemetry/core/build/src/baggage/propagation/W3CBaggagePropagator.js
+// src/telemetry/node_modules/@opentelemetry/core/build/src/baggage/propagation/W3CBaggagePropagator.js
 var require_W3CBaggagePropagator = __commonJS((exports) => {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.W3CBaggagePropagator = undefined;
@@ -36486,7 +36503,7 @@ var require_W3CBaggagePropagator = __commonJS((exports) => {
   exports.W3CBaggagePropagator = W3CBaggagePropagator;
 });
 
-// node_modules/@opentelemetry/core/build/src/common/anchored-clock.js
+// src/telemetry/node_modules/@opentelemetry/core/build/src/common/anchored-clock.js
 var require_anchored_clock = __commonJS((exports) => {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.AnchoredClock = undefined;
@@ -36508,7 +36525,7 @@ var require_anchored_clock = __commonJS((exports) => {
   exports.AnchoredClock = AnchoredClock;
 });
 
-// node_modules/@opentelemetry/core/build/src/common/attributes.js
+// src/telemetry/node_modules/@opentelemetry/core/build/src/common/attributes.js
 var require_attributes = __commonJS((exports) => {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.isAttributeValue = exports.isAttributeKey = exports.sanitizeAttributes = undefined;
@@ -36585,7 +36602,7 @@ var require_attributes = __commonJS((exports) => {
   }
 });
 
-// node_modules/@opentelemetry/core/build/src/common/logging-error-handler.js
+// src/telemetry/node_modules/@opentelemetry/core/build/src/common/logging-error-handler.js
 var require_logging_error_handler = __commonJS((exports) => {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.loggingErrorHandler = undefined;
@@ -36621,7 +36638,7 @@ var require_logging_error_handler = __commonJS((exports) => {
   }
 });
 
-// node_modules/@opentelemetry/core/build/src/common/global-error-handler.js
+// src/telemetry/node_modules/@opentelemetry/core/build/src/common/global-error-handler.js
 var require_global_error_handler = __commonJS((exports) => {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.globalErrorHandler = exports.setGlobalErrorHandler = undefined;
@@ -36639,7 +36656,7 @@ var require_global_error_handler = __commonJS((exports) => {
   exports.globalErrorHandler = globalErrorHandler;
 });
 
-// node_modules/@opentelemetry/core/build/src/platform/node/environment.js
+// src/telemetry/node_modules/@opentelemetry/core/build/src/platform/node/environment.js
 var require_environment = __commonJS((exports) => {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.getStringListFromEnv = exports.getBooleanFromEnv = exports.getStringFromEnv = exports.getNumberFromEnv = undefined;
@@ -36687,18 +36704,18 @@ var require_environment = __commonJS((exports) => {
   exports.getStringListFromEnv = getStringListFromEnv;
 });
 
-// node_modules/@opentelemetry/core/build/src/common/globalThis.js
+// src/telemetry/node_modules/@opentelemetry/core/build/src/common/globalThis.js
 var require_globalThis = __commonJS((exports) => {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports._globalThis = undefined;
   exports._globalThis = globalThis;
 });
 
-// node_modules/@opentelemetry/core/build/src/version.js
+// src/telemetry/node_modules/@opentelemetry/core/build/src/version.js
 var require_version3 = __commonJS((exports) => {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.VERSION = undefined;
-  exports.VERSION = "2.8.0";
+  exports.VERSION = "2.9.0";
 });
 
 // node_modules/@opentelemetry/semantic-conventions/build/src/internal/utils.js
@@ -38257,14 +38274,14 @@ var require_src2 = __commonJS((exports) => {
   __exportStar(require_stable_events(), exports);
 });
 
-// node_modules/@opentelemetry/core/build/src/semconv.js
+// src/telemetry/node_modules/@opentelemetry/core/build/src/semconv.js
 var require_semconv = __commonJS((exports) => {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.ATTR_PROCESS_RUNTIME_NAME = undefined;
   exports.ATTR_PROCESS_RUNTIME_NAME = "process.runtime.name";
 });
 
-// node_modules/@opentelemetry/core/build/src/platform/node/sdk-info.js
+// src/telemetry/node_modules/@opentelemetry/core/build/src/platform/node/sdk-info.js
 var require_sdk_info = __commonJS((exports) => {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.SDK_INFO = undefined;
@@ -38279,7 +38296,7 @@ var require_sdk_info = __commonJS((exports) => {
   };
 });
 
-// node_modules/@opentelemetry/core/build/src/platform/node/index.js
+// src/telemetry/node_modules/@opentelemetry/core/build/src/platform/node/index.js
 var require_node = __commonJS((exports) => {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.otperformance = exports.SDK_INFO = exports._globalThis = exports.getStringListFromEnv = exports.getNumberFromEnv = exports.getBooleanFromEnv = exports.getStringFromEnv = undefined;
@@ -38307,7 +38324,7 @@ var require_node = __commonJS((exports) => {
   exports.otperformance = performance;
 });
 
-// node_modules/@opentelemetry/core/build/src/platform/index.js
+// src/telemetry/node_modules/@opentelemetry/core/build/src/platform/index.js
 var require_platform = __commonJS((exports) => {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.getStringListFromEnv = exports.getNumberFromEnv = exports.getStringFromEnv = exports.getBooleanFromEnv = exports.otperformance = exports._globalThis = exports.SDK_INFO = undefined;
@@ -38335,7 +38352,7 @@ var require_platform = __commonJS((exports) => {
   } });
 });
 
-// node_modules/@opentelemetry/core/build/src/common/time.js
+// src/telemetry/node_modules/@opentelemetry/core/build/src/common/time.js
 var require_time = __commonJS((exports) => {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.addHrTimes = exports.isTimeInput = exports.isTimeInputHrTime = exports.hrTimeToSeconds = exports.hrTimeToMilliseconds = exports.hrTimeToMicroseconds = exports.hrTimeToNanoseconds = exports.hrTimeToTimeStamp = exports.hrTimeDuration = exports.timeInputToHrTime = exports.hrTime = exports.getTimeOrigin = exports.millisToHrTime = undefined;
@@ -38365,7 +38382,7 @@ var require_time = __commonJS((exports) => {
     if (isTimeInputHrTime(time)) {
       return time;
     } else if (typeof time === "number") {
-      if (time < platform_1.otperformance.timeOrigin) {
+      if (time < platform_1.otperformance.timeOrigin / 2) {
         return hrTime(time);
       } else {
         return millisToHrTime(time);
@@ -38430,7 +38447,7 @@ var require_time = __commonJS((exports) => {
   exports.addHrTimes = addHrTimes;
 });
 
-// node_modules/@opentelemetry/core/build/src/common/timer-util.js
+// src/telemetry/node_modules/@opentelemetry/core/build/src/common/timer-util.js
 var require_timer_util = __commonJS((exports) => {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.unrefTimer = undefined;
@@ -38442,7 +38459,7 @@ var require_timer_util = __commonJS((exports) => {
   exports.unrefTimer = unrefTimer;
 });
 
-// node_modules/@opentelemetry/core/build/src/ExportResult.js
+// src/telemetry/node_modules/@opentelemetry/core/build/src/ExportResult.js
 var require_ExportResult = __commonJS((exports) => {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.ExportResultCode = undefined;
@@ -38453,7 +38470,7 @@ var require_ExportResult = __commonJS((exports) => {
   })(ExportResultCode = exports.ExportResultCode || (exports.ExportResultCode = {}));
 });
 
-// node_modules/@opentelemetry/core/build/src/propagation/composite.js
+// src/telemetry/node_modules/@opentelemetry/core/build/src/propagation/composite.js
 var require_composite = __commonJS((exports) => {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.CompositePropagator = undefined;
@@ -38499,7 +38516,7 @@ var require_composite = __commonJS((exports) => {
   exports.CompositePropagator = CompositePropagator;
 });
 
-// node_modules/@opentelemetry/core/build/src/internal/validators.js
+// src/telemetry/node_modules/@opentelemetry/core/build/src/internal/validators.js
 var require_validators = __commonJS((exports) => {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.validateValue = exports.validateKey = undefined;
@@ -38519,7 +38536,7 @@ var require_validators = __commonJS((exports) => {
   exports.validateValue = validateValue;
 });
 
-// node_modules/@opentelemetry/core/build/src/trace/TraceState.js
+// src/telemetry/node_modules/@opentelemetry/core/build/src/trace/TraceState.js
 var require_TraceState = __commonJS((exports) => {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.TraceState = undefined;
@@ -38629,7 +38646,7 @@ var require_TraceState = __commonJS((exports) => {
   exports.TraceState = TraceState;
 });
 
-// node_modules/@opentelemetry/core/build/src/trace/W3CTraceContextPropagator.js
+// src/telemetry/node_modules/@opentelemetry/core/build/src/trace/W3CTraceContextPropagator.js
 var require_W3CTraceContextPropagator = __commonJS((exports) => {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.W3CTraceContextPropagator = exports.parseTraceParent = exports.TRACE_STATE_HEADER = exports.TRACE_PARENT_HEADER = undefined;
@@ -38694,7 +38711,7 @@ var require_W3CTraceContextPropagator = __commonJS((exports) => {
   exports.W3CTraceContextPropagator = W3CTraceContextPropagator;
 });
 
-// node_modules/@opentelemetry/core/build/src/trace/rpc-metadata.js
+// src/telemetry/node_modules/@opentelemetry/core/build/src/trace/rpc-metadata.js
 var require_rpc_metadata = __commonJS((exports) => {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.getRPCMetadata = exports.deleteRPCMetadata = exports.setRPCMetadata = exports.RPCType = undefined;
@@ -38718,7 +38735,7 @@ var require_rpc_metadata = __commonJS((exports) => {
   exports.getRPCMetadata = getRPCMetadata;
 });
 
-// node_modules/@opentelemetry/core/build/src/utils/lodash.merge.js
+// src/telemetry/node_modules/@opentelemetry/core/build/src/utils/lodash.merge.js
 var require_lodash_merge = __commonJS((exports) => {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.isPlainObject = undefined;
@@ -38776,7 +38793,7 @@ var require_lodash_merge = __commonJS((exports) => {
   }
 });
 
-// node_modules/@opentelemetry/core/build/src/utils/merge.js
+// src/telemetry/node_modules/@opentelemetry/core/build/src/utils/merge.js
 var require_merge = __commonJS((exports) => {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.merge = undefined;
@@ -38894,7 +38911,7 @@ var require_merge = __commonJS((exports) => {
   }
 });
 
-// node_modules/@opentelemetry/core/build/src/utils/timeout.js
+// src/telemetry/node_modules/@opentelemetry/core/build/src/utils/timeout.js
 var require_timeout = __commonJS((exports) => {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.callWithTimeout = exports.TimeoutError = undefined;
@@ -38924,7 +38941,7 @@ var require_timeout = __commonJS((exports) => {
   exports.callWithTimeout = callWithTimeout;
 });
 
-// node_modules/@opentelemetry/core/build/src/utils/url.js
+// src/telemetry/node_modules/@opentelemetry/core/build/src/utils/url.js
 var require_url = __commonJS((exports) => {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.isUrlIgnored = exports.urlMatches = undefined;
@@ -38950,7 +38967,7 @@ var require_url = __commonJS((exports) => {
   exports.isUrlIgnored = isUrlIgnored;
 });
 
-// node_modules/@opentelemetry/core/build/src/utils/promise.js
+// src/telemetry/node_modules/@opentelemetry/core/build/src/utils/promise.js
 var require_promise = __commonJS((exports) => {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.Deferred = undefined;
@@ -38978,7 +38995,7 @@ var require_promise = __commonJS((exports) => {
   exports.Deferred = Deferred;
 });
 
-// node_modules/@opentelemetry/core/build/src/utils/callback.js
+// src/telemetry/node_modules/@opentelemetry/core/build/src/utils/callback.js
 var require_callback = __commonJS((exports) => {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.BindOnceFuture = undefined;
@@ -39014,7 +39031,7 @@ var require_callback = __commonJS((exports) => {
   exports.BindOnceFuture = BindOnceFuture;
 });
 
-// node_modules/@opentelemetry/core/build/src/utils/configuration.js
+// src/telemetry/node_modules/@opentelemetry/core/build/src/utils/configuration.js
 var require_configuration = __commonJS((exports) => {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.diagLogLevelFromString = undefined;
@@ -39042,7 +39059,7 @@ var require_configuration = __commonJS((exports) => {
   exports.diagLogLevelFromString = diagLogLevelFromString;
 });
 
-// node_modules/@opentelemetry/core/build/src/internal/exporter.js
+// src/telemetry/node_modules/@opentelemetry/core/build/src/internal/exporter.js
 var require_exporter = __commonJS((exports) => {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports._export = undefined;
@@ -39058,7 +39075,7 @@ var require_exporter = __commonJS((exports) => {
   exports._export = _export;
 });
 
-// node_modules/@opentelemetry/core/build/src/index.js
+// src/telemetry/node_modules/@opentelemetry/core/build/src/index.js
 var require_src3 = __commonJS((exports) => {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.diagLogLevelFromString = exports.BindOnceFuture = exports.urlMatches = exports.isUrlIgnored = exports.callWithTimeout = exports.TimeoutError = exports.merge = exports.TraceState = exports.unsuppressTracing = exports.suppressTracing = exports.isTracingSuppressed = exports.setRPCMetadata = exports.getRPCMetadata = exports.deleteRPCMetadata = exports.RPCType = exports.parseTraceParent = exports.W3CTraceContextPropagator = exports.TRACE_STATE_HEADER = exports.TRACE_PARENT_HEADER = exports.CompositePropagator = exports.otperformance = exports.getStringListFromEnv = exports.getNumberFromEnv = exports.getBooleanFromEnv = exports.getStringFromEnv = exports._globalThis = exports.SDK_INFO = exports.parseKeyPairsIntoRecord = exports.ExportResultCode = exports.unrefTimer = exports.timeInputToHrTime = exports.millisToHrTime = exports.isTimeInputHrTime = exports.isTimeInput = exports.hrTimeToTimeStamp = exports.hrTimeToSeconds = exports.hrTimeToNanoseconds = exports.hrTimeToMilliseconds = exports.hrTimeToMicroseconds = exports.hrTimeDuration = exports.hrTime = exports.getTimeOrigin = exports.addHrTimes = exports.loggingErrorHandler = exports.setGlobalErrorHandler = exports.globalErrorHandler = exports.sanitizeAttributes = exports.isAttributeValue = exports.AnchoredClock = exports.W3CBaggagePropagator = undefined;
@@ -39362,6 +39379,1375 @@ var require_bounded_queue_export_promise_handler = __commonJS((exports) => {
   exports.createBoundedQueueExportPromiseHandler = createBoundedQueueExportPromiseHandler;
 });
 
+// node_modules/@opentelemetry/core/build/src/trace/suppress-tracing.js
+var require_suppress_tracing2 = __commonJS((exports) => {
+  Object.defineProperty(exports, "__esModule", { value: true });
+  exports.isTracingSuppressed = exports.unsuppressTracing = exports.suppressTracing = undefined;
+  var api_1 = require_src();
+  var SUPPRESS_TRACING_KEY = (0, api_1.createContextKey)("OpenTelemetry SDK Context Key SUPPRESS_TRACING");
+  function suppressTracing(context2) {
+    return context2.setValue(SUPPRESS_TRACING_KEY, true);
+  }
+  exports.suppressTracing = suppressTracing;
+  function unsuppressTracing(context2) {
+    return context2.deleteValue(SUPPRESS_TRACING_KEY);
+  }
+  exports.unsuppressTracing = unsuppressTracing;
+  function isTracingSuppressed(context2) {
+    return context2.getValue(SUPPRESS_TRACING_KEY) === true;
+  }
+  exports.isTracingSuppressed = isTracingSuppressed;
+});
+
+// node_modules/@opentelemetry/core/build/src/baggage/constants.js
+var require_constants3 = __commonJS((exports) => {
+  Object.defineProperty(exports, "__esModule", { value: true });
+  exports.BAGGAGE_MAX_TOTAL_LENGTH = exports.BAGGAGE_MAX_PER_NAME_VALUE_PAIRS = exports.BAGGAGE_MAX_NAME_VALUE_PAIRS = exports.BAGGAGE_HEADER = exports.BAGGAGE_ITEMS_SEPARATOR = exports.BAGGAGE_PROPERTIES_SEPARATOR = exports.BAGGAGE_KEY_PAIR_SEPARATOR = undefined;
+  exports.BAGGAGE_KEY_PAIR_SEPARATOR = "=";
+  exports.BAGGAGE_PROPERTIES_SEPARATOR = ";";
+  exports.BAGGAGE_ITEMS_SEPARATOR = ",";
+  exports.BAGGAGE_HEADER = "baggage";
+  exports.BAGGAGE_MAX_NAME_VALUE_PAIRS = 180;
+  exports.BAGGAGE_MAX_PER_NAME_VALUE_PAIRS = 4096;
+  exports.BAGGAGE_MAX_TOTAL_LENGTH = 8192;
+});
+
+// node_modules/@opentelemetry/core/build/src/baggage/utils.js
+var require_utils6 = __commonJS((exports) => {
+  Object.defineProperty(exports, "__esModule", { value: true });
+  exports.parseKeyPairsIntoRecord = exports.parseBaggageHeaderString = exports.parsePairKeyValue = exports.getKeyPairs = exports.serializeKeyPairs = undefined;
+  var api_1 = require_src();
+  var constants_1 = require_constants3();
+  function serializeKeyPairs(keyPairs) {
+    return keyPairs.reduce((hValue, current) => {
+      const value = `${hValue}${hValue !== "" ? constants_1.BAGGAGE_ITEMS_SEPARATOR : ""}${current}`;
+      return value.length > constants_1.BAGGAGE_MAX_TOTAL_LENGTH ? hValue : value;
+    }, "");
+  }
+  exports.serializeKeyPairs = serializeKeyPairs;
+  function getKeyPairs(baggage) {
+    return baggage.getAllEntries().map(([key, value]) => {
+      let entry = `${encodeURIComponent(key)}=${encodeURIComponent(value.value)}`;
+      if (value.metadata !== undefined) {
+        entry += constants_1.BAGGAGE_PROPERTIES_SEPARATOR + value.metadata.toString();
+      }
+      return entry;
+    });
+  }
+  exports.getKeyPairs = getKeyPairs;
+  function parsePairKeyValue(entry) {
+    if (!entry)
+      return;
+    const metadataSeparatorIndex = entry.indexOf(constants_1.BAGGAGE_PROPERTIES_SEPARATOR);
+    const keyPairPart = metadataSeparatorIndex === -1 ? entry : entry.substring(0, metadataSeparatorIndex);
+    const separatorIndex = keyPairPart.indexOf(constants_1.BAGGAGE_KEY_PAIR_SEPARATOR);
+    if (separatorIndex <= 0)
+      return;
+    const rawKey = keyPairPart.substring(0, separatorIndex).trim();
+    const rawValue = keyPairPart.substring(separatorIndex + 1).trim();
+    if (!rawKey || !rawValue)
+      return;
+    let key;
+    let value;
+    try {
+      key = decodeURIComponent(rawKey);
+      value = decodeURIComponent(rawValue);
+    } catch {
+      return;
+    }
+    let metadata;
+    if (metadataSeparatorIndex !== -1 && metadataSeparatorIndex < entry.length - 1) {
+      const metadataString = entry.substring(metadataSeparatorIndex + 1);
+      metadata = (0, api_1.baggageEntryMetadataFromString)(metadataString);
+    }
+    return { key, value, metadata };
+  }
+  exports.parsePairKeyValue = parsePairKeyValue;
+  function parseBaggageHeaderString(value, baggage, count2, totalSize) {
+    let start = 0;
+    while (start < value.length && count2 < constants_1.BAGGAGE_MAX_NAME_VALUE_PAIRS) {
+      const end = value.indexOf(constants_1.BAGGAGE_ITEMS_SEPARATOR, start);
+      const entryEnd = end === -1 ? value.length : end;
+      const entryLength = entryEnd - start;
+      if (entryLength <= constants_1.BAGGAGE_MAX_PER_NAME_VALUE_PAIRS) {
+        const keyPair = parsePairKeyValue(value.substring(start, entryEnd));
+        if (keyPair) {
+          const entrySize = (count2 === 0 ? 0 : 1) + entryLength;
+          if (totalSize + entrySize > constants_1.BAGGAGE_MAX_TOTAL_LENGTH)
+            break;
+          baggage[keyPair.key] = keyPair.metadata ? { value: keyPair.value, metadata: keyPair.metadata } : { value: keyPair.value };
+          count2++;
+          totalSize += entrySize;
+        }
+      }
+      if (end === -1)
+        break;
+      start = end + 1;
+    }
+    return [count2, totalSize];
+  }
+  exports.parseBaggageHeaderString = parseBaggageHeaderString;
+  function parseKeyPairsIntoRecord(value) {
+    const result = {};
+    if (typeof value === "string" && value.length > 0) {
+      value.split(constants_1.BAGGAGE_ITEMS_SEPARATOR).forEach((entry) => {
+        const keyPair = parsePairKeyValue(entry);
+        if (keyPair !== undefined && keyPair.value.length > 0) {
+          result[keyPair.key] = keyPair.value;
+        }
+      });
+    }
+    return result;
+  }
+  exports.parseKeyPairsIntoRecord = parseKeyPairsIntoRecord;
+});
+
+// node_modules/@opentelemetry/core/build/src/baggage/propagation/W3CBaggagePropagator.js
+var require_W3CBaggagePropagator2 = __commonJS((exports) => {
+  Object.defineProperty(exports, "__esModule", { value: true });
+  exports.W3CBaggagePropagator = undefined;
+  var api_1 = require_src();
+  var suppress_tracing_1 = require_suppress_tracing2();
+  var constants_1 = require_constants3();
+  var utils_1 = require_utils6();
+
+  class W3CBaggagePropagator {
+    inject(context2, carrier, setter) {
+      const baggage = api_1.propagation.getBaggage(context2);
+      if (!baggage || (0, suppress_tracing_1.isTracingSuppressed)(context2))
+        return;
+      const keyPairs = (0, utils_1.getKeyPairs)(baggage).filter((pair) => {
+        return pair.length <= constants_1.BAGGAGE_MAX_PER_NAME_VALUE_PAIRS;
+      }).slice(0, constants_1.BAGGAGE_MAX_NAME_VALUE_PAIRS);
+      const headerValue = (0, utils_1.serializeKeyPairs)(keyPairs);
+      if (headerValue.length > 0) {
+        setter.set(carrier, constants_1.BAGGAGE_HEADER, headerValue);
+      }
+    }
+    extract(context2, carrier, getter) {
+      const headerValue = getter.get(carrier, constants_1.BAGGAGE_HEADER);
+      if (!headerValue) {
+        return context2;
+      }
+      const baggage = {};
+      let count2 = 0;
+      let totalSize = 0;
+      if (Array.isArray(headerValue)) {
+        for (let i3 = 0;i3 < headerValue.length; i3++) {
+          [count2, totalSize] = (0, utils_1.parseBaggageHeaderString)(headerValue[i3], baggage, count2, totalSize);
+        }
+      } else {
+        [count2] = (0, utils_1.parseBaggageHeaderString)(headerValue, baggage, count2, totalSize);
+      }
+      if (count2 === 0) {
+        return context2;
+      }
+      return api_1.propagation.setBaggage(context2, api_1.propagation.createBaggage(baggage));
+    }
+    fields() {
+      return [constants_1.BAGGAGE_HEADER];
+    }
+  }
+  exports.W3CBaggagePropagator = W3CBaggagePropagator;
+});
+
+// node_modules/@opentelemetry/core/build/src/common/anchored-clock.js
+var require_anchored_clock2 = __commonJS((exports) => {
+  Object.defineProperty(exports, "__esModule", { value: true });
+  exports.AnchoredClock = undefined;
+
+  class AnchoredClock {
+    _monotonicClock;
+    _epochMillis;
+    _performanceMillis;
+    constructor(systemClock, monotonicClock) {
+      this._monotonicClock = monotonicClock;
+      this._epochMillis = systemClock.now();
+      this._performanceMillis = monotonicClock.now();
+    }
+    now() {
+      const delta = this._monotonicClock.now() - this._performanceMillis;
+      return this._epochMillis + delta;
+    }
+  }
+  exports.AnchoredClock = AnchoredClock;
+});
+
+// node_modules/@opentelemetry/core/build/src/common/attributes.js
+var require_attributes2 = __commonJS((exports) => {
+  Object.defineProperty(exports, "__esModule", { value: true });
+  exports.isAttributeValue = exports.isAttributeKey = exports.sanitizeAttributes = undefined;
+  var api_1 = require_src();
+  function sanitizeAttributes(attributes) {
+    const out = {};
+    if (typeof attributes !== "object" || attributes == null) {
+      return out;
+    }
+    for (const key in attributes) {
+      if (!Object.prototype.hasOwnProperty.call(attributes, key)) {
+        continue;
+      }
+      if (!isAttributeKey(key)) {
+        api_1.diag.warn(`Invalid attribute key: ${key}`);
+        continue;
+      }
+      const val = attributes[key];
+      if (!isAttributeValue(val)) {
+        api_1.diag.warn(`Invalid attribute value set for key: ${key}`);
+        continue;
+      }
+      if (Array.isArray(val)) {
+        out[key] = val.slice();
+      } else {
+        out[key] = val;
+      }
+    }
+    return out;
+  }
+  exports.sanitizeAttributes = sanitizeAttributes;
+  function isAttributeKey(key) {
+    return typeof key === "string" && key !== "";
+  }
+  exports.isAttributeKey = isAttributeKey;
+  function isAttributeValue(val) {
+    if (val == null) {
+      return true;
+    }
+    if (Array.isArray(val)) {
+      return isHomogeneousAttributeValueArray(val);
+    }
+    return isValidPrimitiveAttributeValueType(typeof val);
+  }
+  exports.isAttributeValue = isAttributeValue;
+  function isHomogeneousAttributeValueArray(arr) {
+    let type;
+    for (const element of arr) {
+      if (element == null)
+        continue;
+      const elementType = typeof element;
+      if (elementType === type) {
+        continue;
+      }
+      if (!type) {
+        if (isValidPrimitiveAttributeValueType(elementType)) {
+          type = elementType;
+          continue;
+        }
+        return false;
+      }
+      return false;
+    }
+    return true;
+  }
+  function isValidPrimitiveAttributeValueType(valType) {
+    switch (valType) {
+      case "number":
+      case "boolean":
+      case "string":
+        return true;
+    }
+    return false;
+  }
+});
+
+// node_modules/@opentelemetry/core/build/src/common/logging-error-handler.js
+var require_logging_error_handler2 = __commonJS((exports) => {
+  Object.defineProperty(exports, "__esModule", { value: true });
+  exports.loggingErrorHandler = undefined;
+  var api_1 = require_src();
+  function loggingErrorHandler() {
+    return (ex) => {
+      api_1.diag.error(stringifyException(ex));
+    };
+  }
+  exports.loggingErrorHandler = loggingErrorHandler;
+  function stringifyException(ex) {
+    if (typeof ex === "string") {
+      return ex;
+    } else {
+      return JSON.stringify(flattenException(ex));
+    }
+  }
+  function flattenException(ex) {
+    const result = {};
+    let current = ex;
+    while (current !== null) {
+      Object.getOwnPropertyNames(current).forEach((propertyName) => {
+        if (result[propertyName])
+          return;
+        const value = current[propertyName];
+        if (value) {
+          result[propertyName] = String(value);
+        }
+      });
+      current = Object.getPrototypeOf(current);
+    }
+    return result;
+  }
+});
+
+// node_modules/@opentelemetry/core/build/src/common/global-error-handler.js
+var require_global_error_handler2 = __commonJS((exports) => {
+  Object.defineProperty(exports, "__esModule", { value: true });
+  exports.globalErrorHandler = exports.setGlobalErrorHandler = undefined;
+  var logging_error_handler_1 = require_logging_error_handler2();
+  var delegateHandler = (0, logging_error_handler_1.loggingErrorHandler)();
+  function setGlobalErrorHandler(handler) {
+    delegateHandler = handler;
+  }
+  exports.setGlobalErrorHandler = setGlobalErrorHandler;
+  function globalErrorHandler(ex) {
+    try {
+      delegateHandler(ex);
+    } catch {}
+  }
+  exports.globalErrorHandler = globalErrorHandler;
+});
+
+// node_modules/@opentelemetry/core/build/src/platform/node/environment.js
+var require_environment2 = __commonJS((exports) => {
+  Object.defineProperty(exports, "__esModule", { value: true });
+  exports.getStringListFromEnv = exports.getBooleanFromEnv = exports.getStringFromEnv = exports.getNumberFromEnv = undefined;
+  var api_1 = require_src();
+  var util_1 = __require("util");
+  function getNumberFromEnv(key) {
+    const raw = process.env[key];
+    if (raw == null || raw.trim() === "") {
+      return;
+    }
+    const value = Number(raw);
+    if (isNaN(value)) {
+      api_1.diag.warn(`Unknown value ${(0, util_1.inspect)(raw)} for ${key}, expected a number, using defaults`);
+      return;
+    }
+    return value;
+  }
+  exports.getNumberFromEnv = getNumberFromEnv;
+  function getStringFromEnv(key) {
+    const raw = process.env[key];
+    if (raw == null || raw.trim() === "") {
+      return;
+    }
+    return raw;
+  }
+  exports.getStringFromEnv = getStringFromEnv;
+  function getBooleanFromEnv(key) {
+    const raw = process.env[key]?.trim().toLowerCase();
+    if (raw == null || raw === "") {
+      return false;
+    }
+    if (raw === "true") {
+      return true;
+    } else if (raw === "false") {
+      return false;
+    } else {
+      api_1.diag.warn(`Unknown value ${(0, util_1.inspect)(raw)} for ${key}, expected 'true' or 'false', falling back to 'false' (default)`);
+      return false;
+    }
+  }
+  exports.getBooleanFromEnv = getBooleanFromEnv;
+  function getStringListFromEnv(key) {
+    return getStringFromEnv(key)?.split(",").map((v2) => v2.trim()).filter((s4) => s4 !== "");
+  }
+  exports.getStringListFromEnv = getStringListFromEnv;
+});
+
+// node_modules/@opentelemetry/core/build/src/common/globalThis.js
+var require_globalThis2 = __commonJS((exports) => {
+  Object.defineProperty(exports, "__esModule", { value: true });
+  exports._globalThis = undefined;
+  exports._globalThis = globalThis;
+});
+
+// node_modules/@opentelemetry/core/build/src/version.js
+var require_version4 = __commonJS((exports) => {
+  Object.defineProperty(exports, "__esModule", { value: true });
+  exports.VERSION = undefined;
+  exports.VERSION = "2.8.0";
+});
+
+// node_modules/@opentelemetry/core/build/src/semconv.js
+var require_semconv2 = __commonJS((exports) => {
+  Object.defineProperty(exports, "__esModule", { value: true });
+  exports.ATTR_PROCESS_RUNTIME_NAME = undefined;
+  exports.ATTR_PROCESS_RUNTIME_NAME = "process.runtime.name";
+});
+
+// node_modules/@opentelemetry/core/build/src/platform/node/sdk-info.js
+var require_sdk_info2 = __commonJS((exports) => {
+  Object.defineProperty(exports, "__esModule", { value: true });
+  exports.SDK_INFO = undefined;
+  var version_1 = require_version4();
+  var semantic_conventions_1 = require_src2();
+  var semconv_1 = require_semconv2();
+  exports.SDK_INFO = {
+    [semantic_conventions_1.ATTR_TELEMETRY_SDK_NAME]: "opentelemetry",
+    [semconv_1.ATTR_PROCESS_RUNTIME_NAME]: "node",
+    [semantic_conventions_1.ATTR_TELEMETRY_SDK_LANGUAGE]: semantic_conventions_1.TELEMETRY_SDK_LANGUAGE_VALUE_NODEJS,
+    [semantic_conventions_1.ATTR_TELEMETRY_SDK_VERSION]: version_1.VERSION
+  };
+});
+
+// node_modules/@opentelemetry/core/build/src/platform/node/index.js
+var require_node2 = __commonJS((exports) => {
+  Object.defineProperty(exports, "__esModule", { value: true });
+  exports.otperformance = exports.SDK_INFO = exports._globalThis = exports.getStringListFromEnv = exports.getNumberFromEnv = exports.getBooleanFromEnv = exports.getStringFromEnv = undefined;
+  var environment_1 = require_environment2();
+  Object.defineProperty(exports, "getStringFromEnv", { enumerable: true, get: function() {
+    return environment_1.getStringFromEnv;
+  } });
+  Object.defineProperty(exports, "getBooleanFromEnv", { enumerable: true, get: function() {
+    return environment_1.getBooleanFromEnv;
+  } });
+  Object.defineProperty(exports, "getNumberFromEnv", { enumerable: true, get: function() {
+    return environment_1.getNumberFromEnv;
+  } });
+  Object.defineProperty(exports, "getStringListFromEnv", { enumerable: true, get: function() {
+    return environment_1.getStringListFromEnv;
+  } });
+  var globalThis_1 = require_globalThis2();
+  Object.defineProperty(exports, "_globalThis", { enumerable: true, get: function() {
+    return globalThis_1._globalThis;
+  } });
+  var sdk_info_1 = require_sdk_info2();
+  Object.defineProperty(exports, "SDK_INFO", { enumerable: true, get: function() {
+    return sdk_info_1.SDK_INFO;
+  } });
+  exports.otperformance = performance;
+});
+
+// node_modules/@opentelemetry/core/build/src/platform/index.js
+var require_platform2 = __commonJS((exports) => {
+  Object.defineProperty(exports, "__esModule", { value: true });
+  exports.getStringListFromEnv = exports.getNumberFromEnv = exports.getStringFromEnv = exports.getBooleanFromEnv = exports.otperformance = exports._globalThis = exports.SDK_INFO = undefined;
+  var node_1 = require_node2();
+  Object.defineProperty(exports, "SDK_INFO", { enumerable: true, get: function() {
+    return node_1.SDK_INFO;
+  } });
+  Object.defineProperty(exports, "_globalThis", { enumerable: true, get: function() {
+    return node_1._globalThis;
+  } });
+  Object.defineProperty(exports, "otperformance", { enumerable: true, get: function() {
+    return node_1.otperformance;
+  } });
+  Object.defineProperty(exports, "getBooleanFromEnv", { enumerable: true, get: function() {
+    return node_1.getBooleanFromEnv;
+  } });
+  Object.defineProperty(exports, "getStringFromEnv", { enumerable: true, get: function() {
+    return node_1.getStringFromEnv;
+  } });
+  Object.defineProperty(exports, "getNumberFromEnv", { enumerable: true, get: function() {
+    return node_1.getNumberFromEnv;
+  } });
+  Object.defineProperty(exports, "getStringListFromEnv", { enumerable: true, get: function() {
+    return node_1.getStringListFromEnv;
+  } });
+});
+
+// node_modules/@opentelemetry/core/build/src/common/time.js
+var require_time2 = __commonJS((exports) => {
+  Object.defineProperty(exports, "__esModule", { value: true });
+  exports.addHrTimes = exports.isTimeInput = exports.isTimeInputHrTime = exports.hrTimeToSeconds = exports.hrTimeToMilliseconds = exports.hrTimeToMicroseconds = exports.hrTimeToNanoseconds = exports.hrTimeToTimeStamp = exports.hrTimeDuration = exports.timeInputToHrTime = exports.hrTime = exports.getTimeOrigin = exports.millisToHrTime = undefined;
+  var platform_1 = require_platform2();
+  var NANOSECOND_DIGITS = 9;
+  var NANOSECOND_DIGITS_IN_MILLIS = 6;
+  var MILLISECONDS_TO_NANOSECONDS = Math.pow(10, NANOSECOND_DIGITS_IN_MILLIS);
+  var SECOND_TO_NANOSECONDS = Math.pow(10, NANOSECOND_DIGITS);
+  function millisToHrTime(epochMillis) {
+    const epochSeconds = epochMillis / 1000;
+    const seconds = Math.trunc(epochSeconds);
+    const nanos = Math.round(epochMillis % 1000 * MILLISECONDS_TO_NANOSECONDS);
+    return [seconds, nanos];
+  }
+  exports.millisToHrTime = millisToHrTime;
+  function getTimeOrigin() {
+    return platform_1.otperformance.timeOrigin;
+  }
+  exports.getTimeOrigin = getTimeOrigin;
+  function hrTime(performanceNow) {
+    const timeOrigin = millisToHrTime(platform_1.otperformance.timeOrigin);
+    const now = millisToHrTime(typeof performanceNow === "number" ? performanceNow : platform_1.otperformance.now());
+    return addHrTimes(timeOrigin, now);
+  }
+  exports.hrTime = hrTime;
+  function timeInputToHrTime(time) {
+    if (isTimeInputHrTime(time)) {
+      return time;
+    } else if (typeof time === "number") {
+      if (time < platform_1.otperformance.timeOrigin) {
+        return hrTime(time);
+      } else {
+        return millisToHrTime(time);
+      }
+    } else if (time instanceof Date) {
+      return millisToHrTime(time.getTime());
+    } else {
+      throw TypeError("Invalid input type");
+    }
+  }
+  exports.timeInputToHrTime = timeInputToHrTime;
+  function hrTimeDuration(startTime, endTime) {
+    let seconds = endTime[0] - startTime[0];
+    let nanos = endTime[1] - startTime[1];
+    if (nanos < 0) {
+      seconds -= 1;
+      nanos += SECOND_TO_NANOSECONDS;
+    }
+    return [seconds, nanos];
+  }
+  exports.hrTimeDuration = hrTimeDuration;
+  function hrTimeToTimeStamp(time) {
+    const precision = NANOSECOND_DIGITS;
+    const tmp = `${"0".repeat(precision)}${time[1]}Z`;
+    const nanoString = tmp.substring(tmp.length - precision - 1);
+    const date = new Date(time[0] * 1000).toISOString();
+    return date.replace("000Z", nanoString);
+  }
+  exports.hrTimeToTimeStamp = hrTimeToTimeStamp;
+  function hrTimeToNanoseconds(time) {
+    return time[0] * SECOND_TO_NANOSECONDS + time[1];
+  }
+  exports.hrTimeToNanoseconds = hrTimeToNanoseconds;
+  function hrTimeToMicroseconds(time) {
+    return time[0] * 1e6 + time[1] / 1000;
+  }
+  exports.hrTimeToMicroseconds = hrTimeToMicroseconds;
+  function hrTimeToMilliseconds(time) {
+    return time[0] * 1000 + time[1] / 1e6;
+  }
+  exports.hrTimeToMilliseconds = hrTimeToMilliseconds;
+  function hrTimeToSeconds(time) {
+    return time[0] + time[1] / SECOND_TO_NANOSECONDS;
+  }
+  exports.hrTimeToSeconds = hrTimeToSeconds;
+  function isTimeInputHrTime(value) {
+    return Array.isArray(value) && value.length === 2 && typeof value[0] === "number" && typeof value[1] === "number";
+  }
+  exports.isTimeInputHrTime = isTimeInputHrTime;
+  function isTimeInput(value) {
+    return isTimeInputHrTime(value) || typeof value === "number" || value instanceof Date;
+  }
+  exports.isTimeInput = isTimeInput;
+  function addHrTimes(time1, time2) {
+    const out = [time1[0] + time2[0], time1[1] + time2[1]];
+    if (out[1] >= SECOND_TO_NANOSECONDS) {
+      out[1] -= SECOND_TO_NANOSECONDS;
+      out[0] += 1;
+    }
+    return out;
+  }
+  exports.addHrTimes = addHrTimes;
+});
+
+// node_modules/@opentelemetry/core/build/src/common/timer-util.js
+var require_timer_util2 = __commonJS((exports) => {
+  Object.defineProperty(exports, "__esModule", { value: true });
+  exports.unrefTimer = undefined;
+  function unrefTimer(timer) {
+    if (typeof timer !== "number") {
+      timer.unref();
+    }
+  }
+  exports.unrefTimer = unrefTimer;
+});
+
+// node_modules/@opentelemetry/core/build/src/ExportResult.js
+var require_ExportResult2 = __commonJS((exports) => {
+  Object.defineProperty(exports, "__esModule", { value: true });
+  exports.ExportResultCode = undefined;
+  var ExportResultCode;
+  (function(ExportResultCode2) {
+    ExportResultCode2[ExportResultCode2["SUCCESS"] = 0] = "SUCCESS";
+    ExportResultCode2[ExportResultCode2["FAILED"] = 1] = "FAILED";
+  })(ExportResultCode = exports.ExportResultCode || (exports.ExportResultCode = {}));
+});
+
+// node_modules/@opentelemetry/core/build/src/propagation/composite.js
+var require_composite2 = __commonJS((exports) => {
+  Object.defineProperty(exports, "__esModule", { value: true });
+  exports.CompositePropagator = undefined;
+  var api_1 = require_src();
+
+  class CompositePropagator {
+    _propagators;
+    _fields;
+    constructor(config = {}) {
+      this._propagators = config.propagators ?? [];
+      const fields = new Set;
+      for (const propagator of this._propagators) {
+        const propagatorFields = typeof propagator.fields === "function" ? propagator.fields() : [];
+        for (const field of propagatorFields) {
+          fields.add(field);
+        }
+      }
+      this._fields = Array.from(fields);
+    }
+    inject(context2, carrier, setter) {
+      for (const propagator of this._propagators) {
+        try {
+          propagator.inject(context2, carrier, setter);
+        } catch (err) {
+          api_1.diag.warn(`Failed to inject with ${propagator.constructor.name}. Err: ${err.message}`);
+        }
+      }
+    }
+    extract(context2, carrier, getter) {
+      return this._propagators.reduce((ctx, propagator) => {
+        try {
+          return propagator.extract(ctx, carrier, getter);
+        } catch (err) {
+          api_1.diag.warn(`Failed to extract with ${propagator.constructor.name}. Err: ${err.message}`);
+        }
+        return ctx;
+      }, context2);
+    }
+    fields() {
+      return this._fields.slice();
+    }
+  }
+  exports.CompositePropagator = CompositePropagator;
+});
+
+// node_modules/@opentelemetry/core/build/src/internal/validators.js
+var require_validators2 = __commonJS((exports) => {
+  Object.defineProperty(exports, "__esModule", { value: true });
+  exports.validateValue = exports.validateKey = undefined;
+  var VALID_KEY_CHAR_RANGE = "[_0-9a-z-*/]";
+  var VALID_KEY = `[a-z]${VALID_KEY_CHAR_RANGE}{0,255}`;
+  var VALID_VENDOR_KEY = `[a-z0-9]${VALID_KEY_CHAR_RANGE}{0,240}@[a-z]${VALID_KEY_CHAR_RANGE}{0,13}`;
+  var VALID_KEY_REGEX = new RegExp(`^(?:${VALID_KEY}|${VALID_VENDOR_KEY})$`);
+  var VALID_VALUE_BASE_REGEX = /^[ -~]{0,255}[!-~]$/;
+  var INVALID_VALUE_COMMA_EQUAL_REGEX = /,|=/;
+  function validateKey(key) {
+    return VALID_KEY_REGEX.test(key);
+  }
+  exports.validateKey = validateKey;
+  function validateValue(value) {
+    return VALID_VALUE_BASE_REGEX.test(value) && !INVALID_VALUE_COMMA_EQUAL_REGEX.test(value);
+  }
+  exports.validateValue = validateValue;
+});
+
+// node_modules/@opentelemetry/core/build/src/trace/TraceState.js
+var require_TraceState2 = __commonJS((exports) => {
+  Object.defineProperty(exports, "__esModule", { value: true });
+  exports.TraceState = undefined;
+  var validators_1 = require_validators2();
+  var MAX_TRACE_STATE_ITEMS = 32;
+  var MAX_TRACE_STATE_LEN = 512;
+  var LIST_MEMBERS_SEPARATOR = ",";
+  var LIST_MEMBER_KEY_VALUE_SPLITTER = "=";
+
+  class TraceState {
+    _length;
+    _rawTraceState;
+    _internalState;
+    constructor(rawTraceState) {
+      this._rawTraceState = typeof rawTraceState === "string" ? rawTraceState : "";
+      this._length = this._rawTraceState.length;
+    }
+    set(key, value) {
+      if (!(0, validators_1.validateKey)(key) || !(0, validators_1.validateValue)(value)) {
+        return this;
+      }
+      const currState = this._getState();
+      const currValue = currState.get(key);
+      let newLength = this._length;
+      if (typeof currValue === "string") {
+        newLength += value.length - currValue.length;
+      } else {
+        newLength += key.length + value.length + (currState.size > 0 ? 2 : 1);
+      }
+      if (newLength > MAX_TRACE_STATE_LEN) {
+        return this;
+      }
+      const newState = new Map(currState);
+      newState.delete(key);
+      newState.set(key, value);
+      return this._fromState(newState, newLength);
+    }
+    unset(key) {
+      const currState = this._getState();
+      const currValue = currState.get(key);
+      if (typeof currValue !== "string") {
+        return this;
+      }
+      let newLength = this._length - (key.length + currValue.length + 1);
+      if (currState.size > 1) {
+        newLength = newLength - 1;
+      }
+      const newState = new Map(currState);
+      newState.delete(key);
+      return this._fromState(newState, newLength);
+    }
+    get(key) {
+      const currState = this._getState();
+      return currState.get(key);
+    }
+    serialize() {
+      let serialized = "";
+      let index = 0;
+      for (const entry of this._getState()) {
+        if (index > 0) {
+          serialized = LIST_MEMBERS_SEPARATOR + serialized;
+        }
+        serialized = `${entry[0]}${LIST_MEMBER_KEY_VALUE_SPLITTER}${entry[1]}` + serialized;
+        index++;
+      }
+      return serialized;
+    }
+    _getState() {
+      if (this._internalState) {
+        return this._internalState;
+      }
+      const vendorMembers = this._rawTraceState.split(LIST_MEMBERS_SEPARATOR);
+      const vendorEntries = new Map;
+      let currentLength = 0;
+      for (const member of vendorMembers) {
+        const m3 = member.trim();
+        const idx = m3.indexOf(LIST_MEMBER_KEY_VALUE_SPLITTER);
+        if (idx === -1) {
+          continue;
+        }
+        const key = m3.slice(0, idx);
+        const value = m3.slice(idx + 1);
+        if (!(0, validators_1.validateKey)(key) || !(0, validators_1.validateValue)(value)) {
+          continue;
+        }
+        const futureLength = currentLength + m3.length + (vendorEntries.size > 0 ? 1 : 0);
+        if (futureLength > MAX_TRACE_STATE_LEN) {
+          continue;
+        }
+        vendorEntries.set(key, value);
+        currentLength = futureLength;
+        if (vendorEntries.size >= MAX_TRACE_STATE_ITEMS) {
+          break;
+        }
+      }
+      this._length = currentLength;
+      this._internalState = new Map(Array.from(vendorEntries.entries()).reverse());
+      return this._internalState;
+    }
+    _fromState(state, length) {
+      const traceState = Object.create(TraceState.prototype);
+      traceState._internalState = state;
+      traceState._length = length;
+      return traceState;
+    }
+  }
+  exports.TraceState = TraceState;
+});
+
+// node_modules/@opentelemetry/core/build/src/trace/W3CTraceContextPropagator.js
+var require_W3CTraceContextPropagator2 = __commonJS((exports) => {
+  Object.defineProperty(exports, "__esModule", { value: true });
+  exports.W3CTraceContextPropagator = exports.parseTraceParent = exports.TRACE_STATE_HEADER = exports.TRACE_PARENT_HEADER = undefined;
+  var api_1 = require_src();
+  var suppress_tracing_1 = require_suppress_tracing2();
+  var TraceState_1 = require_TraceState2();
+  exports.TRACE_PARENT_HEADER = "traceparent";
+  exports.TRACE_STATE_HEADER = "tracestate";
+  var VERSION = "00";
+  var VERSION_PART = "(?!ff)[\\da-f]{2}";
+  var TRACE_ID_PART = "(?![0]{32})[\\da-f]{32}";
+  var PARENT_ID_PART = "(?![0]{16})[\\da-f]{16}";
+  var FLAGS_PART = "[\\da-f]{2}";
+  var TRACE_PARENT_REGEX = new RegExp(`^\\s?(${VERSION_PART})-(${TRACE_ID_PART})-(${PARENT_ID_PART})-(${FLAGS_PART})(-.*)?\\s?$`);
+  function parseTraceParent(traceParent) {
+    const match = TRACE_PARENT_REGEX.exec(traceParent);
+    if (!match)
+      return null;
+    if (match[1] === "00" && match[5])
+      return null;
+    return {
+      traceId: match[2],
+      spanId: match[3],
+      traceFlags: parseInt(match[4], 16)
+    };
+  }
+  exports.parseTraceParent = parseTraceParent;
+
+  class W3CTraceContextPropagator {
+    inject(context2, carrier, setter) {
+      const spanContext = api_1.trace.getSpanContext(context2);
+      if (!spanContext || (0, suppress_tracing_1.isTracingSuppressed)(context2) || !(0, api_1.isSpanContextValid)(spanContext))
+        return;
+      const traceParent = `${VERSION}-${spanContext.traceId}-${spanContext.spanId}-0${Number(spanContext.traceFlags || api_1.TraceFlags.NONE).toString(16)}`;
+      setter.set(carrier, exports.TRACE_PARENT_HEADER, traceParent);
+      if (spanContext.traceState) {
+        setter.set(carrier, exports.TRACE_STATE_HEADER, spanContext.traceState.serialize());
+      }
+    }
+    extract(context2, carrier, getter) {
+      const traceParentHeader = getter.get(carrier, exports.TRACE_PARENT_HEADER);
+      if (!traceParentHeader)
+        return context2;
+      const traceParent = Array.isArray(traceParentHeader) ? traceParentHeader[0] : traceParentHeader;
+      if (typeof traceParent !== "string")
+        return context2;
+      const spanContext = parseTraceParent(traceParent);
+      if (!spanContext)
+        return context2;
+      spanContext.isRemote = true;
+      const traceStateHeader = getter.get(carrier, exports.TRACE_STATE_HEADER);
+      if (traceStateHeader) {
+        const state = Array.isArray(traceStateHeader) ? traceStateHeader.join(",") : traceStateHeader;
+        spanContext.traceState = new TraceState_1.TraceState(typeof state === "string" ? state : undefined);
+      }
+      return api_1.trace.setSpanContext(context2, spanContext);
+    }
+    fields() {
+      return [exports.TRACE_PARENT_HEADER, exports.TRACE_STATE_HEADER];
+    }
+  }
+  exports.W3CTraceContextPropagator = W3CTraceContextPropagator;
+});
+
+// node_modules/@opentelemetry/core/build/src/trace/rpc-metadata.js
+var require_rpc_metadata2 = __commonJS((exports) => {
+  Object.defineProperty(exports, "__esModule", { value: true });
+  exports.getRPCMetadata = exports.deleteRPCMetadata = exports.setRPCMetadata = exports.RPCType = undefined;
+  var api_1 = require_src();
+  var RPC_METADATA_KEY = (0, api_1.createContextKey)("OpenTelemetry SDK Context Key RPC_METADATA");
+  var RPCType;
+  (function(RPCType2) {
+    RPCType2["HTTP"] = "http";
+  })(RPCType = exports.RPCType || (exports.RPCType = {}));
+  function setRPCMetadata(context2, meta) {
+    return context2.setValue(RPC_METADATA_KEY, meta);
+  }
+  exports.setRPCMetadata = setRPCMetadata;
+  function deleteRPCMetadata(context2) {
+    return context2.deleteValue(RPC_METADATA_KEY);
+  }
+  exports.deleteRPCMetadata = deleteRPCMetadata;
+  function getRPCMetadata(context2) {
+    return context2.getValue(RPC_METADATA_KEY);
+  }
+  exports.getRPCMetadata = getRPCMetadata;
+});
+
+// node_modules/@opentelemetry/core/build/src/utils/lodash.merge.js
+var require_lodash_merge2 = __commonJS((exports) => {
+  Object.defineProperty(exports, "__esModule", { value: true });
+  exports.isPlainObject = undefined;
+  var objectTag = "[object Object]";
+  var nullTag = "[object Null]";
+  var undefinedTag = "[object Undefined]";
+  var funcProto = Function.prototype;
+  var funcToString = funcProto.toString;
+  var objectCtorString = funcToString.call(Object);
+  var getPrototypeOf = Object.getPrototypeOf;
+  var objectProto = Object.prototype;
+  var hasOwnProperty = objectProto.hasOwnProperty;
+  var symToStringTag = Symbol ? Symbol.toStringTag : undefined;
+  var nativeObjectToString = objectProto.toString;
+  function isPlainObject3(value) {
+    if (!isObjectLike(value) || baseGetTag(value) !== objectTag) {
+      return false;
+    }
+    const proto = getPrototypeOf(value);
+    if (proto === null) {
+      return true;
+    }
+    const Ctor = hasOwnProperty.call(proto, "constructor") && proto.constructor;
+    return typeof Ctor == "function" && Ctor instanceof Ctor && funcToString.call(Ctor) === objectCtorString;
+  }
+  exports.isPlainObject = isPlainObject3;
+  function isObjectLike(value) {
+    return value != null && typeof value == "object";
+  }
+  function baseGetTag(value) {
+    if (value == null) {
+      return value === undefined ? undefinedTag : nullTag;
+    }
+    return symToStringTag && symToStringTag in Object(value) ? getRawTag(value) : objectToString3(value);
+  }
+  function getRawTag(value) {
+    const isOwn = hasOwnProperty.call(value, symToStringTag), tag = value[symToStringTag];
+    let unmasked = false;
+    try {
+      value[symToStringTag] = undefined;
+      unmasked = true;
+    } catch {}
+    const result = nativeObjectToString.call(value);
+    if (unmasked) {
+      if (isOwn) {
+        value[symToStringTag] = tag;
+      } else {
+        delete value[symToStringTag];
+      }
+    }
+    return result;
+  }
+  function objectToString3(value) {
+    return nativeObjectToString.call(value);
+  }
+});
+
+// node_modules/@opentelemetry/core/build/src/utils/merge.js
+var require_merge2 = __commonJS((exports) => {
+  Object.defineProperty(exports, "__esModule", { value: true });
+  exports.merge = undefined;
+  var lodash_merge_1 = require_lodash_merge2();
+  var MAX_LEVEL = 20;
+  function merge(...args) {
+    let result = args.shift();
+    const objects = new WeakMap;
+    while (args.length > 0) {
+      result = mergeTwoObjects(result, args.shift(), 0, objects);
+    }
+    return result;
+  }
+  exports.merge = merge;
+  function takeValue(value) {
+    if (isArray(value)) {
+      return value.slice();
+    }
+    return value;
+  }
+  function mergeTwoObjects(one, two, level = 0, objects) {
+    let result;
+    if (level > MAX_LEVEL) {
+      return;
+    }
+    level++;
+    if (isPrimitive(one) || isPrimitive(two) || isFunction(two)) {
+      result = takeValue(two);
+    } else if (isArray(one)) {
+      result = one.slice();
+      if (isArray(two)) {
+        for (let i3 = 0, j2 = two.length;i3 < j2; i3++) {
+          result.push(takeValue(two[i3]));
+        }
+      } else if (isObject2(two)) {
+        const keys = Object.keys(two);
+        for (let i3 = 0, j2 = keys.length;i3 < j2; i3++) {
+          const key = keys[i3];
+          if (key === "__proto__" || key === "constructor" || key === "prototype") {
+            continue;
+          }
+          result[key] = takeValue(two[key]);
+        }
+      }
+    } else if (isObject2(one)) {
+      if (isObject2(two)) {
+        if (!shouldMerge(one, two)) {
+          return two;
+        }
+        result = Object.assign({}, one);
+        const keys = Object.keys(two);
+        for (let i3 = 0, j2 = keys.length;i3 < j2; i3++) {
+          const key = keys[i3];
+          if (key === "__proto__" || key === "constructor" || key === "prototype") {
+            continue;
+          }
+          const twoValue = two[key];
+          if (isPrimitive(twoValue)) {
+            if (typeof twoValue === "undefined") {
+              delete result[key];
+            } else {
+              result[key] = twoValue;
+            }
+          } else {
+            const obj1 = result[key];
+            const obj2 = twoValue;
+            if (wasObjectReferenced(one, key, objects) || wasObjectReferenced(two, key, objects)) {
+              delete result[key];
+            } else {
+              if (isObject2(obj1) && isObject2(obj2)) {
+                const arr1 = objects.get(obj1) || [];
+                const arr2 = objects.get(obj2) || [];
+                arr1.push({ obj: one, key });
+                arr2.push({ obj: two, key });
+                objects.set(obj1, arr1);
+                objects.set(obj2, arr2);
+              }
+              result[key] = mergeTwoObjects(result[key], twoValue, level, objects);
+            }
+          }
+        }
+      } else {
+        result = two;
+      }
+    }
+    return result;
+  }
+  function wasObjectReferenced(obj, key, objects) {
+    const arr = objects.get(obj[key]) || [];
+    for (let i3 = 0, j2 = arr.length;i3 < j2; i3++) {
+      const info = arr[i3];
+      if (info.key === key && info.obj === obj) {
+        return true;
+      }
+    }
+    return false;
+  }
+  function isArray(value) {
+    return Array.isArray(value);
+  }
+  function isFunction(value) {
+    return typeof value === "function";
+  }
+  function isObject2(value) {
+    return !isPrimitive(value) && !isArray(value) && !isFunction(value) && typeof value === "object";
+  }
+  function isPrimitive(value) {
+    return typeof value === "string" || typeof value === "number" || typeof value === "boolean" || typeof value === "undefined" || value instanceof Date || value instanceof RegExp || value === null;
+  }
+  function shouldMerge(one, two) {
+    if (!(0, lodash_merge_1.isPlainObject)(one) || !(0, lodash_merge_1.isPlainObject)(two)) {
+      return false;
+    }
+    return true;
+  }
+});
+
+// node_modules/@opentelemetry/core/build/src/utils/timeout.js
+var require_timeout2 = __commonJS((exports) => {
+  Object.defineProperty(exports, "__esModule", { value: true });
+  exports.callWithTimeout = exports.TimeoutError = undefined;
+
+  class TimeoutError extends Error {
+    constructor(message) {
+      super(message);
+      Object.setPrototypeOf(this, TimeoutError.prototype);
+    }
+  }
+  exports.TimeoutError = TimeoutError;
+  function callWithTimeout(promise, timeout) {
+    let timeoutHandle;
+    const timeoutPromise = new Promise(function timeoutFunction(_resolve, reject) {
+      timeoutHandle = setTimeout(function timeoutHandler() {
+        reject(new TimeoutError("Operation timed out."));
+      }, timeout);
+    });
+    return Promise.race([promise, timeoutPromise]).then((result) => {
+      clearTimeout(timeoutHandle);
+      return result;
+    }, (reason) => {
+      clearTimeout(timeoutHandle);
+      throw reason;
+    });
+  }
+  exports.callWithTimeout = callWithTimeout;
+});
+
+// node_modules/@opentelemetry/core/build/src/utils/url.js
+var require_url2 = __commonJS((exports) => {
+  Object.defineProperty(exports, "__esModule", { value: true });
+  exports.isUrlIgnored = exports.urlMatches = undefined;
+  function urlMatches(url, urlToMatch) {
+    if (typeof urlToMatch === "string") {
+      return url === urlToMatch;
+    } else {
+      return !!url.match(urlToMatch);
+    }
+  }
+  exports.urlMatches = urlMatches;
+  function isUrlIgnored(url, ignoredUrls) {
+    if (!ignoredUrls) {
+      return false;
+    }
+    for (const ignoreUrl of ignoredUrls) {
+      if (urlMatches(url, ignoreUrl)) {
+        return true;
+      }
+    }
+    return false;
+  }
+  exports.isUrlIgnored = isUrlIgnored;
+});
+
+// node_modules/@opentelemetry/core/build/src/utils/promise.js
+var require_promise2 = __commonJS((exports) => {
+  Object.defineProperty(exports, "__esModule", { value: true });
+  exports.Deferred = undefined;
+
+  class Deferred {
+    _promise;
+    _resolve;
+    _reject;
+    constructor() {
+      this._promise = new Promise((resolve, reject) => {
+        this._resolve = resolve;
+        this._reject = reject;
+      });
+    }
+    get promise() {
+      return this._promise;
+    }
+    resolve(val) {
+      this._resolve(val);
+    }
+    reject(err) {
+      this._reject(err);
+    }
+  }
+  exports.Deferred = Deferred;
+});
+
+// node_modules/@opentelemetry/core/build/src/utils/callback.js
+var require_callback2 = __commonJS((exports) => {
+  Object.defineProperty(exports, "__esModule", { value: true });
+  exports.BindOnceFuture = undefined;
+  var promise_1 = require_promise2();
+
+  class BindOnceFuture {
+    _isCalled = false;
+    _deferred = new promise_1.Deferred;
+    _callback;
+    _that;
+    constructor(callback, that) {
+      this._callback = callback;
+      this._that = that;
+    }
+    get isCalled() {
+      return this._isCalled;
+    }
+    get promise() {
+      return this._deferred.promise;
+    }
+    call(...args) {
+      if (!this._isCalled) {
+        this._isCalled = true;
+        try {
+          Promise.resolve(this._callback.call(this._that, ...args)).then((val) => this._deferred.resolve(val), (err) => this._deferred.reject(err));
+        } catch (err) {
+          this._deferred.reject(err);
+        }
+      }
+      return this._deferred.promise;
+    }
+  }
+  exports.BindOnceFuture = BindOnceFuture;
+});
+
+// node_modules/@opentelemetry/core/build/src/utils/configuration.js
+var require_configuration2 = __commonJS((exports) => {
+  Object.defineProperty(exports, "__esModule", { value: true });
+  exports.diagLogLevelFromString = undefined;
+  var api_1 = require_src();
+  var logLevelMap = {
+    ALL: api_1.DiagLogLevel.ALL,
+    VERBOSE: api_1.DiagLogLevel.VERBOSE,
+    DEBUG: api_1.DiagLogLevel.DEBUG,
+    INFO: api_1.DiagLogLevel.INFO,
+    WARN: api_1.DiagLogLevel.WARN,
+    ERROR: api_1.DiagLogLevel.ERROR,
+    NONE: api_1.DiagLogLevel.NONE
+  };
+  function diagLogLevelFromString(value) {
+    if (value == null) {
+      return;
+    }
+    const resolvedLogLevel = logLevelMap[value.toUpperCase()];
+    if (resolvedLogLevel == null) {
+      api_1.diag.warn(`Unknown log level "${value}", expected one of ${Object.keys(logLevelMap)}, using default`);
+      return api_1.DiagLogLevel.INFO;
+    }
+    return resolvedLogLevel;
+  }
+  exports.diagLogLevelFromString = diagLogLevelFromString;
+});
+
+// node_modules/@opentelemetry/core/build/src/internal/exporter.js
+var require_exporter2 = __commonJS((exports) => {
+  Object.defineProperty(exports, "__esModule", { value: true });
+  exports._export = undefined;
+  var api_1 = require_src();
+  var suppress_tracing_1 = require_suppress_tracing2();
+  function _export(exporter, arg) {
+    return new Promise((resolve) => {
+      api_1.context.with((0, suppress_tracing_1.suppressTracing)(api_1.context.active()), () => {
+        exporter.export(arg, resolve);
+      });
+    });
+  }
+  exports._export = _export;
+});
+
+// node_modules/@opentelemetry/core/build/src/index.js
+var require_src4 = __commonJS((exports) => {
+  Object.defineProperty(exports, "__esModule", { value: true });
+  exports.diagLogLevelFromString = exports.BindOnceFuture = exports.urlMatches = exports.isUrlIgnored = exports.callWithTimeout = exports.TimeoutError = exports.merge = exports.TraceState = exports.unsuppressTracing = exports.suppressTracing = exports.isTracingSuppressed = exports.setRPCMetadata = exports.getRPCMetadata = exports.deleteRPCMetadata = exports.RPCType = exports.parseTraceParent = exports.W3CTraceContextPropagator = exports.TRACE_STATE_HEADER = exports.TRACE_PARENT_HEADER = exports.CompositePropagator = exports.otperformance = exports.getStringListFromEnv = exports.getNumberFromEnv = exports.getBooleanFromEnv = exports.getStringFromEnv = exports._globalThis = exports.SDK_INFO = exports.parseKeyPairsIntoRecord = exports.ExportResultCode = exports.unrefTimer = exports.timeInputToHrTime = exports.millisToHrTime = exports.isTimeInputHrTime = exports.isTimeInput = exports.hrTimeToTimeStamp = exports.hrTimeToSeconds = exports.hrTimeToNanoseconds = exports.hrTimeToMilliseconds = exports.hrTimeToMicroseconds = exports.hrTimeDuration = exports.hrTime = exports.getTimeOrigin = exports.addHrTimes = exports.loggingErrorHandler = exports.setGlobalErrorHandler = exports.globalErrorHandler = exports.sanitizeAttributes = exports.isAttributeValue = exports.AnchoredClock = exports.W3CBaggagePropagator = undefined;
+  exports.internal = undefined;
+  var W3CBaggagePropagator_1 = require_W3CBaggagePropagator2();
+  Object.defineProperty(exports, "W3CBaggagePropagator", { enumerable: true, get: function() {
+    return W3CBaggagePropagator_1.W3CBaggagePropagator;
+  } });
+  var anchored_clock_1 = require_anchored_clock2();
+  Object.defineProperty(exports, "AnchoredClock", { enumerable: true, get: function() {
+    return anchored_clock_1.AnchoredClock;
+  } });
+  var attributes_1 = require_attributes2();
+  Object.defineProperty(exports, "isAttributeValue", { enumerable: true, get: function() {
+    return attributes_1.isAttributeValue;
+  } });
+  Object.defineProperty(exports, "sanitizeAttributes", { enumerable: true, get: function() {
+    return attributes_1.sanitizeAttributes;
+  } });
+  var global_error_handler_1 = require_global_error_handler2();
+  Object.defineProperty(exports, "globalErrorHandler", { enumerable: true, get: function() {
+    return global_error_handler_1.globalErrorHandler;
+  } });
+  Object.defineProperty(exports, "setGlobalErrorHandler", { enumerable: true, get: function() {
+    return global_error_handler_1.setGlobalErrorHandler;
+  } });
+  var logging_error_handler_1 = require_logging_error_handler2();
+  Object.defineProperty(exports, "loggingErrorHandler", { enumerable: true, get: function() {
+    return logging_error_handler_1.loggingErrorHandler;
+  } });
+  var time_1 = require_time2();
+  Object.defineProperty(exports, "addHrTimes", { enumerable: true, get: function() {
+    return time_1.addHrTimes;
+  } });
+  Object.defineProperty(exports, "getTimeOrigin", { enumerable: true, get: function() {
+    return time_1.getTimeOrigin;
+  } });
+  Object.defineProperty(exports, "hrTime", { enumerable: true, get: function() {
+    return time_1.hrTime;
+  } });
+  Object.defineProperty(exports, "hrTimeDuration", { enumerable: true, get: function() {
+    return time_1.hrTimeDuration;
+  } });
+  Object.defineProperty(exports, "hrTimeToMicroseconds", { enumerable: true, get: function() {
+    return time_1.hrTimeToMicroseconds;
+  } });
+  Object.defineProperty(exports, "hrTimeToMilliseconds", { enumerable: true, get: function() {
+    return time_1.hrTimeToMilliseconds;
+  } });
+  Object.defineProperty(exports, "hrTimeToNanoseconds", { enumerable: true, get: function() {
+    return time_1.hrTimeToNanoseconds;
+  } });
+  Object.defineProperty(exports, "hrTimeToSeconds", { enumerable: true, get: function() {
+    return time_1.hrTimeToSeconds;
+  } });
+  Object.defineProperty(exports, "hrTimeToTimeStamp", { enumerable: true, get: function() {
+    return time_1.hrTimeToTimeStamp;
+  } });
+  Object.defineProperty(exports, "isTimeInput", { enumerable: true, get: function() {
+    return time_1.isTimeInput;
+  } });
+  Object.defineProperty(exports, "isTimeInputHrTime", { enumerable: true, get: function() {
+    return time_1.isTimeInputHrTime;
+  } });
+  Object.defineProperty(exports, "millisToHrTime", { enumerable: true, get: function() {
+    return time_1.millisToHrTime;
+  } });
+  Object.defineProperty(exports, "timeInputToHrTime", { enumerable: true, get: function() {
+    return time_1.timeInputToHrTime;
+  } });
+  var timer_util_1 = require_timer_util2();
+  Object.defineProperty(exports, "unrefTimer", { enumerable: true, get: function() {
+    return timer_util_1.unrefTimer;
+  } });
+  var ExportResult_1 = require_ExportResult2();
+  Object.defineProperty(exports, "ExportResultCode", { enumerable: true, get: function() {
+    return ExportResult_1.ExportResultCode;
+  } });
+  var utils_1 = require_utils6();
+  Object.defineProperty(exports, "parseKeyPairsIntoRecord", { enumerable: true, get: function() {
+    return utils_1.parseKeyPairsIntoRecord;
+  } });
+  var platform_1 = require_platform2();
+  Object.defineProperty(exports, "SDK_INFO", { enumerable: true, get: function() {
+    return platform_1.SDK_INFO;
+  } });
+  Object.defineProperty(exports, "_globalThis", { enumerable: true, get: function() {
+    return platform_1._globalThis;
+  } });
+  Object.defineProperty(exports, "getStringFromEnv", { enumerable: true, get: function() {
+    return platform_1.getStringFromEnv;
+  } });
+  Object.defineProperty(exports, "getBooleanFromEnv", { enumerable: true, get: function() {
+    return platform_1.getBooleanFromEnv;
+  } });
+  Object.defineProperty(exports, "getNumberFromEnv", { enumerable: true, get: function() {
+    return platform_1.getNumberFromEnv;
+  } });
+  Object.defineProperty(exports, "getStringListFromEnv", { enumerable: true, get: function() {
+    return platform_1.getStringListFromEnv;
+  } });
+  Object.defineProperty(exports, "otperformance", { enumerable: true, get: function() {
+    return platform_1.otperformance;
+  } });
+  var composite_1 = require_composite2();
+  Object.defineProperty(exports, "CompositePropagator", { enumerable: true, get: function() {
+    return composite_1.CompositePropagator;
+  } });
+  var W3CTraceContextPropagator_1 = require_W3CTraceContextPropagator2();
+  Object.defineProperty(exports, "TRACE_PARENT_HEADER", { enumerable: true, get: function() {
+    return W3CTraceContextPropagator_1.TRACE_PARENT_HEADER;
+  } });
+  Object.defineProperty(exports, "TRACE_STATE_HEADER", { enumerable: true, get: function() {
+    return W3CTraceContextPropagator_1.TRACE_STATE_HEADER;
+  } });
+  Object.defineProperty(exports, "W3CTraceContextPropagator", { enumerable: true, get: function() {
+    return W3CTraceContextPropagator_1.W3CTraceContextPropagator;
+  } });
+  Object.defineProperty(exports, "parseTraceParent", { enumerable: true, get: function() {
+    return W3CTraceContextPropagator_1.parseTraceParent;
+  } });
+  var rpc_metadata_1 = require_rpc_metadata2();
+  Object.defineProperty(exports, "RPCType", { enumerable: true, get: function() {
+    return rpc_metadata_1.RPCType;
+  } });
+  Object.defineProperty(exports, "deleteRPCMetadata", { enumerable: true, get: function() {
+    return rpc_metadata_1.deleteRPCMetadata;
+  } });
+  Object.defineProperty(exports, "getRPCMetadata", { enumerable: true, get: function() {
+    return rpc_metadata_1.getRPCMetadata;
+  } });
+  Object.defineProperty(exports, "setRPCMetadata", { enumerable: true, get: function() {
+    return rpc_metadata_1.setRPCMetadata;
+  } });
+  var suppress_tracing_1 = require_suppress_tracing2();
+  Object.defineProperty(exports, "isTracingSuppressed", { enumerable: true, get: function() {
+    return suppress_tracing_1.isTracingSuppressed;
+  } });
+  Object.defineProperty(exports, "suppressTracing", { enumerable: true, get: function() {
+    return suppress_tracing_1.suppressTracing;
+  } });
+  Object.defineProperty(exports, "unsuppressTracing", { enumerable: true, get: function() {
+    return suppress_tracing_1.unsuppressTracing;
+  } });
+  var TraceState_1 = require_TraceState2();
+  Object.defineProperty(exports, "TraceState", { enumerable: true, get: function() {
+    return TraceState_1.TraceState;
+  } });
+  var merge_1 = require_merge2();
+  Object.defineProperty(exports, "merge", { enumerable: true, get: function() {
+    return merge_1.merge;
+  } });
+  var timeout_1 = require_timeout2();
+  Object.defineProperty(exports, "TimeoutError", { enumerable: true, get: function() {
+    return timeout_1.TimeoutError;
+  } });
+  Object.defineProperty(exports, "callWithTimeout", { enumerable: true, get: function() {
+    return timeout_1.callWithTimeout;
+  } });
+  var url_1 = require_url2();
+  Object.defineProperty(exports, "isUrlIgnored", { enumerable: true, get: function() {
+    return url_1.isUrlIgnored;
+  } });
+  Object.defineProperty(exports, "urlMatches", { enumerable: true, get: function() {
+    return url_1.urlMatches;
+  } });
+  var callback_1 = require_callback2();
+  Object.defineProperty(exports, "BindOnceFuture", { enumerable: true, get: function() {
+    return callback_1.BindOnceFuture;
+  } });
+  var configuration_1 = require_configuration2();
+  Object.defineProperty(exports, "diagLogLevelFromString", { enumerable: true, get: function() {
+    return configuration_1.diagLogLevelFromString;
+  } });
+  var exporter_1 = require_exporter2();
+  exports.internal = {
+    _export: exporter_1._export
+  };
+});
+
 // node_modules/@opentelemetry/otlp-exporter-base/build/src/logging-response-handler.js
 var require_logging_response_handler = __commonJS((exports) => {
   Object.defineProperty(exports, "__esModule", { value: true });
@@ -39387,7 +40773,7 @@ var require_logging_response_handler = __commonJS((exports) => {
 var require_otlp_export_delegate = __commonJS((exports) => {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.createOtlpExportDelegate = undefined;
-  var core_1 = require_src3();
+  var core_1 = require_src4();
   var types_1 = require_types2();
   var logging_response_handler_1 = require_logging_response_handler();
   var api_1 = require_src();
@@ -39493,7 +40879,7 @@ var require_otlp_network_export_delegate = __commonJS((exports) => {
 });
 
 // node_modules/@opentelemetry/otlp-exporter-base/build/src/index.js
-var require_src4 = __commonJS((exports) => {
+var require_src5 = __commonJS((exports) => {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.createOtlpNetworkExportDelegate = exports.CompressionAlgorithm = exports.getSharedConfigurationDefaults = exports.mergeOtlpSharedConfigurationWithDefaults = exports.OTLPExporterError = exports.OTLPExporterBase = undefined;
   var OTLPExporterBase_1 = require_OTLPExporterBase();
@@ -39522,7 +40908,7 @@ var require_src4 = __commonJS((exports) => {
 });
 
 // node_modules/@opentelemetry/otlp-transformer/build/src/common/protobuf/utils.js
-var require_utils6 = __commonJS((exports) => {
+var require_utils7 = __commonJS((exports) => {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.estimateVarintSize = undefined;
   function estimateVarintSize(v2) {
@@ -39554,7 +40940,7 @@ var require_protobuf_writer = __commonJS((exports) => {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.ProtobufWriter = exports.GROWING_BUFFER_DEBUG_MESSAGE = undefined;
   var api_1 = require_src();
-  var utils_1 = require_utils6();
+  var utils_1 = require_utils7();
   exports.GROWING_BUFFER_DEBUG_MESSAGE = "ProtobufWriter: estimated size was too small, growing buffer.";
   var RESERVED_LENGTH_BYTES = 1;
 
@@ -39949,7 +41335,7 @@ var require_logs = __commonJS((exports) => {
 });
 
 // node_modules/@opentelemetry/api-logs/build/src/index.js
-var require_src5 = __commonJS((exports) => {
+var require_src6 = __commonJS((exports) => {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.logs = exports.createNoopLogger = exports.SeverityNumber = undefined;
   var LogRecord_1 = require_LogRecord();
@@ -40109,7 +41495,7 @@ var require_common_serializer = __commonJS((exports) => {
 var require_protobuf_size_estimator = __commonJS((exports) => {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.ProtobufSizeEstimator = undefined;
-  var utils_1 = require_utils6();
+  var utils_1 = require_utils7();
   function utf8ByteLength(str) {
     const len = str.length;
     let byteLen = 0;
@@ -40177,7 +41563,7 @@ var require_logs_serializer = __commonJS((exports) => {
   exports.serializeLogsExportRequest = undefined;
   var protobuf_writer_1 = require_protobuf_writer();
   var hex_to_binary_1 = require_hex_to_binary();
-  var api_logs_1 = require_src5();
+  var api_logs_1 = require_src6();
   var common_serializer_1 = require_common_serializer();
   var protobuf_size_estimator_1 = require_protobuf_size_estimator();
   function serializeLogRecord(writer, logRecord) {
@@ -40478,7 +41864,7 @@ var require_MetricData = __commonJS((exports) => {
 });
 
 // node_modules/@opentelemetry/sdk-metrics/build/src/utils.js
-var require_utils7 = __commonJS((exports) => {
+var require_utils8 = __commonJS((exports) => {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.equalsCaseInsensitive = exports.binarySearchUB = exports.setEquals = exports.callWithTimeout = exports.TimeoutError = exports.instrumentationScopeId = exports.hashAttributes = undefined;
   function hashAttributes(attributes) {
@@ -40595,7 +41981,7 @@ var require_Histogram = __commonJS((exports) => {
   exports.HistogramAggregator = exports.HistogramAccumulation = undefined;
   var types_1 = require_types3();
   var MetricData_1 = require_MetricData();
-  var utils_1 = require_utils7();
+  var utils_1 = require_utils8();
   function createNewEmptyCheckpoint(boundaries) {
     const counts = boundaries.map(() => 0);
     counts.push(0);
@@ -41449,7 +42835,7 @@ var require_LastValue = __commonJS((exports) => {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.LastValueAggregator = exports.LastValueAccumulation = undefined;
   var types_1 = require_types3();
-  var core_1 = require_src3();
+  var core_1 = require_src4();
   var MetricData_1 = require_MetricData();
 
   class LastValueAccumulation {
@@ -41804,7 +43190,7 @@ var require_AggregationSelector = __commonJS((exports) => {
 });
 
 // node_modules/@opentelemetry/sdk-metrics/build/src/semconv.js
-var require_semconv2 = __commonJS((exports) => {
+var require_semconv3 = __commonJS((exports) => {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.ATTR_ERROR_TYPE = exports.METRIC_OTEL_SDK_METRIC_READER_COLLECTION_DURATION = exports.OTEL_COMPONENT_TYPE_VALUE_PERIODIC_METRIC_READER = exports.ATTR_OTEL_COMPONENT_TYPE = exports.ATTR_OTEL_COMPONENT_NAME = undefined;
   exports.ATTR_OTEL_COMPONENT_NAME = "otel.component.name";
@@ -41818,7 +43204,7 @@ var require_semconv2 = __commonJS((exports) => {
 var require_MetricReaderMetrics = __commonJS((exports) => {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.MetricReaderMetrics = undefined;
-  var semconv_1 = require_semconv2();
+  var semconv_1 = require_semconv3();
   var componentCounter = new Map;
 
   class MetricReaderMetrics {
@@ -41848,7 +43234,7 @@ var require_MetricReaderMetrics = __commonJS((exports) => {
 });
 
 // node_modules/@opentelemetry/sdk-metrics/build/src/version.js
-var require_version4 = __commonJS((exports) => {
+var require_version5 = __commonJS((exports) => {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.VERSION = undefined;
   exports.VERSION = "2.8.0";
@@ -41859,11 +43245,11 @@ var require_MetricReader = __commonJS((exports) => {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.MetricReader = undefined;
   var api = require_src();
-  var utils_1 = require_utils7();
+  var utils_1 = require_utils8();
   var AggregationSelector_1 = require_AggregationSelector();
   var MetricReaderMetrics_1 = require_MetricReaderMetrics();
-  var version_1 = require_version4();
-  var core_1 = require_src3();
+  var version_1 = require_version5();
+  var core_1 = require_src4();
 
   class MetricReader {
     _shutdown = false;
@@ -41920,9 +43306,9 @@ var require_MetricReader = __commonJS((exports) => {
         }))
       ]);
       const endTime = (0, core_1.hrTime)();
-      const errors = sdkCollectionResults.errors.concat(additionalCollectionResults.flatMap((result) => result.errors));
+      const errors2 = sdkCollectionResults.errors.concat(additionalCollectionResults.flatMap((result) => result.errors));
       const collectDuration = (0, core_1.hrTimeToSeconds)((0, core_1.hrTimeDuration)(startTime, endTime));
-      this._selfObsMetrics.recordCollection(collectDuration, errors.length > 0 ? errors[0].name ?? "collect_error" : undefined);
+      this._selfObsMetrics.recordCollection(collectDuration, errors2.length > 0 ? errors2[0].name ?? "collect_error" : undefined);
       const resource = sdkCollectionResults.resourceMetrics.resource;
       const scopeMetrics = sdkCollectionResults.resourceMetrics.scopeMetrics.concat(additionalCollectionResults.flatMap((result) => result.resourceMetrics.scopeMetrics));
       return {
@@ -41930,7 +43316,7 @@ var require_MetricReader = __commonJS((exports) => {
           resource,
           scopeMetrics
         },
-        errors
+        errors: errors2
       };
     }
     async shutdown(options) {
@@ -41965,11 +43351,11 @@ var require_PeriodicExportingMetricReader = __commonJS((exports) => {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.PeriodicExportingMetricReader = undefined;
   var api = require_src();
-  var core_1 = require_src3();
+  var core_1 = require_src4();
   var MetricReader_1 = require_MetricReader();
-  var utils_1 = require_utils7();
+  var utils_1 = require_utils8();
   var MetricData_1 = require_MetricData();
-  var semconv_1 = require_semconv2();
+  var semconv_1 = require_semconv3();
 
   class PeriodicExportingMetricReader extends MetricReader_1.MetricReader {
     _interval;
@@ -42039,11 +43425,11 @@ var require_PeriodicExportingMetricReader = __commonJS((exports) => {
       }
     }
     async _doRun() {
-      const { resourceMetrics, errors } = await this.collect({
+      const { resourceMetrics, errors: errors2 } = await this.collect({
         timeoutMillis: this._exportTimeout
       });
-      if (errors.length > 0) {
-        api.diag.error("PeriodicExportingMetricReader: metrics collection errors", ...errors);
+      if (errors2.length > 0) {
+        api.diag.error("PeriodicExportingMetricReader: metrics collection errors", ...errors2);
       }
       if (resourceMetrics.resource.asyncAttributesPending) {
         try {
@@ -42088,7 +43474,7 @@ var require_PeriodicExportingMetricReader = __commonJS((exports) => {
 var require_InMemoryMetricExporter = __commonJS((exports) => {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.InMemoryMetricExporter = undefined;
-  var core_1 = require_src3();
+  var core_1 = require_src4();
 
   class InMemoryMetricExporter {
     _shutdown = false;
@@ -42129,7 +43515,7 @@ var require_InMemoryMetricExporter = __commonJS((exports) => {
 var require_ConsoleMetricExporter = __commonJS((exports) => {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.ConsoleMetricExporter = undefined;
-  var core_1 = require_src3();
+  var core_1 = require_src4();
   var AggregationSelector_1 = require_AggregationSelector();
 
   class ConsoleMetricExporter {
@@ -42195,7 +43581,7 @@ var require_default_service_name = __commonJS((exports) => {
 });
 
 // node_modules/@opentelemetry/resources/build/src/utils.js
-var require_utils8 = __commonJS((exports) => {
+var require_utils9 = __commonJS((exports) => {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.isPromiseLike = undefined;
   var isPromiseLike = (val) => {
@@ -42209,10 +43595,10 @@ var require_ResourceImpl = __commonJS((exports) => {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.defaultResource = exports.emptyResource = exports.resourceFromDetectedResource = exports.resourceFromAttributes = undefined;
   var api_1 = require_src();
-  var core_1 = require_src3();
+  var core_1 = require_src4();
   var semantic_conventions_1 = require_src2();
   var default_service_name_1 = require_default_service_name();
-  var utils_1 = require_utils8();
+  var utils_1 = require_utils9();
 
   class ResourceImpl {
     _rawAttributes;
@@ -42374,7 +43760,7 @@ var require_EnvDetector = __commonJS((exports) => {
   exports.envDetector = undefined;
   var api_1 = require_src();
   var semantic_conventions_1 = require_src2();
-  var core_1 = require_src3();
+  var core_1 = require_src4();
 
   class EnvDetector {
     _MAX_LENGTH = 255;
@@ -42436,7 +43822,7 @@ var require_EnvDetector = __commonJS((exports) => {
 });
 
 // node_modules/@opentelemetry/resources/build/src/semconv.js
-var require_semconv3 = __commonJS((exports) => {
+var require_semconv4 = __commonJS((exports) => {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.ATTR_WEBENGINE_VERSION = exports.ATTR_WEBENGINE_NAME = exports.ATTR_WEBENGINE_DESCRIPTION = exports.ATTR_SERVICE_NAMESPACE = exports.ATTR_SERVICE_INSTANCE_ID = exports.ATTR_PROCESS_RUNTIME_VERSION = exports.ATTR_PROCESS_RUNTIME_NAME = exports.ATTR_PROCESS_RUNTIME_DESCRIPTION = exports.ATTR_PROCESS_PID = exports.ATTR_PROCESS_OWNER = exports.ATTR_PROCESS_EXECUTABLE_PATH = exports.ATTR_PROCESS_EXECUTABLE_NAME = exports.ATTR_PROCESS_COMMAND_ARGS = exports.ATTR_PROCESS_COMMAND = exports.ATTR_OS_VERSION = exports.ATTR_OS_TYPE = exports.ATTR_K8S_POD_NAME = exports.ATTR_K8S_NAMESPACE_NAME = exports.ATTR_K8S_DEPLOYMENT_NAME = exports.ATTR_K8S_CLUSTER_NAME = exports.ATTR_HOST_TYPE = exports.ATTR_HOST_NAME = exports.ATTR_HOST_IMAGE_VERSION = exports.ATTR_HOST_IMAGE_NAME = exports.ATTR_HOST_IMAGE_ID = exports.ATTR_HOST_ID = exports.ATTR_HOST_ARCH = exports.ATTR_CONTAINER_NAME = exports.ATTR_CONTAINER_IMAGE_TAGS = exports.ATTR_CONTAINER_IMAGE_NAME = exports.ATTR_CONTAINER_ID = exports.ATTR_CLOUD_REGION = exports.ATTR_CLOUD_PROVIDER = exports.ATTR_CLOUD_AVAILABILITY_ZONE = exports.ATTR_CLOUD_ACCOUNT_ID = undefined;
   exports.ATTR_CLOUD_ACCOUNT_ID = "cloud.account.id";
@@ -42606,19 +43992,19 @@ var require_getMachineId = __commonJS((exports) => {
     if (!getMachineIdImpl) {
       switch (process12.platform) {
         case "darwin":
-          getMachineIdImpl = (await Promise.resolve().then(() => __toESM(require_getMachineId_darwin(), 1))).getMachineId;
+          getMachineIdImpl = (await Promise.resolve().then(() => __toESM(require_getMachineId_darwin()))).getMachineId;
           break;
         case "linux":
-          getMachineIdImpl = (await Promise.resolve().then(() => __toESM(require_getMachineId_linux(), 1))).getMachineId;
+          getMachineIdImpl = (await Promise.resolve().then(() => __toESM(require_getMachineId_linux()))).getMachineId;
           break;
         case "freebsd":
-          getMachineIdImpl = (await Promise.resolve().then(() => __toESM(require_getMachineId_bsd(), 1))).getMachineId;
+          getMachineIdImpl = (await Promise.resolve().then(() => __toESM(require_getMachineId_bsd()))).getMachineId;
           break;
         case "win32":
-          getMachineIdImpl = (await Promise.resolve().then(() => __toESM(require_getMachineId_win(), 1))).getMachineId;
+          getMachineIdImpl = (await Promise.resolve().then(() => __toESM(require_getMachineId_win()))).getMachineId;
           break;
         default:
-          getMachineIdImpl = (await Promise.resolve().then(() => __toESM(require_getMachineId_unsupported(), 1))).getMachineId;
+          getMachineIdImpl = (await Promise.resolve().then(() => __toESM(require_getMachineId_unsupported()))).getMachineId;
           break;
       }
     }
@@ -42628,7 +44014,7 @@ var require_getMachineId = __commonJS((exports) => {
 });
 
 // node_modules/@opentelemetry/resources/build/src/detectors/platform/node/utils.js
-var require_utils9 = __commonJS((exports) => {
+var require_utils10 = __commonJS((exports) => {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.normalizeType = exports.normalizeArch = undefined;
   var normalizeArch = (nodeArchString) => {
@@ -42661,10 +44047,10 @@ var require_utils9 = __commonJS((exports) => {
 var require_HostDetector = __commonJS((exports) => {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.hostDetector = undefined;
-  var semconv_1 = require_semconv3();
+  var semconv_1 = require_semconv4();
   var os_1 = __require("os");
   var getMachineId_1 = require_getMachineId();
-  var utils_1 = require_utils9();
+  var utils_1 = require_utils10();
 
   class HostDetector {
     detect(_config) {
@@ -42683,9 +44069,9 @@ var require_HostDetector = __commonJS((exports) => {
 var require_OSDetector = __commonJS((exports) => {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.osDetector = undefined;
-  var semconv_1 = require_semconv3();
+  var semconv_1 = require_semconv4();
   var os_1 = __require("os");
-  var utils_1 = require_utils9();
+  var utils_1 = require_utils10();
 
   class OSDetector {
     detect(_config) {
@@ -42704,7 +44090,7 @@ var require_ProcessDetector = __commonJS((exports) => {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.processDetector = undefined;
   var api_1 = require_src();
-  var semconv_1 = require_semconv3();
+  var semconv_1 = require_semconv4();
   var os4 = __require("os");
 
   class ProcessDetector {
@@ -42741,7 +44127,7 @@ var require_ProcessDetector = __commonJS((exports) => {
 var require_ServiceInstanceIdDetector = __commonJS((exports) => {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.serviceInstanceIdDetector = undefined;
-  var semconv_1 = require_semconv3();
+  var semconv_1 = require_semconv4();
   var crypto_1 = __require("crypto");
 
   class ServiceInstanceIdDetector {
@@ -42757,7 +44143,7 @@ var require_ServiceInstanceIdDetector = __commonJS((exports) => {
 });
 
 // node_modules/@opentelemetry/resources/build/src/detectors/platform/node/index.js
-var require_node2 = __commonJS((exports) => {
+var require_node3 = __commonJS((exports) => {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.serviceInstanceIdDetector = exports.processDetector = exports.osDetector = exports.hostDetector = undefined;
   var HostDetector_1 = require_HostDetector();
@@ -42779,10 +44165,10 @@ var require_node2 = __commonJS((exports) => {
 });
 
 // node_modules/@opentelemetry/resources/build/src/detectors/platform/index.js
-var require_platform2 = __commonJS((exports) => {
+var require_platform3 = __commonJS((exports) => {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.serviceInstanceIdDetector = exports.processDetector = exports.osDetector = exports.hostDetector = undefined;
-  var node_1 = require_node2();
+  var node_1 = require_node3();
   Object.defineProperty(exports, "hostDetector", { enumerable: true, get: function() {
     return node_1.hostDetector;
   } });
@@ -42821,7 +44207,7 @@ var require_detectors = __commonJS((exports) => {
   Object.defineProperty(exports, "envDetector", { enumerable: true, get: function() {
     return EnvDetector_1.envDetector;
   } });
-  var platform_1 = require_platform2();
+  var platform_1 = require_platform3();
   Object.defineProperty(exports, "hostDetector", { enumerable: true, get: function() {
     return platform_1.hostDetector;
   } });
@@ -42841,7 +44227,7 @@ var require_detectors = __commonJS((exports) => {
 });
 
 // node_modules/@opentelemetry/resources/build/src/index.js
-var require_src6 = __commonJS((exports) => {
+var require_src7 = __commonJS((exports) => {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.defaultServiceName = exports.emptyResource = exports.defaultResource = exports.resourceFromAttributes = exports.serviceInstanceIdDetector = exports.processDetector = exports.osDetector = exports.hostDetector = exports.envDetector = exports.detectResources = undefined;
   var detect_resources_1 = require_detect_resources();
@@ -42911,7 +44297,7 @@ var require_InstrumentDescriptor = __commonJS((exports) => {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.isValidName = exports.isDescriptorCompatibleWith = exports.createInstrumentDescriptorWithView = exports.createInstrumentDescriptor = undefined;
   var api_1 = require_src();
-  var utils_1 = require_utils7();
+  var utils_1 = require_utils8();
   function createInstrumentDescriptor(name, type, options) {
     if (!isValidName(name)) {
       api_1.diag.warn(`Invalid metric name: "${name}". The metric name should be a ASCII string with a length no greater than 255 characters.`);
@@ -42953,7 +44339,7 @@ var require_Instruments = __commonJS((exports) => {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.isObservableInstrument = exports.ObservableUpDownCounterInstrument = exports.ObservableGaugeInstrument = exports.ObservableCounterInstrument = exports.ObservableInstrument = exports.HistogramInstrument = exports.GaugeInstrument = exports.CounterInstrument = exports.UpDownCounterInstrument = exports.SyncInstrument = undefined;
   var api_1 = require_src();
-  var core_1 = require_src3();
+  var core_1 = require_src4();
 
   class SyncInstrument {
     _writableMetricStorage;
@@ -43138,7 +44524,7 @@ var require_MetricStorage = __commonJS((exports) => {
 var require_HashMap = __commonJS((exports) => {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.AttributeHashMap = exports.HashMap = undefined;
-  var utils_1 = require_utils7();
+  var utils_1 = require_utils8();
 
   class HashMap {
     _valueMap = new Map;
@@ -43208,7 +44594,7 @@ var require_HashMap = __commonJS((exports) => {
 var require_DeltaMetricProcessor = __commonJS((exports) => {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.DeltaMetricProcessor = undefined;
-  var utils_1 = require_utils7();
+  var utils_1 = require_utils8();
   var HashMap_1 = require_HashMap();
 
   class DeltaMetricProcessor {
@@ -43662,7 +45048,7 @@ var require_ObservableRegistry = __commonJS((exports) => {
   var api_1 = require_src();
   var Instruments_1 = require_Instruments();
   var ObservableResult_1 = require_ObservableResult();
-  var utils_1 = require_utils7();
+  var utils_1 = require_utils8();
 
   class ObservableRegistry {
     _callbacks = [];
@@ -43900,7 +45286,7 @@ var require_MeterSharedState = __commonJS((exports) => {
       return storages;
     }
     async collect(collector, collectionTime, options) {
-      const errors = await this.observableRegistry.observe(collectionTime, options?.timeoutMillis);
+      const errors2 = await this.observableRegistry.observe(collectionTime, options?.timeoutMillis);
       const storages = this.metricStorageRegistry.getStorages(collector);
       if (storages.length === 0) {
         return null;
@@ -43913,14 +45299,14 @@ var require_MeterSharedState = __commonJS((exports) => {
         }
       });
       if (metricDataList.length === 0) {
-        return { errors };
+        return { errors: errors2 };
       }
       return {
         scopeMetrics: {
           scope: this._instrumentationScope,
           metrics: metricDataList
         },
-        errors
+        errors: errors2
       };
     }
     _registerMetricStorage(descriptor, MetricStorageType) {
@@ -43961,7 +45347,7 @@ var require_MeterSharedState = __commonJS((exports) => {
 var require_MeterProviderSharedState = __commonJS((exports) => {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.MeterProviderSharedState = undefined;
-  var utils_1 = require_utils7();
+  var utils_1 = require_utils8();
   var ViewRegistry_1 = require_ViewRegistry();
   var MeterSharedState_1 = require_MeterSharedState();
   var AggregationOption_1 = require_AggregationOption();
@@ -44001,7 +45387,7 @@ var require_MeterProviderSharedState = __commonJS((exports) => {
 var require_MetricCollector = __commonJS((exports) => {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.MetricCollector = undefined;
-  var core_1 = require_src3();
+  var core_1 = require_src4();
 
   class MetricCollector {
     _sharedState;
@@ -44013,14 +45399,14 @@ var require_MetricCollector = __commonJS((exports) => {
     async collect(options) {
       const collectionTime = (0, core_1.millisToHrTime)(Date.now());
       const scopeMetrics = [];
-      const errors = [];
+      const errors2 = [];
       const meterCollectionPromises = Array.from(this._sharedState.meterSharedStates.values()).map(async (meterSharedState) => {
         const current = await meterSharedState.collect(this, collectionTime, options);
         if (current?.scopeMetrics != null) {
           scopeMetrics.push(current.scopeMetrics);
         }
         if (current?.errors != null) {
-          errors.push(...current.errors);
+          errors2.push(...current.errors);
         }
       });
       await Promise.all(meterCollectionPromises);
@@ -44029,7 +45415,7 @@ var require_MetricCollector = __commonJS((exports) => {
           resource: this._sharedState.resource,
           scopeMetrics
         },
-        errors
+        errors: errors2
       };
     }
     async forceFlush(options) {
@@ -44220,7 +45606,7 @@ var require_MeterProvider = __commonJS((exports) => {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.MeterProvider = undefined;
   var api_1 = require_src();
-  var resources_1 = require_src6();
+  var resources_1 = require_src7();
   var MetricReader_1 = require_MetricReader();
   var MeterProviderSharedState_1 = require_MeterProviderSharedState();
   var MetricCollector_1 = require_MetricCollector();
@@ -44282,7 +45668,7 @@ var require_MeterProvider = __commonJS((exports) => {
 });
 
 // node_modules/@opentelemetry/sdk-metrics/build/src/index.js
-var require_src7 = __commonJS((exports) => {
+var require_src8 = __commonJS((exports) => {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.TimeoutError = exports.createDenyListAttributesProcessor = exports.createAllowListAttributesProcessor = exports.AggregationType = exports.MeterProvider = exports.ConsoleMetricExporter = exports.InMemoryMetricExporter = exports.PeriodicExportingMetricReader = exports.MetricReader = exports.InstrumentType = exports.DataPointType = exports.AggregationTemporality = undefined;
   var AggregationTemporality_1 = require_AggregationTemporality();
@@ -44327,7 +45713,7 @@ var require_src7 = __commonJS((exports) => {
   Object.defineProperty(exports, "createDenyListAttributesProcessor", { enumerable: true, get: function() {
     return AttributesProcessor_1.createDenyListAttributesProcessor;
   } });
-  var utils_1 = require_utils7();
+  var utils_1 = require_utils8();
   Object.defineProperty(exports, "TimeoutError", { enumerable: true, get: function() {
     return utils_1.TimeoutError;
   } });
@@ -44338,7 +45724,7 @@ var require_metrics_serializer = __commonJS((exports) => {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.serializeMetricsExportRequest = undefined;
   var api_1 = require_src();
-  var sdk_metrics_1 = require_src7();
+  var sdk_metrics_1 = require_src8();
   var common_serializer_1 = require_common_serializer();
   var protobuf_size_estimator_1 = require_protobuf_size_estimator();
   var protobuf_writer_1 = require_protobuf_writer();
@@ -45091,10 +46477,10 @@ var require_internal2 = __commonJS((exports) => {
 });
 
 // node_modules/@opentelemetry/otlp-transformer/build/src/common/utils.js
-var require_utils10 = __commonJS((exports) => {
+var require_utils11 = __commonJS((exports) => {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.JSON_ENCODER = exports.PROTOBUF_ENCODER = exports.encodeAsString = exports.encodeAsLongBits = exports.toLongBits = exports.hrTimeToNanos = undefined;
-  var core_1 = require_src3();
+  var core_1 = require_src4();
   var hex_to_binary_1 = require_hex_to_binary();
   function hrTimeToNanos(hrTime) {
     const NANOSECONDS = BigInt(1e9);
@@ -45154,7 +46540,7 @@ var require_logs3 = __commonJS((exports) => {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.JsonLogsSerializer = undefined;
   var internal_1 = require_internal2();
-  var utils_1 = require_utils10();
+  var utils_1 = require_utils11();
   var api_1 = require_src();
   exports.JsonLogsSerializer = {
     serializeRequest: (arg) => {
@@ -45204,7 +46590,7 @@ var require_internal3 = __commonJS((exports) => {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.createExportMetricsServiceRequest = exports.toMetric = exports.toScopeMetrics = exports.toResourceMetrics = undefined;
   var api_1 = require_src();
-  var sdk_metrics_1 = require_src7();
+  var sdk_metrics_1 = require_src8();
   var internal_types_1 = require_internal_types();
   var internal_1 = require_internal();
   function toResourceMetrics(resourceMetrics, encoder) {
@@ -45342,7 +46728,7 @@ var require_metrics3 = __commonJS((exports) => {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.JsonMetricsSerializer = undefined;
   var internal_1 = require_internal3();
-  var utils_1 = require_utils10();
+  var utils_1 = require_utils11();
   var api_1 = require_src();
   exports.JsonMetricsSerializer = {
     serializeRequest: (arg) => {
@@ -45500,7 +46886,7 @@ var require_trace4 = __commonJS((exports) => {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.JsonTraceSerializer = undefined;
   var internal_1 = require_internal4();
-  var utils_1 = require_utils10();
+  var utils_1 = require_utils11();
   var api_1 = require_src();
   exports.JsonTraceSerializer = {
     serializeRequest: (arg) => {
@@ -45534,7 +46920,7 @@ var require_json3 = __commonJS((exports) => {
 });
 
 // node_modules/@opentelemetry/otlp-transformer/build/src/index.js
-var require_src8 = __commonJS((exports) => {
+var require_src9 = __commonJS((exports) => {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.JsonTraceSerializer = exports.JsonMetricsSerializer = exports.JsonLogsSerializer = exports.ProtobufTraceSerializer = exports.ProtobufMetricsSerializer = exports.ProtobufLogsSerializer = undefined;
   var protobuf_1 = require_protobuf();
@@ -45693,7 +47079,7 @@ var require_is_export_retryable = __commonJS((exports) => {
 });
 
 // node_modules/@opentelemetry/otlp-exporter-base/build/src/version.js
-var require_version5 = __commonJS((exports) => {
+var require_version6 = __commonJS((exports) => {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.VERSION = undefined;
   exports.VERSION = "0.219.0";
@@ -45707,7 +47093,7 @@ var require_http_transport_utils = __commonJS((exports) => {
   var stream_1 = __require("stream");
   var is_export_retryable_1 = require_is_export_retryable();
   var types_1 = require_types2();
-  var version_1 = require_version5();
+  var version_1 = require_version6();
   var DEFAULT_USER_AGENT = `OTel-OTLP-Exporter-JavaScript/${version_1.VERSION}`;
   exports.MAX_RESPONSE_BODY_SIZE = 4 * 1024 * 1024;
   function sendWithHttp(request2, url, headers, compression, userAgent, agent, data, timeoutMillis) {
@@ -45965,7 +47351,7 @@ var require_otlp_http_export_delegate = __commonJS((exports) => {
 var require_shared_env_configuration = __commonJS((exports) => {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.getSharedConfigurationFromEnvironment = undefined;
-  var core_1 = require_src3();
+  var core_1 = require_src4();
   var api_1 = require_src();
   function parseAndValidateTimeoutFromEnv(timeoutEnvVar) {
     const envTimeout = (0, core_1.getNumberFromEnv)(timeoutEnvVar);
@@ -46010,7 +47396,7 @@ var require_otlp_node_http_env_configuration = __commonJS((exports) => {
   exports.getNodeHttpConfigurationFromEnvironment = undefined;
   var fs4 = __require("fs");
   var path8 = __require("path");
-  var core_1 = require_src3();
+  var core_1 = require_src4();
   var api_1 = require_src();
   var shared_env_configuration_1 = require_shared_env_configuration();
   var shared_configuration_1 = require_shared_configuration();
@@ -46187,8 +47573,8 @@ var require_index_node_http = __commonJS((exports) => {
 var require_OTLPTraceExporter = __commonJS((exports) => {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.OTLPTraceExporter = undefined;
-  var otlp_exporter_base_1 = require_src4();
-  var otlp_transformer_1 = require_src8();
+  var otlp_exporter_base_1 = require_src5();
+  var otlp_transformer_1 = require_src9();
   var node_http_1 = require_index_node_http();
 
   class OTLPTraceExporter extends otlp_exporter_base_1.OTLPExporterBase {
@@ -46202,7 +47588,7 @@ var require_OTLPTraceExporter = __commonJS((exports) => {
 });
 
 // node_modules/@opentelemetry/exporter-trace-otlp-proto/build/src/platform/node/index.js
-var require_node3 = __commonJS((exports) => {
+var require_node4 = __commonJS((exports) => {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.OTLPTraceExporter = undefined;
   var OTLPTraceExporter_1 = require_OTLPTraceExporter();
@@ -46212,20 +47598,20 @@ var require_node3 = __commonJS((exports) => {
 });
 
 // node_modules/@opentelemetry/exporter-trace-otlp-proto/build/src/platform/index.js
-var require_platform3 = __commonJS((exports) => {
+var require_platform4 = __commonJS((exports) => {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.OTLPTraceExporter = undefined;
-  var node_1 = require_node3();
+  var node_1 = require_node4();
   Object.defineProperty(exports, "OTLPTraceExporter", { enumerable: true, get: function() {
     return node_1.OTLPTraceExporter;
   } });
 });
 
 // node_modules/@opentelemetry/exporter-trace-otlp-proto/build/src/index.js
-var require_src9 = __commonJS((exports) => {
+var require_src10 = __commonJS((exports) => {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.OTLPTraceExporter = undefined;
-  var platform_1 = require_platform3();
+  var platform_1 = require_platform4();
   Object.defineProperty(exports, "OTLPTraceExporter", { enumerable: true, get: function() {
     return platform_1.OTLPTraceExporter;
   } });
@@ -46347,7 +47733,7 @@ var require_validation2 = __commonJS((exports) => {
         droppedAttributesCount += 1;
       } else if (decision === AddAttributeDecision.DROP_LIMIT_REACHED) {
         droppedAttributesCount += 1;
-      } else {}
+      }
     }
     return {
       attributes: currentAttributesCount > 0 ? normalizedAttributes : undefined,
@@ -46362,7 +47748,7 @@ var require_LogRecordImpl = __commonJS((exports) => {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.LogRecordImpl = undefined;
   var api = require_src();
-  var core_1 = require_src3();
+  var core_1 = require_src4();
   var semantic_conventions_1 = require_src2();
   var validation_1 = require_validation2();
 
@@ -46534,7 +47920,7 @@ var require_LogRecordImpl = __commonJS((exports) => {
 var require_Logger = __commonJS((exports) => {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.Logger = undefined;
-  var api_logs_1 = require_src5();
+  var api_logs_1 = require_src6();
   var api_1 = require_src();
   var LogRecordImpl_1 = require_LogRecordImpl();
 
@@ -46620,7 +48006,7 @@ var require_NoopLogRecordProcessor = __commonJS((exports) => {
 var require_MultiLogRecordProcessor = __commonJS((exports) => {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.MultiLogRecordProcessor = undefined;
-  var core_1 = require_src3();
+  var core_1 = require_src4();
 
   class MultiLogRecordProcessor {
     processors;
@@ -46652,7 +48038,7 @@ var require_MultiLogRecordProcessor = __commonJS((exports) => {
 });
 
 // node_modules/@opentelemetry/sdk-logs/build/src/internal/utils.js
-var require_utils11 = __commonJS((exports) => {
+var require_utils12 = __commonJS((exports) => {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.getInstrumentationScopeKey = undefined;
   function normalizeAnyValue(value) {
@@ -46704,7 +48090,7 @@ var require_utils11 = __commonJS((exports) => {
 });
 
 // node_modules/@opentelemetry/sdk-logs/build/src/semconv.js
-var require_semconv4 = __commonJS((exports) => {
+var require_semconv5 = __commonJS((exports) => {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.METRIC_OTEL_SDK_LOG_CREATED = undefined;
   exports.METRIC_OTEL_SDK_LOG_CREATED = "otel.sdk.log.created";
@@ -46714,7 +48100,7 @@ var require_semconv4 = __commonJS((exports) => {
 var require_LoggerMetrics = __commonJS((exports) => {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.LoggerMetrics = undefined;
-  var semconv_1 = require_semconv4();
+  var semconv_1 = require_semconv5();
 
   class LoggerMetrics {
     createdLogs;
@@ -46732,7 +48118,7 @@ var require_LoggerMetrics = __commonJS((exports) => {
 });
 
 // node_modules/@opentelemetry/sdk-logs/build/src/version.js
-var require_version6 = __commonJS((exports) => {
+var require_version7 = __commonJS((exports) => {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.VERSION = undefined;
   exports.VERSION = "0.219.0";
@@ -46743,12 +48129,12 @@ var require_LoggerProviderSharedState = __commonJS((exports) => {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.LoggerProviderSharedState = exports.DEFAULT_LOGGER_CONFIGURATOR = undefined;
   var api_1 = require_src();
-  var api_logs_1 = require_src5();
+  var api_logs_1 = require_src6();
   var NoopLogRecordProcessor_1 = require_NoopLogRecordProcessor();
   var MultiLogRecordProcessor_1 = require_MultiLogRecordProcessor();
-  var utils_1 = require_utils11();
+  var utils_1 = require_utils12();
   var LoggerMetrics_1 = require_LoggerMetrics();
-  var version_1 = require_version6();
+  var version_1 = require_version7();
   var DEFAULT_LOGGER_CONFIG = {
     disabled: false,
     minimumSeverity: api_logs_1.SeverityNumber.UNSPECIFIED,
@@ -46804,12 +48190,12 @@ var require_LoggerProvider = __commonJS((exports) => {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.LoggerProvider = exports.DEFAULT_LOGGER_NAME = undefined;
   var api_1 = require_src();
-  var api_logs_1 = require_src5();
-  var resources_1 = require_src6();
-  var core_1 = require_src3();
+  var api_logs_1 = require_src6();
+  var resources_1 = require_src7();
+  var core_1 = require_src4();
   var Logger_1 = require_Logger();
   var LoggerProviderSharedState_1 = require_LoggerProviderSharedState();
-  var utils_1 = require_utils11();
+  var utils_1 = require_utils12();
   var validation_1 = require_validation2();
   exports.DEFAULT_LOGGER_NAME = "unknown";
 
@@ -46877,7 +48263,7 @@ var require_LoggerProvider = __commonJS((exports) => {
 var require_ConsoleLogRecordExporter = __commonJS((exports) => {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.ConsoleLogRecordExporter = undefined;
-  var core_1 = require_src3();
+  var core_1 = require_src4();
 
   class ConsoleLogRecordExporter {
     export(logs, resultCallback) {
@@ -46916,7 +48302,7 @@ var require_ConsoleLogRecordExporter = __commonJS((exports) => {
 var require_SimpleLogRecordProcessor = __commonJS((exports) => {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.SimpleLogRecordProcessor = undefined;
-  var core_1 = require_src3();
+  var core_1 = require_src4();
 
   class SimpleLogRecordProcessor {
     _exporter;
@@ -46965,7 +48351,7 @@ var require_SimpleLogRecordProcessor = __commonJS((exports) => {
 var require_InMemoryLogRecordExporter = __commonJS((exports) => {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.InMemoryLogRecordExporter = undefined;
-  var core_1 = require_src3();
+  var core_1 = require_src4();
 
   class InMemoryLogRecordExporter {
     _finishedLogRecords = [];
@@ -47000,7 +48386,7 @@ var require_BatchLogRecordProcessorBase = __commonJS((exports) => {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.BatchLogRecordProcessorBase = undefined;
   var api_1 = require_src();
-  var core_1 = require_src3();
+  var core_1 = require_src4();
   async function waitForResources(logRecords) {
     const pendingResources = [];
     for (let i3 = 0, len = logRecords.length;i3 < len; i3++) {
@@ -47226,7 +48612,7 @@ var require_BatchLogRecordProcessor = __commonJS((exports) => {
 });
 
 // node_modules/@opentelemetry/sdk-logs/build/src/platform/node/index.js
-var require_node4 = __commonJS((exports) => {
+var require_node5 = __commonJS((exports) => {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.BatchLogRecordProcessor = undefined;
   var BatchLogRecordProcessor_1 = require_BatchLogRecordProcessor();
@@ -47236,10 +48622,10 @@ var require_node4 = __commonJS((exports) => {
 });
 
 // node_modules/@opentelemetry/sdk-logs/build/src/platform/index.js
-var require_platform4 = __commonJS((exports) => {
+var require_platform5 = __commonJS((exports) => {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.BatchLogRecordProcessor = undefined;
-  var node_1 = require_node4();
+  var node_1 = require_node5();
   Object.defineProperty(exports, "BatchLogRecordProcessor", { enumerable: true, get: function() {
     return node_1.BatchLogRecordProcessor;
   } });
@@ -47249,7 +48635,7 @@ var require_platform4 = __commonJS((exports) => {
 var require_LoggerConfigurators = __commonJS((exports) => {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.createLoggerConfigurator = undefined;
-  var api_logs_1 = require_src5();
+  var api_logs_1 = require_src6();
   var DEFAULT_LOGGER_CONFIG = {
     disabled: false,
     minimumSeverity: api_logs_1.SeverityNumber.UNSPECIFIED,
@@ -47285,7 +48671,7 @@ var require_LoggerConfigurators = __commonJS((exports) => {
 });
 
 // node_modules/@opentelemetry/sdk-logs/build/src/index.js
-var require_src10 = __commonJS((exports) => {
+var require_src11 = __commonJS((exports) => {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.createLoggerConfigurator = exports.BatchLogRecordProcessor = exports.InMemoryLogRecordExporter = exports.SimpleLogRecordProcessor = exports.ConsoleLogRecordExporter = exports.LoggerProvider = undefined;
   var LoggerProvider_1 = require_LoggerProvider();
@@ -47304,7 +48690,7 @@ var require_src10 = __commonJS((exports) => {
   Object.defineProperty(exports, "InMemoryLogRecordExporter", { enumerable: true, get: function() {
     return InMemoryLogRecordExporter_1.InMemoryLogRecordExporter;
   } });
-  var platform_1 = require_platform4();
+  var platform_1 = require_platform5();
   Object.defineProperty(exports, "BatchLogRecordProcessor", { enumerable: true, get: function() {
     return platform_1.BatchLogRecordProcessor;
   } });
@@ -47541,7 +48927,7 @@ var require_AsyncLocalStorageContextManager = __commonJS((exports) => {
 });
 
 // node_modules/@opentelemetry/context-async-hooks/build/src/index.js
-var require_src11 = __commonJS((exports) => {
+var require_src12 = __commonJS((exports) => {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.AsyncLocalStorageContextManager = exports.AsyncHooksContextManager = undefined;
   var AsyncHooksContextManager_1 = require_AsyncHooksContextManager();
@@ -47601,7 +48987,7 @@ var require_Span = __commonJS((exports) => {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.SpanImpl = undefined;
   var api_1 = require_src();
-  var core_1 = require_src3();
+  var core_1 = require_src4();
   var semantic_conventions_1 = require_src2();
   var enums_1 = require_enums();
   var inspect_1 = require_inspect2();
@@ -48006,7 +49392,7 @@ var require_ParentBasedSampler = __commonJS((exports) => {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.ParentBasedSampler = undefined;
   var api_1 = require_src();
-  var core_1 = require_src3();
+  var core_1 = require_src4();
   var AlwaysOffSampler_1 = require_AlwaysOffSampler();
   var AlwaysOnSampler_1 = require_AlwaysOnSampler();
 
@@ -48099,7 +49485,7 @@ var require_config = __commonJS((exports) => {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.buildSamplerFromEnv = exports.loadDefaultConfig = undefined;
   var api_1 = require_src();
-  var core_1 = require_src3();
+  var core_1 = require_src4();
   var AlwaysOffSampler_1 = require_AlwaysOffSampler();
   var AlwaysOnSampler_1 = require_AlwaysOnSampler();
   var ParentBasedSampler_1 = require_ParentBasedSampler();
@@ -48181,7 +49567,7 @@ var require_utility = __commonJS((exports) => {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.reconfigureLimits = exports.mergeConfig = exports.DEFAULT_ATTRIBUTE_VALUE_LENGTH_LIMIT = exports.DEFAULT_ATTRIBUTE_COUNT_LIMIT = undefined;
   var config_1 = require_config();
-  var core_1 = require_src3();
+  var core_1 = require_src4();
   exports.DEFAULT_ATTRIBUTE_COUNT_LIMIT = 128;
   exports.DEFAULT_ATTRIBUTE_VALUE_LENGTH_LIMIT = Infinity;
   function mergeConfig(userConfig) {
@@ -48209,7 +49595,7 @@ var require_BatchSpanProcessorBase = __commonJS((exports) => {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.BatchSpanProcessorBase = undefined;
   var api_1 = require_src();
-  var core_1 = require_src3();
+  var core_1 = require_src4();
 
   class BatchSpanProcessorBase {
     _maxExportBatchSize;
@@ -48412,7 +49798,7 @@ var require_RandomIdGenerator = __commonJS((exports) => {
 });
 
 // node_modules/@opentelemetry/sdk-trace-base/build/src/platform/node/index.js
-var require_node5 = __commonJS((exports) => {
+var require_node6 = __commonJS((exports) => {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.RandomIdGenerator = exports.BatchSpanProcessor = undefined;
   var BatchSpanProcessor_1 = require_BatchSpanProcessor();
@@ -48426,10 +49812,10 @@ var require_node5 = __commonJS((exports) => {
 });
 
 // node_modules/@opentelemetry/sdk-trace-base/build/src/platform/index.js
-var require_platform5 = __commonJS((exports) => {
+var require_platform6 = __commonJS((exports) => {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.RandomIdGenerator = exports.BatchSpanProcessor = undefined;
-  var node_1 = require_node5();
+  var node_1 = require_node6();
   Object.defineProperty(exports, "BatchSpanProcessor", { enumerable: true, get: function() {
     return node_1.BatchSpanProcessor;
   } });
@@ -48439,7 +49825,7 @@ var require_platform5 = __commonJS((exports) => {
 });
 
 // node_modules/@opentelemetry/sdk-trace-base/build/src/semconv.js
-var require_semconv5 = __commonJS((exports) => {
+var require_semconv6 = __commonJS((exports) => {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.METRIC_OTEL_SDK_SPAN_STARTED = exports.METRIC_OTEL_SDK_SPAN_LIVE = exports.ATTR_OTEL_SPAN_SAMPLING_RESULT = exports.ATTR_OTEL_SPAN_PARENT_ORIGIN = undefined;
   exports.ATTR_OTEL_SPAN_PARENT_ORIGIN = "otel.span.parent.origin";
@@ -48453,7 +49839,7 @@ var require_TracerMetrics = __commonJS((exports) => {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.TracerMetrics = undefined;
   var Sampler_1 = require_Sampler();
-  var semconv_1 = require_semconv5();
+  var semconv_1 = require_semconv6();
 
   class TracerMetrics {
     startedSpans;
@@ -48509,7 +49895,7 @@ var require_TracerMetrics = __commonJS((exports) => {
 });
 
 // node_modules/@opentelemetry/sdk-trace-base/build/src/version.js
-var require_version7 = __commonJS((exports) => {
+var require_version8 = __commonJS((exports) => {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.VERSION = undefined;
   exports.VERSION = "2.8.0";
@@ -48520,12 +49906,12 @@ var require_Tracer = __commonJS((exports) => {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.Tracer = undefined;
   var api = require_src();
-  var core_1 = require_src3();
+  var core_1 = require_src4();
   var Span_1 = require_Span();
   var utility_1 = require_utility();
-  var platform_1 = require_platform5();
+  var platform_1 = require_platform6();
   var TracerMetrics_1 = require_TracerMetrics();
-  var version_1 = require_version7();
+  var version_1 = require_version8();
   var inspect_1 = require_inspect2();
 
   class Tracer {
@@ -48651,7 +50037,7 @@ var require_Tracer = __commonJS((exports) => {
 var require_MultiSpanProcessor = __commonJS((exports) => {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.MultiSpanProcessor = undefined;
-  var core_1 = require_src3();
+  var core_1 = require_src4();
 
   class MultiSpanProcessor {
     _spanProcessors;
@@ -48708,8 +50094,8 @@ var require_MultiSpanProcessor = __commonJS((exports) => {
 var require_BasicTracerProvider = __commonJS((exports) => {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.BasicTracerProvider = exports.ForceFlushState = undefined;
-  var core_1 = require_src3();
-  var resources_1 = require_src6();
+  var core_1 = require_src4();
+  var resources_1 = require_src7();
   var Tracer_1 = require_Tracer();
   var config_1 = require_config();
   var MultiSpanProcessor_1 = require_MultiSpanProcessor();
@@ -48771,9 +50157,9 @@ var require_BasicTracerProvider = __commonJS((exports) => {
       });
       return new Promise((resolve, reject) => {
         Promise.all(promises).then((results) => {
-          const errors = results.filter((result) => result !== ForceFlushState.resolved);
-          if (errors.length > 0) {
-            reject(errors);
+          const errors2 = results.filter((result) => result !== ForceFlushState.resolved);
+          if (errors2.length > 0) {
+            reject(errors2);
           } else {
             resolve();
           }
@@ -48800,7 +50186,7 @@ var require_BasicTracerProvider = __commonJS((exports) => {
 var require_ConsoleSpanExporter = __commonJS((exports) => {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.ConsoleSpanExporter = undefined;
-  var core_1 = require_src3();
+  var core_1 = require_src4();
 
   class ConsoleSpanExporter {
     export(spans, resultCallback) {
@@ -48849,7 +50235,7 @@ var require_ConsoleSpanExporter = __commonJS((exports) => {
 var require_InMemorySpanExporter = __commonJS((exports) => {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.InMemorySpanExporter = undefined;
-  var core_1 = require_src3();
+  var core_1 = require_src4();
 
   class InMemorySpanExporter {
     _finishedSpans = [];
@@ -48886,7 +50272,7 @@ var require_SimpleSpanProcessor = __commonJS((exports) => {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.SimpleSpanProcessor = undefined;
   var api_1 = require_src();
-  var core_1 = require_src3();
+  var core_1 = require_src4();
 
   class SimpleSpanProcessor {
     _exporter;
@@ -48953,14 +50339,14 @@ var require_NoopSpanProcessor = __commonJS((exports) => {
 });
 
 // node_modules/@opentelemetry/sdk-trace-base/build/src/index.js
-var require_src12 = __commonJS((exports) => {
+var require_src13 = __commonJS((exports) => {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.SamplingDecision = exports.TraceIdRatioBasedSampler = exports.ParentBasedSampler = exports.AlwaysOnSampler = exports.AlwaysOffSampler = exports.NoopSpanProcessor = exports.SimpleSpanProcessor = exports.InMemorySpanExporter = exports.ConsoleSpanExporter = exports.RandomIdGenerator = exports.BatchSpanProcessor = exports.BasicTracerProvider = undefined;
   var BasicTracerProvider_1 = require_BasicTracerProvider();
   Object.defineProperty(exports, "BasicTracerProvider", { enumerable: true, get: function() {
     return BasicTracerProvider_1.BasicTracerProvider;
   } });
-  var platform_1 = require_platform5();
+  var platform_1 = require_platform6();
   Object.defineProperty(exports, "BatchSpanProcessor", { enumerable: true, get: function() {
     return platform_1.BatchSpanProcessor;
   } });
@@ -49009,10 +50395,10 @@ var require_src12 = __commonJS((exports) => {
 var require_NodeTracerProvider = __commonJS((exports) => {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.NodeTracerProvider = undefined;
-  var context_async_hooks_1 = require_src11();
-  var sdk_trace_base_1 = require_src12();
+  var context_async_hooks_1 = require_src12();
+  var sdk_trace_base_1 = require_src13();
   var api_1 = require_src();
-  var core_1 = require_src3();
+  var core_1 = require_src4();
   function setupContextManager(contextManager) {
     if (contextManager === null) {
       return;
@@ -49056,14 +50442,14 @@ var require_NodeTracerProvider = __commonJS((exports) => {
 });
 
 // node_modules/@opentelemetry/sdk-trace-node/build/src/index.js
-var require_src13 = __commonJS((exports) => {
+var require_src14 = __commonJS((exports) => {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.TraceIdRatioBasedSampler = exports.SimpleSpanProcessor = exports.SamplingDecision = exports.RandomIdGenerator = exports.ParentBasedSampler = exports.NoopSpanProcessor = exports.InMemorySpanExporter = exports.ConsoleSpanExporter = exports.BatchSpanProcessor = exports.BasicTracerProvider = exports.AlwaysOnSampler = exports.AlwaysOffSampler = exports.NodeTracerProvider = undefined;
   var NodeTracerProvider_1 = require_NodeTracerProvider();
   Object.defineProperty(exports, "NodeTracerProvider", { enumerable: true, get: function() {
     return NodeTracerProvider_1.NodeTracerProvider;
   } });
-  var sdk_trace_base_1 = require_src12();
+  var sdk_trace_base_1 = require_src13();
   Object.defineProperty(exports, "AlwaysOffSampler", { enumerable: true, get: function() {
     return sdk_trace_base_1.AlwaysOffSampler;
   } });
@@ -49135,7 +50521,7 @@ var require_autoLoader = __commonJS((exports) => {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.registerInstrumentations = undefined;
   var api_1 = require_src();
-  var api_logs_1 = require_src5();
+  var api_logs_1 = require_src6();
   var autoLoaderUtils_1 = require_autoLoaderUtils();
   function registerInstrumentations(options) {
     const tracerProvider = options.tracerProvider || api_1.trace.getTracerProvider();
@@ -49631,7 +51017,7 @@ var require_instrumentation = __commonJS((exports) => {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.InstrumentationAbstract = undefined;
   var api_1 = require_src();
-  var api_logs_1 = require_src5();
+  var api_logs_1 = require_src6();
   var shimmer = require_shimmer();
 
   class InstrumentationAbstract {
@@ -50277,7 +51663,7 @@ var require_supports_color = __commonJS((exports, module) => {
 });
 
 // node_modules/debug/src/node.js
-var require_node6 = __commonJS((exports, module) => {
+var require_node7 = __commonJS((exports, module) => {
   var tty3 = __require("tty");
   var util = __require("util");
   exports.init = init;
@@ -50448,11 +51834,11 @@ var require_node6 = __commonJS((exports, module) => {
 });
 
 // node_modules/debug/src/index.js
-var require_src14 = __commonJS((exports, module) => {
+var require_src15 = __commonJS((exports, module) => {
   if (typeof process === "undefined" || process.type === "renderer" || false || process.__nwjs) {
     module.exports = require_browser();
   } else {
-    module.exports = require_node6();
+    module.exports = require_node7();
   }
 });
 
@@ -50481,7 +51867,7 @@ var require_module_details_from_path = __commonJS((exports, module) => {
 var require_require_in_the_middle = __commonJS((exports, module) => {
   var path8 = __require("path");
   var Module = __require("module");
-  var debug = require_src14()("require-in-the-middle");
+  var debug = require_src15()("require-in-the-middle");
   var moduleDetailsFromPath = require_module_details_from_path();
   module.exports = Hook;
   module.exports.Hook = Hook;
@@ -51046,7 +52432,7 @@ var require_import_in_the_middle = __commonJS((exports, module) => {
 });
 
 // node_modules/@opentelemetry/instrumentation/build/src/utils.js
-var require_utils12 = __commonJS((exports) => {
+var require_utils13 = __commonJS((exports) => {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.isWrapped = exports.safeExecuteInTheMiddleAsync = exports.safeExecuteInTheMiddle = undefined;
   function safeExecuteInTheMiddle(execute, onFinish, preventThrowingError) {
@@ -51101,7 +52487,7 @@ var require_instrumentation2 = __commonJS((exports) => {
   var api_1 = require_src();
   var require_in_the_middle_1 = require_require_in_the_middle();
   var fs_1 = __require("fs");
-  var utils_1 = require_utils12();
+  var utils_1 = require_utils13();
 
   class InstrumentationBase extends instrumentation_1.InstrumentationAbstract {
     _modules;
@@ -51347,7 +52733,7 @@ var require_normalize = __commonJS((exports) => {
 });
 
 // node_modules/@opentelemetry/instrumentation/build/src/platform/node/index.js
-var require_node7 = __commonJS((exports) => {
+var require_node8 = __commonJS((exports) => {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.normalize = exports.InstrumentationBase = undefined;
   var instrumentation_1 = require_instrumentation2();
@@ -51361,10 +52747,10 @@ var require_node7 = __commonJS((exports) => {
 });
 
 // node_modules/@opentelemetry/instrumentation/build/src/platform/index.js
-var require_platform6 = __commonJS((exports) => {
+var require_platform7 = __commonJS((exports) => {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.normalize = exports.InstrumentationBase = undefined;
-  var node_1 = require_node7();
+  var node_1 = require_node8();
   Object.defineProperty(exports, "InstrumentationBase", { enumerable: true, get: function() {
     return node_1.InstrumentationBase;
   } });
@@ -51399,7 +52785,7 @@ var require_instrumentationNodeModuleDefinition = __commonJS((exports) => {
 var require_instrumentationNodeModuleFile = __commonJS((exports) => {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.InstrumentationNodeModuleFile = undefined;
-  var index_1 = require_platform6();
+  var index_1 = require_platform7();
 
   class InstrumentationNodeModuleFile {
     name;
@@ -51443,14 +52829,14 @@ var require_semconvStability = __commonJS((exports) => {
 });
 
 // node_modules/@opentelemetry/instrumentation/build/src/index.js
-var require_src15 = __commonJS((exports) => {
+var require_src16 = __commonJS((exports) => {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.semconvStabilityFromStr = exports.SemconvStability = exports.safeExecuteInTheMiddleAsync = exports.safeExecuteInTheMiddle = exports.isWrapped = exports.InstrumentationNodeModuleFile = exports.InstrumentationNodeModuleDefinition = exports.InstrumentationBase = exports.registerInstrumentations = undefined;
   var autoLoader_1 = require_autoLoader();
   Object.defineProperty(exports, "registerInstrumentations", { enumerable: true, get: function() {
     return autoLoader_1.registerInstrumentations;
   } });
-  var index_1 = require_platform6();
+  var index_1 = require_platform7();
   Object.defineProperty(exports, "InstrumentationBase", { enumerable: true, get: function() {
     return index_1.InstrumentationBase;
   } });
@@ -51462,7 +52848,7 @@ var require_src15 = __commonJS((exports) => {
   Object.defineProperty(exports, "InstrumentationNodeModuleFile", { enumerable: true, get: function() {
     return instrumentationNodeModuleFile_1.InstrumentationNodeModuleFile;
   } });
-  var utils_1 = require_utils12();
+  var utils_1 = require_utils13();
   Object.defineProperty(exports, "isWrapped", { enumerable: true, get: function() {
     return utils_1.isWrapped;
   } });
@@ -51485,8 +52871,8 @@ var require_src15 = __commonJS((exports) => {
 var require_OTLPLogExporter = __commonJS((exports) => {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.OTLPLogExporter = undefined;
-  var otlp_exporter_base_1 = require_src4();
-  var otlp_transformer_1 = require_src8();
+  var otlp_exporter_base_1 = require_src5();
+  var otlp_transformer_1 = require_src9();
   var node_http_1 = require_index_node_http();
 
   class OTLPLogExporter extends otlp_exporter_base_1.OTLPExporterBase {
@@ -51500,7 +52886,7 @@ var require_OTLPLogExporter = __commonJS((exports) => {
 });
 
 // node_modules/@opentelemetry/exporter-logs-otlp-http/build/src/platform/node/index.js
-var require_node8 = __commonJS((exports) => {
+var require_node9 = __commonJS((exports) => {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.OTLPLogExporter = undefined;
   var OTLPLogExporter_1 = require_OTLPLogExporter();
@@ -51510,34 +52896,34 @@ var require_node8 = __commonJS((exports) => {
 });
 
 // node_modules/@opentelemetry/exporter-logs-otlp-http/build/src/platform/index.js
-var require_platform7 = __commonJS((exports) => {
+var require_platform8 = __commonJS((exports) => {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.OTLPLogExporter = undefined;
-  var node_1 = require_node8();
+  var node_1 = require_node9();
   Object.defineProperty(exports, "OTLPLogExporter", { enumerable: true, get: function() {
     return node_1.OTLPLogExporter;
   } });
 });
 
 // node_modules/@opentelemetry/exporter-logs-otlp-http/build/src/index.js
-var require_src16 = __commonJS((exports) => {
+var require_src17 = __commonJS((exports) => {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.OTLPLogExporter = undefined;
-  var platform_1 = require_platform7();
+  var platform_1 = require_platform8();
   Object.defineProperty(exports, "OTLPLogExporter", { enumerable: true, get: function() {
     return platform_1.OTLPLogExporter;
   } });
 });
 
 // node_modules/@opentelemetry/otlp-grpc-exporter-base/build/src/version.js
-var require_version8 = __commonJS((exports) => {
+var require_version9 = __commonJS((exports) => {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.VERSION = undefined;
   exports.VERSION = "0.219.0";
 });
 
 // node_modules/@grpc/grpc-js/build/src/constants.js
-var require_constants3 = __commonJS((exports) => {
+var require_constants4 = __commonJS((exports) => {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.DEFAULT_MAX_RECEIVE_MESSAGE_LENGTH = exports.DEFAULT_MAX_SEND_MESSAGE_LENGTH = exports.Propagate = exports.LogVerbosity = exports.Status = undefined;
   var Status;
@@ -51682,7 +53068,7 @@ var require_logging = __commonJS((exports) => {
   exports.log = exports.setLoggerVerbosity = exports.setLogger = exports.getLogger = undefined;
   exports.trace = trace;
   exports.isTracerEnabled = isTracerEnabled;
-  var constants_1 = require_constants3();
+  var constants_1 = require_constants4();
   var process_1 = __require("process");
   var clientVersion = require_package().version;
   var DEFAULT_LOGGER = {
@@ -51796,7 +53182,7 @@ var require_metadata = __commonJS((exports) => {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.Metadata = undefined;
   var logging_1 = require_logging();
-  var constants_1 = require_constants3();
+  var constants_1 = require_constants4();
   var error_1 = require_error2();
   var LEGAL_KEY_REGEX = /^[:0-9a-z_.-]+$/;
   var LEGAL_NON_BINARY_VALUE_REGEX = /^[ -~]*$/;
@@ -52262,7 +53648,7 @@ var require_channel_credentials = __commonJS((exports) => {
   var uri_parser_1 = require_uri_parser();
   var resolver_1 = require_resolver();
   var logging_1 = require_logging();
-  var constants_1 = require_constants3();
+  var constants_1 = require_constants4();
   function verifyIsBufferOrNull(obj, friendlyName) {
     if (obj && !(obj instanceof Buffer)) {
       throw new TypeError(`${friendlyName}, if provided, must be a Buffer.`);
@@ -52632,7 +54018,7 @@ var require_load_balancer = __commonJS((exports) => {
   exports.getDefaultConfig = getDefaultConfig;
   exports.selectLbConfigFromList = selectLbConfigFromList;
   var logging_1 = require_logging();
-  var constants_1 = require_constants3();
+  var constants_1 = require_constants4();
   function createChildChannelControlHelper(parent, overrides) {
     var _a, _b, _c, _d, _e2, _f, _g, _h, _j, _k;
     return {
@@ -52715,7 +54101,7 @@ var require_service_config = __commonJS((exports) => {
   exports.validateServiceConfig = validateServiceConfig;
   exports.extractAndSelectServiceConfig = extractAndSelectServiceConfig;
   var os4 = __require("os");
-  var constants_1 = require_constants3();
+  var constants_1 = require_constants4();
   var DURATION_REGEX = /^\d+(\.\d{1,9})?s$/;
   var CLIENT_LANGUAGE_STRING = "node";
   function validateName(obj) {
@@ -53067,7 +54453,7 @@ var require_picker = __commonJS((exports) => {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.QueuePicker = exports.UnavailablePicker = exports.PickResultType = undefined;
   var metadata_1 = require_metadata();
-  var constants_1 = require_constants3();
+  var constants_1 = require_constants4();
   var PickResultType;
   (function(PickResultType2) {
     PickResultType2[PickResultType2["COMPLETE"] = 0] = "COMPLETE";
@@ -53125,7 +54511,7 @@ var require_picker = __commonJS((exports) => {
 var require_backoff_timeout = __commonJS((exports) => {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.BackoffTimeout = undefined;
-  var constants_1 = require_constants3();
+  var constants_1 = require_constants4();
   var logging = require_logging();
   var TRACER_NAME = "backoff";
   var INITIAL_BACKOFF_MS = 1000;
@@ -53370,10 +54756,10 @@ var require_resolving_load_balancer = __commonJS((exports) => {
   var resolver_1 = require_resolver();
   var picker_1 = require_picker();
   var backoff_timeout_1 = require_backoff_timeout();
-  var constants_1 = require_constants3();
+  var constants_1 = require_constants4();
   var metadata_1 = require_metadata();
   var logging = require_logging();
-  var constants_2 = require_constants3();
+  var constants_2 = require_constants4();
   var uri_parser_1 = require_uri_parser();
   var load_balancer_child_handler_1 = require_load_balancer_child_handler();
   var TRACER_NAME = "resolving_load_balancer";
@@ -54691,7 +56077,7 @@ var require_call = __commonJS((exports) => {
   exports.callErrorFromStatus = callErrorFromStatus;
   var events_1 = __require("events");
   var stream_1 = __require("stream");
-  var constants_1 = require_constants3();
+  var constants_1 = require_constants4();
   function callErrorFromStatus(status, callerStack) {
     const message = `${status.code} ${constants_1.Status[status.code]}: ${status.details}`;
     const error = new Error(message);
@@ -54910,7 +56296,7 @@ var require_client_interceptors = __commonJS((exports) => {
   exports.getInterceptingCall = getInterceptingCall;
   var metadata_1 = require_metadata();
   var call_interface_1 = require_call_interface();
-  var constants_1 = require_constants3();
+  var constants_1 = require_constants4();
   var error_1 = require_error2();
 
   class InterceptorConfigurationError extends Error {
@@ -55257,7 +56643,7 @@ var require_client = __commonJS((exports) => {
   var call_1 = require_call();
   var channel_1 = require_channel();
   var connectivity_state_1 = require_connectivity_state();
-  var constants_1 = require_constants3();
+  var constants_1 = require_constants4();
   var metadata_1 = require_metadata();
   var client_interceptors_1 = require_client_interceptors();
   var CHANNEL_SYMBOL = Symbol();
@@ -56221,7 +57607,7 @@ var require_eventemitter = __commonJS((exports, module) => {
   function EventEmitter2() {
     this._listeners = Object.create(null);
   }
-  EventEmitter2.prototype.on = function on(evt, fn, ctx) {
+  EventEmitter2.prototype.on = function on6(evt, fn, ctx) {
     (this._listeners[evt] || (this._listeners[evt] = [])).push({
       fn,
       ctx: ctx || this
@@ -57107,7 +58493,7 @@ var require_umd = __commonJS((exports, module) => {
         return (this.high >>> 0) * TWO_PWR_32_DBL + (this.low >>> 0);
       return this.high * TWO_PWR_32_DBL + (this.low >>> 0);
     };
-    LongPrototype.toString = function toString(radix) {
+    LongPrototype.toString = function toString2(radix) {
       radix = radix || 10;
       if (radix < 2 || 36 < radix)
         throw RangeError("radix");
@@ -57163,7 +58549,7 @@ var require_umd = __commonJS((exports, module) => {
         return false;
       return top11Bits === -1 && !(this.low === 0 && this.high === -2097152);
     };
-    LongPrototype.isZero = function isZero() {
+    LongPrototype.isZero = function isZero2() {
       return this.high === 0 && this.low === 0;
     };
     LongPrototype.eqz = LongPrototype.isZero;
@@ -57412,7 +58798,7 @@ var require_umd = __commonJS((exports, module) => {
         other = fromValue(other);
       return fromBits(this.low & other.low, this.high & other.high, this.unsigned);
     };
-    LongPrototype.or = function or(other) {
+    LongPrototype.or = function or2(other) {
       if (!isLong(other))
         other = fromValue(other);
       return fromBits(this.low | other.low, this.high | other.high, this.unsigned);
@@ -57585,7 +58971,7 @@ var require_minimal = __commonJS((exports) => {
   util.isString = function isString(value) {
     return typeof value === "string" || value instanceof String;
   };
-  util.isObject = function isObject(value) {
+  util.isObject = function isObject2(value) {
     return value && typeof value === "object";
   };
   util.isset = util.isSet = function isSet(obj, prop) {
@@ -57761,7 +59147,7 @@ var require_writer = __commonJS((exports, module) => {
     this.tail = this.head;
     this.states = null;
   }
-  var create = function create() {
+  var create = function create2() {
     return util.Buffer ? function create_buffer_setup() {
       return (Writer.create = function create_buffer() {
         return new BufferWriter;
@@ -57881,7 +59267,7 @@ var require_writer = __commonJS((exports, module) => {
     this.len = 0;
     return this;
   };
-  Writer.prototype.reset = function reset() {
+  Writer.prototype.reset = function reset2() {
     if (this.states) {
       this.head = this.states.head;
       this.tail = this.states.tail;
@@ -57986,12 +59372,12 @@ var require_reader = __commonJS((exports, module) => {
     if (buffer instanceof Uint8Array || Array.isArray(buffer))
       return new Reader(buffer);
     throw Error("illegal buffer");
-  } : function create_array(buffer) {
+  } : function create_array2(buffer) {
     if (Array.isArray(buffer))
       return new Reader(buffer);
     throw Error("illegal buffer");
   };
-  var create = function create() {
+  var create = function create2() {
     return util.Buffer ? function create_buffer_setup(buffer) {
       return (Reader.create = function create_buffer(buffer2) {
         return util.Buffer.isBuffer(buffer2) ? new BufferReader(buffer2) : create_array(buffer2);
@@ -58443,10 +59829,10 @@ var require_fetch = __commonJS((exports, module) => {
 // node_modules/@protobufjs/path/index.js
 var require_path = __commonJS((exports) => {
   var path8 = exports;
-  var isAbsolute = path8.isAbsolute = function isAbsolute(path9) {
+  var isAbsolute = path8.isAbsolute = function isAbsolute2(path9) {
     return /^(?:\/|\w+:)/.test(path9);
   };
-  var normalize = path8.normalize = function normalize(path9) {
+  var normalize = path8.normalize = function normalize2(path9) {
     path9 = path9.replace(/\\/g, "/").replace(/\/{2,}/g, "/");
     var parts = path9.split("/"), absolute = isAbsolute(path9), prefix = "";
     if (absolute)
@@ -58634,7 +60020,7 @@ var require_namespace = __commonJS((exports, module) => {
     object.onRemove(this);
     return clearCache(this);
   };
-  Namespace.prototype.define = function define(path8, json) {
+  Namespace.prototype.define = function define2(path8, json) {
     if (util.isString(path8))
       path8 = path8.split(".");
     else if (!Array.isArray(path8))
@@ -59789,14 +61175,14 @@ var require_root = __commonJS((exports, module) => {
   Root.prototype.resolvePath = util.path.resolve;
   Root.prototype.fetch = util.fetch;
   function SYNC() {}
-  Root.prototype.load = function load(filename, options, callback) {
+  Root.prototype.load = function load2(filename, options, callback) {
     if (typeof options === "function") {
       callback = options;
       options = undefined;
     }
     var self2 = this;
     if (!callback) {
-      return util.asPromise(load, self2, filename, options);
+      return util.asPromise(load2, self2, filename, options);
     }
     var sync = callback === SYNC;
     function finish(err, root) {
@@ -60682,7 +62068,7 @@ var require_object = __commonJS((exports, module) => {
         this.setOption(keys[i3], options[keys[i3]], ifNotSet);
     return this;
   };
-  ReflectionObject.prototype.toString = function toString() {
+  ReflectionObject.prototype.toString = function toString2() {
     var className = this.constructor.className, fullName = this.fullName;
     if (fullName.length)
       return className + " " + fullName;
@@ -62080,7 +63466,7 @@ var require_common2 = __commonJS((exports, module) => {
 });
 
 // node_modules/protobufjs/src/index.js
-var require_src17 = __commonJS((exports, module) => {
+var require_src18 = __commonJS((exports, module) => {
   var protobuf = module.exports = require_index_light();
   protobuf.build = "full";
   protobuf.tokenize = require_tokenize();
@@ -63477,7 +64863,7 @@ var require_descriptor = __commonJS((exports, module) => {
 
 // node_modules/protobufjs/ext/descriptor/index.js
 var require_descriptor2 = __commonJS((exports, module) => {
-  var $protobuf = require_src17();
+  var $protobuf = require_src18();
   module.exports = exports = $protobuf.descriptor = $protobuf.Root.fromJSON(require_descriptor()).lookup(".google.protobuf");
   var Namespace = $protobuf.Namespace;
   var Root = $protobuf.Root;
@@ -64380,7 +65766,7 @@ var require_util5 = __commonJS((exports) => {
   exports.addCommonProtos = exports.loadProtosWithOptionsSync = exports.loadProtosWithOptions = undefined;
   var fs4 = __require("fs");
   var path8 = __require("path");
-  var Protobuf = require_src17();
+  var Protobuf = require_src18();
   function addIncludePathResolver(root, includePaths) {
     const originalResolvePath = root.resolvePath;
     root.resolvePath = (origin, target) => {
@@ -64597,7 +65983,7 @@ var require_umd2 = __commonJS((exports, module) => {
         return (this.high >>> 0) * TWO_PWR_32_DBL + (this.low >>> 0);
       return this.high * TWO_PWR_32_DBL + (this.low >>> 0);
     };
-    LongPrototype.toString = function toString(radix) {
+    LongPrototype.toString = function toString2(radix) {
       radix = radix || 10;
       if (radix < 2 || 36 < radix)
         throw RangeError("radix");
@@ -64645,7 +66031,7 @@ var require_umd2 = __commonJS((exports, module) => {
           break;
       return this.high != 0 ? bit + 33 : bit + 1;
     };
-    LongPrototype.isZero = function isZero() {
+    LongPrototype.isZero = function isZero2() {
       return this.high === 0 && this.low === 0;
     };
     LongPrototype.eqz = LongPrototype.isZero;
@@ -64894,7 +66280,7 @@ var require_umd2 = __commonJS((exports, module) => {
         other = fromValue(other);
       return fromBits(this.low & other.low, this.high & other.high, this.unsigned);
     };
-    LongPrototype.or = function or(other) {
+    LongPrototype.or = function or2(other) {
       if (!isLong(other))
         other = fromValue(other);
       return fromBits(this.low | other.low, this.high | other.high, this.unsigned);
@@ -65016,11 +66402,11 @@ var require_umd2 = __commonJS((exports, module) => {
 });
 
 // node_modules/@grpc/proto-loader/build/src/index.js
-var require_src18 = __commonJS((exports) => {
+var require_src19 = __commonJS((exports) => {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.loadFileDescriptorSetFromObject = exports.loadFileDescriptorSetFromBuffer = exports.fromJSON = exports.loadSync = exports.load = exports.IdempotencyLevel = exports.isAnyExtension = exports.Long = undefined;
   var camelCase = require_lodash();
-  var Protobuf = require_src17();
+  var Protobuf = require_src18();
   var descriptor = require_descriptor2();
   var util_1 = require_util5();
   var Long = require_umd2();
@@ -65075,7 +66461,7 @@ var require_src18 = __commonJS((exports) => {
     };
   }
   function createSerializer(cls) {
-    return function serialize(arg) {
+    return function serialize2(arg) {
       if (Array.isArray(arg)) {
         throw new Error(`Failed to serialize message: expected object with ${cls.name} structure, got array instead`);
       }
@@ -65213,7 +66599,7 @@ var require_channelz = __commonJS((exports) => {
   var net_1 = __require("net");
   var ordered_map_1 = require_cjs();
   var connectivity_state_1 = require_connectivity_state();
-  var constants_1 = require_constants3();
+  var constants_1 = require_constants4();
   var subchannel_address_1 = require_subchannel_address();
   var admin_1 = require_admin();
   var make_client_1 = require_make_client();
@@ -65711,7 +67097,7 @@ var require_channelz = __commonJS((exports) => {
     if (loadedChannelzDefinition) {
       return loadedChannelzDefinition;
     }
-    const loaderLoadSync = require_src18().loadSync;
+    const loaderLoadSync = require_src19().loadSync;
     const loadedProto = loaderLoadSync("channelz.proto", {
       keepCase: true,
       longs: String,
@@ -65782,7 +67168,7 @@ var require_compression_filter = __commonJS((exports) => {
   exports.CompressionFilterFactory = exports.CompressionFilter = undefined;
   var zlib2 = __require("zlib");
   var compression_algorithms_1 = require_compression_algorithms();
-  var constants_1 = require_constants3();
+  var constants_1 = require_constants4();
   var filter_1 = require_filter();
   var logging = require_logging();
   var isCompressionAlgorithmKey = (key) => {
@@ -66044,7 +67430,7 @@ var require_compression_filter = __commonJS((exports) => {
 var require_control_plane_status = __commonJS((exports) => {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.restrictControlPlaneStatusCode = restrictControlPlaneStatusCode;
-  var constants_1 = require_constants3();
+  var constants_1 = require_constants4();
   var INAPPROPRIATE_CONTROL_PLANE_CODES = [
     constants_1.Status.OK,
     constants_1.Status.INVALID_ARGUMENT,
@@ -66213,7 +67599,7 @@ var require_single_subchannel_channel = __commonJS((exports) => {
   var channelz_1 = require_channelz();
   var compression_filter_1 = require_compression_filter();
   var connectivity_state_1 = require_connectivity_state();
-  var constants_1 = require_constants3();
+  var constants_1 = require_constants4();
   var control_plane_status_1 = require_control_plane_status();
   var deadline_1 = require_deadline();
   var filter_stack_1 = require_filter_stack();
@@ -66431,7 +67817,7 @@ var require_subchannel = __commonJS((exports) => {
   var connectivity_state_1 = require_connectivity_state();
   var backoff_timeout_1 = require_backoff_timeout();
   var logging = require_logging();
-  var constants_1 = require_constants3();
+  var constants_1 = require_constants4();
   var uri_parser_1 = require_uri_parser();
   var subchannel_address_1 = require_subchannel_address();
   var channelz_1 = require_channelz();
@@ -66707,7 +68093,7 @@ var require_subchannel = __commonJS((exports) => {
 });
 
 // node_modules/@grpc/grpc-js/build/src/environment.js
-var require_environment2 = __commonJS((exports) => {
+var require_environment3 = __commonJS((exports) => {
   var _a;
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.GRPC_NODE_USE_ALTERNATIVE_RESOLVER = undefined;
@@ -66722,15 +68108,15 @@ var require_resolver_dns = __commonJS((exports) => {
   var resolver_1 = require_resolver();
   var dns_1 = __require("dns");
   var service_config_1 = require_service_config();
-  var constants_1 = require_constants3();
+  var constants_1 = require_constants4();
   var call_interface_1 = require_call_interface();
   var metadata_1 = require_metadata();
   var logging = require_logging();
-  var constants_2 = require_constants3();
+  var constants_2 = require_constants4();
   var uri_parser_1 = require_uri_parser();
   var net_1 = __require("net");
   var backoff_timeout_1 = require_backoff_timeout();
-  var environment_1 = require_environment2();
+  var environment_1 = require_environment3();
   var TRACER_NAME = "dns_resolver";
   function trace(text) {
     logging.trace(constants_2.LogVerbosity.DEBUG, TRACER_NAME, text);
@@ -66985,7 +68371,7 @@ var require_http_proxy = __commonJS((exports) => {
   exports.mapProxyName = mapProxyName;
   exports.getProxiedConnection = getProxiedConnection;
   var logging_1 = require_logging();
-  var constants_1 = require_constants3();
+  var constants_1 = require_constants4();
   var net_1 = __require("net");
   var http3 = __require("http");
   var logging = require_logging();
@@ -67283,11 +68669,11 @@ var require_subchannel_call = __commonJS((exports) => {
   exports.Http2SubchannelCall = undefined;
   var http22 = __require("http2");
   var os4 = __require("os");
-  var constants_1 = require_constants3();
+  var constants_1 = require_constants4();
   var metadata_1 = require_metadata();
   var stream_decoder_1 = require_stream_decoder();
   var logging = require_logging();
-  var constants_2 = require_constants3();
+  var constants_2 = require_constants4();
   var TRACER_NAME = "subchannel_call";
   function getSystemErrorName(errno) {
     for (const [name, num] of Object.entries(os4.constants.errno)) {
@@ -67686,7 +69072,7 @@ var require_transport = __commonJS((exports) => {
   var http22 = __require("http2");
   var tls_1 = __require("tls");
   var channelz_1 = require_channelz();
-  var constants_1 = require_constants3();
+  var constants_1 = require_constants4();
   var http_proxy_1 = require_http_proxy();
   var logging = require_logging();
   var resolver_1 = require_resolver();
@@ -68262,7 +69648,7 @@ var require_load_balancing_call = __commonJS((exports) => {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.LoadBalancingCall = undefined;
   var connectivity_state_1 = require_connectivity_state();
-  var constants_1 = require_constants3();
+  var constants_1 = require_constants4();
   var deadline_1 = require_deadline();
   var metadata_1 = require_metadata();
   var picker_1 = require_picker();
@@ -68503,7 +69889,7 @@ var require_resolving_call = __commonJS((exports) => {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.ResolvingCall = undefined;
   var call_credentials_1 = require_call_credentials();
-  var constants_1 = require_constants3();
+  var constants_1 = require_constants4();
   var deadline_1 = require_deadline();
   var metadata_1 = require_metadata();
   var logging = require_logging();
@@ -68784,7 +70170,7 @@ var require_resolving_call = __commonJS((exports) => {
 var require_retrying_call = __commonJS((exports) => {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.RetryingCall = exports.MessageBufferTracker = exports.RetryThrottler = undefined;
-  var constants_1 = require_constants3();
+  var constants_1 = require_constants4();
   var deadline_1 = require_deadline();
   var metadata_1 = require_metadata();
   var logging = require_logging();
@@ -69512,7 +70898,7 @@ var require_internal_channel = __commonJS((exports) => {
   var subchannel_pool_1 = require_subchannel_pool();
   var picker_1 = require_picker();
   var metadata_1 = require_metadata();
-  var constants_1 = require_constants3();
+  var constants_1 = require_constants4();
   var filter_stack_1 = require_filter_stack();
   var compression_filter_1 = require_compression_filter();
   var resolver_1 = require_resolver();
@@ -70071,7 +71457,7 @@ var require_server_call = __commonJS((exports) => {
   exports.serverErrorToStatus = serverErrorToStatus;
   var events_1 = __require("events");
   var stream_1 = __require("stream");
-  var constants_1 = require_constants3();
+  var constants_1 = require_constants4();
   var metadata_1 = require_metadata();
   function serverErrorToStatus(error, overrideTrailers) {
     var _a;
@@ -70627,7 +72013,7 @@ var require_orca = __commonJS((exports) => {
   var duration_1 = require_duration();
   var channel_credentials_1 = require_channel_credentials();
   var subchannel_interface_1 = require_subchannel_interface();
-  var constants_1 = require_constants3();
+  var constants_1 = require_constants4();
   var backoff_timeout_1 = require_backoff_timeout();
   var connectivity_state_1 = require_connectivity_state();
   var loadedOrcaProto = null;
@@ -70635,7 +72021,7 @@ var require_orca = __commonJS((exports) => {
     if (loadedOrcaProto) {
       return loadedOrcaProto;
     }
-    const loaderLoadSync = require_src18().loadSync;
+    const loaderLoadSync = require_src19().loadSync;
     const loadedProto = loaderLoadSync("xds/service/orca/v3/orca.proto", {
       keepCase: true,
       longs: String,
@@ -70886,7 +72272,7 @@ var require_server_interceptors = __commonJS((exports) => {
   exports.isInterceptingServerListener = isInterceptingServerListener;
   exports.getServerInterceptingCall = getServerInterceptingCall;
   var metadata_1 = require_metadata();
-  var constants_1 = require_constants3();
+  var constants_1 = require_constants4();
   var http22 = __require("http2");
   var error_1 = require_error2();
   var zlib2 = __require("zlib");
@@ -71677,7 +73063,7 @@ var require_server = __commonJS((exports) => {
   exports.Server = undefined;
   var http22 = __require("http2");
   var util = __require("util");
-  var constants_1 = require_constants3();
+  var constants_1 = require_constants4();
   var server_call_1 = require_server_call();
   var server_credentials_1 = require_server_credentials();
   var resolver_1 = require_resolver();
@@ -73091,7 +74477,7 @@ var require_load_balancer_pick_first = __commonJS((exports) => {
   var picker_1 = require_picker();
   var subchannel_address_1 = require_subchannel_address();
   var logging = require_logging();
-  var constants_1 = require_constants3();
+  var constants_1 = require_constants4();
   var subchannel_address_2 = require_subchannel_address();
   var net_1 = __require("net");
   var call_interface_1 = require_call_interface();
@@ -73479,7 +74865,7 @@ var require_certificate_provider = __commonJS((exports) => {
   exports.FileWatcherCertificateProvider = undefined;
   var fs4 = __require("fs");
   var logging = require_logging();
-  var constants_1 = require_constants3();
+  var constants_1 = require_constants4();
   var util_1 = __require("util");
   var TRACER_NAME = "certificate_provider";
   function trace(text) {
@@ -73768,7 +75154,7 @@ var require_resolver_ip = __commonJS((exports) => {
   exports.setup = setup;
   var net_1 = __require("net");
   var call_interface_1 = require_call_interface();
-  var constants_1 = require_constants3();
+  var constants_1 = require_constants4();
   var metadata_1 = require_metadata();
   var resolver_1 = require_resolver();
   var subchannel_address_1 = require_subchannel_address();
@@ -73860,7 +75246,7 @@ var require_load_balancer_round_robin = __commonJS((exports) => {
   var connectivity_state_1 = require_connectivity_state();
   var picker_1 = require_picker();
   var logging = require_logging();
-  var constants_1 = require_constants3();
+  var constants_1 = require_constants4();
   var subchannel_address_1 = require_subchannel_address();
   var load_balancer_pick_first_1 = require_load_balancer_pick_first();
   var TRACER_NAME = "round_robin";
@@ -74024,7 +75410,7 @@ var require_load_balancer_outlier_detection = __commonJS((exports) => {
   exports.OutlierDetectionLoadBalancer = exports.OutlierDetectionLoadBalancingConfig = undefined;
   exports.setup = setup;
   var connectivity_state_1 = require_connectivity_state();
-  var constants_1 = require_constants3();
+  var constants_1 = require_constants4();
   var duration_1 = require_duration();
   var experimental_1 = require_experimental();
   var load_balancer_1 = require_load_balancer();
@@ -74592,7 +75978,7 @@ var require_load_balancer_weighted_round_robin = __commonJS((exports) => {
   exports.WeightedRoundRobinLoadBalancingConfig = undefined;
   exports.setup = setup;
   var connectivity_state_1 = require_connectivity_state();
-  var constants_1 = require_constants3();
+  var constants_1 = require_constants4();
   var duration_1 = require_duration();
   var load_balancer_1 = require_load_balancer();
   var load_balancer_pick_first_1 = require_load_balancer_pick_first();
@@ -74937,7 +76323,7 @@ var require_load_balancer_weighted_round_robin = __commonJS((exports) => {
 });
 
 // node_modules/@grpc/grpc-js/build/src/index.js
-var require_src19 = __commonJS((exports) => {
+var require_src20 = __commonJS((exports) => {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.experimental = exports.ServerMetricRecorder = exports.ServerInterceptingCall = exports.ResponderBuilder = exports.ServerListenerBuilder = exports.addAdminServicesToServer = exports.getChannelzHandlers = exports.getChannelzServiceDefinition = exports.InterceptorConfigurationError = exports.InterceptingCall = exports.RequesterBuilder = exports.ListenerBuilder = exports.StatusBuilder = exports.getClientChannel = exports.ServerCredentials = exports.Server = exports.setLogVerbosity = exports.setLogger = exports.load = exports.loadObject = exports.CallCredentials = exports.ChannelCredentials = exports.waitForClientReady = exports.closeClient = exports.Channel = exports.makeGenericClientConstructor = exports.makeClientConstructor = exports.loadPackageDefinition = exports.Client = exports.compressionAlgorithms = exports.propagate = exports.connectivityState = exports.status = exports.logVerbosity = exports.Metadata = exports.credentials = undefined;
   var call_credentials_1 = require_call_credentials();
@@ -74964,7 +76350,7 @@ var require_src19 = __commonJS((exports) => {
   Object.defineProperty(exports, "Client", { enumerable: true, get: function() {
     return client_1.Client;
   } });
-  var constants_1 = require_constants3();
+  var constants_1 = require_constants4();
   Object.defineProperty(exports, "logVerbosity", { enumerable: true, get: function() {
     return constants_1.LogVerbosity;
   } });
@@ -75103,7 +76489,7 @@ var require_src19 = __commonJS((exports) => {
 var require_create_service_client_constructor = __commonJS((exports) => {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.createServiceClientConstructor = undefined;
-  var grpc = require_src19();
+  var grpc = require_src20();
   function createServiceClientConstructor(path8, name) {
     const serviceDefinition = {
       export: {
@@ -75133,7 +76519,7 @@ var require_create_service_client_constructor = __commonJS((exports) => {
 var require_grpc_exporter_transport = __commonJS((exports) => {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.createOtlpGrpcExporterTransport = exports.GrpcExporterTransport = exports.createEmptyMetadata = exports.createSslCredentials = exports.createInsecureCredentials = undefined;
-  var version_1 = require_version8();
+  var version_1 = require_version9();
   var DEFAULT_USER_AGENT = `OTel-OTLP-Exporter-JavaScript/${version_1.VERSION}`;
   function createUserAgent(userAgent) {
     if (userAgent) {
@@ -75151,21 +76537,21 @@ var require_grpc_exporter_transport = __commonJS((exports) => {
   function createInsecureCredentials() {
     const {
       credentials
-    } = require_src19();
+    } = require_src20();
     return credentials.createInsecure();
   }
   exports.createInsecureCredentials = createInsecureCredentials;
   function createSslCredentials(rootCert, privateKey, certChain) {
     const {
       credentials
-    } = require_src19();
+    } = require_src20();
     return credentials.createSsl(rootCert, privateKey, certChain);
   }
   exports.createSslCredentials = createSslCredentials;
   function createEmptyMetadata() {
     const {
       Metadata
-    } = require_src19();
+    } = require_src20();
     return new Metadata;
   }
   exports.createEmptyMetadata = createEmptyMetadata;
@@ -75253,7 +76639,7 @@ var require_grpc_exporter_transport = __commonJS((exports) => {
 var require_otlp_grpc_configuration = __commonJS((exports) => {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.getOtlpGrpcDefaultConfiguration = exports.mergeOtlpGrpcConfigurationWithDefaults = exports.validateAndNormalizeUrl = undefined;
-  var otlp_exporter_base_1 = require_src4();
+  var otlp_exporter_base_1 = require_src5();
   var grpc_exporter_transport_1 = require_grpc_exporter_transport();
   var url_1 = __require("url");
   var api_1 = require_src();
@@ -75320,7 +76706,7 @@ var require_otlp_grpc_configuration = __commonJS((exports) => {
 var require_otlp_grpc_env_configuration = __commonJS((exports) => {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.getOtlpGrpcConfigurationFromEnv = undefined;
-  var core_1 = require_src3();
+  var core_1 = require_src4();
   var grpc_exporter_transport_1 = require_grpc_exporter_transport();
   var node_http_1 = require_index_node_http();
   var fs4 = __require("fs");
@@ -75460,7 +76846,7 @@ var require_convert_legacy_otlp_grpc_options = __commonJS((exports) => {
 var require_otlp_grpc_export_delegate = __commonJS((exports) => {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.createOtlpGrpcExportDelegate = undefined;
-  var otlp_exporter_base_1 = require_src4();
+  var otlp_exporter_base_1 = require_src5();
   var grpc_exporter_transport_1 = require_grpc_exporter_transport();
   function createOtlpGrpcExportDelegate(options, serializer, grpcName, grpcPath) {
     return (0, otlp_exporter_base_1.createOtlpNetworkExportDelegate)(options, serializer, (0, grpc_exporter_transport_1.createOtlpGrpcExporterTransport)({
@@ -75477,7 +76863,7 @@ var require_otlp_grpc_export_delegate = __commonJS((exports) => {
 });
 
 // node_modules/@opentelemetry/otlp-grpc-exporter-base/build/src/index.js
-var require_src20 = __commonJS((exports) => {
+var require_src21 = __commonJS((exports) => {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.createSslCredentials = exports.createInsecureCredentials = exports.createEmptyMetadata = exports.createOtlpGrpcExportDelegate = exports.convertLegacyOtlpGrpcOptions = undefined;
   var convert_legacy_otlp_grpc_options_1 = require_convert_legacy_otlp_grpc_options();
@@ -75504,9 +76890,9 @@ var require_src20 = __commonJS((exports) => {
 var require_OTLPLogExporter2 = __commonJS((exports) => {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.OTLPLogExporter = undefined;
-  var otlp_grpc_exporter_base_1 = require_src20();
-  var otlp_transformer_1 = require_src8();
-  var otlp_exporter_base_1 = require_src4();
+  var otlp_grpc_exporter_base_1 = require_src21();
+  var otlp_transformer_1 = require_src9();
+  var otlp_exporter_base_1 = require_src5();
 
   class OTLPLogExporter extends otlp_exporter_base_1.OTLPExporterBase {
     constructor(config = {}) {
@@ -75517,7 +76903,7 @@ var require_OTLPLogExporter2 = __commonJS((exports) => {
 });
 
 // node_modules/@opentelemetry/exporter-logs-otlp-grpc/build/src/index.js
-var require_src21 = __commonJS((exports) => {
+var require_src22 = __commonJS((exports) => {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.OTLPLogExporter = undefined;
   var OTLPLogExporter_1 = require_OTLPLogExporter2();
@@ -75530,8 +76916,8 @@ var require_src21 = __commonJS((exports) => {
 var require_OTLPLogExporter3 = __commonJS((exports) => {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.OTLPLogExporter = undefined;
-  var otlp_exporter_base_1 = require_src4();
-  var otlp_transformer_1 = require_src8();
+  var otlp_exporter_base_1 = require_src5();
+  var otlp_transformer_1 = require_src9();
   var node_http_1 = require_index_node_http();
 
   class OTLPLogExporter extends otlp_exporter_base_1.OTLPExporterBase {
@@ -75545,7 +76931,7 @@ var require_OTLPLogExporter3 = __commonJS((exports) => {
 });
 
 // node_modules/@opentelemetry/exporter-logs-otlp-proto/build/src/platform/node/index.js
-var require_node9 = __commonJS((exports) => {
+var require_node10 = __commonJS((exports) => {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.OTLPLogExporter = undefined;
   var OTLPLogExporter_1 = require_OTLPLogExporter3();
@@ -75555,20 +76941,20 @@ var require_node9 = __commonJS((exports) => {
 });
 
 // node_modules/@opentelemetry/exporter-logs-otlp-proto/build/src/platform/index.js
-var require_platform8 = __commonJS((exports) => {
+var require_platform9 = __commonJS((exports) => {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.OTLPLogExporter = undefined;
-  var node_1 = require_node9();
+  var node_1 = require_node10();
   Object.defineProperty(exports, "OTLPLogExporter", { enumerable: true, get: function() {
     return node_1.OTLPLogExporter;
   } });
 });
 
 // node_modules/@opentelemetry/exporter-logs-otlp-proto/build/src/index.js
-var require_src22 = __commonJS((exports) => {
+var require_src23 = __commonJS((exports) => {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.OTLPLogExporter = undefined;
-  var platform_1 = require_platform8();
+  var platform_1 = require_platform9();
   Object.defineProperty(exports, "OTLPLogExporter", { enumerable: true, get: function() {
     return platform_1.OTLPLogExporter;
   } });
@@ -75579,8 +76965,8 @@ var require_PrometheusSerializer = __commonJS((exports) => {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.PrometheusSerializer = undefined;
   var api_1 = require_src();
-  var sdk_metrics_1 = require_src7();
-  var core_1 = require_src3();
+  var sdk_metrics_1 = require_src8();
+  var core_1 = require_src4();
   var semantic_conventions_1 = require_src2();
   var ATTR_OTEL_SCOPE_SCHEMA_URL = "otel.scope.schema_url";
   function escapeString(str) {
@@ -75805,7 +77191,7 @@ ${results}
 });
 
 // node_modules/@opentelemetry/exporter-prometheus/build/src/semconv.js
-var require_semconv6 = __commonJS((exports) => {
+var require_semconv7 = __commonJS((exports) => {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.OTEL_COMPONENT_TYPE_VALUE_PROMETHEUS_HTTP_TEXT_METRIC_EXPORTER = undefined;
   exports.OTEL_COMPONENT_TYPE_VALUE_PROMETHEUS_HTTP_TEXT_METRIC_EXPORTER = "prometheus_http_text_metric_exporter";
@@ -75816,11 +77202,11 @@ var require_PrometheusExporter = __commonJS((exports) => {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.PrometheusExporter = undefined;
   var api_1 = require_src();
-  var core_1 = require_src3();
-  var sdk_metrics_1 = require_src7();
+  var core_1 = require_src4();
+  var sdk_metrics_1 = require_src8();
   var http_1 = __require("http");
   var PrometheusSerializer_1 = require_PrometheusSerializer();
-  var semconv_1 = require_semconv6();
+  var semconv_1 = require_semconv7();
   var url_1 = __require("url");
 
   class PrometheusExporter extends sdk_metrics_1.MetricReader {
@@ -75934,9 +77320,9 @@ var require_PrometheusExporter = __commonJS((exports) => {
       response.statusCode = 200;
       response.setHeader("content-type", "text/plain");
       this.collect().then((collectionResult) => {
-        const { resourceMetrics, errors } = collectionResult;
-        if (errors.length) {
-          api_1.diag.error("PrometheusExporter: metrics collection errors", ...errors);
+        const { resourceMetrics, errors: errors2 } = collectionResult;
+        if (errors2.length) {
+          api_1.diag.error("PrometheusExporter: metrics collection errors", ...errors2);
         }
         response.end(this._serializer.serialize(resourceMetrics));
       }, (err) => {
@@ -75952,7 +77338,7 @@ var require_PrometheusExporter = __commonJS((exports) => {
 });
 
 // node_modules/@opentelemetry/exporter-prometheus/build/src/index.js
-var require_src23 = __commonJS((exports) => {
+var require_src24 = __commonJS((exports) => {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.PrometheusSerializer = exports.PrometheusExporter = undefined;
   var PrometheusExporter_1 = require_PrometheusExporter();
@@ -75969,8 +77355,8 @@ var require_src23 = __commonJS((exports) => {
 var require_OTLPTraceExporter2 = __commonJS((exports) => {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.OTLPTraceExporter = undefined;
-  var otlp_exporter_base_1 = require_src4();
-  var otlp_transformer_1 = require_src8();
+  var otlp_exporter_base_1 = require_src5();
+  var otlp_transformer_1 = require_src9();
   var node_http_1 = require_index_node_http();
 
   class OTLPTraceExporter extends otlp_exporter_base_1.OTLPExporterBase {
@@ -75984,7 +77370,7 @@ var require_OTLPTraceExporter2 = __commonJS((exports) => {
 });
 
 // node_modules/@opentelemetry/exporter-trace-otlp-http/build/src/platform/node/index.js
-var require_node10 = __commonJS((exports) => {
+var require_node11 = __commonJS((exports) => {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.OTLPTraceExporter = undefined;
   var OTLPTraceExporter_1 = require_OTLPTraceExporter2();
@@ -75994,20 +77380,20 @@ var require_node10 = __commonJS((exports) => {
 });
 
 // node_modules/@opentelemetry/exporter-trace-otlp-http/build/src/platform/index.js
-var require_platform9 = __commonJS((exports) => {
+var require_platform10 = __commonJS((exports) => {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.OTLPTraceExporter = undefined;
-  var node_1 = require_node10();
+  var node_1 = require_node11();
   Object.defineProperty(exports, "OTLPTraceExporter", { enumerable: true, get: function() {
     return node_1.OTLPTraceExporter;
   } });
 });
 
 // node_modules/@opentelemetry/exporter-trace-otlp-http/build/src/index.js
-var require_src24 = __commonJS((exports) => {
+var require_src25 = __commonJS((exports) => {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.OTLPTraceExporter = undefined;
-  var platform_1 = require_platform9();
+  var platform_1 = require_platform10();
   Object.defineProperty(exports, "OTLPTraceExporter", { enumerable: true, get: function() {
     return platform_1.OTLPTraceExporter;
   } });
@@ -76017,9 +77403,9 @@ var require_src24 = __commonJS((exports) => {
 var require_OTLPTraceExporter3 = __commonJS((exports) => {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.OTLPTraceExporter = undefined;
-  var otlp_grpc_exporter_base_1 = require_src20();
-  var otlp_transformer_1 = require_src8();
-  var otlp_exporter_base_1 = require_src4();
+  var otlp_grpc_exporter_base_1 = require_src21();
+  var otlp_transformer_1 = require_src9();
+  var otlp_exporter_base_1 = require_src5();
 
   class OTLPTraceExporter extends otlp_exporter_base_1.OTLPExporterBase {
     constructor(config = {}) {
@@ -76030,7 +77416,7 @@ var require_OTLPTraceExporter3 = __commonJS((exports) => {
 });
 
 // node_modules/@opentelemetry/exporter-trace-otlp-grpc/build/src/index.js
-var require_src25 = __commonJS((exports) => {
+var require_src26 = __commonJS((exports) => {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.OTLPTraceExporter = undefined;
   var OTLPTraceExporter_1 = require_OTLPTraceExporter3();
@@ -76044,7 +77430,7 @@ var require_util6 = __commonJS((exports) => {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.prepareSend = undefined;
   var api_1 = require_src();
-  var core_1 = require_src3();
+  var core_1 = require_src4();
   var http3 = __require("http");
   var https2 = __require("https");
   function prepareSend(urlStr, headers) {
@@ -76096,7 +77482,7 @@ var require_util6 = __commonJS((exports) => {
 });
 
 // node_modules/@opentelemetry/exporter-zipkin/build/src/platform/node/index.js
-var require_node11 = __commonJS((exports) => {
+var require_node12 = __commonJS((exports) => {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.prepareSend = undefined;
   var util_1 = require_util6();
@@ -76106,10 +77492,10 @@ var require_node11 = __commonJS((exports) => {
 });
 
 // node_modules/@opentelemetry/exporter-zipkin/build/src/platform/index.js
-var require_platform10 = __commonJS((exports) => {
+var require_platform11 = __commonJS((exports) => {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.prepareSend = undefined;
-  var node_1 = require_node11();
+  var node_1 = require_node12();
   Object.defineProperty(exports, "prepareSend", { enumerable: true, get: function() {
     return node_1.prepareSend;
   } });
@@ -76133,7 +77519,7 @@ var require_transform = __commonJS((exports) => {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports._toZipkinAnnotations = exports._toZipkinTags = exports.toZipkinSpan = exports.defaultStatusErrorTagName = exports.defaultStatusCodeTagName = undefined;
   var api = require_src();
-  var core_1 = require_src3();
+  var core_1 = require_src4();
   var zipkinTypes = require_types6();
   var ZIPKIN_SPAN_KIND_MAPPING = {
     [api.SpanKind.CLIENT]: zipkinTypes.SpanKind.CLIENT,
@@ -76194,7 +77580,7 @@ var require_transform = __commonJS((exports) => {
 });
 
 // node_modules/@opentelemetry/exporter-zipkin/build/src/utils.js
-var require_utils13 = __commonJS((exports) => {
+var require_utils14 = __commonJS((exports) => {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.prepareGetHeaders = undefined;
   function prepareGetHeaders(getExportRequestHeaders) {
@@ -76210,11 +77596,11 @@ var require_zipkin = __commonJS((exports) => {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.ZipkinExporter = undefined;
   var api_1 = require_src();
-  var core_1 = require_src3();
-  var index_1 = require_platform10();
+  var core_1 = require_src4();
+  var index_1 = require_platform11();
   var transform_1 = require_transform();
   var semantic_conventions_1 = require_src2();
-  var utils_1 = require_utils13();
+  var utils_1 = require_utils14();
 
   class ZipkinExporter {
     DEFAULT_SERVICE_NAME = "OpenTelemetry Service";
@@ -76293,10 +77679,10 @@ var require_zipkin = __commonJS((exports) => {
 });
 
 // node_modules/@opentelemetry/exporter-zipkin/build/src/index.js
-var require_src26 = __commonJS((exports) => {
+var require_src27 = __commonJS((exports) => {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.ZipkinExporter = exports.prepareSend = undefined;
-  var platform_1 = require_platform10();
+  var platform_1 = require_platform11();
   Object.defineProperty(exports, "prepareSend", { enumerable: true, get: function() {
     return platform_1.prepareSend;
   } });
@@ -76315,7 +77701,7 @@ var require_common3 = __commonJS((exports) => {
 });
 
 // node_modules/@opentelemetry/propagator-b3/build/src/constants.js
-var require_constants4 = __commonJS((exports) => {
+var require_constants5 = __commonJS((exports) => {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.X_B3_FLAGS = exports.X_B3_PARENT_SPAN_ID = exports.X_B3_SAMPLED = exports.X_B3_SPAN_ID = exports.X_B3_TRACE_ID = exports.B3_CONTEXT_HEADER = undefined;
   exports.B3_CONTEXT_HEADER = "b3";
@@ -76331,9 +77717,9 @@ var require_B3MultiPropagator = __commonJS((exports) => {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.B3MultiPropagator = undefined;
   var api_1 = require_src();
-  var core_1 = require_src3();
+  var core_1 = require_src4();
   var common_1 = require_common3();
-  var constants_1 = require_constants4();
+  var constants_1 = require_constants5();
   var VALID_SAMPLED_VALUES = new Set([true, "true", "True", "1", 1]);
   var VALID_UNSAMPLED_VALUES = new Set([false, "false", "False", "0", 0]);
   function isValidSampledValue(sampled) {
@@ -76424,9 +77810,9 @@ var require_B3SinglePropagator = __commonJS((exports) => {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.B3SinglePropagator = undefined;
   var api_1 = require_src();
-  var core_1 = require_src3();
+  var core_1 = require_src4();
   var common_1 = require_common3();
-  var constants_1 = require_constants4();
+  var constants_1 = require_constants5();
   var B3_CONTEXT_REGEX = /((?:[0-9a-f]{16}){1,2})-([0-9a-f]{16})(?:-([01d](?![0-9a-f])))?(?:-([0-9a-f]{16}))?/;
   var PADDING = "0".repeat(16);
   var SAMPLED_VALUES = new Set(["d", "1"]);
@@ -76495,10 +77881,10 @@ var require_types7 = __commonJS((exports) => {
 var require_B3Propagator = __commonJS((exports) => {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.B3Propagator = undefined;
-  var core_1 = require_src3();
+  var core_1 = require_src4();
   var B3MultiPropagator_1 = require_B3MultiPropagator();
   var B3SinglePropagator_1 = require_B3SinglePropagator();
-  var constants_1 = require_constants4();
+  var constants_1 = require_constants5();
   var types_1 = require_types7();
 
   class B3Propagator {
@@ -76538,14 +77924,14 @@ var require_B3Propagator = __commonJS((exports) => {
 });
 
 // node_modules/@opentelemetry/propagator-b3/build/src/index.js
-var require_src27 = __commonJS((exports) => {
+var require_src28 = __commonJS((exports) => {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.B3InjectEncoding = exports.X_B3_TRACE_ID = exports.X_B3_SPAN_ID = exports.X_B3_SAMPLED = exports.X_B3_PARENT_SPAN_ID = exports.X_B3_FLAGS = exports.B3_CONTEXT_HEADER = exports.B3Propagator = undefined;
   var B3Propagator_1 = require_B3Propagator();
   Object.defineProperty(exports, "B3Propagator", { enumerable: true, get: function() {
     return B3Propagator_1.B3Propagator;
   } });
-  var constants_1 = require_constants4();
+  var constants_1 = require_constants5();
   Object.defineProperty(exports, "B3_CONTEXT_HEADER", { enumerable: true, get: function() {
     return constants_1.B3_CONTEXT_HEADER;
   } });
@@ -76571,7 +77957,7 @@ var require_src27 = __commonJS((exports) => {
 });
 
 // node_modules/@opentelemetry/propagator-jaeger/node_modules/@opentelemetry/core/build/src/trace/suppress-tracing.js
-var require_suppress_tracing2 = __commonJS((exports) => {
+var require_suppress_tracing3 = __commonJS((exports) => {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.isTracingSuppressed = exports.unsuppressTracing = exports.suppressTracing = undefined;
   var api_1 = require_src();
@@ -76591,7 +77977,7 @@ var require_suppress_tracing2 = __commonJS((exports) => {
 });
 
 // node_modules/@opentelemetry/propagator-jaeger/node_modules/@opentelemetry/core/build/src/baggage/constants.js
-var require_constants5 = __commonJS((exports) => {
+var require_constants6 = __commonJS((exports) => {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.BAGGAGE_MAX_TOTAL_LENGTH = exports.BAGGAGE_MAX_PER_NAME_VALUE_PAIRS = exports.BAGGAGE_MAX_NAME_VALUE_PAIRS = exports.BAGGAGE_HEADER = exports.BAGGAGE_ITEMS_SEPARATOR = exports.BAGGAGE_PROPERTIES_SEPARATOR = exports.BAGGAGE_KEY_PAIR_SEPARATOR = undefined;
   exports.BAGGAGE_KEY_PAIR_SEPARATOR = "=";
@@ -76604,11 +77990,11 @@ var require_constants5 = __commonJS((exports) => {
 });
 
 // node_modules/@opentelemetry/propagator-jaeger/node_modules/@opentelemetry/core/build/src/baggage/utils.js
-var require_utils14 = __commonJS((exports) => {
+var require_utils15 = __commonJS((exports) => {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.parseKeyPairsIntoRecord = exports.parseBaggageHeaderString = exports.parsePairKeyValue = exports.getKeyPairs = exports.serializeKeyPairs = undefined;
   var api_1 = require_src();
-  var constants_1 = require_constants5();
+  var constants_1 = require_constants6();
   function serializeKeyPairs(keyPairs) {
     return keyPairs.reduce((hValue, current) => {
       const value = `${hValue}${hValue !== "" ? constants_1.BAGGAGE_ITEMS_SEPARATOR : ""}${current}`;
@@ -76694,13 +78080,13 @@ var require_utils14 = __commonJS((exports) => {
 });
 
 // node_modules/@opentelemetry/propagator-jaeger/node_modules/@opentelemetry/core/build/src/baggage/propagation/W3CBaggagePropagator.js
-var require_W3CBaggagePropagator2 = __commonJS((exports) => {
+var require_W3CBaggagePropagator3 = __commonJS((exports) => {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.W3CBaggagePropagator = undefined;
   var api_1 = require_src();
-  var suppress_tracing_1 = require_suppress_tracing2();
-  var constants_1 = require_constants5();
-  var utils_1 = require_utils14();
+  var suppress_tracing_1 = require_suppress_tracing3();
+  var constants_1 = require_constants6();
+  var utils_1 = require_utils15();
 
   class W3CBaggagePropagator {
     inject(context2, carrier, setter) {
@@ -76743,7 +78129,7 @@ var require_W3CBaggagePropagator2 = __commonJS((exports) => {
 });
 
 // node_modules/@opentelemetry/propagator-jaeger/node_modules/@opentelemetry/core/build/src/common/anchored-clock.js
-var require_anchored_clock2 = __commonJS((exports) => {
+var require_anchored_clock3 = __commonJS((exports) => {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.AnchoredClock = undefined;
 
@@ -76765,7 +78151,7 @@ var require_anchored_clock2 = __commonJS((exports) => {
 });
 
 // node_modules/@opentelemetry/propagator-jaeger/node_modules/@opentelemetry/core/build/src/common/attributes.js
-var require_attributes2 = __commonJS((exports) => {
+var require_attributes3 = __commonJS((exports) => {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.isAttributeValue = exports.isAttributeKey = exports.sanitizeAttributes = undefined;
   var api_1 = require_src();
@@ -76842,7 +78228,7 @@ var require_attributes2 = __commonJS((exports) => {
 });
 
 // node_modules/@opentelemetry/propagator-jaeger/node_modules/@opentelemetry/core/build/src/common/logging-error-handler.js
-var require_logging_error_handler2 = __commonJS((exports) => {
+var require_logging_error_handler3 = __commonJS((exports) => {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.loggingErrorHandler = undefined;
   var api_1 = require_src();
@@ -76878,10 +78264,10 @@ var require_logging_error_handler2 = __commonJS((exports) => {
 });
 
 // node_modules/@opentelemetry/propagator-jaeger/node_modules/@opentelemetry/core/build/src/common/global-error-handler.js
-var require_global_error_handler2 = __commonJS((exports) => {
+var require_global_error_handler3 = __commonJS((exports) => {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.globalErrorHandler = exports.setGlobalErrorHandler = undefined;
-  var logging_error_handler_1 = require_logging_error_handler2();
+  var logging_error_handler_1 = require_logging_error_handler3();
   var delegateHandler = (0, logging_error_handler_1.loggingErrorHandler)();
   function setGlobalErrorHandler(handler) {
     delegateHandler = handler;
@@ -76896,7 +78282,7 @@ var require_global_error_handler2 = __commonJS((exports) => {
 });
 
 // node_modules/@opentelemetry/propagator-jaeger/node_modules/@opentelemetry/core/build/src/platform/node/environment.js
-var require_environment3 = __commonJS((exports) => {
+var require_environment4 = __commonJS((exports) => {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.getStringListFromEnv = exports.getBooleanFromEnv = exports.getStringFromEnv = exports.getNumberFromEnv = undefined;
   var api_1 = require_src();
@@ -76944,33 +78330,33 @@ var require_environment3 = __commonJS((exports) => {
 });
 
 // node_modules/@opentelemetry/propagator-jaeger/node_modules/@opentelemetry/core/build/src/common/globalThis.js
-var require_globalThis2 = __commonJS((exports) => {
+var require_globalThis3 = __commonJS((exports) => {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports._globalThis = undefined;
   exports._globalThis = globalThis;
 });
 
 // node_modules/@opentelemetry/propagator-jaeger/node_modules/@opentelemetry/core/build/src/version.js
-var require_version9 = __commonJS((exports) => {
+var require_version10 = __commonJS((exports) => {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.VERSION = undefined;
   exports.VERSION = "2.9.0";
 });
 
 // node_modules/@opentelemetry/propagator-jaeger/node_modules/@opentelemetry/core/build/src/semconv.js
-var require_semconv7 = __commonJS((exports) => {
+var require_semconv8 = __commonJS((exports) => {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.ATTR_PROCESS_RUNTIME_NAME = undefined;
   exports.ATTR_PROCESS_RUNTIME_NAME = "process.runtime.name";
 });
 
 // node_modules/@opentelemetry/propagator-jaeger/node_modules/@opentelemetry/core/build/src/platform/node/sdk-info.js
-var require_sdk_info2 = __commonJS((exports) => {
+var require_sdk_info3 = __commonJS((exports) => {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.SDK_INFO = undefined;
-  var version_1 = require_version9();
+  var version_1 = require_version10();
   var semantic_conventions_1 = require_src2();
-  var semconv_1 = require_semconv7();
+  var semconv_1 = require_semconv8();
   exports.SDK_INFO = {
     [semantic_conventions_1.ATTR_TELEMETRY_SDK_NAME]: "opentelemetry",
     [semconv_1.ATTR_PROCESS_RUNTIME_NAME]: "node",
@@ -76980,10 +78366,10 @@ var require_sdk_info2 = __commonJS((exports) => {
 });
 
 // node_modules/@opentelemetry/propagator-jaeger/node_modules/@opentelemetry/core/build/src/platform/node/index.js
-var require_node12 = __commonJS((exports) => {
+var require_node13 = __commonJS((exports) => {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.otperformance = exports.SDK_INFO = exports._globalThis = exports.getStringListFromEnv = exports.getNumberFromEnv = exports.getBooleanFromEnv = exports.getStringFromEnv = undefined;
-  var environment_1 = require_environment3();
+  var environment_1 = require_environment4();
   Object.defineProperty(exports, "getStringFromEnv", { enumerable: true, get: function() {
     return environment_1.getStringFromEnv;
   } });
@@ -76996,11 +78382,11 @@ var require_node12 = __commonJS((exports) => {
   Object.defineProperty(exports, "getStringListFromEnv", { enumerable: true, get: function() {
     return environment_1.getStringListFromEnv;
   } });
-  var globalThis_1 = require_globalThis2();
+  var globalThis_1 = require_globalThis3();
   Object.defineProperty(exports, "_globalThis", { enumerable: true, get: function() {
     return globalThis_1._globalThis;
   } });
-  var sdk_info_1 = require_sdk_info2();
+  var sdk_info_1 = require_sdk_info3();
   Object.defineProperty(exports, "SDK_INFO", { enumerable: true, get: function() {
     return sdk_info_1.SDK_INFO;
   } });
@@ -77008,10 +78394,10 @@ var require_node12 = __commonJS((exports) => {
 });
 
 // node_modules/@opentelemetry/propagator-jaeger/node_modules/@opentelemetry/core/build/src/platform/index.js
-var require_platform11 = __commonJS((exports) => {
+var require_platform12 = __commonJS((exports) => {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.getStringListFromEnv = exports.getNumberFromEnv = exports.getStringFromEnv = exports.getBooleanFromEnv = exports.otperformance = exports._globalThis = exports.SDK_INFO = undefined;
-  var node_1 = require_node12();
+  var node_1 = require_node13();
   Object.defineProperty(exports, "SDK_INFO", { enumerable: true, get: function() {
     return node_1.SDK_INFO;
   } });
@@ -77036,10 +78422,10 @@ var require_platform11 = __commonJS((exports) => {
 });
 
 // node_modules/@opentelemetry/propagator-jaeger/node_modules/@opentelemetry/core/build/src/common/time.js
-var require_time2 = __commonJS((exports) => {
+var require_time3 = __commonJS((exports) => {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.addHrTimes = exports.isTimeInput = exports.isTimeInputHrTime = exports.hrTimeToSeconds = exports.hrTimeToMilliseconds = exports.hrTimeToMicroseconds = exports.hrTimeToNanoseconds = exports.hrTimeToTimeStamp = exports.hrTimeDuration = exports.timeInputToHrTime = exports.hrTime = exports.getTimeOrigin = exports.millisToHrTime = undefined;
-  var platform_1 = require_platform11();
+  var platform_1 = require_platform12();
   var NANOSECOND_DIGITS = 9;
   var NANOSECOND_DIGITS_IN_MILLIS = 6;
   var MILLISECONDS_TO_NANOSECONDS = Math.pow(10, NANOSECOND_DIGITS_IN_MILLIS);
@@ -77131,7 +78517,7 @@ var require_time2 = __commonJS((exports) => {
 });
 
 // node_modules/@opentelemetry/propagator-jaeger/node_modules/@opentelemetry/core/build/src/common/timer-util.js
-var require_timer_util2 = __commonJS((exports) => {
+var require_timer_util3 = __commonJS((exports) => {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.unrefTimer = undefined;
   function unrefTimer(timer) {
@@ -77143,7 +78529,7 @@ var require_timer_util2 = __commonJS((exports) => {
 });
 
 // node_modules/@opentelemetry/propagator-jaeger/node_modules/@opentelemetry/core/build/src/ExportResult.js
-var require_ExportResult2 = __commonJS((exports) => {
+var require_ExportResult3 = __commonJS((exports) => {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.ExportResultCode = undefined;
   var ExportResultCode;
@@ -77154,7 +78540,7 @@ var require_ExportResult2 = __commonJS((exports) => {
 });
 
 // node_modules/@opentelemetry/propagator-jaeger/node_modules/@opentelemetry/core/build/src/propagation/composite.js
-var require_composite2 = __commonJS((exports) => {
+var require_composite3 = __commonJS((exports) => {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.CompositePropagator = undefined;
   var api_1 = require_src();
@@ -77200,7 +78586,7 @@ var require_composite2 = __commonJS((exports) => {
 });
 
 // node_modules/@opentelemetry/propagator-jaeger/node_modules/@opentelemetry/core/build/src/internal/validators.js
-var require_validators2 = __commonJS((exports) => {
+var require_validators3 = __commonJS((exports) => {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.validateValue = exports.validateKey = undefined;
   var VALID_KEY_CHAR_RANGE = "[_0-9a-z-*/]";
@@ -77220,10 +78606,10 @@ var require_validators2 = __commonJS((exports) => {
 });
 
 // node_modules/@opentelemetry/propagator-jaeger/node_modules/@opentelemetry/core/build/src/trace/TraceState.js
-var require_TraceState2 = __commonJS((exports) => {
+var require_TraceState3 = __commonJS((exports) => {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.TraceState = undefined;
-  var validators_1 = require_validators2();
+  var validators_1 = require_validators3();
   var MAX_TRACE_STATE_ITEMS = 32;
   var MAX_TRACE_STATE_LEN = 512;
   var LIST_MEMBERS_SEPARATOR = ",";
@@ -77330,12 +78716,12 @@ var require_TraceState2 = __commonJS((exports) => {
 });
 
 // node_modules/@opentelemetry/propagator-jaeger/node_modules/@opentelemetry/core/build/src/trace/W3CTraceContextPropagator.js
-var require_W3CTraceContextPropagator2 = __commonJS((exports) => {
+var require_W3CTraceContextPropagator3 = __commonJS((exports) => {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.W3CTraceContextPropagator = exports.parseTraceParent = exports.TRACE_STATE_HEADER = exports.TRACE_PARENT_HEADER = undefined;
   var api_1 = require_src();
-  var suppress_tracing_1 = require_suppress_tracing2();
-  var TraceState_1 = require_TraceState2();
+  var suppress_tracing_1 = require_suppress_tracing3();
+  var TraceState_1 = require_TraceState3();
   exports.TRACE_PARENT_HEADER = "traceparent";
   exports.TRACE_STATE_HEADER = "tracestate";
   var VERSION = "00";
@@ -77395,7 +78781,7 @@ var require_W3CTraceContextPropagator2 = __commonJS((exports) => {
 });
 
 // node_modules/@opentelemetry/propagator-jaeger/node_modules/@opentelemetry/core/build/src/trace/rpc-metadata.js
-var require_rpc_metadata2 = __commonJS((exports) => {
+var require_rpc_metadata3 = __commonJS((exports) => {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.getRPCMetadata = exports.deleteRPCMetadata = exports.setRPCMetadata = exports.RPCType = undefined;
   var api_1 = require_src();
@@ -77419,7 +78805,7 @@ var require_rpc_metadata2 = __commonJS((exports) => {
 });
 
 // node_modules/@opentelemetry/propagator-jaeger/node_modules/@opentelemetry/core/build/src/utils/lodash.merge.js
-var require_lodash_merge2 = __commonJS((exports) => {
+var require_lodash_merge3 = __commonJS((exports) => {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.isPlainObject = undefined;
   var objectTag = "[object Object]";
@@ -77477,10 +78863,10 @@ var require_lodash_merge2 = __commonJS((exports) => {
 });
 
 // node_modules/@opentelemetry/propagator-jaeger/node_modules/@opentelemetry/core/build/src/utils/merge.js
-var require_merge2 = __commonJS((exports) => {
+var require_merge3 = __commonJS((exports) => {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.merge = undefined;
-  var lodash_merge_1 = require_lodash_merge2();
+  var lodash_merge_1 = require_lodash_merge3();
   var MAX_LEVEL = 20;
   function merge(...args) {
     let result = args.shift();
@@ -77595,7 +78981,7 @@ var require_merge2 = __commonJS((exports) => {
 });
 
 // node_modules/@opentelemetry/propagator-jaeger/node_modules/@opentelemetry/core/build/src/utils/timeout.js
-var require_timeout2 = __commonJS((exports) => {
+var require_timeout3 = __commonJS((exports) => {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.callWithTimeout = exports.TimeoutError = undefined;
 
@@ -77625,7 +79011,7 @@ var require_timeout2 = __commonJS((exports) => {
 });
 
 // node_modules/@opentelemetry/propagator-jaeger/node_modules/@opentelemetry/core/build/src/utils/url.js
-var require_url2 = __commonJS((exports) => {
+var require_url3 = __commonJS((exports) => {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.isUrlIgnored = exports.urlMatches = undefined;
   function urlMatches(url, urlToMatch) {
@@ -77651,7 +79037,7 @@ var require_url2 = __commonJS((exports) => {
 });
 
 // node_modules/@opentelemetry/propagator-jaeger/node_modules/@opentelemetry/core/build/src/utils/promise.js
-var require_promise2 = __commonJS((exports) => {
+var require_promise3 = __commonJS((exports) => {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.Deferred = undefined;
 
@@ -77679,10 +79065,10 @@ var require_promise2 = __commonJS((exports) => {
 });
 
 // node_modules/@opentelemetry/propagator-jaeger/node_modules/@opentelemetry/core/build/src/utils/callback.js
-var require_callback2 = __commonJS((exports) => {
+var require_callback3 = __commonJS((exports) => {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.BindOnceFuture = undefined;
-  var promise_1 = require_promise2();
+  var promise_1 = require_promise3();
 
   class BindOnceFuture {
     _isCalled = false;
@@ -77715,7 +79101,7 @@ var require_callback2 = __commonJS((exports) => {
 });
 
 // node_modules/@opentelemetry/propagator-jaeger/node_modules/@opentelemetry/core/build/src/utils/configuration.js
-var require_configuration2 = __commonJS((exports) => {
+var require_configuration3 = __commonJS((exports) => {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.diagLogLevelFromString = undefined;
   var api_1 = require_src();
@@ -77743,11 +79129,11 @@ var require_configuration2 = __commonJS((exports) => {
 });
 
 // node_modules/@opentelemetry/propagator-jaeger/node_modules/@opentelemetry/core/build/src/internal/exporter.js
-var require_exporter2 = __commonJS((exports) => {
+var require_exporter3 = __commonJS((exports) => {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports._export = undefined;
   var api_1 = require_src();
-  var suppress_tracing_1 = require_suppress_tracing2();
+  var suppress_tracing_1 = require_suppress_tracing3();
   function _export(exporter, arg) {
     return new Promise((resolve) => {
       api_1.context.with((0, suppress_tracing_1.suppressTracing)(api_1.context.active()), () => {
@@ -77759,37 +79145,37 @@ var require_exporter2 = __commonJS((exports) => {
 });
 
 // node_modules/@opentelemetry/propagator-jaeger/node_modules/@opentelemetry/core/build/src/index.js
-var require_src28 = __commonJS((exports) => {
+var require_src29 = __commonJS((exports) => {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.diagLogLevelFromString = exports.BindOnceFuture = exports.urlMatches = exports.isUrlIgnored = exports.callWithTimeout = exports.TimeoutError = exports.merge = exports.TraceState = exports.unsuppressTracing = exports.suppressTracing = exports.isTracingSuppressed = exports.setRPCMetadata = exports.getRPCMetadata = exports.deleteRPCMetadata = exports.RPCType = exports.parseTraceParent = exports.W3CTraceContextPropagator = exports.TRACE_STATE_HEADER = exports.TRACE_PARENT_HEADER = exports.CompositePropagator = exports.otperformance = exports.getStringListFromEnv = exports.getNumberFromEnv = exports.getBooleanFromEnv = exports.getStringFromEnv = exports._globalThis = exports.SDK_INFO = exports.parseKeyPairsIntoRecord = exports.ExportResultCode = exports.unrefTimer = exports.timeInputToHrTime = exports.millisToHrTime = exports.isTimeInputHrTime = exports.isTimeInput = exports.hrTimeToTimeStamp = exports.hrTimeToSeconds = exports.hrTimeToNanoseconds = exports.hrTimeToMilliseconds = exports.hrTimeToMicroseconds = exports.hrTimeDuration = exports.hrTime = exports.getTimeOrigin = exports.addHrTimes = exports.loggingErrorHandler = exports.setGlobalErrorHandler = exports.globalErrorHandler = exports.sanitizeAttributes = exports.isAttributeValue = exports.AnchoredClock = exports.W3CBaggagePropagator = undefined;
   exports.internal = undefined;
-  var W3CBaggagePropagator_1 = require_W3CBaggagePropagator2();
+  var W3CBaggagePropagator_1 = require_W3CBaggagePropagator3();
   Object.defineProperty(exports, "W3CBaggagePropagator", { enumerable: true, get: function() {
     return W3CBaggagePropagator_1.W3CBaggagePropagator;
   } });
-  var anchored_clock_1 = require_anchored_clock2();
+  var anchored_clock_1 = require_anchored_clock3();
   Object.defineProperty(exports, "AnchoredClock", { enumerable: true, get: function() {
     return anchored_clock_1.AnchoredClock;
   } });
-  var attributes_1 = require_attributes2();
+  var attributes_1 = require_attributes3();
   Object.defineProperty(exports, "isAttributeValue", { enumerable: true, get: function() {
     return attributes_1.isAttributeValue;
   } });
   Object.defineProperty(exports, "sanitizeAttributes", { enumerable: true, get: function() {
     return attributes_1.sanitizeAttributes;
   } });
-  var global_error_handler_1 = require_global_error_handler2();
+  var global_error_handler_1 = require_global_error_handler3();
   Object.defineProperty(exports, "globalErrorHandler", { enumerable: true, get: function() {
     return global_error_handler_1.globalErrorHandler;
   } });
   Object.defineProperty(exports, "setGlobalErrorHandler", { enumerable: true, get: function() {
     return global_error_handler_1.setGlobalErrorHandler;
   } });
-  var logging_error_handler_1 = require_logging_error_handler2();
+  var logging_error_handler_1 = require_logging_error_handler3();
   Object.defineProperty(exports, "loggingErrorHandler", { enumerable: true, get: function() {
     return logging_error_handler_1.loggingErrorHandler;
   } });
-  var time_1 = require_time2();
+  var time_1 = require_time3();
   Object.defineProperty(exports, "addHrTimes", { enumerable: true, get: function() {
     return time_1.addHrTimes;
   } });
@@ -77829,19 +79215,19 @@ var require_src28 = __commonJS((exports) => {
   Object.defineProperty(exports, "timeInputToHrTime", { enumerable: true, get: function() {
     return time_1.timeInputToHrTime;
   } });
-  var timer_util_1 = require_timer_util2();
+  var timer_util_1 = require_timer_util3();
   Object.defineProperty(exports, "unrefTimer", { enumerable: true, get: function() {
     return timer_util_1.unrefTimer;
   } });
-  var ExportResult_1 = require_ExportResult2();
+  var ExportResult_1 = require_ExportResult3();
   Object.defineProperty(exports, "ExportResultCode", { enumerable: true, get: function() {
     return ExportResult_1.ExportResultCode;
   } });
-  var utils_1 = require_utils14();
+  var utils_1 = require_utils15();
   Object.defineProperty(exports, "parseKeyPairsIntoRecord", { enumerable: true, get: function() {
     return utils_1.parseKeyPairsIntoRecord;
   } });
-  var platform_1 = require_platform11();
+  var platform_1 = require_platform12();
   Object.defineProperty(exports, "SDK_INFO", { enumerable: true, get: function() {
     return platform_1.SDK_INFO;
   } });
@@ -77863,11 +79249,11 @@ var require_src28 = __commonJS((exports) => {
   Object.defineProperty(exports, "otperformance", { enumerable: true, get: function() {
     return platform_1.otperformance;
   } });
-  var composite_1 = require_composite2();
+  var composite_1 = require_composite3();
   Object.defineProperty(exports, "CompositePropagator", { enumerable: true, get: function() {
     return composite_1.CompositePropagator;
   } });
-  var W3CTraceContextPropagator_1 = require_W3CTraceContextPropagator2();
+  var W3CTraceContextPropagator_1 = require_W3CTraceContextPropagator3();
   Object.defineProperty(exports, "TRACE_PARENT_HEADER", { enumerable: true, get: function() {
     return W3CTraceContextPropagator_1.TRACE_PARENT_HEADER;
   } });
@@ -77880,7 +79266,7 @@ var require_src28 = __commonJS((exports) => {
   Object.defineProperty(exports, "parseTraceParent", { enumerable: true, get: function() {
     return W3CTraceContextPropagator_1.parseTraceParent;
   } });
-  var rpc_metadata_1 = require_rpc_metadata2();
+  var rpc_metadata_1 = require_rpc_metadata3();
   Object.defineProperty(exports, "RPCType", { enumerable: true, get: function() {
     return rpc_metadata_1.RPCType;
   } });
@@ -77893,7 +79279,7 @@ var require_src28 = __commonJS((exports) => {
   Object.defineProperty(exports, "setRPCMetadata", { enumerable: true, get: function() {
     return rpc_metadata_1.setRPCMetadata;
   } });
-  var suppress_tracing_1 = require_suppress_tracing2();
+  var suppress_tracing_1 = require_suppress_tracing3();
   Object.defineProperty(exports, "isTracingSuppressed", { enumerable: true, get: function() {
     return suppress_tracing_1.isTracingSuppressed;
   } });
@@ -77903,37 +79289,37 @@ var require_src28 = __commonJS((exports) => {
   Object.defineProperty(exports, "unsuppressTracing", { enumerable: true, get: function() {
     return suppress_tracing_1.unsuppressTracing;
   } });
-  var TraceState_1 = require_TraceState2();
+  var TraceState_1 = require_TraceState3();
   Object.defineProperty(exports, "TraceState", { enumerable: true, get: function() {
     return TraceState_1.TraceState;
   } });
-  var merge_1 = require_merge2();
+  var merge_1 = require_merge3();
   Object.defineProperty(exports, "merge", { enumerable: true, get: function() {
     return merge_1.merge;
   } });
-  var timeout_1 = require_timeout2();
+  var timeout_1 = require_timeout3();
   Object.defineProperty(exports, "TimeoutError", { enumerable: true, get: function() {
     return timeout_1.TimeoutError;
   } });
   Object.defineProperty(exports, "callWithTimeout", { enumerable: true, get: function() {
     return timeout_1.callWithTimeout;
   } });
-  var url_1 = require_url2();
+  var url_1 = require_url3();
   Object.defineProperty(exports, "isUrlIgnored", { enumerable: true, get: function() {
     return url_1.isUrlIgnored;
   } });
   Object.defineProperty(exports, "urlMatches", { enumerable: true, get: function() {
     return url_1.urlMatches;
   } });
-  var callback_1 = require_callback2();
+  var callback_1 = require_callback3();
   Object.defineProperty(exports, "BindOnceFuture", { enumerable: true, get: function() {
     return callback_1.BindOnceFuture;
   } });
-  var configuration_1 = require_configuration2();
+  var configuration_1 = require_configuration3();
   Object.defineProperty(exports, "diagLogLevelFromString", { enumerable: true, get: function() {
     return configuration_1.diagLogLevelFromString;
   } });
-  var exporter_1 = require_exporter2();
+  var exporter_1 = require_exporter3();
   exports.internal = {
     _export: exporter_1._export
   };
@@ -77944,7 +79330,7 @@ var require_JaegerPropagator = __commonJS((exports) => {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.JaegerPropagator = exports.UBER_BAGGAGE_HEADER_PREFIX = exports.UBER_TRACE_ID_HEADER = undefined;
   var api_1 = require_src();
-  var core_1 = require_src28();
+  var core_1 = require_src29();
   exports.UBER_TRACE_ID_HEADER = "uber-trace-id";
   exports.UBER_BAGGAGE_HEADER_PREFIX = "uberctx";
 
@@ -78035,7 +79421,7 @@ var require_JaegerPropagator = __commonJS((exports) => {
 });
 
 // node_modules/@opentelemetry/propagator-jaeger/build/src/index.js
-var require_src29 = __commonJS((exports) => {
+var require_src30 = __commonJS((exports) => {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.UBER_TRACE_ID_HEADER = exports.UBER_BAGGAGE_HEADER_PREFIX = exports.JaegerPropagator = undefined;
   var JaegerPropagator_1 = require_JaegerPropagator();
@@ -78066,10 +79452,10 @@ var require_OTLPMetricExporterOptions = __commonJS((exports) => {
 var require_OTLPMetricExporterBase = __commonJS((exports) => {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.OTLPMetricExporterBase = exports.LowMemoryTemporalitySelector = exports.DeltaTemporalitySelector = exports.CumulativeTemporalitySelector = undefined;
-  var core_1 = require_src3();
-  var sdk_metrics_1 = require_src7();
+  var core_1 = require_src4();
+  var sdk_metrics_1 = require_src8();
   var OTLPMetricExporterOptions_1 = require_OTLPMetricExporterOptions();
-  var otlp_exporter_base_1 = require_src4();
+  var otlp_exporter_base_1 = require_src5();
   var api_1 = require_src();
   var CumulativeTemporalitySelector = () => sdk_metrics_1.AggregationTemporality.CUMULATIVE;
   exports.CumulativeTemporalitySelector = CumulativeTemporalitySelector;
@@ -78156,7 +79542,7 @@ var require_OTLPMetricExporter = __commonJS((exports) => {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.OTLPMetricExporter = undefined;
   var OTLPMetricExporterBase_1 = require_OTLPMetricExporterBase();
-  var otlp_transformer_1 = require_src8();
+  var otlp_transformer_1 = require_src9();
   var node_http_1 = require_index_node_http();
 
   class OTLPMetricExporter extends OTLPMetricExporterBase_1.OTLPMetricExporterBase {
@@ -78170,7 +79556,7 @@ var require_OTLPMetricExporter = __commonJS((exports) => {
 });
 
 // node_modules/@opentelemetry/exporter-metrics-otlp-http/build/src/platform/node/index.js
-var require_node13 = __commonJS((exports) => {
+var require_node14 = __commonJS((exports) => {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.OTLPMetricExporter = undefined;
   var OTLPMetricExporter_1 = require_OTLPMetricExporter();
@@ -78180,20 +79566,20 @@ var require_node13 = __commonJS((exports) => {
 });
 
 // node_modules/@opentelemetry/exporter-metrics-otlp-http/build/src/platform/index.js
-var require_platform12 = __commonJS((exports) => {
+var require_platform13 = __commonJS((exports) => {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.OTLPMetricExporter = undefined;
-  var node_1 = require_node13();
+  var node_1 = require_node14();
   Object.defineProperty(exports, "OTLPMetricExporter", { enumerable: true, get: function() {
     return node_1.OTLPMetricExporter;
   } });
 });
 
 // node_modules/@opentelemetry/exporter-metrics-otlp-http/build/src/index.js
-var require_src30 = __commonJS((exports) => {
+var require_src31 = __commonJS((exports) => {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.OTLPMetricExporterBase = exports.LowMemoryTemporalitySelector = exports.DeltaTemporalitySelector = exports.CumulativeTemporalitySelector = exports.AggregationTemporalityPreference = exports.OTLPMetricExporter = undefined;
-  var platform_1 = require_platform12();
+  var platform_1 = require_platform13();
   Object.defineProperty(exports, "OTLPMetricExporter", { enumerable: true, get: function() {
     return platform_1.OTLPMetricExporter;
   } });
@@ -78220,9 +79606,9 @@ var require_src30 = __commonJS((exports) => {
 var require_OTLPMetricExporter2 = __commonJS((exports) => {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.OTLPMetricExporter = undefined;
-  var exporter_metrics_otlp_http_1 = require_src30();
-  var otlp_grpc_exporter_base_1 = require_src20();
-  var otlp_transformer_1 = require_src8();
+  var exporter_metrics_otlp_http_1 = require_src31();
+  var otlp_grpc_exporter_base_1 = require_src21();
+  var otlp_transformer_1 = require_src9();
 
   class OTLPMetricExporter extends exporter_metrics_otlp_http_1.OTLPMetricExporterBase {
     constructor(config) {
@@ -78233,7 +79619,7 @@ var require_OTLPMetricExporter2 = __commonJS((exports) => {
 });
 
 // node_modules/@opentelemetry/exporter-metrics-otlp-grpc/build/src/index.js
-var require_src31 = __commonJS((exports) => {
+var require_src32 = __commonJS((exports) => {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.OTLPMetricExporter = undefined;
   var OTLPMetricExporter_1 = require_OTLPMetricExporter2();
@@ -78246,8 +79632,8 @@ var require_src31 = __commonJS((exports) => {
 var require_OTLPMetricExporter3 = __commonJS((exports) => {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.OTLPMetricExporter = undefined;
-  var exporter_metrics_otlp_http_1 = require_src30();
-  var otlp_transformer_1 = require_src8();
+  var exporter_metrics_otlp_http_1 = require_src31();
+  var otlp_transformer_1 = require_src9();
   var node_http_1 = require_index_node_http();
 
   class OTLPMetricExporter extends exporter_metrics_otlp_http_1.OTLPMetricExporterBase {
@@ -78261,7 +79647,7 @@ var require_OTLPMetricExporter3 = __commonJS((exports) => {
 });
 
 // node_modules/@opentelemetry/exporter-metrics-otlp-proto/build/src/platform/node/index.js
-var require_node14 = __commonJS((exports) => {
+var require_node15 = __commonJS((exports) => {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.OTLPMetricExporter = undefined;
   var OTLPMetricExporter_1 = require_OTLPMetricExporter3();
@@ -78271,50 +79657,50 @@ var require_node14 = __commonJS((exports) => {
 });
 
 // node_modules/@opentelemetry/exporter-metrics-otlp-proto/build/src/platform/index.js
-var require_platform13 = __commonJS((exports) => {
+var require_platform14 = __commonJS((exports) => {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.OTLPMetricExporter = undefined;
-  var node_1 = require_node14();
+  var node_1 = require_node15();
   Object.defineProperty(exports, "OTLPMetricExporter", { enumerable: true, get: function() {
     return node_1.OTLPMetricExporter;
   } });
 });
 
 // node_modules/@opentelemetry/exporter-metrics-otlp-proto/build/src/index.js
-var require_src32 = __commonJS((exports) => {
+var require_src33 = __commonJS((exports) => {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.OTLPMetricExporter = undefined;
-  var platform_1 = require_platform13();
+  var platform_1 = require_platform14();
   Object.defineProperty(exports, "OTLPMetricExporter", { enumerable: true, get: function() {
     return platform_1.OTLPMetricExporter;
   } });
 });
 
 // node_modules/@opentelemetry/sdk-node/build/src/utils.js
-var require_utils15 = __commonJS((exports) => {
+var require_utils16 = __commonJS((exports) => {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.buildSamplerFromConfig = exports.getInstanceID = exports.getMeterViewsFromConfiguration = exports.getAggregationType = exports.getInstrumentType = exports.getMeterReadersFromConfiguration = exports.getSpanLimitsFromConfiguration = exports.getSpanProcessorsFromConfiguration = exports.getSpanExporter = exports.getHttpAgentOptionsFromTls = exports.getHeadersFromConfiguration = exports.getLogRecordProcessorsFromConfiguration = exports.getLogRecordExporter = exports.getBatchLogRecordProcessorFromEnv = exports.getBatchLogRecordProcessorConfigFromEnv = exports.getLoggerProviderConfigFromEnv = exports.getPeriodicMetricReaderFromConfiguration = exports.getOtlpMetricExporterFromEnv = exports.getPeriodicExportingMetricReaderFromEnv = exports.getNonNegativeNumberFromEnv = exports.getKeyListFromObjectArray = exports.setupPropagator = exports.setupContextManager = exports.getPropagatorFromConfiguration = exports.getPropagatorFromEnv = exports.getSpanProcessorsFromEnv = exports.getOtlpProtocolFromEnv = exports.getResourceDetectorsFromConfiguration = exports.getResourceDetectorsFromEnv = exports.getResourceFromConfiguration = undefined;
   var api_1 = require_src();
-  var core_1 = require_src3();
-  var exporter_trace_otlp_proto_1 = require_src9();
-  var exporter_trace_otlp_http_1 = require_src24();
-  var exporter_trace_otlp_grpc_1 = require_src25();
-  var exporter_zipkin_1 = require_src26();
-  var resources_1 = require_src6();
-  var sdk_trace_base_1 = require_src12();
-  var propagator_b3_1 = require_src27();
-  var propagator_jaeger_1 = require_src29();
-  var context_async_hooks_1 = require_src11();
-  var exporter_logs_otlp_http_1 = require_src16();
-  var exporter_logs_otlp_grpc_1 = require_src21();
-  var exporter_logs_otlp_proto_1 = require_src22();
-  var otlp_exporter_base_1 = require_src4();
-  var otlp_grpc_exporter_base_1 = require_src20();
-  var sdk_metrics_1 = require_src7();
-  var exporter_metrics_otlp_grpc_1 = require_src31();
-  var exporter_metrics_otlp_http_1 = require_src30();
-  var exporter_metrics_otlp_proto_1 = require_src32();
-  var sdk_logs_1 = require_src10();
+  var core_1 = require_src4();
+  var exporter_trace_otlp_proto_1 = require_src10();
+  var exporter_trace_otlp_http_1 = require_src25();
+  var exporter_trace_otlp_grpc_1 = require_src26();
+  var exporter_zipkin_1 = require_src27();
+  var resources_1 = require_src7();
+  var sdk_trace_base_1 = require_src13();
+  var propagator_b3_1 = require_src28();
+  var propagator_jaeger_1 = require_src30();
+  var context_async_hooks_1 = require_src12();
+  var exporter_logs_otlp_http_1 = require_src17();
+  var exporter_logs_otlp_grpc_1 = require_src22();
+  var exporter_logs_otlp_proto_1 = require_src23();
+  var otlp_exporter_base_1 = require_src5();
+  var otlp_grpc_exporter_base_1 = require_src21();
+  var sdk_metrics_1 = require_src8();
+  var exporter_metrics_otlp_grpc_1 = require_src32();
+  var exporter_metrics_otlp_http_1 = require_src31();
+  var exporter_metrics_otlp_proto_1 = require_src33();
+  var sdk_logs_1 = require_src11();
   var fs4 = __require("fs");
   var RESOURCE_DETECTOR_ENVIRONMENT = "env";
   var RESOURCE_DETECTOR_HOST = "host";
@@ -79111,20 +80497,20 @@ var require_sdk = __commonJS((exports) => {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.NodeSDK = undefined;
   var api_1 = require_src();
-  var api_logs_1 = require_src5();
-  var instrumentation_1 = require_src15();
-  var resources_1 = require_src6();
-  var sdk_logs_1 = require_src10();
-  var exporter_logs_otlp_http_1 = require_src16();
-  var exporter_logs_otlp_grpc_1 = require_src21();
-  var exporter_logs_otlp_proto_1 = require_src22();
-  var exporter_prometheus_1 = require_src23();
-  var sdk_metrics_1 = require_src7();
-  var sdk_trace_base_1 = require_src12();
-  var sdk_trace_node_1 = require_src13();
+  var api_logs_1 = require_src6();
+  var instrumentation_1 = require_src16();
+  var resources_1 = require_src7();
+  var sdk_logs_1 = require_src11();
+  var exporter_logs_otlp_http_1 = require_src17();
+  var exporter_logs_otlp_grpc_1 = require_src22();
+  var exporter_logs_otlp_proto_1 = require_src23();
+  var exporter_prometheus_1 = require_src24();
+  var sdk_metrics_1 = require_src8();
+  var sdk_trace_base_1 = require_src13();
+  var sdk_trace_node_1 = require_src14();
   var semantic_conventions_1 = require_src2();
-  var core_1 = require_src3();
-  var utils_1 = require_utils15();
+  var core_1 = require_src4();
+  var utils_1 = require_utils16();
   function getMetricReadersFromEnv() {
     const metricReaders = [];
     const enabledExporters = Array.from(new Set((0, core_1.getStringListFromEnv)("OTEL_METRICS_EXPORTER") ?? []));
@@ -80942,7 +82328,7 @@ var require_log = __commonJS((exports) => {
 });
 
 // node_modules/yaml/dist/schema/yaml-1.1/merge.js
-var require_merge3 = __commonJS((exports) => {
+var require_merge4 = __commonJS((exports) => {
   var identity3 = require_identity();
   var Scalar = require_Scalar();
   var MERGE_KEY = "<<";
@@ -80998,7 +82384,7 @@ var require_merge3 = __commonJS((exports) => {
 // node_modules/yaml/dist/nodes/addPairToJSMap.js
 var require_addPairToJSMap = __commonJS((exports) => {
   var log2 = require_log();
-  var merge = require_merge3();
+  var merge = require_merge4();
   var stringify = require_stringify();
   var identity3 = require_identity();
   var toJS = require_toJS();
@@ -82275,7 +83661,7 @@ var require_schema4 = __commonJS((exports) => {
   var bool = require_bool2();
   var float = require_float3();
   var int = require_int2();
-  var merge = require_merge3();
+  var merge = require_merge4();
   var omap = require_omap();
   var pairs = require_pairs();
   var set = require_set();
@@ -82318,7 +83704,7 @@ var require_tags = __commonJS((exports) => {
   var schema = require_schema2();
   var schema$1 = require_schema3();
   var binary = require_binary();
-  var merge = require_merge3();
+  var merge = require_merge4();
   var omap = require_omap();
   var pairs = require_pairs();
   var schema$2 = require_schema4();
@@ -84110,7 +85496,7 @@ var require_composer = __commonJS((exports) => {
   var node_process = __require("process");
   var directives = require_directives2();
   var Document = require_Document();
-  var errors = require_errors2();
+  var errors2 = require_errors2();
   var identity3 = require_identity();
   var composeDoc = require_compose_doc();
   var resolveEnd = require_resolve_end();
@@ -84161,9 +85547,9 @@ var require_composer = __commonJS((exports) => {
       this.onError = (source, code, message, warning) => {
         const pos = getErrorPos(source);
         if (warning)
-          this.warnings.push(new errors.YAMLWarning(pos, code, message));
+          this.warnings.push(new errors2.YAMLWarning(pos, code, message));
         else
-          this.errors.push(new errors.YAMLParseError(pos, code, message));
+          this.errors.push(new errors2.YAMLParseError(pos, code, message));
       };
       this.directives = new directives.Directives({ version: options.version || "1.2" });
       this.options = options;
@@ -84247,7 +85633,7 @@ ${cb}` : comment;
           break;
         case "error": {
           const msg = token.source ? `${token.message}: ${JSON.stringify(token.source)}` : token.message;
-          const error = new errors.YAMLParseError(getErrorPos(token), "UNEXPECTED_TOKEN", msg);
+          const error = new errors2.YAMLParseError(getErrorPos(token), "UNEXPECTED_TOKEN", msg);
           if (this.atDirectives || !this.doc)
             this.errors.push(error);
           else
@@ -84257,7 +85643,7 @@ ${cb}` : comment;
         case "doc-end": {
           if (!this.doc) {
             const msg = "Unexpected doc-end without preceding document";
-            this.errors.push(new errors.YAMLParseError(getErrorPos(token), "UNEXPECTED_TOKEN", msg));
+            this.errors.push(new errors2.YAMLParseError(getErrorPos(token), "UNEXPECTED_TOKEN", msg));
             break;
           }
           this.doc.directives.docEnd = true;
@@ -84272,7 +85658,7 @@ ${end.comment}` : end.comment;
           break;
         }
         default:
-          this.errors.push(new errors.YAMLParseError(getErrorPos(token), "UNEXPECTED_TOKEN", `Unsupported token ${token.type}`));
+          this.errors.push(new errors2.YAMLParseError(getErrorPos(token), "UNEXPECTED_TOKEN", `Unsupported token ${token.type}`));
       }
     }
     *end(forceDoc = false, endOffset = -1) {
@@ -84298,7 +85684,7 @@ ${end.comment}` : end.comment;
 var require_cst_scalar = __commonJS((exports) => {
   var resolveBlockScalar = require_resolve_block_scalar();
   var resolveFlowScalar = require_resolve_flow_scalar();
-  var errors = require_errors2();
+  var errors2 = require_errors2();
   var stringifyString = require_stringifyString();
   function resolveAsScalar(token, strict = true, onError) {
     if (token) {
@@ -84307,7 +85693,7 @@ var require_cst_scalar = __commonJS((exports) => {
         if (onError)
           onError(offset, code, message);
         else
-          throw new errors.YAMLParseError([offset, offset + 1], code, message);
+          throw new errors2.YAMLParseError([offset, offset + 1], code, message);
       };
       switch (token.type) {
         case "scalar":
@@ -86169,7 +87555,7 @@ var require_parser2 = __commonJS((exports) => {
 var require_public_api = __commonJS((exports) => {
   var composer = require_composer();
   var Document = require_Document();
-  var errors = require_errors2();
+  var errors2 = require_errors2();
   var log2 = require_log();
   var identity3 = require_identity();
   var lineCounter = require_line_counter();
@@ -86186,8 +87572,8 @@ var require_public_api = __commonJS((exports) => {
     const docs = Array.from(composer$1.compose(parser$1.parse(source)));
     if (prettyErrors && lineCounter2)
       for (const doc of docs) {
-        doc.errors.forEach(errors.prettifyError(source, lineCounter2));
-        doc.warnings.forEach(errors.prettifyError(source, lineCounter2));
+        doc.errors.forEach(errors2.prettifyError(source, lineCounter2));
+        doc.warnings.forEach(errors2.prettifyError(source, lineCounter2));
       }
     if (docs.length > 0)
       return docs;
@@ -86202,13 +87588,13 @@ var require_public_api = __commonJS((exports) => {
       if (!doc)
         doc = _doc;
       else if (doc.options.logLevel !== "silent") {
-        doc.errors.push(new errors.YAMLParseError(_doc.range.slice(0, 2), "MULTIPLE_DOCS", "Source contains multiple documents; please use YAML.parseAllDocuments()"));
+        doc.errors.push(new errors2.YAMLParseError(_doc.range.slice(0, 2), "MULTIPLE_DOCS", "Source contains multiple documents; please use YAML.parseAllDocuments()"));
         break;
       }
     }
     if (prettyErrors && lineCounter2) {
-      doc.errors.forEach(errors.prettifyError(source, lineCounter2));
-      doc.warnings.forEach(errors.prettifyError(source, lineCounter2));
+      doc.errors.forEach(errors2.prettifyError(source, lineCounter2));
+      doc.warnings.forEach(errors2.prettifyError(source, lineCounter2));
     }
     return doc;
   }
@@ -86264,7 +87650,7 @@ var require_dist = __commonJS((exports) => {
   var composer = require_composer();
   var Document = require_Document();
   var Schema = require_Schema();
-  var errors = require_errors2();
+  var errors2 = require_errors2();
   var Alias = require_Alias();
   var identity3 = require_identity();
   var Pair = require_Pair();
@@ -86280,9 +87666,9 @@ var require_dist = __commonJS((exports) => {
   exports.Composer = composer.Composer;
   exports.Document = Document.Document;
   exports.Schema = Schema.Schema;
-  exports.YAMLError = errors.YAMLError;
-  exports.YAMLParseError = errors.YAMLParseError;
-  exports.YAMLWarning = errors.YAMLWarning;
+  exports.YAMLError = errors2.YAMLError;
+  exports.YAMLParseError = errors2.YAMLParseError;
+  exports.YAMLWarning = errors2.YAMLWarning;
   exports.Alias = Alias.Alias;
   exports.isAlias = identity3.isAlias;
   exports.isCollection = identity3.isCollection;
@@ -86309,11 +87695,11 @@ var require_dist = __commonJS((exports) => {
 });
 
 // node_modules/@opentelemetry/configuration/build/src/utils.js
-var require_utils16 = __commonJS((exports) => {
+var require_utils17 = __commonJS((exports) => {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.getHttpTlsConfig = exports.initializeDefaultLoggerProviderConfiguration = exports.initializeDefaultMeterProviderConfiguration = exports.initializeDefaultTracerProviderConfiguration = exports.initializeDefaultConfiguration = exports.getGrpcTlsConfig = exports.substituteEnvVars = undefined;
   var yaml = require_dist();
-  var core_1 = require_src3();
+  var core_1 = require_src4();
   function substituteEnvVars(doc) {
     yaml.visit(doc, {
       Scalar: (key, node, _path) => {
@@ -86500,7 +87886,7 @@ var require_EnvReader = __commonJS((exports) => {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.readAllEnvVars = exports.readEnvVar = undefined;
   var api_1 = require_src();
-  var core_1 = require_src3();
+  var core_1 = require_src4();
   var EnvDefinition_1 = require_EnvDefinition();
   function readStringEnv(def) {
     const value = (0, core_1.getStringFromEnv)(def.key);
@@ -86550,9 +87936,9 @@ var require_EnvReader = __commonJS((exports) => {
 var require_EnvironmentConfigFactory = __commonJS((exports) => {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.setLoggerProvider = exports.setMeterProvider = exports.setTracerProvider = exports.setSampler = exports.setPropagators = exports.setAttributeLimits = exports.setResources = exports.EnvironmentConfigFactory = undefined;
-  var core_1 = require_src3();
+  var core_1 = require_src4();
   var api_1 = require_src();
-  var utils_1 = require_utils16();
+  var utils_1 = require_utils17();
   var EnvReader_1 = require_EnvReader();
   var EnvDefinition_1 = require_EnvDefinition();
 
@@ -87896,7 +89282,7 @@ Property must be present, but if null the behavior is dependent on usage context
   var schema41 = { type: ["string", "null"], enum: ["protobuf", "json"] };
   function validate25(data, { instancePath = "", parentData, parentDataProperty, rootData = data, dynamicAnchors = {} } = {}) {
     let vErrors = null;
-    let errors = 0;
+    let errors2 = 0;
     const evaluated0 = validate25.evaluated;
     if (evaluated0.dynamicProps) {
       evaluated0.props = undefined;
@@ -87908,9 +89294,9 @@ Property must be present, but if null the behavior is dependent on usage context
       validate25.errors = [{ instancePath, schemaPath: "#/type", keyword: "type", params: { type: schema38.type }, message: "must be object,null" }];
       return false;
     }
-    if (errors === 0) {
+    if (errors2 === 0) {
       if (data && typeof data == "object" && !Array.isArray(data)) {
-        const _errs1 = errors;
+        const _errs1 = errors2;
         for (const key0 in data) {
           if (!(key0 === "endpoint" || key0 === "tls" || key0 === "headers" || key0 === "headers_list" || key0 === "compression" || key0 === "timeout" || key0 === "encoding")) {
             validate25.errors = [{ instancePath, schemaPath: "#/additionalProperties", keyword: "additionalProperties", params: { additionalProperty: key0 }, message: "must NOT have additional properties" }];
@@ -87918,30 +89304,30 @@ Property must be present, but if null the behavior is dependent on usage context
             break;
           }
         }
-        if (_errs1 === errors) {
+        if (_errs1 === errors2) {
           if (data.endpoint !== undefined) {
             let data0 = data.endpoint;
-            const _errs2 = errors;
+            const _errs2 = errors2;
             if (typeof data0 !== "string" && data0 !== null) {
               validate25.errors = [{ instancePath: instancePath + "/endpoint", schemaPath: "#/properties/endpoint/type", keyword: "type", params: { type: schema38.properties.endpoint.type }, message: "must be string,null" }];
               return false;
             }
-            var valid0 = _errs2 === errors;
+            var valid0 = _errs2 === errors2;
           } else {
             var valid0 = true;
           }
           if (valid0) {
             if (data.tls !== undefined) {
               let data1 = data.tls;
-              const _errs4 = errors;
-              const _errs5 = errors;
+              const _errs4 = errors2;
+              const _errs5 = errors2;
               if (!(data1 && typeof data1 == "object" && !Array.isArray(data1)) && data1 !== null) {
                 validate25.errors = [{ instancePath: instancePath + "/tls", schemaPath: "#/$defs/HttpTls/type", keyword: "type", params: { type: schema39.type }, message: "must be object,null" }];
                 return false;
               }
-              if (errors === _errs5) {
+              if (errors2 === _errs5) {
                 if (data1 && typeof data1 == "object" && !Array.isArray(data1)) {
-                  const _errs7 = errors;
+                  const _errs7 = errors2;
                   for (const key1 in data1) {
                     if (!(key1 === "ca_file" || key1 === "key_file" || key1 === "cert_file")) {
                       validate25.errors = [{ instancePath: instancePath + "/tls", schemaPath: "#/$defs/HttpTls/additionalProperties", keyword: "additionalProperties", params: { additionalProperty: key1 }, message: "must NOT have additional properties" }];
@@ -87949,39 +89335,39 @@ Property must be present, but if null the behavior is dependent on usage context
                       break;
                     }
                   }
-                  if (_errs7 === errors) {
+                  if (_errs7 === errors2) {
                     if (data1.ca_file !== undefined) {
                       let data2 = data1.ca_file;
-                      const _errs8 = errors;
+                      const _errs8 = errors2;
                       if (typeof data2 !== "string" && data2 !== null) {
                         validate25.errors = [{ instancePath: instancePath + "/tls/ca_file", schemaPath: "#/$defs/HttpTls/properties/ca_file/type", keyword: "type", params: { type: schema39.properties.ca_file.type }, message: "must be string,null" }];
                         return false;
                       }
-                      var valid2 = _errs8 === errors;
+                      var valid2 = _errs8 === errors2;
                     } else {
                       var valid2 = true;
                     }
                     if (valid2) {
                       if (data1.key_file !== undefined) {
                         let data3 = data1.key_file;
-                        const _errs10 = errors;
+                        const _errs10 = errors2;
                         if (typeof data3 !== "string" && data3 !== null) {
                           validate25.errors = [{ instancePath: instancePath + "/tls/key_file", schemaPath: "#/$defs/HttpTls/properties/key_file/type", keyword: "type", params: { type: schema39.properties.key_file.type }, message: "must be string,null" }];
                           return false;
                         }
-                        var valid2 = _errs10 === errors;
+                        var valid2 = _errs10 === errors2;
                       } else {
                         var valid2 = true;
                       }
                       if (valid2) {
                         if (data1.cert_file !== undefined) {
                           let data4 = data1.cert_file;
-                          const _errs12 = errors;
+                          const _errs12 = errors2;
                           if (typeof data4 !== "string" && data4 !== null) {
                             validate25.errors = [{ instancePath: instancePath + "/tls/cert_file", schemaPath: "#/$defs/HttpTls/properties/cert_file/type", keyword: "type", params: { type: schema39.properties.cert_file.type }, message: "must be string,null" }];
                             return false;
                           }
-                          var valid2 = _errs12 === errors;
+                          var valid2 = _errs12 === errors2;
                         } else {
                           var valid2 = true;
                         }
@@ -87990,15 +89376,15 @@ Property must be present, but if null the behavior is dependent on usage context
                   }
                 }
               }
-              var valid0 = _errs4 === errors;
+              var valid0 = _errs4 === errors2;
             } else {
               var valid0 = true;
             }
             if (valid0) {
               if (data.headers !== undefined) {
                 let data5 = data.headers;
-                const _errs14 = errors;
-                if (errors === _errs14) {
+                const _errs14 = errors2;
+                if (errors2 === _errs14) {
                   if (Array.isArray(data5)) {
                     if (data5.length < 1) {
                       validate25.errors = [{ instancePath: instancePath + "/headers", schemaPath: "#/properties/headers/minItems", keyword: "minItems", params: { limit: 1 }, message: "must NOT have fewer than 1 items" }];
@@ -88008,16 +89394,16 @@ Property must be present, but if null the behavior is dependent on usage context
                       const len0 = data5.length;
                       for (let i0 = 0;i0 < len0; i0++) {
                         let data6 = data5[i0];
-                        const _errs16 = errors;
-                        const _errs17 = errors;
-                        if (errors === _errs17) {
+                        const _errs16 = errors2;
+                        const _errs17 = errors2;
+                        if (errors2 === _errs17) {
                           if (data6 && typeof data6 == "object" && !Array.isArray(data6)) {
                             let missing0;
                             if (data6.name === undefined && (missing0 = "name") || data6.value === undefined && (missing0 = "value")) {
                               validate25.errors = [{ instancePath: instancePath + "/headers/" + i0, schemaPath: "#/$defs/NameStringValuePair/required", keyword: "required", params: { missingProperty: missing0 }, message: "must have required property '" + missing0 + "'" }];
                               return false;
                             } else {
-                              const _errs19 = errors;
+                              const _errs19 = errors2;
                               for (const key2 in data6) {
                                 if (!(key2 === "name" || key2 === "value")) {
                                   validate25.errors = [{ instancePath: instancePath + "/headers/" + i0, schemaPath: "#/$defs/NameStringValuePair/additionalProperties", keyword: "additionalProperties", params: { additionalProperty: key2 }, message: "must NOT have additional properties" }];
@@ -88025,26 +89411,26 @@ Property must be present, but if null the behavior is dependent on usage context
                                   break;
                                 }
                               }
-                              if (_errs19 === errors) {
+                              if (_errs19 === errors2) {
                                 if (data6.name !== undefined) {
-                                  const _errs20 = errors;
+                                  const _errs20 = errors2;
                                   if (typeof data6.name !== "string") {
                                     validate25.errors = [{ instancePath: instancePath + "/headers/" + i0 + "/name", schemaPath: "#/$defs/NameStringValuePair/properties/name/type", keyword: "type", params: { type: "string" }, message: "must be string" }];
                                     return false;
                                   }
-                                  var valid5 = _errs20 === errors;
+                                  var valid5 = _errs20 === errors2;
                                 } else {
                                   var valid5 = true;
                                 }
                                 if (valid5) {
                                   if (data6.value !== undefined) {
                                     let data8 = data6.value;
-                                    const _errs22 = errors;
+                                    const _errs22 = errors2;
                                     if (typeof data8 !== "string" && data8 !== null) {
                                       validate25.errors = [{ instancePath: instancePath + "/headers/" + i0 + "/value", schemaPath: "#/$defs/NameStringValuePair/properties/value/type", keyword: "type", params: { type: schema40.properties.value.type }, message: "must be string,null" }];
                                       return false;
                                     }
-                                    var valid5 = _errs22 === errors;
+                                    var valid5 = _errs22 === errors2;
                                   } else {
                                     var valid5 = true;
                                   }
@@ -88056,7 +89442,7 @@ Property must be present, but if null the behavior is dependent on usage context
                             return false;
                           }
                         }
-                        var valid3 = _errs16 === errors;
+                        var valid3 = _errs16 === errors2;
                         if (!valid3) {
                           break;
                         }
@@ -88067,43 +89453,43 @@ Property must be present, but if null the behavior is dependent on usage context
                     return false;
                   }
                 }
-                var valid0 = _errs14 === errors;
+                var valid0 = _errs14 === errors2;
               } else {
                 var valid0 = true;
               }
               if (valid0) {
                 if (data.headers_list !== undefined) {
                   let data9 = data.headers_list;
-                  const _errs24 = errors;
+                  const _errs24 = errors2;
                   if (typeof data9 !== "string" && data9 !== null) {
                     validate25.errors = [{ instancePath: instancePath + "/headers_list", schemaPath: "#/properties/headers_list/type", keyword: "type", params: { type: schema38.properties.headers_list.type }, message: "must be string,null" }];
                     return false;
                   }
-                  var valid0 = _errs24 === errors;
+                  var valid0 = _errs24 === errors2;
                 } else {
                   var valid0 = true;
                 }
                 if (valid0) {
                   if (data.compression !== undefined) {
                     let data10 = data.compression;
-                    const _errs26 = errors;
+                    const _errs26 = errors2;
                     if (typeof data10 !== "string" && data10 !== null) {
                       validate25.errors = [{ instancePath: instancePath + "/compression", schemaPath: "#/properties/compression/type", keyword: "type", params: { type: schema38.properties.compression.type }, message: "must be string,null" }];
                       return false;
                     }
-                    var valid0 = _errs26 === errors;
+                    var valid0 = _errs26 === errors2;
                   } else {
                     var valid0 = true;
                   }
                   if (valid0) {
                     if (data.timeout !== undefined) {
                       let data11 = data.timeout;
-                      const _errs28 = errors;
+                      const _errs28 = errors2;
                       if (!(typeof data11 == "number" && (!(data11 % 1) && !isNaN(data11))) && data11 !== null) {
                         validate25.errors = [{ instancePath: instancePath + "/timeout", schemaPath: "#/properties/timeout/type", keyword: "type", params: { type: schema38.properties.timeout.type }, message: "must be integer,null" }];
                         return false;
                       }
-                      if (errors === _errs28) {
+                      if (errors2 === _errs28) {
                         if (typeof data11 == "number") {
                           if (data11 < 0 || isNaN(data11)) {
                             validate25.errors = [{ instancePath: instancePath + "/timeout", schemaPath: "#/properties/timeout/minimum", keyword: "minimum", params: { comparison: ">=", limit: 0 }, message: "must be >= 0" }];
@@ -88111,14 +89497,14 @@ Property must be present, but if null the behavior is dependent on usage context
                           }
                         }
                       }
-                      var valid0 = _errs28 === errors;
+                      var valid0 = _errs28 === errors2;
                     } else {
                       var valid0 = true;
                     }
                     if (valid0) {
                       if (data.encoding !== undefined) {
                         let data12 = data.encoding;
-                        const _errs30 = errors;
+                        const _errs30 = errors2;
                         if (typeof data12 !== "string" && data12 !== null) {
                           validate25.errors = [{ instancePath: instancePath + "/encoding", schemaPath: "#/$defs/OtlpHttpEncoding/type", keyword: "type", params: { type: schema41.type }, message: "must be string,null" }];
                           return false;
@@ -88127,7 +89513,7 @@ Property must be present, but if null the behavior is dependent on usage context
                           validate25.errors = [{ instancePath: instancePath + "/encoding", schemaPath: "#/$defs/OtlpHttpEncoding/enum", keyword: "enum", params: { allowedValues: schema41.enum }, message: "must be equal to one of the allowed values" }];
                           return false;
                         }
-                        var valid0 = _errs30 === errors;
+                        var valid0 = _errs30 === errors2;
                       } else {
                         var valid0 = true;
                       }
@@ -88141,7 +89527,7 @@ Property must be present, but if null the behavior is dependent on usage context
       }
     }
     validate25.errors = vErrors;
-    return errors === 0;
+    return errors2 === 0;
   }
   validate25.evaluated = { props: true, dynamicProps: false, dynamicItems: false };
   var schema42 = { type: ["object", "null"], additionalProperties: false, properties: { endpoint: { type: ["string", "null"], description: `Configure endpoint.
@@ -88176,7 +89562,7 @@ If omitted or null, false is used.
 ` } } };
   function validate27(data, { instancePath = "", parentData, parentDataProperty, rootData = data, dynamicAnchors = {} } = {}) {
     let vErrors = null;
-    let errors = 0;
+    let errors2 = 0;
     const evaluated0 = validate27.evaluated;
     if (evaluated0.dynamicProps) {
       evaluated0.props = undefined;
@@ -88188,9 +89574,9 @@ If omitted or null, false is used.
       validate27.errors = [{ instancePath, schemaPath: "#/type", keyword: "type", params: { type: schema42.type }, message: "must be object,null" }];
       return false;
     }
-    if (errors === 0) {
+    if (errors2 === 0) {
       if (data && typeof data == "object" && !Array.isArray(data)) {
-        const _errs1 = errors;
+        const _errs1 = errors2;
         for (const key0 in data) {
           if (!(key0 === "endpoint" || key0 === "tls" || key0 === "headers" || key0 === "headers_list" || key0 === "compression" || key0 === "timeout")) {
             validate27.errors = [{ instancePath, schemaPath: "#/additionalProperties", keyword: "additionalProperties", params: { additionalProperty: key0 }, message: "must NOT have additional properties" }];
@@ -88198,30 +89584,30 @@ If omitted or null, false is used.
             break;
           }
         }
-        if (_errs1 === errors) {
+        if (_errs1 === errors2) {
           if (data.endpoint !== undefined) {
             let data0 = data.endpoint;
-            const _errs2 = errors;
+            const _errs2 = errors2;
             if (typeof data0 !== "string" && data0 !== null) {
               validate27.errors = [{ instancePath: instancePath + "/endpoint", schemaPath: "#/properties/endpoint/type", keyword: "type", params: { type: schema42.properties.endpoint.type }, message: "must be string,null" }];
               return false;
             }
-            var valid0 = _errs2 === errors;
+            var valid0 = _errs2 === errors2;
           } else {
             var valid0 = true;
           }
           if (valid0) {
             if (data.tls !== undefined) {
               let data1 = data.tls;
-              const _errs4 = errors;
-              const _errs5 = errors;
+              const _errs4 = errors2;
+              const _errs5 = errors2;
               if (!(data1 && typeof data1 == "object" && !Array.isArray(data1)) && data1 !== null) {
                 validate27.errors = [{ instancePath: instancePath + "/tls", schemaPath: "#/$defs/GrpcTls/type", keyword: "type", params: { type: schema43.type }, message: "must be object,null" }];
                 return false;
               }
-              if (errors === _errs5) {
+              if (errors2 === _errs5) {
                 if (data1 && typeof data1 == "object" && !Array.isArray(data1)) {
-                  const _errs7 = errors;
+                  const _errs7 = errors2;
                   for (const key1 in data1) {
                     if (!(key1 === "ca_file" || key1 === "key_file" || key1 === "cert_file" || key1 === "insecure")) {
                       validate27.errors = [{ instancePath: instancePath + "/tls", schemaPath: "#/$defs/GrpcTls/additionalProperties", keyword: "additionalProperties", params: { additionalProperty: key1 }, message: "must NOT have additional properties" }];
@@ -88229,51 +89615,51 @@ If omitted or null, false is used.
                       break;
                     }
                   }
-                  if (_errs7 === errors) {
+                  if (_errs7 === errors2) {
                     if (data1.ca_file !== undefined) {
                       let data2 = data1.ca_file;
-                      const _errs8 = errors;
+                      const _errs8 = errors2;
                       if (typeof data2 !== "string" && data2 !== null) {
                         validate27.errors = [{ instancePath: instancePath + "/tls/ca_file", schemaPath: "#/$defs/GrpcTls/properties/ca_file/type", keyword: "type", params: { type: schema43.properties.ca_file.type }, message: "must be string,null" }];
                         return false;
                       }
-                      var valid2 = _errs8 === errors;
+                      var valid2 = _errs8 === errors2;
                     } else {
                       var valid2 = true;
                     }
                     if (valid2) {
                       if (data1.key_file !== undefined) {
                         let data3 = data1.key_file;
-                        const _errs10 = errors;
+                        const _errs10 = errors2;
                         if (typeof data3 !== "string" && data3 !== null) {
                           validate27.errors = [{ instancePath: instancePath + "/tls/key_file", schemaPath: "#/$defs/GrpcTls/properties/key_file/type", keyword: "type", params: { type: schema43.properties.key_file.type }, message: "must be string,null" }];
                           return false;
                         }
-                        var valid2 = _errs10 === errors;
+                        var valid2 = _errs10 === errors2;
                       } else {
                         var valid2 = true;
                       }
                       if (valid2) {
                         if (data1.cert_file !== undefined) {
                           let data4 = data1.cert_file;
-                          const _errs12 = errors;
+                          const _errs12 = errors2;
                           if (typeof data4 !== "string" && data4 !== null) {
                             validate27.errors = [{ instancePath: instancePath + "/tls/cert_file", schemaPath: "#/$defs/GrpcTls/properties/cert_file/type", keyword: "type", params: { type: schema43.properties.cert_file.type }, message: "must be string,null" }];
                             return false;
                           }
-                          var valid2 = _errs12 === errors;
+                          var valid2 = _errs12 === errors2;
                         } else {
                           var valid2 = true;
                         }
                         if (valid2) {
                           if (data1.insecure !== undefined) {
                             let data5 = data1.insecure;
-                            const _errs14 = errors;
+                            const _errs14 = errors2;
                             if (typeof data5 !== "boolean" && data5 !== null) {
                               validate27.errors = [{ instancePath: instancePath + "/tls/insecure", schemaPath: "#/$defs/GrpcTls/properties/insecure/type", keyword: "type", params: { type: schema43.properties.insecure.type }, message: "must be boolean,null" }];
                               return false;
                             }
-                            var valid2 = _errs14 === errors;
+                            var valid2 = _errs14 === errors2;
                           } else {
                             var valid2 = true;
                           }
@@ -88283,15 +89669,15 @@ If omitted or null, false is used.
                   }
                 }
               }
-              var valid0 = _errs4 === errors;
+              var valid0 = _errs4 === errors2;
             } else {
               var valid0 = true;
             }
             if (valid0) {
               if (data.headers !== undefined) {
                 let data6 = data.headers;
-                const _errs16 = errors;
-                if (errors === _errs16) {
+                const _errs16 = errors2;
+                if (errors2 === _errs16) {
                   if (Array.isArray(data6)) {
                     if (data6.length < 1) {
                       validate27.errors = [{ instancePath: instancePath + "/headers", schemaPath: "#/properties/headers/minItems", keyword: "minItems", params: { limit: 1 }, message: "must NOT have fewer than 1 items" }];
@@ -88301,16 +89687,16 @@ If omitted or null, false is used.
                       const len0 = data6.length;
                       for (let i0 = 0;i0 < len0; i0++) {
                         let data7 = data6[i0];
-                        const _errs18 = errors;
-                        const _errs19 = errors;
-                        if (errors === _errs19) {
+                        const _errs18 = errors2;
+                        const _errs19 = errors2;
+                        if (errors2 === _errs19) {
                           if (data7 && typeof data7 == "object" && !Array.isArray(data7)) {
                             let missing0;
                             if (data7.name === undefined && (missing0 = "name") || data7.value === undefined && (missing0 = "value")) {
                               validate27.errors = [{ instancePath: instancePath + "/headers/" + i0, schemaPath: "#/$defs/NameStringValuePair/required", keyword: "required", params: { missingProperty: missing0 }, message: "must have required property '" + missing0 + "'" }];
                               return false;
                             } else {
-                              const _errs21 = errors;
+                              const _errs21 = errors2;
                               for (const key2 in data7) {
                                 if (!(key2 === "name" || key2 === "value")) {
                                   validate27.errors = [{ instancePath: instancePath + "/headers/" + i0, schemaPath: "#/$defs/NameStringValuePair/additionalProperties", keyword: "additionalProperties", params: { additionalProperty: key2 }, message: "must NOT have additional properties" }];
@@ -88318,26 +89704,26 @@ If omitted or null, false is used.
                                   break;
                                 }
                               }
-                              if (_errs21 === errors) {
+                              if (_errs21 === errors2) {
                                 if (data7.name !== undefined) {
-                                  const _errs22 = errors;
+                                  const _errs22 = errors2;
                                   if (typeof data7.name !== "string") {
                                     validate27.errors = [{ instancePath: instancePath + "/headers/" + i0 + "/name", schemaPath: "#/$defs/NameStringValuePair/properties/name/type", keyword: "type", params: { type: "string" }, message: "must be string" }];
                                     return false;
                                   }
-                                  var valid5 = _errs22 === errors;
+                                  var valid5 = _errs22 === errors2;
                                 } else {
                                   var valid5 = true;
                                 }
                                 if (valid5) {
                                   if (data7.value !== undefined) {
                                     let data9 = data7.value;
-                                    const _errs24 = errors;
+                                    const _errs24 = errors2;
                                     if (typeof data9 !== "string" && data9 !== null) {
                                       validate27.errors = [{ instancePath: instancePath + "/headers/" + i0 + "/value", schemaPath: "#/$defs/NameStringValuePair/properties/value/type", keyword: "type", params: { type: schema40.properties.value.type }, message: "must be string,null" }];
                                       return false;
                                     }
-                                    var valid5 = _errs24 === errors;
+                                    var valid5 = _errs24 === errors2;
                                   } else {
                                     var valid5 = true;
                                   }
@@ -88349,7 +89735,7 @@ If omitted or null, false is used.
                             return false;
                           }
                         }
-                        var valid3 = _errs18 === errors;
+                        var valid3 = _errs18 === errors2;
                         if (!valid3) {
                           break;
                         }
@@ -88360,43 +89746,43 @@ If omitted or null, false is used.
                     return false;
                   }
                 }
-                var valid0 = _errs16 === errors;
+                var valid0 = _errs16 === errors2;
               } else {
                 var valid0 = true;
               }
               if (valid0) {
                 if (data.headers_list !== undefined) {
                   let data10 = data.headers_list;
-                  const _errs26 = errors;
+                  const _errs26 = errors2;
                   if (typeof data10 !== "string" && data10 !== null) {
                     validate27.errors = [{ instancePath: instancePath + "/headers_list", schemaPath: "#/properties/headers_list/type", keyword: "type", params: { type: schema42.properties.headers_list.type }, message: "must be string,null" }];
                     return false;
                   }
-                  var valid0 = _errs26 === errors;
+                  var valid0 = _errs26 === errors2;
                 } else {
                   var valid0 = true;
                 }
                 if (valid0) {
                   if (data.compression !== undefined) {
                     let data11 = data.compression;
-                    const _errs28 = errors;
+                    const _errs28 = errors2;
                     if (typeof data11 !== "string" && data11 !== null) {
                       validate27.errors = [{ instancePath: instancePath + "/compression", schemaPath: "#/properties/compression/type", keyword: "type", params: { type: schema42.properties.compression.type }, message: "must be string,null" }];
                       return false;
                     }
-                    var valid0 = _errs28 === errors;
+                    var valid0 = _errs28 === errors2;
                   } else {
                     var valid0 = true;
                   }
                   if (valid0) {
                     if (data.timeout !== undefined) {
                       let data12 = data.timeout;
-                      const _errs30 = errors;
+                      const _errs30 = errors2;
                       if (!(typeof data12 == "number" && (!(data12 % 1) && !isNaN(data12))) && data12 !== null) {
                         validate27.errors = [{ instancePath: instancePath + "/timeout", schemaPath: "#/properties/timeout/type", keyword: "type", params: { type: schema42.properties.timeout.type }, message: "must be integer,null" }];
                         return false;
                       }
-                      if (errors === _errs30) {
+                      if (errors2 === _errs30) {
                         if (typeof data12 == "number") {
                           if (data12 < 0 || isNaN(data12)) {
                             validate27.errors = [{ instancePath: instancePath + "/timeout", schemaPath: "#/properties/timeout/minimum", keyword: "minimum", params: { comparison: ">=", limit: 0 }, message: "must be >= 0" }];
@@ -88404,7 +89790,7 @@ If omitted or null, false is used.
                           }
                         }
                       }
-                      var valid0 = _errs30 === errors;
+                      var valid0 = _errs30 === errors2;
                     } else {
                       var valid0 = true;
                     }
@@ -88417,12 +89803,12 @@ If omitted or null, false is used.
       }
     }
     validate27.errors = vErrors;
-    return errors === 0;
+    return errors2 === 0;
   }
   validate27.evaluated = { props: true, dynamicProps: false, dynamicItems: false };
   function validate24(data, { instancePath = "", parentData, parentDataProperty, rootData = data, dynamicAnchors = {} } = {}) {
     let vErrors = null;
-    let errors = 0;
+    let errors2 = 0;
     const evaluated0 = validate24.evaluated;
     if (evaluated0.dynamicProps) {
       evaluated0.props = undefined;
@@ -88430,7 +89816,7 @@ If omitted or null, false is used.
     if (evaluated0.dynamicItems) {
       evaluated0.items = undefined;
     }
-    if (errors === 0) {
+    if (errors2 === 0) {
       if (data && typeof data == "object" && !Array.isArray(data)) {
         if (Object.keys(data).length > 1) {
           validate24.errors = [{ instancePath, schemaPath: "#/maxProperties", keyword: "maxProperties", params: { limit: 1 }, message: "must NOT have more than 1 properties" }];
@@ -88440,55 +89826,55 @@ If omitted or null, false is used.
             validate24.errors = [{ instancePath, schemaPath: "#/minProperties", keyword: "minProperties", params: { limit: 1 }, message: "must NOT have fewer than 1 properties" }];
             return false;
           } else {
-            const _errs1 = errors;
+            const _errs1 = errors2;
             for (const key0 in data) {
               if (!(key0 === "otlp_http" || key0 === "otlp_grpc" || key0 === "otlp_file/development" || key0 === "console")) {
                 let data0 = data[key0];
-                const _errs2 = errors;
+                const _errs2 = errors2;
                 if (!(data0 && typeof data0 == "object" && !Array.isArray(data0)) && data0 !== null) {
                   validate24.errors = [{ instancePath: instancePath + "/" + key0.replace(/~/g, "~0").replace(/\//g, "~1"), schemaPath: "#/additionalProperties/type", keyword: "type", params: { type: schema37.additionalProperties.type }, message: "must be object,null" }];
                   return false;
                 }
-                var valid0 = _errs2 === errors;
+                var valid0 = _errs2 === errors2;
                 if (!valid0) {
                   break;
                 }
               }
             }
-            if (_errs1 === errors) {
+            if (_errs1 === errors2) {
               if (data.otlp_http !== undefined) {
-                const _errs4 = errors;
+                const _errs4 = errors2;
                 if (!validate25(data.otlp_http, { instancePath: instancePath + "/otlp_http", parentData: data, parentDataProperty: "otlp_http", rootData, dynamicAnchors })) {
                   vErrors = vErrors === null ? validate25.errors : vErrors.concat(validate25.errors);
-                  errors = vErrors.length;
+                  errors2 = vErrors.length;
                 }
-                var valid1 = _errs4 === errors;
+                var valid1 = _errs4 === errors2;
               } else {
                 var valid1 = true;
               }
               if (valid1) {
                 if (data.otlp_grpc !== undefined) {
-                  const _errs5 = errors;
+                  const _errs5 = errors2;
                   if (!validate27(data.otlp_grpc, { instancePath: instancePath + "/otlp_grpc", parentData: data, parentDataProperty: "otlp_grpc", rootData, dynamicAnchors })) {
                     vErrors = vErrors === null ? validate27.errors : vErrors.concat(validate27.errors);
-                    errors = vErrors.length;
+                    errors2 = vErrors.length;
                   }
-                  var valid1 = _errs5 === errors;
+                  var valid1 = _errs5 === errors2;
                 } else {
                   var valid1 = true;
                 }
                 if (valid1) {
                   if (data["otlp_file/development"] !== undefined) {
                     let data3 = data["otlp_file/development"];
-                    const _errs6 = errors;
-                    const _errs7 = errors;
+                    const _errs6 = errors2;
+                    const _errs7 = errors2;
                     if (!(data3 && typeof data3 == "object" && !Array.isArray(data3)) && data3 !== null) {
                       validate24.errors = [{ instancePath: instancePath + "/otlp_file~1development", schemaPath: "#/$defs/ExperimentalOtlpFileExporter/type", keyword: "type", params: { type: schema45.type }, message: "must be object,null" }];
                       return false;
                     }
-                    if (errors === _errs7) {
+                    if (errors2 === _errs7) {
                       if (data3 && typeof data3 == "object" && !Array.isArray(data3)) {
-                        const _errs9 = errors;
+                        const _errs9 = errors2;
                         for (const key1 in data3) {
                           if (!(key1 === "output_stream")) {
                             validate24.errors = [{ instancePath: instancePath + "/otlp_file~1development", schemaPath: "#/$defs/ExperimentalOtlpFileExporter/additionalProperties", keyword: "additionalProperties", params: { additionalProperty: key1 }, message: "must NOT have additional properties" }];
@@ -88496,7 +89882,7 @@ If omitted or null, false is used.
                             break;
                           }
                         }
-                        if (_errs9 === errors) {
+                        if (_errs9 === errors2) {
                           if (data3.output_stream !== undefined) {
                             let data4 = data3.output_stream;
                             if (typeof data4 !== "string" && data4 !== null) {
@@ -88507,20 +89893,20 @@ If omitted or null, false is used.
                         }
                       }
                     }
-                    var valid1 = _errs6 === errors;
+                    var valid1 = _errs6 === errors2;
                   } else {
                     var valid1 = true;
                   }
                   if (valid1) {
                     if (data.console !== undefined) {
                       let data5 = data.console;
-                      const _errs12 = errors;
-                      const _errs13 = errors;
+                      const _errs12 = errors2;
+                      const _errs13 = errors2;
                       if (!(data5 && typeof data5 == "object" && !Array.isArray(data5)) && data5 !== null) {
                         validate24.errors = [{ instancePath: instancePath + "/console", schemaPath: "#/$defs/ConsoleExporter/type", keyword: "type", params: { type: schema46.type }, message: "must be object,null" }];
                         return false;
                       }
-                      if (errors === _errs13) {
+                      if (errors2 === _errs13) {
                         if (data5 && typeof data5 == "object" && !Array.isArray(data5)) {
                           for (const key2 in data5) {
                             validate24.errors = [{ instancePath: instancePath + "/console", schemaPath: "#/$defs/ConsoleExporter/additionalProperties", keyword: "additionalProperties", params: { additionalProperty: key2 }, message: "must NOT have additional properties" }];
@@ -88529,7 +89915,7 @@ If omitted or null, false is used.
                           }
                         }
                       }
-                      var valid1 = _errs12 === errors;
+                      var valid1 = _errs12 === errors2;
                     } else {
                       var valid1 = true;
                     }
@@ -88545,12 +89931,12 @@ If omitted or null, false is used.
       }
     }
     validate24.errors = vErrors;
-    return errors === 0;
+    return errors2 === 0;
   }
   validate24.evaluated = { props: true, dynamicProps: false, dynamicItems: false };
   function validate23(data, { instancePath = "", parentData, parentDataProperty, rootData = data, dynamicAnchors = {} } = {}) {
     let vErrors = null;
-    let errors = 0;
+    let errors2 = 0;
     const evaluated0 = validate23.evaluated;
     if (evaluated0.dynamicProps) {
       evaluated0.props = undefined;
@@ -88558,14 +89944,14 @@ If omitted or null, false is used.
     if (evaluated0.dynamicItems) {
       evaluated0.items = undefined;
     }
-    if (errors === 0) {
+    if (errors2 === 0) {
       if (data && typeof data == "object" && !Array.isArray(data)) {
         let missing0;
         if (data.exporter === undefined && (missing0 = "exporter")) {
           validate23.errors = [{ instancePath, schemaPath: "#/required", keyword: "required", params: { missingProperty: missing0 }, message: "must have required property '" + missing0 + "'" }];
           return false;
         } else {
-          const _errs1 = errors;
+          const _errs1 = errors2;
           for (const key0 in data) {
             if (!(key0 === "schedule_delay" || key0 === "export_timeout" || key0 === "max_queue_size" || key0 === "max_export_batch_size" || key0 === "exporter")) {
               validate23.errors = [{ instancePath, schemaPath: "#/additionalProperties", keyword: "additionalProperties", params: { additionalProperty: key0 }, message: "must NOT have additional properties" }];
@@ -88573,15 +89959,15 @@ If omitted or null, false is used.
               break;
             }
           }
-          if (_errs1 === errors) {
+          if (_errs1 === errors2) {
             if (data.schedule_delay !== undefined) {
               let data0 = data.schedule_delay;
-              const _errs2 = errors;
+              const _errs2 = errors2;
               if (!(typeof data0 == "number" && (!(data0 % 1) && !isNaN(data0))) && data0 !== null) {
                 validate23.errors = [{ instancePath: instancePath + "/schedule_delay", schemaPath: "#/properties/schedule_delay/type", keyword: "type", params: { type: schema36.properties.schedule_delay.type }, message: "must be integer,null" }];
                 return false;
               }
-              if (errors === _errs2) {
+              if (errors2 === _errs2) {
                 if (typeof data0 == "number") {
                   if (data0 < 0 || isNaN(data0)) {
                     validate23.errors = [{ instancePath: instancePath + "/schedule_delay", schemaPath: "#/properties/schedule_delay/minimum", keyword: "minimum", params: { comparison: ">=", limit: 0 }, message: "must be >= 0" }];
@@ -88589,19 +89975,19 @@ If omitted or null, false is used.
                   }
                 }
               }
-              var valid0 = _errs2 === errors;
+              var valid0 = _errs2 === errors2;
             } else {
               var valid0 = true;
             }
             if (valid0) {
               if (data.export_timeout !== undefined) {
                 let data1 = data.export_timeout;
-                const _errs4 = errors;
+                const _errs4 = errors2;
                 if (!(typeof data1 == "number" && (!(data1 % 1) && !isNaN(data1))) && data1 !== null) {
                   validate23.errors = [{ instancePath: instancePath + "/export_timeout", schemaPath: "#/properties/export_timeout/type", keyword: "type", params: { type: schema36.properties.export_timeout.type }, message: "must be integer,null" }];
                   return false;
                 }
-                if (errors === _errs4) {
+                if (errors2 === _errs4) {
                   if (typeof data1 == "number") {
                     if (data1 < 0 || isNaN(data1)) {
                       validate23.errors = [{ instancePath: instancePath + "/export_timeout", schemaPath: "#/properties/export_timeout/minimum", keyword: "minimum", params: { comparison: ">=", limit: 0 }, message: "must be >= 0" }];
@@ -88609,19 +89995,19 @@ If omitted or null, false is used.
                     }
                   }
                 }
-                var valid0 = _errs4 === errors;
+                var valid0 = _errs4 === errors2;
               } else {
                 var valid0 = true;
               }
               if (valid0) {
                 if (data.max_queue_size !== undefined) {
                   let data2 = data.max_queue_size;
-                  const _errs6 = errors;
+                  const _errs6 = errors2;
                   if (!(typeof data2 == "number" && (!(data2 % 1) && !isNaN(data2))) && data2 !== null) {
                     validate23.errors = [{ instancePath: instancePath + "/max_queue_size", schemaPath: "#/properties/max_queue_size/type", keyword: "type", params: { type: schema36.properties.max_queue_size.type }, message: "must be integer,null" }];
                     return false;
                   }
-                  if (errors === _errs6) {
+                  if (errors2 === _errs6) {
                     if (typeof data2 == "number") {
                       if (data2 <= 0 || isNaN(data2)) {
                         validate23.errors = [{ instancePath: instancePath + "/max_queue_size", schemaPath: "#/properties/max_queue_size/exclusiveMinimum", keyword: "exclusiveMinimum", params: { comparison: ">", limit: 0 }, message: "must be > 0" }];
@@ -88629,19 +90015,19 @@ If omitted or null, false is used.
                       }
                     }
                   }
-                  var valid0 = _errs6 === errors;
+                  var valid0 = _errs6 === errors2;
                 } else {
                   var valid0 = true;
                 }
                 if (valid0) {
                   if (data.max_export_batch_size !== undefined) {
                     let data3 = data.max_export_batch_size;
-                    const _errs8 = errors;
+                    const _errs8 = errors2;
                     if (!(typeof data3 == "number" && (!(data3 % 1) && !isNaN(data3))) && data3 !== null) {
                       validate23.errors = [{ instancePath: instancePath + "/max_export_batch_size", schemaPath: "#/properties/max_export_batch_size/type", keyword: "type", params: { type: schema36.properties.max_export_batch_size.type }, message: "must be integer,null" }];
                       return false;
                     }
-                    if (errors === _errs8) {
+                    if (errors2 === _errs8) {
                       if (typeof data3 == "number") {
                         if (data3 <= 0 || isNaN(data3)) {
                           validate23.errors = [{ instancePath: instancePath + "/max_export_batch_size", schemaPath: "#/properties/max_export_batch_size/exclusiveMinimum", keyword: "exclusiveMinimum", params: { comparison: ">", limit: 0 }, message: "must be > 0" }];
@@ -88649,18 +90035,18 @@ If omitted or null, false is used.
                         }
                       }
                     }
-                    var valid0 = _errs8 === errors;
+                    var valid0 = _errs8 === errors2;
                   } else {
                     var valid0 = true;
                   }
                   if (valid0) {
                     if (data.exporter !== undefined) {
-                      const _errs10 = errors;
+                      const _errs10 = errors2;
                       if (!validate24(data.exporter, { instancePath: instancePath + "/exporter", parentData: data, parentDataProperty: "exporter", rootData, dynamicAnchors })) {
                         vErrors = vErrors === null ? validate24.errors : vErrors.concat(validate24.errors);
-                        errors = vErrors.length;
+                        errors2 = vErrors.length;
                       }
-                      var valid0 = _errs10 === errors;
+                      var valid0 = _errs10 === errors2;
                     } else {
                       var valid0 = true;
                     }
@@ -88676,12 +90062,12 @@ If omitted or null, false is used.
       }
     }
     validate23.errors = vErrors;
-    return errors === 0;
+    return errors2 === 0;
   }
   validate23.evaluated = { props: true, dynamicProps: false, dynamicItems: false };
   function validate31(data, { instancePath = "", parentData, parentDataProperty, rootData = data, dynamicAnchors = {} } = {}) {
     let vErrors = null;
-    let errors = 0;
+    let errors2 = 0;
     const evaluated0 = validate31.evaluated;
     if (evaluated0.dynamicProps) {
       evaluated0.props = undefined;
@@ -88689,14 +90075,14 @@ If omitted or null, false is used.
     if (evaluated0.dynamicItems) {
       evaluated0.items = undefined;
     }
-    if (errors === 0) {
+    if (errors2 === 0) {
       if (data && typeof data == "object" && !Array.isArray(data)) {
         let missing0;
         if (data.exporter === undefined && (missing0 = "exporter")) {
           validate31.errors = [{ instancePath, schemaPath: "#/required", keyword: "required", params: { missingProperty: missing0 }, message: "must have required property '" + missing0 + "'" }];
           return false;
         } else {
-          const _errs1 = errors;
+          const _errs1 = errors2;
           for (const key0 in data) {
             if (!(key0 === "exporter")) {
               validate31.errors = [{ instancePath, schemaPath: "#/additionalProperties", keyword: "additionalProperties", params: { additionalProperty: key0 }, message: "must NOT have additional properties" }];
@@ -88704,11 +90090,11 @@ If omitted or null, false is used.
               break;
             }
           }
-          if (_errs1 === errors) {
+          if (_errs1 === errors2) {
             if (data.exporter !== undefined) {
               if (!validate24(data.exporter, { instancePath: instancePath + "/exporter", parentData: data, parentDataProperty: "exporter", rootData, dynamicAnchors })) {
                 vErrors = vErrors === null ? validate24.errors : vErrors.concat(validate24.errors);
-                errors = vErrors.length;
+                errors2 = vErrors.length;
               }
             }
           }
@@ -88719,12 +90105,12 @@ If omitted or null, false is used.
       }
     }
     validate31.errors = vErrors;
-    return errors === 0;
+    return errors2 === 0;
   }
   validate31.evaluated = { props: true, dynamicProps: false, dynamicItems: false };
   function validate22(data, { instancePath = "", parentData, parentDataProperty, rootData = data, dynamicAnchors = {} } = {}) {
     let vErrors = null;
-    let errors = 0;
+    let errors2 = 0;
     const evaluated0 = validate22.evaluated;
     if (evaluated0.dynamicProps) {
       evaluated0.props = undefined;
@@ -88732,7 +90118,7 @@ If omitted or null, false is used.
     if (evaluated0.dynamicItems) {
       evaluated0.items = undefined;
     }
-    if (errors === 0) {
+    if (errors2 === 0) {
       if (data && typeof data == "object" && !Array.isArray(data)) {
         if (Object.keys(data).length > 1) {
           validate22.errors = [{ instancePath, schemaPath: "#/maxProperties", keyword: "maxProperties", params: { limit: 1 }, message: "must NOT have more than 1 properties" }];
@@ -88742,40 +90128,40 @@ If omitted or null, false is used.
             validate22.errors = [{ instancePath, schemaPath: "#/minProperties", keyword: "minProperties", params: { limit: 1 }, message: "must NOT have fewer than 1 properties" }];
             return false;
           } else {
-            const _errs1 = errors;
+            const _errs1 = errors2;
             for (const key0 in data) {
               if (!(key0 === "batch" || key0 === "simple")) {
                 let data0 = data[key0];
-                const _errs2 = errors;
+                const _errs2 = errors2;
                 if (!(data0 && typeof data0 == "object" && !Array.isArray(data0)) && data0 !== null) {
                   validate22.errors = [{ instancePath: instancePath + "/" + key0.replace(/~/g, "~0").replace(/\//g, "~1"), schemaPath: "#/additionalProperties/type", keyword: "type", params: { type: schema35.additionalProperties.type }, message: "must be object,null" }];
                   return false;
                 }
-                var valid0 = _errs2 === errors;
+                var valid0 = _errs2 === errors2;
                 if (!valid0) {
                   break;
                 }
               }
             }
-            if (_errs1 === errors) {
+            if (_errs1 === errors2) {
               if (data.batch !== undefined) {
-                const _errs4 = errors;
+                const _errs4 = errors2;
                 if (!validate23(data.batch, { instancePath: instancePath + "/batch", parentData: data, parentDataProperty: "batch", rootData, dynamicAnchors })) {
                   vErrors = vErrors === null ? validate23.errors : vErrors.concat(validate23.errors);
-                  errors = vErrors.length;
+                  errors2 = vErrors.length;
                 }
-                var valid1 = _errs4 === errors;
+                var valid1 = _errs4 === errors2;
               } else {
                 var valid1 = true;
               }
               if (valid1) {
                 if (data.simple !== undefined) {
-                  const _errs5 = errors;
+                  const _errs5 = errors2;
                   if (!validate31(data.simple, { instancePath: instancePath + "/simple", parentData: data, parentDataProperty: "simple", rootData, dynamicAnchors })) {
                     vErrors = vErrors === null ? validate31.errors : vErrors.concat(validate31.errors);
-                    errors = vErrors.length;
+                    errors2 = vErrors.length;
                   }
-                  var valid1 = _errs5 === errors;
+                  var valid1 = _errs5 === errors2;
                 } else {
                   var valid1 = true;
                 }
@@ -88789,7 +90175,7 @@ If omitted or null, false is used.
       }
     }
     validate22.errors = vErrors;
-    return errors === 0;
+    return errors2 === 0;
   }
   validate22.evaluated = { props: true, dynamicProps: false, dynamicItems: false };
   var schema49 = { type: ["object"], additionalProperties: false, properties: { default_config: { $ref: "#/$defs/ExperimentalLoggerConfig", description: `Configure the default logger config used there is no matching entry in .logger_configurator/development.loggers.
@@ -88833,7 +90219,7 @@ If omitted or null, trace based filtering is not applied.
 ` } } };
   function validate36(data, { instancePath = "", parentData, parentDataProperty, rootData = data, dynamicAnchors = {} } = {}) {
     let vErrors = null;
-    let errors = 0;
+    let errors2 = 0;
     const evaluated0 = validate36.evaluated;
     if (evaluated0.dynamicProps) {
       evaluated0.props = undefined;
@@ -88841,9 +90227,9 @@ If omitted or null, trace based filtering is not applied.
     if (evaluated0.dynamicItems) {
       evaluated0.items = undefined;
     }
-    if (errors === 0) {
+    if (errors2 === 0) {
       if (data && typeof data == "object" && !Array.isArray(data)) {
-        const _errs1 = errors;
+        const _errs1 = errors2;
         for (const key0 in data) {
           if (!(key0 === "enabled" || key0 === "minimum_severity" || key0 === "trace_based")) {
             validate36.errors = [{ instancePath, schemaPath: "#/additionalProperties", keyword: "additionalProperties", params: { additionalProperty: key0 }, message: "must NOT have additional properties" }];
@@ -88851,22 +90237,22 @@ If omitted or null, trace based filtering is not applied.
             break;
           }
         }
-        if (_errs1 === errors) {
+        if (_errs1 === errors2) {
           if (data.enabled !== undefined) {
             let data0 = data.enabled;
-            const _errs2 = errors;
+            const _errs2 = errors2;
             if (typeof data0 !== "boolean" && data0 !== null) {
               validate36.errors = [{ instancePath: instancePath + "/enabled", schemaPath: "#/properties/enabled/type", keyword: "type", params: { type: schema50.properties.enabled.type }, message: "must be boolean,null" }];
               return false;
             }
-            var valid0 = _errs2 === errors;
+            var valid0 = _errs2 === errors2;
           } else {
             var valid0 = true;
           }
           if (valid0) {
             if (data.minimum_severity !== undefined) {
               let data1 = data.minimum_severity;
-              const _errs4 = errors;
+              const _errs4 = errors2;
               if (typeof data1 !== "string" && data1 !== null) {
                 validate36.errors = [{ instancePath: instancePath + "/minimum_severity", schemaPath: "#/$defs/SeverityNumber/type", keyword: "type", params: { type: schema32.type }, message: "must be string,null" }];
                 return false;
@@ -88875,19 +90261,19 @@ If omitted or null, trace based filtering is not applied.
                 validate36.errors = [{ instancePath: instancePath + "/minimum_severity", schemaPath: "#/$defs/SeverityNumber/enum", keyword: "enum", params: { allowedValues: schema32.enum }, message: "must be equal to one of the allowed values" }];
                 return false;
               }
-              var valid0 = _errs4 === errors;
+              var valid0 = _errs4 === errors2;
             } else {
               var valid0 = true;
             }
             if (valid0) {
               if (data.trace_based !== undefined) {
                 let data2 = data.trace_based;
-                const _errs7 = errors;
+                const _errs7 = errors2;
                 if (typeof data2 !== "boolean" && data2 !== null) {
                   validate36.errors = [{ instancePath: instancePath + "/trace_based", schemaPath: "#/properties/trace_based/type", keyword: "type", params: { type: schema50.properties.trace_based.type }, message: "must be boolean,null" }];
                   return false;
                 }
-                var valid0 = _errs7 === errors;
+                var valid0 = _errs7 === errors2;
               } else {
                 var valid0 = true;
               }
@@ -88900,7 +90286,7 @@ If omitted or null, trace based filtering is not applied.
       }
     }
     validate36.errors = vErrors;
-    return errors === 0;
+    return errors2 === 0;
   }
   validate36.evaluated = { props: true, dynamicProps: false, dynamicItems: false };
   var schema52 = { type: ["object"], additionalProperties: false, properties: { name: { type: ["string"], description: `Configure logger names to match, evaluated as follows:
@@ -88913,7 +90299,7 @@ Property is required and must be non-null.
 ` } }, required: ["name", "config"] };
   function validate38(data, { instancePath = "", parentData, parentDataProperty, rootData = data, dynamicAnchors = {} } = {}) {
     let vErrors = null;
-    let errors = 0;
+    let errors2 = 0;
     const evaluated0 = validate38.evaluated;
     if (evaluated0.dynamicProps) {
       evaluated0.props = undefined;
@@ -88921,14 +90307,14 @@ Property is required and must be non-null.
     if (evaluated0.dynamicItems) {
       evaluated0.items = undefined;
     }
-    if (errors === 0) {
+    if (errors2 === 0) {
       if (data && typeof data == "object" && !Array.isArray(data)) {
         let missing0;
         if (data.name === undefined && (missing0 = "name") || data.config === undefined && (missing0 = "config")) {
           validate38.errors = [{ instancePath, schemaPath: "#/required", keyword: "required", params: { missingProperty: missing0 }, message: "must have required property '" + missing0 + "'" }];
           return false;
         } else {
-          const _errs1 = errors;
+          const _errs1 = errors2;
           for (const key0 in data) {
             if (!(key0 === "name" || key0 === "config")) {
               validate38.errors = [{ instancePath, schemaPath: "#/additionalProperties", keyword: "additionalProperties", params: { additionalProperty: key0 }, message: "must NOT have additional properties" }];
@@ -88936,25 +90322,25 @@ Property is required and must be non-null.
               break;
             }
           }
-          if (_errs1 === errors) {
+          if (_errs1 === errors2) {
             if (data.name !== undefined) {
-              const _errs2 = errors;
+              const _errs2 = errors2;
               if (typeof data.name !== "string") {
                 validate38.errors = [{ instancePath: instancePath + "/name", schemaPath: "#/properties/name/type", keyword: "type", params: { type: schema52.properties.name.type }, message: "must be string" }];
                 return false;
               }
-              var valid0 = _errs2 === errors;
+              var valid0 = _errs2 === errors2;
             } else {
               var valid0 = true;
             }
             if (valid0) {
               if (data.config !== undefined) {
-                const _errs4 = errors;
+                const _errs4 = errors2;
                 if (!validate36(data.config, { instancePath: instancePath + "/config", parentData: data, parentDataProperty: "config", rootData, dynamicAnchors })) {
                   vErrors = vErrors === null ? validate36.errors : vErrors.concat(validate36.errors);
-                  errors = vErrors.length;
+                  errors2 = vErrors.length;
                 }
-                var valid0 = _errs4 === errors;
+                var valid0 = _errs4 === errors2;
               } else {
                 var valid0 = true;
               }
@@ -88967,12 +90353,12 @@ Property is required and must be non-null.
       }
     }
     validate38.errors = vErrors;
-    return errors === 0;
+    return errors2 === 0;
   }
   validate38.evaluated = { props: true, dynamicProps: false, dynamicItems: false };
   function validate35(data, { instancePath = "", parentData, parentDataProperty, rootData = data, dynamicAnchors = {} } = {}) {
     let vErrors = null;
-    let errors = 0;
+    let errors2 = 0;
     const evaluated0 = validate35.evaluated;
     if (evaluated0.dynamicProps) {
       evaluated0.props = undefined;
@@ -88980,9 +90366,9 @@ Property is required and must be non-null.
     if (evaluated0.dynamicItems) {
       evaluated0.items = undefined;
     }
-    if (errors === 0) {
+    if (errors2 === 0) {
       if (data && typeof data == "object" && !Array.isArray(data)) {
-        const _errs1 = errors;
+        const _errs1 = errors2;
         for (const key0 in data) {
           if (!(key0 === "default_config" || key0 === "loggers")) {
             validate35.errors = [{ instancePath, schemaPath: "#/additionalProperties", keyword: "additionalProperties", params: { additionalProperty: key0 }, message: "must NOT have additional properties" }];
@@ -88990,22 +90376,22 @@ Property is required and must be non-null.
             break;
           }
         }
-        if (_errs1 === errors) {
+        if (_errs1 === errors2) {
           if (data.default_config !== undefined) {
-            const _errs2 = errors;
+            const _errs2 = errors2;
             if (!validate36(data.default_config, { instancePath: instancePath + "/default_config", parentData: data, parentDataProperty: "default_config", rootData, dynamicAnchors })) {
               vErrors = vErrors === null ? validate36.errors : vErrors.concat(validate36.errors);
-              errors = vErrors.length;
+              errors2 = vErrors.length;
             }
-            var valid0 = _errs2 === errors;
+            var valid0 = _errs2 === errors2;
           } else {
             var valid0 = true;
           }
           if (valid0) {
             if (data.loggers !== undefined) {
               let data1 = data.loggers;
-              const _errs3 = errors;
-              if (errors === _errs3) {
+              const _errs3 = errors2;
+              if (errors2 === _errs3) {
                 if (Array.isArray(data1)) {
                   if (data1.length < 1) {
                     validate35.errors = [{ instancePath: instancePath + "/loggers", schemaPath: "#/properties/loggers/minItems", keyword: "minItems", params: { limit: 1 }, message: "must NOT have fewer than 1 items" }];
@@ -89014,12 +90400,12 @@ Property is required and must be non-null.
                     var valid1 = true;
                     const len0 = data1.length;
                     for (let i0 = 0;i0 < len0; i0++) {
-                      const _errs5 = errors;
+                      const _errs5 = errors2;
                       if (!validate38(data1[i0], { instancePath: instancePath + "/loggers/" + i0, parentData: data1, parentDataProperty: i0, rootData, dynamicAnchors })) {
                         vErrors = vErrors === null ? validate38.errors : vErrors.concat(validate38.errors);
-                        errors = vErrors.length;
+                        errors2 = vErrors.length;
                       }
-                      var valid1 = _errs5 === errors;
+                      var valid1 = _errs5 === errors2;
                       if (!valid1) {
                         break;
                       }
@@ -89030,7 +90416,7 @@ Property is required and must be non-null.
                   return false;
                 }
               }
-              var valid0 = _errs3 === errors;
+              var valid0 = _errs3 === errors2;
             } else {
               var valid0 = true;
             }
@@ -89042,12 +90428,12 @@ Property is required and must be non-null.
       }
     }
     validate35.errors = vErrors;
-    return errors === 0;
+    return errors2 === 0;
   }
   validate35.evaluated = { props: true, dynamicProps: false, dynamicItems: false };
   function validate21(data, { instancePath = "", parentData, parentDataProperty, rootData = data, dynamicAnchors = {} } = {}) {
     let vErrors = null;
-    let errors = 0;
+    let errors2 = 0;
     const evaluated0 = validate21.evaluated;
     if (evaluated0.dynamicProps) {
       evaluated0.props = undefined;
@@ -89055,14 +90441,14 @@ Property is required and must be non-null.
     if (evaluated0.dynamicItems) {
       evaluated0.items = undefined;
     }
-    if (errors === 0) {
+    if (errors2 === 0) {
       if (data && typeof data == "object" && !Array.isArray(data)) {
         let missing0;
         if (data.processors === undefined && (missing0 = "processors")) {
           validate21.errors = [{ instancePath, schemaPath: "#/required", keyword: "required", params: { missingProperty: missing0 }, message: "must have required property '" + missing0 + "'" }];
           return false;
         } else {
-          const _errs1 = errors;
+          const _errs1 = errors2;
           for (const key0 in data) {
             if (!(key0 === "processors" || key0 === "limits" || key0 === "logger_configurator/development")) {
               validate21.errors = [{ instancePath, schemaPath: "#/additionalProperties", keyword: "additionalProperties", params: { additionalProperty: key0 }, message: "must NOT have additional properties" }];
@@ -89070,11 +90456,11 @@ Property is required and must be non-null.
               break;
             }
           }
-          if (_errs1 === errors) {
+          if (_errs1 === errors2) {
             if (data.processors !== undefined) {
               let data0 = data.processors;
-              const _errs2 = errors;
-              if (errors === _errs2) {
+              const _errs2 = errors2;
+              if (errors2 === _errs2) {
                 if (Array.isArray(data0)) {
                   if (data0.length < 1) {
                     validate21.errors = [{ instancePath: instancePath + "/processors", schemaPath: "#/properties/processors/minItems", keyword: "minItems", params: { limit: 1 }, message: "must NOT have fewer than 1 items" }];
@@ -89083,12 +90469,12 @@ Property is required and must be non-null.
                     var valid1 = true;
                     const len0 = data0.length;
                     for (let i0 = 0;i0 < len0; i0++) {
-                      const _errs4 = errors;
+                      const _errs4 = errors2;
                       if (!validate22(data0[i0], { instancePath: instancePath + "/processors/" + i0, parentData: data0, parentDataProperty: i0, rootData, dynamicAnchors })) {
                         vErrors = vErrors === null ? validate22.errors : vErrors.concat(validate22.errors);
-                        errors = vErrors.length;
+                        errors2 = vErrors.length;
                       }
-                      var valid1 = _errs4 === errors;
+                      var valid1 = _errs4 === errors2;
                       if (!valid1) {
                         break;
                       }
@@ -89099,18 +90485,18 @@ Property is required and must be non-null.
                   return false;
                 }
               }
-              var valid0 = _errs2 === errors;
+              var valid0 = _errs2 === errors2;
             } else {
               var valid0 = true;
             }
             if (valid0) {
               if (data.limits !== undefined) {
                 let data2 = data.limits;
-                const _errs5 = errors;
-                const _errs6 = errors;
-                if (errors === _errs6) {
+                const _errs5 = errors2;
+                const _errs6 = errors2;
+                if (errors2 === _errs6) {
                   if (data2 && typeof data2 == "object" && !Array.isArray(data2)) {
-                    const _errs8 = errors;
+                    const _errs8 = errors2;
                     for (const key1 in data2) {
                       if (!(key1 === "attribute_value_length_limit" || key1 === "attribute_count_limit")) {
                         validate21.errors = [{ instancePath: instancePath + "/limits", schemaPath: "#/$defs/LogRecordLimits/additionalProperties", keyword: "additionalProperties", params: { additionalProperty: key1 }, message: "must NOT have additional properties" }];
@@ -89118,15 +90504,15 @@ Property is required and must be non-null.
                         break;
                       }
                     }
-                    if (_errs8 === errors) {
+                    if (_errs8 === errors2) {
                       if (data2.attribute_value_length_limit !== undefined) {
                         let data3 = data2.attribute_value_length_limit;
-                        const _errs9 = errors;
+                        const _errs9 = errors2;
                         if (!(typeof data3 == "number" && (!(data3 % 1) && !isNaN(data3))) && data3 !== null) {
                           validate21.errors = [{ instancePath: instancePath + "/limits/attribute_value_length_limit", schemaPath: "#/$defs/LogRecordLimits/properties/attribute_value_length_limit/type", keyword: "type", params: { type: schema48.properties.attribute_value_length_limit.type }, message: "must be integer,null" }];
                           return false;
                         }
-                        if (errors === _errs9) {
+                        if (errors2 === _errs9) {
                           if (typeof data3 == "number") {
                             if (data3 < 0 || isNaN(data3)) {
                               validate21.errors = [{ instancePath: instancePath + "/limits/attribute_value_length_limit", schemaPath: "#/$defs/LogRecordLimits/properties/attribute_value_length_limit/minimum", keyword: "minimum", params: { comparison: ">=", limit: 0 }, message: "must be >= 0" }];
@@ -89134,19 +90520,19 @@ Property is required and must be non-null.
                             }
                           }
                         }
-                        var valid3 = _errs9 === errors;
+                        var valid3 = _errs9 === errors2;
                       } else {
                         var valid3 = true;
                       }
                       if (valid3) {
                         if (data2.attribute_count_limit !== undefined) {
                           let data4 = data2.attribute_count_limit;
-                          const _errs11 = errors;
+                          const _errs11 = errors2;
                           if (!(typeof data4 == "number" && (!(data4 % 1) && !isNaN(data4))) && data4 !== null) {
                             validate21.errors = [{ instancePath: instancePath + "/limits/attribute_count_limit", schemaPath: "#/$defs/LogRecordLimits/properties/attribute_count_limit/type", keyword: "type", params: { type: schema48.properties.attribute_count_limit.type }, message: "must be integer,null" }];
                             return false;
                           }
-                          if (errors === _errs11) {
+                          if (errors2 === _errs11) {
                             if (typeof data4 == "number") {
                               if (data4 < 0 || isNaN(data4)) {
                                 validate21.errors = [{ instancePath: instancePath + "/limits/attribute_count_limit", schemaPath: "#/$defs/LogRecordLimits/properties/attribute_count_limit/minimum", keyword: "minimum", params: { comparison: ">=", limit: 0 }, message: "must be >= 0" }];
@@ -89154,7 +90540,7 @@ Property is required and must be non-null.
                               }
                             }
                           }
-                          var valid3 = _errs11 === errors;
+                          var valid3 = _errs11 === errors2;
                         } else {
                           var valid3 = true;
                         }
@@ -89165,18 +90551,18 @@ Property is required and must be non-null.
                     return false;
                   }
                 }
-                var valid0 = _errs5 === errors;
+                var valid0 = _errs5 === errors2;
               } else {
                 var valid0 = true;
               }
               if (valid0) {
                 if (data["logger_configurator/development"] !== undefined) {
-                  const _errs13 = errors;
+                  const _errs13 = errors2;
                   if (!validate35(data["logger_configurator/development"], { instancePath: instancePath + "/logger_configurator~1development", parentData: data, parentDataProperty: "logger_configurator/development", rootData, dynamicAnchors })) {
                     vErrors = vErrors === null ? validate35.errors : vErrors.concat(validate35.errors);
-                    errors = vErrors.length;
+                    errors2 = vErrors.length;
                   }
-                  var valid0 = _errs13 === errors;
+                  var valid0 = _errs13 === errors2;
                 } else {
                   var valid0 = true;
                 }
@@ -89190,7 +90576,7 @@ Property is required and must be non-null.
       }
     }
     validate21.errors = vErrors;
-    return errors === 0;
+    return errors2 === 0;
   }
   validate21.evaluated = { props: true, dynamicProps: false, dynamicItems: false };
   var schema95 = { type: ["string", "null"], enum: ["always_on", "always_off", "trace_based"] };
@@ -89273,7 +90659,7 @@ If omitted, explicit_bucket_histogram is used.
   var func1 = Object.prototype.hasOwnProperty;
   function validate47(data, { instancePath = "", parentData, parentDataProperty, rootData = data, dynamicAnchors = {} } = {}) {
     let vErrors = null;
-    let errors = 0;
+    let errors2 = 0;
     const evaluated0 = validate47.evaluated;
     if (evaluated0.dynamicProps) {
       evaluated0.props = undefined;
@@ -89285,9 +90671,9 @@ If omitted, explicit_bucket_histogram is used.
       validate47.errors = [{ instancePath, schemaPath: "#/type", keyword: "type", params: { type: schema57.type }, message: "must be object,null" }];
       return false;
     }
-    if (errors === 0) {
+    if (errors2 === 0) {
       if (data && typeof data == "object" && !Array.isArray(data)) {
-        const _errs1 = errors;
+        const _errs1 = errors2;
         for (const key0 in data) {
           if (!func1.call(schema57.properties, key0)) {
             validate47.errors = [{ instancePath, schemaPath: "#/additionalProperties", keyword: "additionalProperties", params: { additionalProperty: key0 }, message: "must NOT have additional properties" }];
@@ -89295,30 +90681,30 @@ If omitted, explicit_bucket_histogram is used.
             break;
           }
         }
-        if (_errs1 === errors) {
+        if (_errs1 === errors2) {
           if (data.endpoint !== undefined) {
             let data0 = data.endpoint;
-            const _errs2 = errors;
+            const _errs2 = errors2;
             if (typeof data0 !== "string" && data0 !== null) {
               validate47.errors = [{ instancePath: instancePath + "/endpoint", schemaPath: "#/properties/endpoint/type", keyword: "type", params: { type: schema57.properties.endpoint.type }, message: "must be string,null" }];
               return false;
             }
-            var valid0 = _errs2 === errors;
+            var valid0 = _errs2 === errors2;
           } else {
             var valid0 = true;
           }
           if (valid0) {
             if (data.tls !== undefined) {
               let data1 = data.tls;
-              const _errs4 = errors;
-              const _errs5 = errors;
+              const _errs4 = errors2;
+              const _errs5 = errors2;
               if (!(data1 && typeof data1 == "object" && !Array.isArray(data1)) && data1 !== null) {
                 validate47.errors = [{ instancePath: instancePath + "/tls", schemaPath: "#/$defs/HttpTls/type", keyword: "type", params: { type: schema39.type }, message: "must be object,null" }];
                 return false;
               }
-              if (errors === _errs5) {
+              if (errors2 === _errs5) {
                 if (data1 && typeof data1 == "object" && !Array.isArray(data1)) {
-                  const _errs7 = errors;
+                  const _errs7 = errors2;
                   for (const key1 in data1) {
                     if (!(key1 === "ca_file" || key1 === "key_file" || key1 === "cert_file")) {
                       validate47.errors = [{ instancePath: instancePath + "/tls", schemaPath: "#/$defs/HttpTls/additionalProperties", keyword: "additionalProperties", params: { additionalProperty: key1 }, message: "must NOT have additional properties" }];
@@ -89326,39 +90712,39 @@ If omitted, explicit_bucket_histogram is used.
                       break;
                     }
                   }
-                  if (_errs7 === errors) {
+                  if (_errs7 === errors2) {
                     if (data1.ca_file !== undefined) {
                       let data2 = data1.ca_file;
-                      const _errs8 = errors;
+                      const _errs8 = errors2;
                       if (typeof data2 !== "string" && data2 !== null) {
                         validate47.errors = [{ instancePath: instancePath + "/tls/ca_file", schemaPath: "#/$defs/HttpTls/properties/ca_file/type", keyword: "type", params: { type: schema39.properties.ca_file.type }, message: "must be string,null" }];
                         return false;
                       }
-                      var valid2 = _errs8 === errors;
+                      var valid2 = _errs8 === errors2;
                     } else {
                       var valid2 = true;
                     }
                     if (valid2) {
                       if (data1.key_file !== undefined) {
                         let data3 = data1.key_file;
-                        const _errs10 = errors;
+                        const _errs10 = errors2;
                         if (typeof data3 !== "string" && data3 !== null) {
                           validate47.errors = [{ instancePath: instancePath + "/tls/key_file", schemaPath: "#/$defs/HttpTls/properties/key_file/type", keyword: "type", params: { type: schema39.properties.key_file.type }, message: "must be string,null" }];
                           return false;
                         }
-                        var valid2 = _errs10 === errors;
+                        var valid2 = _errs10 === errors2;
                       } else {
                         var valid2 = true;
                       }
                       if (valid2) {
                         if (data1.cert_file !== undefined) {
                           let data4 = data1.cert_file;
-                          const _errs12 = errors;
+                          const _errs12 = errors2;
                           if (typeof data4 !== "string" && data4 !== null) {
                             validate47.errors = [{ instancePath: instancePath + "/tls/cert_file", schemaPath: "#/$defs/HttpTls/properties/cert_file/type", keyword: "type", params: { type: schema39.properties.cert_file.type }, message: "must be string,null" }];
                             return false;
                           }
-                          var valid2 = _errs12 === errors;
+                          var valid2 = _errs12 === errors2;
                         } else {
                           var valid2 = true;
                         }
@@ -89367,15 +90753,15 @@ If omitted, explicit_bucket_histogram is used.
                   }
                 }
               }
-              var valid0 = _errs4 === errors;
+              var valid0 = _errs4 === errors2;
             } else {
               var valid0 = true;
             }
             if (valid0) {
               if (data.headers !== undefined) {
                 let data5 = data.headers;
-                const _errs14 = errors;
-                if (errors === _errs14) {
+                const _errs14 = errors2;
+                if (errors2 === _errs14) {
                   if (Array.isArray(data5)) {
                     if (data5.length < 1) {
                       validate47.errors = [{ instancePath: instancePath + "/headers", schemaPath: "#/properties/headers/minItems", keyword: "minItems", params: { limit: 1 }, message: "must NOT have fewer than 1 items" }];
@@ -89385,16 +90771,16 @@ If omitted, explicit_bucket_histogram is used.
                       const len0 = data5.length;
                       for (let i0 = 0;i0 < len0; i0++) {
                         let data6 = data5[i0];
-                        const _errs16 = errors;
-                        const _errs17 = errors;
-                        if (errors === _errs17) {
+                        const _errs16 = errors2;
+                        const _errs17 = errors2;
+                        if (errors2 === _errs17) {
                           if (data6 && typeof data6 == "object" && !Array.isArray(data6)) {
                             let missing0;
                             if (data6.name === undefined && (missing0 = "name") || data6.value === undefined && (missing0 = "value")) {
                               validate47.errors = [{ instancePath: instancePath + "/headers/" + i0, schemaPath: "#/$defs/NameStringValuePair/required", keyword: "required", params: { missingProperty: missing0 }, message: "must have required property '" + missing0 + "'" }];
                               return false;
                             } else {
-                              const _errs19 = errors;
+                              const _errs19 = errors2;
                               for (const key2 in data6) {
                                 if (!(key2 === "name" || key2 === "value")) {
                                   validate47.errors = [{ instancePath: instancePath + "/headers/" + i0, schemaPath: "#/$defs/NameStringValuePair/additionalProperties", keyword: "additionalProperties", params: { additionalProperty: key2 }, message: "must NOT have additional properties" }];
@@ -89402,26 +90788,26 @@ If omitted, explicit_bucket_histogram is used.
                                   break;
                                 }
                               }
-                              if (_errs19 === errors) {
+                              if (_errs19 === errors2) {
                                 if (data6.name !== undefined) {
-                                  const _errs20 = errors;
+                                  const _errs20 = errors2;
                                   if (typeof data6.name !== "string") {
                                     validate47.errors = [{ instancePath: instancePath + "/headers/" + i0 + "/name", schemaPath: "#/$defs/NameStringValuePair/properties/name/type", keyword: "type", params: { type: "string" }, message: "must be string" }];
                                     return false;
                                   }
-                                  var valid5 = _errs20 === errors;
+                                  var valid5 = _errs20 === errors2;
                                 } else {
                                   var valid5 = true;
                                 }
                                 if (valid5) {
                                   if (data6.value !== undefined) {
                                     let data8 = data6.value;
-                                    const _errs22 = errors;
+                                    const _errs22 = errors2;
                                     if (typeof data8 !== "string" && data8 !== null) {
                                       validate47.errors = [{ instancePath: instancePath + "/headers/" + i0 + "/value", schemaPath: "#/$defs/NameStringValuePair/properties/value/type", keyword: "type", params: { type: schema40.properties.value.type }, message: "must be string,null" }];
                                       return false;
                                     }
-                                    var valid5 = _errs22 === errors;
+                                    var valid5 = _errs22 === errors2;
                                   } else {
                                     var valid5 = true;
                                   }
@@ -89433,7 +90819,7 @@ If omitted, explicit_bucket_histogram is used.
                             return false;
                           }
                         }
-                        var valid3 = _errs16 === errors;
+                        var valid3 = _errs16 === errors2;
                         if (!valid3) {
                           break;
                         }
@@ -89444,43 +90830,43 @@ If omitted, explicit_bucket_histogram is used.
                     return false;
                   }
                 }
-                var valid0 = _errs14 === errors;
+                var valid0 = _errs14 === errors2;
               } else {
                 var valid0 = true;
               }
               if (valid0) {
                 if (data.headers_list !== undefined) {
                   let data9 = data.headers_list;
-                  const _errs24 = errors;
+                  const _errs24 = errors2;
                   if (typeof data9 !== "string" && data9 !== null) {
                     validate47.errors = [{ instancePath: instancePath + "/headers_list", schemaPath: "#/properties/headers_list/type", keyword: "type", params: { type: schema57.properties.headers_list.type }, message: "must be string,null" }];
                     return false;
                   }
-                  var valid0 = _errs24 === errors;
+                  var valid0 = _errs24 === errors2;
                 } else {
                   var valid0 = true;
                 }
                 if (valid0) {
                   if (data.compression !== undefined) {
                     let data10 = data.compression;
-                    const _errs26 = errors;
+                    const _errs26 = errors2;
                     if (typeof data10 !== "string" && data10 !== null) {
                       validate47.errors = [{ instancePath: instancePath + "/compression", schemaPath: "#/properties/compression/type", keyword: "type", params: { type: schema57.properties.compression.type }, message: "must be string,null" }];
                       return false;
                     }
-                    var valid0 = _errs26 === errors;
+                    var valid0 = _errs26 === errors2;
                   } else {
                     var valid0 = true;
                   }
                   if (valid0) {
                     if (data.timeout !== undefined) {
                       let data11 = data.timeout;
-                      const _errs28 = errors;
+                      const _errs28 = errors2;
                       if (!(typeof data11 == "number" && (!(data11 % 1) && !isNaN(data11))) && data11 !== null) {
                         validate47.errors = [{ instancePath: instancePath + "/timeout", schemaPath: "#/properties/timeout/type", keyword: "type", params: { type: schema57.properties.timeout.type }, message: "must be integer,null" }];
                         return false;
                       }
-                      if (errors === _errs28) {
+                      if (errors2 === _errs28) {
                         if (typeof data11 == "number") {
                           if (data11 < 0 || isNaN(data11)) {
                             validate47.errors = [{ instancePath: instancePath + "/timeout", schemaPath: "#/properties/timeout/minimum", keyword: "minimum", params: { comparison: ">=", limit: 0 }, message: "must be >= 0" }];
@@ -89488,14 +90874,14 @@ If omitted, explicit_bucket_histogram is used.
                           }
                         }
                       }
-                      var valid0 = _errs28 === errors;
+                      var valid0 = _errs28 === errors2;
                     } else {
                       var valid0 = true;
                     }
                     if (valid0) {
                       if (data.encoding !== undefined) {
                         let data12 = data.encoding;
-                        const _errs30 = errors;
+                        const _errs30 = errors2;
                         if (typeof data12 !== "string" && data12 !== null) {
                           validate47.errors = [{ instancePath: instancePath + "/encoding", schemaPath: "#/$defs/OtlpHttpEncoding/type", keyword: "type", params: { type: schema41.type }, message: "must be string,null" }];
                           return false;
@@ -89504,14 +90890,14 @@ If omitted, explicit_bucket_histogram is used.
                           validate47.errors = [{ instancePath: instancePath + "/encoding", schemaPath: "#/$defs/OtlpHttpEncoding/enum", keyword: "enum", params: { allowedValues: schema41.enum }, message: "must be equal to one of the allowed values" }];
                           return false;
                         }
-                        var valid0 = _errs30 === errors;
+                        var valid0 = _errs30 === errors2;
                       } else {
                         var valid0 = true;
                       }
                       if (valid0) {
                         if (data.temporality_preference !== undefined) {
                           let data13 = data.temporality_preference;
-                          const _errs33 = errors;
+                          const _errs33 = errors2;
                           if (typeof data13 !== "string" && data13 !== null) {
                             validate47.errors = [{ instancePath: instancePath + "/temporality_preference", schemaPath: "#/$defs/ExporterTemporalityPreference/type", keyword: "type", params: { type: schema61.type }, message: "must be string,null" }];
                             return false;
@@ -89520,14 +90906,14 @@ If omitted, explicit_bucket_histogram is used.
                             validate47.errors = [{ instancePath: instancePath + "/temporality_preference", schemaPath: "#/$defs/ExporterTemporalityPreference/enum", keyword: "enum", params: { allowedValues: schema61.enum }, message: "must be equal to one of the allowed values" }];
                             return false;
                           }
-                          var valid0 = _errs33 === errors;
+                          var valid0 = _errs33 === errors2;
                         } else {
                           var valid0 = true;
                         }
                         if (valid0) {
                           if (data.default_histogram_aggregation !== undefined) {
                             let data14 = data.default_histogram_aggregation;
-                            const _errs36 = errors;
+                            const _errs36 = errors2;
                             if (typeof data14 !== "string" && data14 !== null) {
                               validate47.errors = [{ instancePath: instancePath + "/default_histogram_aggregation", schemaPath: "#/$defs/ExporterDefaultHistogramAggregation/type", keyword: "type", params: { type: schema62.type }, message: "must be string,null" }];
                               return false;
@@ -89536,7 +90922,7 @@ If omitted, explicit_bucket_histogram is used.
                               validate47.errors = [{ instancePath: instancePath + "/default_histogram_aggregation", schemaPath: "#/$defs/ExporterDefaultHistogramAggregation/enum", keyword: "enum", params: { allowedValues: schema62.enum }, message: "must be equal to one of the allowed values" }];
                               return false;
                             }
-                            var valid0 = _errs36 === errors;
+                            var valid0 = _errs36 === errors2;
                           } else {
                             var valid0 = true;
                           }
@@ -89552,7 +90938,7 @@ If omitted, explicit_bucket_histogram is used.
       }
     }
     validate47.errors = vErrors;
-    return errors === 0;
+    return errors2 === 0;
   }
   validate47.evaluated = { props: true, dynamicProps: false, dynamicItems: false };
   var schema63 = { type: ["object", "null"], additionalProperties: false, properties: { endpoint: { type: ["string", "null"], description: `Configure endpoint.
@@ -89585,7 +90971,7 @@ If omitted, explicit_bucket_histogram is used.
 ` } } };
   function validate49(data, { instancePath = "", parentData, parentDataProperty, rootData = data, dynamicAnchors = {} } = {}) {
     let vErrors = null;
-    let errors = 0;
+    let errors2 = 0;
     const evaluated0 = validate49.evaluated;
     if (evaluated0.dynamicProps) {
       evaluated0.props = undefined;
@@ -89597,9 +90983,9 @@ If omitted, explicit_bucket_histogram is used.
       validate49.errors = [{ instancePath, schemaPath: "#/type", keyword: "type", params: { type: schema63.type }, message: "must be object,null" }];
       return false;
     }
-    if (errors === 0) {
+    if (errors2 === 0) {
       if (data && typeof data == "object" && !Array.isArray(data)) {
-        const _errs1 = errors;
+        const _errs1 = errors2;
         for (const key0 in data) {
           if (!(key0 === "endpoint" || key0 === "tls" || key0 === "headers" || key0 === "headers_list" || key0 === "compression" || key0 === "timeout" || key0 === "temporality_preference" || key0 === "default_histogram_aggregation")) {
             validate49.errors = [{ instancePath, schemaPath: "#/additionalProperties", keyword: "additionalProperties", params: { additionalProperty: key0 }, message: "must NOT have additional properties" }];
@@ -89607,30 +90993,30 @@ If omitted, explicit_bucket_histogram is used.
             break;
           }
         }
-        if (_errs1 === errors) {
+        if (_errs1 === errors2) {
           if (data.endpoint !== undefined) {
             let data0 = data.endpoint;
-            const _errs2 = errors;
+            const _errs2 = errors2;
             if (typeof data0 !== "string" && data0 !== null) {
               validate49.errors = [{ instancePath: instancePath + "/endpoint", schemaPath: "#/properties/endpoint/type", keyword: "type", params: { type: schema63.properties.endpoint.type }, message: "must be string,null" }];
               return false;
             }
-            var valid0 = _errs2 === errors;
+            var valid0 = _errs2 === errors2;
           } else {
             var valid0 = true;
           }
           if (valid0) {
             if (data.tls !== undefined) {
               let data1 = data.tls;
-              const _errs4 = errors;
-              const _errs5 = errors;
+              const _errs4 = errors2;
+              const _errs5 = errors2;
               if (!(data1 && typeof data1 == "object" && !Array.isArray(data1)) && data1 !== null) {
                 validate49.errors = [{ instancePath: instancePath + "/tls", schemaPath: "#/$defs/GrpcTls/type", keyword: "type", params: { type: schema43.type }, message: "must be object,null" }];
                 return false;
               }
-              if (errors === _errs5) {
+              if (errors2 === _errs5) {
                 if (data1 && typeof data1 == "object" && !Array.isArray(data1)) {
-                  const _errs7 = errors;
+                  const _errs7 = errors2;
                   for (const key1 in data1) {
                     if (!(key1 === "ca_file" || key1 === "key_file" || key1 === "cert_file" || key1 === "insecure")) {
                       validate49.errors = [{ instancePath: instancePath + "/tls", schemaPath: "#/$defs/GrpcTls/additionalProperties", keyword: "additionalProperties", params: { additionalProperty: key1 }, message: "must NOT have additional properties" }];
@@ -89638,51 +91024,51 @@ If omitted, explicit_bucket_histogram is used.
                       break;
                     }
                   }
-                  if (_errs7 === errors) {
+                  if (_errs7 === errors2) {
                     if (data1.ca_file !== undefined) {
                       let data2 = data1.ca_file;
-                      const _errs8 = errors;
+                      const _errs8 = errors2;
                       if (typeof data2 !== "string" && data2 !== null) {
                         validate49.errors = [{ instancePath: instancePath + "/tls/ca_file", schemaPath: "#/$defs/GrpcTls/properties/ca_file/type", keyword: "type", params: { type: schema43.properties.ca_file.type }, message: "must be string,null" }];
                         return false;
                       }
-                      var valid2 = _errs8 === errors;
+                      var valid2 = _errs8 === errors2;
                     } else {
                       var valid2 = true;
                     }
                     if (valid2) {
                       if (data1.key_file !== undefined) {
                         let data3 = data1.key_file;
-                        const _errs10 = errors;
+                        const _errs10 = errors2;
                         if (typeof data3 !== "string" && data3 !== null) {
                           validate49.errors = [{ instancePath: instancePath + "/tls/key_file", schemaPath: "#/$defs/GrpcTls/properties/key_file/type", keyword: "type", params: { type: schema43.properties.key_file.type }, message: "must be string,null" }];
                           return false;
                         }
-                        var valid2 = _errs10 === errors;
+                        var valid2 = _errs10 === errors2;
                       } else {
                         var valid2 = true;
                       }
                       if (valid2) {
                         if (data1.cert_file !== undefined) {
                           let data4 = data1.cert_file;
-                          const _errs12 = errors;
+                          const _errs12 = errors2;
                           if (typeof data4 !== "string" && data4 !== null) {
                             validate49.errors = [{ instancePath: instancePath + "/tls/cert_file", schemaPath: "#/$defs/GrpcTls/properties/cert_file/type", keyword: "type", params: { type: schema43.properties.cert_file.type }, message: "must be string,null" }];
                             return false;
                           }
-                          var valid2 = _errs12 === errors;
+                          var valid2 = _errs12 === errors2;
                         } else {
                           var valid2 = true;
                         }
                         if (valid2) {
                           if (data1.insecure !== undefined) {
                             let data5 = data1.insecure;
-                            const _errs14 = errors;
+                            const _errs14 = errors2;
                             if (typeof data5 !== "boolean" && data5 !== null) {
                               validate49.errors = [{ instancePath: instancePath + "/tls/insecure", schemaPath: "#/$defs/GrpcTls/properties/insecure/type", keyword: "type", params: { type: schema43.properties.insecure.type }, message: "must be boolean,null" }];
                               return false;
                             }
-                            var valid2 = _errs14 === errors;
+                            var valid2 = _errs14 === errors2;
                           } else {
                             var valid2 = true;
                           }
@@ -89692,15 +91078,15 @@ If omitted, explicit_bucket_histogram is used.
                   }
                 }
               }
-              var valid0 = _errs4 === errors;
+              var valid0 = _errs4 === errors2;
             } else {
               var valid0 = true;
             }
             if (valid0) {
               if (data.headers !== undefined) {
                 let data6 = data.headers;
-                const _errs16 = errors;
-                if (errors === _errs16) {
+                const _errs16 = errors2;
+                if (errors2 === _errs16) {
                   if (Array.isArray(data6)) {
                     if (data6.length < 1) {
                       validate49.errors = [{ instancePath: instancePath + "/headers", schemaPath: "#/properties/headers/minItems", keyword: "minItems", params: { limit: 1 }, message: "must NOT have fewer than 1 items" }];
@@ -89710,16 +91096,16 @@ If omitted, explicit_bucket_histogram is used.
                       const len0 = data6.length;
                       for (let i0 = 0;i0 < len0; i0++) {
                         let data7 = data6[i0];
-                        const _errs18 = errors;
-                        const _errs19 = errors;
-                        if (errors === _errs19) {
+                        const _errs18 = errors2;
+                        const _errs19 = errors2;
+                        if (errors2 === _errs19) {
                           if (data7 && typeof data7 == "object" && !Array.isArray(data7)) {
                             let missing0;
                             if (data7.name === undefined && (missing0 = "name") || data7.value === undefined && (missing0 = "value")) {
                               validate49.errors = [{ instancePath: instancePath + "/headers/" + i0, schemaPath: "#/$defs/NameStringValuePair/required", keyword: "required", params: { missingProperty: missing0 }, message: "must have required property '" + missing0 + "'" }];
                               return false;
                             } else {
-                              const _errs21 = errors;
+                              const _errs21 = errors2;
                               for (const key2 in data7) {
                                 if (!(key2 === "name" || key2 === "value")) {
                                   validate49.errors = [{ instancePath: instancePath + "/headers/" + i0, schemaPath: "#/$defs/NameStringValuePair/additionalProperties", keyword: "additionalProperties", params: { additionalProperty: key2 }, message: "must NOT have additional properties" }];
@@ -89727,26 +91113,26 @@ If omitted, explicit_bucket_histogram is used.
                                   break;
                                 }
                               }
-                              if (_errs21 === errors) {
+                              if (_errs21 === errors2) {
                                 if (data7.name !== undefined) {
-                                  const _errs22 = errors;
+                                  const _errs22 = errors2;
                                   if (typeof data7.name !== "string") {
                                     validate49.errors = [{ instancePath: instancePath + "/headers/" + i0 + "/name", schemaPath: "#/$defs/NameStringValuePair/properties/name/type", keyword: "type", params: { type: "string" }, message: "must be string" }];
                                     return false;
                                   }
-                                  var valid5 = _errs22 === errors;
+                                  var valid5 = _errs22 === errors2;
                                 } else {
                                   var valid5 = true;
                                 }
                                 if (valid5) {
                                   if (data7.value !== undefined) {
                                     let data9 = data7.value;
-                                    const _errs24 = errors;
+                                    const _errs24 = errors2;
                                     if (typeof data9 !== "string" && data9 !== null) {
                                       validate49.errors = [{ instancePath: instancePath + "/headers/" + i0 + "/value", schemaPath: "#/$defs/NameStringValuePair/properties/value/type", keyword: "type", params: { type: schema40.properties.value.type }, message: "must be string,null" }];
                                       return false;
                                     }
-                                    var valid5 = _errs24 === errors;
+                                    var valid5 = _errs24 === errors2;
                                   } else {
                                     var valid5 = true;
                                   }
@@ -89758,7 +91144,7 @@ If omitted, explicit_bucket_histogram is used.
                             return false;
                           }
                         }
-                        var valid3 = _errs18 === errors;
+                        var valid3 = _errs18 === errors2;
                         if (!valid3) {
                           break;
                         }
@@ -89769,43 +91155,43 @@ If omitted, explicit_bucket_histogram is used.
                     return false;
                   }
                 }
-                var valid0 = _errs16 === errors;
+                var valid0 = _errs16 === errors2;
               } else {
                 var valid0 = true;
               }
               if (valid0) {
                 if (data.headers_list !== undefined) {
                   let data10 = data.headers_list;
-                  const _errs26 = errors;
+                  const _errs26 = errors2;
                   if (typeof data10 !== "string" && data10 !== null) {
                     validate49.errors = [{ instancePath: instancePath + "/headers_list", schemaPath: "#/properties/headers_list/type", keyword: "type", params: { type: schema63.properties.headers_list.type }, message: "must be string,null" }];
                     return false;
                   }
-                  var valid0 = _errs26 === errors;
+                  var valid0 = _errs26 === errors2;
                 } else {
                   var valid0 = true;
                 }
                 if (valid0) {
                   if (data.compression !== undefined) {
                     let data11 = data.compression;
-                    const _errs28 = errors;
+                    const _errs28 = errors2;
                     if (typeof data11 !== "string" && data11 !== null) {
                       validate49.errors = [{ instancePath: instancePath + "/compression", schemaPath: "#/properties/compression/type", keyword: "type", params: { type: schema63.properties.compression.type }, message: "must be string,null" }];
                       return false;
                     }
-                    var valid0 = _errs28 === errors;
+                    var valid0 = _errs28 === errors2;
                   } else {
                     var valid0 = true;
                   }
                   if (valid0) {
                     if (data.timeout !== undefined) {
                       let data12 = data.timeout;
-                      const _errs30 = errors;
+                      const _errs30 = errors2;
                       if (!(typeof data12 == "number" && (!(data12 % 1) && !isNaN(data12))) && data12 !== null) {
                         validate49.errors = [{ instancePath: instancePath + "/timeout", schemaPath: "#/properties/timeout/type", keyword: "type", params: { type: schema63.properties.timeout.type }, message: "must be integer,null" }];
                         return false;
                       }
-                      if (errors === _errs30) {
+                      if (errors2 === _errs30) {
                         if (typeof data12 == "number") {
                           if (data12 < 0 || isNaN(data12)) {
                             validate49.errors = [{ instancePath: instancePath + "/timeout", schemaPath: "#/properties/timeout/minimum", keyword: "minimum", params: { comparison: ">=", limit: 0 }, message: "must be >= 0" }];
@@ -89813,14 +91199,14 @@ If omitted, explicit_bucket_histogram is used.
                           }
                         }
                       }
-                      var valid0 = _errs30 === errors;
+                      var valid0 = _errs30 === errors2;
                     } else {
                       var valid0 = true;
                     }
                     if (valid0) {
                       if (data.temporality_preference !== undefined) {
                         let data13 = data.temporality_preference;
-                        const _errs32 = errors;
+                        const _errs32 = errors2;
                         if (typeof data13 !== "string" && data13 !== null) {
                           validate49.errors = [{ instancePath: instancePath + "/temporality_preference", schemaPath: "#/$defs/ExporterTemporalityPreference/type", keyword: "type", params: { type: schema61.type }, message: "must be string,null" }];
                           return false;
@@ -89829,14 +91215,14 @@ If omitted, explicit_bucket_histogram is used.
                           validate49.errors = [{ instancePath: instancePath + "/temporality_preference", schemaPath: "#/$defs/ExporterTemporalityPreference/enum", keyword: "enum", params: { allowedValues: schema61.enum }, message: "must be equal to one of the allowed values" }];
                           return false;
                         }
-                        var valid0 = _errs32 === errors;
+                        var valid0 = _errs32 === errors2;
                       } else {
                         var valid0 = true;
                       }
                       if (valid0) {
                         if (data.default_histogram_aggregation !== undefined) {
                           let data14 = data.default_histogram_aggregation;
-                          const _errs35 = errors;
+                          const _errs35 = errors2;
                           if (typeof data14 !== "string" && data14 !== null) {
                             validate49.errors = [{ instancePath: instancePath + "/default_histogram_aggregation", schemaPath: "#/$defs/ExporterDefaultHistogramAggregation/type", keyword: "type", params: { type: schema62.type }, message: "must be string,null" }];
                             return false;
@@ -89845,7 +91231,7 @@ If omitted, explicit_bucket_histogram is used.
                             validate49.errors = [{ instancePath: instancePath + "/default_histogram_aggregation", schemaPath: "#/$defs/ExporterDefaultHistogramAggregation/enum", keyword: "enum", params: { allowedValues: schema62.enum }, message: "must be equal to one of the allowed values" }];
                             return false;
                           }
-                          var valid0 = _errs35 === errors;
+                          var valid0 = _errs35 === errors2;
                         } else {
                           var valid0 = true;
                         }
@@ -89860,7 +91246,7 @@ If omitted, explicit_bucket_histogram is used.
       }
     }
     validate49.errors = vErrors;
-    return errors === 0;
+    return errors2 === 0;
   }
   validate49.evaluated = { props: true, dynamicProps: false, dynamicItems: false };
   var schema68 = { type: ["object", "null"], additionalProperties: false, properties: { output_stream: { type: ["string", "null"], description: `Configure output stream. 
@@ -89880,7 +91266,7 @@ If omitted, explicit_bucket_histogram is used.
 ` } } };
   function validate51(data, { instancePath = "", parentData, parentDataProperty, rootData = data, dynamicAnchors = {} } = {}) {
     let vErrors = null;
-    let errors = 0;
+    let errors2 = 0;
     const evaluated0 = validate51.evaluated;
     if (evaluated0.dynamicProps) {
       evaluated0.props = undefined;
@@ -89892,9 +91278,9 @@ If omitted, explicit_bucket_histogram is used.
       validate51.errors = [{ instancePath, schemaPath: "#/type", keyword: "type", params: { type: schema68.type }, message: "must be object,null" }];
       return false;
     }
-    if (errors === 0) {
+    if (errors2 === 0) {
       if (data && typeof data == "object" && !Array.isArray(data)) {
-        const _errs1 = errors;
+        const _errs1 = errors2;
         for (const key0 in data) {
           if (!(key0 === "output_stream" || key0 === "temporality_preference" || key0 === "default_histogram_aggregation")) {
             validate51.errors = [{ instancePath, schemaPath: "#/additionalProperties", keyword: "additionalProperties", params: { additionalProperty: key0 }, message: "must NOT have additional properties" }];
@@ -89902,22 +91288,22 @@ If omitted, explicit_bucket_histogram is used.
             break;
           }
         }
-        if (_errs1 === errors) {
+        if (_errs1 === errors2) {
           if (data.output_stream !== undefined) {
             let data0 = data.output_stream;
-            const _errs2 = errors;
+            const _errs2 = errors2;
             if (typeof data0 !== "string" && data0 !== null) {
               validate51.errors = [{ instancePath: instancePath + "/output_stream", schemaPath: "#/properties/output_stream/type", keyword: "type", params: { type: schema68.properties.output_stream.type }, message: "must be string,null" }];
               return false;
             }
-            var valid0 = _errs2 === errors;
+            var valid0 = _errs2 === errors2;
           } else {
             var valid0 = true;
           }
           if (valid0) {
             if (data.temporality_preference !== undefined) {
               let data1 = data.temporality_preference;
-              const _errs4 = errors;
+              const _errs4 = errors2;
               if (typeof data1 !== "string" && data1 !== null) {
                 validate51.errors = [{ instancePath: instancePath + "/temporality_preference", schemaPath: "#/$defs/ExporterTemporalityPreference/type", keyword: "type", params: { type: schema61.type }, message: "must be string,null" }];
                 return false;
@@ -89926,14 +91312,14 @@ If omitted, explicit_bucket_histogram is used.
                 validate51.errors = [{ instancePath: instancePath + "/temporality_preference", schemaPath: "#/$defs/ExporterTemporalityPreference/enum", keyword: "enum", params: { allowedValues: schema61.enum }, message: "must be equal to one of the allowed values" }];
                 return false;
               }
-              var valid0 = _errs4 === errors;
+              var valid0 = _errs4 === errors2;
             } else {
               var valid0 = true;
             }
             if (valid0) {
               if (data.default_histogram_aggregation !== undefined) {
                 let data2 = data.default_histogram_aggregation;
-                const _errs7 = errors;
+                const _errs7 = errors2;
                 if (typeof data2 !== "string" && data2 !== null) {
                   validate51.errors = [{ instancePath: instancePath + "/default_histogram_aggregation", schemaPath: "#/$defs/ExporterDefaultHistogramAggregation/type", keyword: "type", params: { type: schema62.type }, message: "must be string,null" }];
                   return false;
@@ -89942,7 +91328,7 @@ If omitted, explicit_bucket_histogram is used.
                   validate51.errors = [{ instancePath: instancePath + "/default_histogram_aggregation", schemaPath: "#/$defs/ExporterDefaultHistogramAggregation/enum", keyword: "enum", params: { allowedValues: schema62.enum }, message: "must be equal to one of the allowed values" }];
                   return false;
                 }
-                var valid0 = _errs7 === errors;
+                var valid0 = _errs7 === errors2;
               } else {
                 var valid0 = true;
               }
@@ -89952,7 +91338,7 @@ If omitted, explicit_bucket_histogram is used.
       }
     }
     validate51.errors = vErrors;
-    return errors === 0;
+    return errors2 === 0;
   }
   validate51.evaluated = { props: true, dynamicProps: false, dynamicItems: false };
   var schema71 = { type: ["object", "null"], additionalProperties: false, properties: { temporality_preference: { $ref: "#/$defs/ExporterTemporalityPreference", description: `Configure temporality preference.
@@ -89969,7 +91355,7 @@ If omitted, explicit_bucket_histogram is used.
 ` } } };
   function validate53(data, { instancePath = "", parentData, parentDataProperty, rootData = data, dynamicAnchors = {} } = {}) {
     let vErrors = null;
-    let errors = 0;
+    let errors2 = 0;
     const evaluated0 = validate53.evaluated;
     if (evaluated0.dynamicProps) {
       evaluated0.props = undefined;
@@ -89981,9 +91367,9 @@ If omitted, explicit_bucket_histogram is used.
       validate53.errors = [{ instancePath, schemaPath: "#/type", keyword: "type", params: { type: schema71.type }, message: "must be object,null" }];
       return false;
     }
-    if (errors === 0) {
+    if (errors2 === 0) {
       if (data && typeof data == "object" && !Array.isArray(data)) {
-        const _errs1 = errors;
+        const _errs1 = errors2;
         for (const key0 in data) {
           if (!(key0 === "temporality_preference" || key0 === "default_histogram_aggregation")) {
             validate53.errors = [{ instancePath, schemaPath: "#/additionalProperties", keyword: "additionalProperties", params: { additionalProperty: key0 }, message: "must NOT have additional properties" }];
@@ -89991,10 +91377,10 @@ If omitted, explicit_bucket_histogram is used.
             break;
           }
         }
-        if (_errs1 === errors) {
+        if (_errs1 === errors2) {
           if (data.temporality_preference !== undefined) {
             let data0 = data.temporality_preference;
-            const _errs2 = errors;
+            const _errs2 = errors2;
             if (typeof data0 !== "string" && data0 !== null) {
               validate53.errors = [{ instancePath: instancePath + "/temporality_preference", schemaPath: "#/$defs/ExporterTemporalityPreference/type", keyword: "type", params: { type: schema61.type }, message: "must be string,null" }];
               return false;
@@ -90003,14 +91389,14 @@ If omitted, explicit_bucket_histogram is used.
               validate53.errors = [{ instancePath: instancePath + "/temporality_preference", schemaPath: "#/$defs/ExporterTemporalityPreference/enum", keyword: "enum", params: { allowedValues: schema61.enum }, message: "must be equal to one of the allowed values" }];
               return false;
             }
-            var valid0 = _errs2 === errors;
+            var valid0 = _errs2 === errors2;
           } else {
             var valid0 = true;
           }
           if (valid0) {
             if (data.default_histogram_aggregation !== undefined) {
               let data1 = data.default_histogram_aggregation;
-              const _errs5 = errors;
+              const _errs5 = errors2;
               if (typeof data1 !== "string" && data1 !== null) {
                 validate53.errors = [{ instancePath: instancePath + "/default_histogram_aggregation", schemaPath: "#/$defs/ExporterDefaultHistogramAggregation/type", keyword: "type", params: { type: schema62.type }, message: "must be string,null" }];
                 return false;
@@ -90019,7 +91405,7 @@ If omitted, explicit_bucket_histogram is used.
                 validate53.errors = [{ instancePath: instancePath + "/default_histogram_aggregation", schemaPath: "#/$defs/ExporterDefaultHistogramAggregation/enum", keyword: "enum", params: { allowedValues: schema62.enum }, message: "must be equal to one of the allowed values" }];
                 return false;
               }
-              var valid0 = _errs5 === errors;
+              var valid0 = _errs5 === errors2;
             } else {
               var valid0 = true;
             }
@@ -90028,12 +91414,12 @@ If omitted, explicit_bucket_histogram is used.
       }
     }
     validate53.errors = vErrors;
-    return errors === 0;
+    return errors2 === 0;
   }
   validate53.evaluated = { props: true, dynamicProps: false, dynamicItems: false };
   function validate46(data, { instancePath = "", parentData, parentDataProperty, rootData = data, dynamicAnchors = {} } = {}) {
     let vErrors = null;
-    let errors = 0;
+    let errors2 = 0;
     const evaluated0 = validate46.evaluated;
     if (evaluated0.dynamicProps) {
       evaluated0.props = undefined;
@@ -90041,7 +91427,7 @@ If omitted, explicit_bucket_histogram is used.
     if (evaluated0.dynamicItems) {
       evaluated0.items = undefined;
     }
-    if (errors === 0) {
+    if (errors2 === 0) {
       if (data && typeof data == "object" && !Array.isArray(data)) {
         if (Object.keys(data).length > 1) {
           validate46.errors = [{ instancePath, schemaPath: "#/maxProperties", keyword: "maxProperties", params: { limit: 1 }, message: "must NOT have more than 1 properties" }];
@@ -90051,62 +91437,62 @@ If omitted, explicit_bucket_histogram is used.
             validate46.errors = [{ instancePath, schemaPath: "#/minProperties", keyword: "minProperties", params: { limit: 1 }, message: "must NOT have fewer than 1 properties" }];
             return false;
           } else {
-            const _errs1 = errors;
+            const _errs1 = errors2;
             for (const key0 in data) {
               if (!(key0 === "otlp_http" || key0 === "otlp_grpc" || key0 === "otlp_file/development" || key0 === "console")) {
                 let data0 = data[key0];
-                const _errs2 = errors;
+                const _errs2 = errors2;
                 if (!(data0 && typeof data0 == "object" && !Array.isArray(data0)) && data0 !== null) {
                   validate46.errors = [{ instancePath: instancePath + "/" + key0.replace(/~/g, "~0").replace(/\//g, "~1"), schemaPath: "#/additionalProperties/type", keyword: "type", params: { type: schema56.additionalProperties.type }, message: "must be object,null" }];
                   return false;
                 }
-                var valid0 = _errs2 === errors;
+                var valid0 = _errs2 === errors2;
                 if (!valid0) {
                   break;
                 }
               }
             }
-            if (_errs1 === errors) {
+            if (_errs1 === errors2) {
               if (data.otlp_http !== undefined) {
-                const _errs4 = errors;
+                const _errs4 = errors2;
                 if (!validate47(data.otlp_http, { instancePath: instancePath + "/otlp_http", parentData: data, parentDataProperty: "otlp_http", rootData, dynamicAnchors })) {
                   vErrors = vErrors === null ? validate47.errors : vErrors.concat(validate47.errors);
-                  errors = vErrors.length;
+                  errors2 = vErrors.length;
                 }
-                var valid1 = _errs4 === errors;
+                var valid1 = _errs4 === errors2;
               } else {
                 var valid1 = true;
               }
               if (valid1) {
                 if (data.otlp_grpc !== undefined) {
-                  const _errs5 = errors;
+                  const _errs5 = errors2;
                   if (!validate49(data.otlp_grpc, { instancePath: instancePath + "/otlp_grpc", parentData: data, parentDataProperty: "otlp_grpc", rootData, dynamicAnchors })) {
                     vErrors = vErrors === null ? validate49.errors : vErrors.concat(validate49.errors);
-                    errors = vErrors.length;
+                    errors2 = vErrors.length;
                   }
-                  var valid1 = _errs5 === errors;
+                  var valid1 = _errs5 === errors2;
                 } else {
                   var valid1 = true;
                 }
                 if (valid1) {
                   if (data["otlp_file/development"] !== undefined) {
-                    const _errs6 = errors;
+                    const _errs6 = errors2;
                     if (!validate51(data["otlp_file/development"], { instancePath: instancePath + "/otlp_file~1development", parentData: data, parentDataProperty: "otlp_file/development", rootData, dynamicAnchors })) {
                       vErrors = vErrors === null ? validate51.errors : vErrors.concat(validate51.errors);
-                      errors = vErrors.length;
+                      errors2 = vErrors.length;
                     }
-                    var valid1 = _errs6 === errors;
+                    var valid1 = _errs6 === errors2;
                   } else {
                     var valid1 = true;
                   }
                   if (valid1) {
                     if (data.console !== undefined) {
-                      const _errs7 = errors;
+                      const _errs7 = errors2;
                       if (!validate53(data.console, { instancePath: instancePath + "/console", parentData: data, parentDataProperty: "console", rootData, dynamicAnchors })) {
                         vErrors = vErrors === null ? validate53.errors : vErrors.concat(validate53.errors);
-                        errors = vErrors.length;
+                        errors2 = vErrors.length;
                       }
-                      var valid1 = _errs7 === errors;
+                      var valid1 = _errs7 === errors2;
                     } else {
                       var valid1 = true;
                     }
@@ -90122,7 +91508,7 @@ If omitted, explicit_bucket_histogram is used.
       }
     }
     validate46.errors = vErrors;
-    return errors === 0;
+    return errors2 === 0;
   }
   validate46.evaluated = { props: true, dynamicProps: false, dynamicItems: false };
   var schema74 = { type: "object", additionalProperties: { type: ["object", "null"] }, minProperties: 1, maxProperties: 1, properties: { opencensus: { $ref: "#/$defs/OpenCensusMetricProducer", description: `Configure metric producer to be opencensus.
@@ -90131,7 +91517,7 @@ If omitted, ignore.
   var schema75 = { type: ["object", "null"], additionalProperties: false };
   function validate56(data, { instancePath = "", parentData, parentDataProperty, rootData = data, dynamicAnchors = {} } = {}) {
     let vErrors = null;
-    let errors = 0;
+    let errors2 = 0;
     const evaluated0 = validate56.evaluated;
     if (evaluated0.dynamicProps) {
       evaluated0.props = undefined;
@@ -90139,7 +91525,7 @@ If omitted, ignore.
     if (evaluated0.dynamicItems) {
       evaluated0.items = undefined;
     }
-    if (errors === 0) {
+    if (errors2 === 0) {
       if (data && typeof data == "object" && !Array.isArray(data)) {
         if (Object.keys(data).length > 1) {
           validate56.errors = [{ instancePath, schemaPath: "#/maxProperties", keyword: "maxProperties", params: { limit: 1 }, message: "must NOT have more than 1 properties" }];
@@ -90149,30 +91535,30 @@ If omitted, ignore.
             validate56.errors = [{ instancePath, schemaPath: "#/minProperties", keyword: "minProperties", params: { limit: 1 }, message: "must NOT have fewer than 1 properties" }];
             return false;
           } else {
-            const _errs1 = errors;
+            const _errs1 = errors2;
             for (const key0 in data) {
               if (!(key0 === "opencensus")) {
                 let data0 = data[key0];
-                const _errs2 = errors;
+                const _errs2 = errors2;
                 if (!(data0 && typeof data0 == "object" && !Array.isArray(data0)) && data0 !== null) {
                   validate56.errors = [{ instancePath: instancePath + "/" + key0.replace(/~/g, "~0").replace(/\//g, "~1"), schemaPath: "#/additionalProperties/type", keyword: "type", params: { type: schema74.additionalProperties.type }, message: "must be object,null" }];
                   return false;
                 }
-                var valid0 = _errs2 === errors;
+                var valid0 = _errs2 === errors2;
                 if (!valid0) {
                   break;
                 }
               }
             }
-            if (_errs1 === errors) {
+            if (_errs1 === errors2) {
               if (data.opencensus !== undefined) {
                 let data1 = data.opencensus;
-                const _errs5 = errors;
+                const _errs5 = errors2;
                 if (!(data1 && typeof data1 == "object" && !Array.isArray(data1)) && data1 !== null) {
                   validate56.errors = [{ instancePath: instancePath + "/opencensus", schemaPath: "#/$defs/OpenCensusMetricProducer/type", keyword: "type", params: { type: schema75.type }, message: "must be object,null" }];
                   return false;
                 }
-                if (errors === _errs5) {
+                if (errors2 === _errs5) {
                   if (data1 && typeof data1 == "object" && !Array.isArray(data1)) {
                     for (const key1 in data1) {
                       validate56.errors = [{ instancePath: instancePath + "/opencensus", schemaPath: "#/$defs/OpenCensusMetricProducer/additionalProperties", keyword: "additionalProperties", params: { additionalProperty: key1 }, message: "must NOT have additional properties" }];
@@ -90191,12 +91577,12 @@ If omitted, ignore.
       }
     }
     validate56.errors = vErrors;
-    return errors === 0;
+    return errors2 === 0;
   }
   validate56.evaluated = { props: true, dynamicProps: false, dynamicItems: false };
   function validate45(data, { instancePath = "", parentData, parentDataProperty, rootData = data, dynamicAnchors = {} } = {}) {
     let vErrors = null;
-    let errors = 0;
+    let errors2 = 0;
     const evaluated0 = validate45.evaluated;
     if (evaluated0.dynamicProps) {
       evaluated0.props = undefined;
@@ -90204,14 +91590,14 @@ If omitted, ignore.
     if (evaluated0.dynamicItems) {
       evaluated0.items = undefined;
     }
-    if (errors === 0) {
+    if (errors2 === 0) {
       if (data && typeof data == "object" && !Array.isArray(data)) {
         let missing0;
         if (data.exporter === undefined && (missing0 = "exporter")) {
           validate45.errors = [{ instancePath, schemaPath: "#/required", keyword: "required", params: { missingProperty: missing0 }, message: "must have required property '" + missing0 + "'" }];
           return false;
         } else {
-          const _errs1 = errors;
+          const _errs1 = errors2;
           for (const key0 in data) {
             if (!(key0 === "interval" || key0 === "timeout" || key0 === "exporter" || key0 === "producers" || key0 === "cardinality_limits")) {
               validate45.errors = [{ instancePath, schemaPath: "#/additionalProperties", keyword: "additionalProperties", params: { additionalProperty: key0 }, message: "must NOT have additional properties" }];
@@ -90219,15 +91605,15 @@ If omitted, ignore.
               break;
             }
           }
-          if (_errs1 === errors) {
+          if (_errs1 === errors2) {
             if (data.interval !== undefined) {
               let data0 = data.interval;
-              const _errs2 = errors;
+              const _errs2 = errors2;
               if (!(typeof data0 == "number" && (!(data0 % 1) && !isNaN(data0))) && data0 !== null) {
                 validate45.errors = [{ instancePath: instancePath + "/interval", schemaPath: "#/properties/interval/type", keyword: "type", params: { type: schema55.properties.interval.type }, message: "must be integer,null" }];
                 return false;
               }
-              if (errors === _errs2) {
+              if (errors2 === _errs2) {
                 if (typeof data0 == "number") {
                   if (data0 < 0 || isNaN(data0)) {
                     validate45.errors = [{ instancePath: instancePath + "/interval", schemaPath: "#/properties/interval/minimum", keyword: "minimum", params: { comparison: ">=", limit: 0 }, message: "must be >= 0" }];
@@ -90235,19 +91621,19 @@ If omitted, ignore.
                   }
                 }
               }
-              var valid0 = _errs2 === errors;
+              var valid0 = _errs2 === errors2;
             } else {
               var valid0 = true;
             }
             if (valid0) {
               if (data.timeout !== undefined) {
                 let data1 = data.timeout;
-                const _errs4 = errors;
+                const _errs4 = errors2;
                 if (!(typeof data1 == "number" && (!(data1 % 1) && !isNaN(data1))) && data1 !== null) {
                   validate45.errors = [{ instancePath: instancePath + "/timeout", schemaPath: "#/properties/timeout/type", keyword: "type", params: { type: schema55.properties.timeout.type }, message: "must be integer,null" }];
                   return false;
                 }
-                if (errors === _errs4) {
+                if (errors2 === _errs4) {
                   if (typeof data1 == "number") {
                     if (data1 < 0 || isNaN(data1)) {
                       validate45.errors = [{ instancePath: instancePath + "/timeout", schemaPath: "#/properties/timeout/minimum", keyword: "minimum", params: { comparison: ">=", limit: 0 }, message: "must be >= 0" }];
@@ -90255,26 +91641,26 @@ If omitted, ignore.
                     }
                   }
                 }
-                var valid0 = _errs4 === errors;
+                var valid0 = _errs4 === errors2;
               } else {
                 var valid0 = true;
               }
               if (valid0) {
                 if (data.exporter !== undefined) {
-                  const _errs6 = errors;
+                  const _errs6 = errors2;
                   if (!validate46(data.exporter, { instancePath: instancePath + "/exporter", parentData: data, parentDataProperty: "exporter", rootData, dynamicAnchors })) {
                     vErrors = vErrors === null ? validate46.errors : vErrors.concat(validate46.errors);
-                    errors = vErrors.length;
+                    errors2 = vErrors.length;
                   }
-                  var valid0 = _errs6 === errors;
+                  var valid0 = _errs6 === errors2;
                 } else {
                   var valid0 = true;
                 }
                 if (valid0) {
                   if (data.producers !== undefined) {
                     let data3 = data.producers;
-                    const _errs7 = errors;
-                    if (errors === _errs7) {
+                    const _errs7 = errors2;
+                    if (errors2 === _errs7) {
                       if (Array.isArray(data3)) {
                         if (data3.length < 1) {
                           validate45.errors = [{ instancePath: instancePath + "/producers", schemaPath: "#/properties/producers/minItems", keyword: "minItems", params: { limit: 1 }, message: "must NOT have fewer than 1 items" }];
@@ -90283,12 +91669,12 @@ If omitted, ignore.
                           var valid1 = true;
                           const len0 = data3.length;
                           for (let i0 = 0;i0 < len0; i0++) {
-                            const _errs9 = errors;
+                            const _errs9 = errors2;
                             if (!validate56(data3[i0], { instancePath: instancePath + "/producers/" + i0, parentData: data3, parentDataProperty: i0, rootData, dynamicAnchors })) {
                               vErrors = vErrors === null ? validate56.errors : vErrors.concat(validate56.errors);
-                              errors = vErrors.length;
+                              errors2 = vErrors.length;
                             }
-                            var valid1 = _errs9 === errors;
+                            var valid1 = _errs9 === errors2;
                             if (!valid1) {
                               break;
                             }
@@ -90299,18 +91685,18 @@ If omitted, ignore.
                         return false;
                       }
                     }
-                    var valid0 = _errs7 === errors;
+                    var valid0 = _errs7 === errors2;
                   } else {
                     var valid0 = true;
                   }
                   if (valid0) {
                     if (data.cardinality_limits !== undefined) {
                       let data5 = data.cardinality_limits;
-                      const _errs10 = errors;
-                      const _errs11 = errors;
-                      if (errors === _errs11) {
+                      const _errs10 = errors2;
+                      const _errs11 = errors2;
+                      if (errors2 === _errs11) {
                         if (data5 && typeof data5 == "object" && !Array.isArray(data5)) {
-                          const _errs13 = errors;
+                          const _errs13 = errors2;
                           for (const key1 in data5) {
                             if (!(key1 === "default" || key1 === "counter" || key1 === "gauge" || key1 === "histogram" || key1 === "observable_counter" || key1 === "observable_gauge" || key1 === "observable_up_down_counter" || key1 === "up_down_counter")) {
                               validate45.errors = [{ instancePath: instancePath + "/cardinality_limits", schemaPath: "#/$defs/CardinalityLimits/additionalProperties", keyword: "additionalProperties", params: { additionalProperty: key1 }, message: "must NOT have additional properties" }];
@@ -90318,15 +91704,15 @@ If omitted, ignore.
                               break;
                             }
                           }
-                          if (_errs13 === errors) {
+                          if (_errs13 === errors2) {
                             if (data5.default !== undefined) {
                               let data6 = data5.default;
-                              const _errs14 = errors;
+                              const _errs14 = errors2;
                               if (!(typeof data6 == "number" && (!(data6 % 1) && !isNaN(data6))) && data6 !== null) {
                                 validate45.errors = [{ instancePath: instancePath + "/cardinality_limits/default", schemaPath: "#/$defs/CardinalityLimits/properties/default/type", keyword: "type", params: { type: schema76.properties.default.type }, message: "must be integer,null" }];
                                 return false;
                               }
-                              if (errors === _errs14) {
+                              if (errors2 === _errs14) {
                                 if (typeof data6 == "number") {
                                   if (data6 <= 0 || isNaN(data6)) {
                                     validate45.errors = [{ instancePath: instancePath + "/cardinality_limits/default", schemaPath: "#/$defs/CardinalityLimits/properties/default/exclusiveMinimum", keyword: "exclusiveMinimum", params: { comparison: ">", limit: 0 }, message: "must be > 0" }];
@@ -90334,19 +91720,19 @@ If omitted, ignore.
                                   }
                                 }
                               }
-                              var valid3 = _errs14 === errors;
+                              var valid3 = _errs14 === errors2;
                             } else {
                               var valid3 = true;
                             }
                             if (valid3) {
                               if (data5.counter !== undefined) {
                                 let data7 = data5.counter;
-                                const _errs16 = errors;
+                                const _errs16 = errors2;
                                 if (!(typeof data7 == "number" && (!(data7 % 1) && !isNaN(data7))) && data7 !== null) {
                                   validate45.errors = [{ instancePath: instancePath + "/cardinality_limits/counter", schemaPath: "#/$defs/CardinalityLimits/properties/counter/type", keyword: "type", params: { type: schema76.properties.counter.type }, message: "must be integer,null" }];
                                   return false;
                                 }
-                                if (errors === _errs16) {
+                                if (errors2 === _errs16) {
                                   if (typeof data7 == "number") {
                                     if (data7 <= 0 || isNaN(data7)) {
                                       validate45.errors = [{ instancePath: instancePath + "/cardinality_limits/counter", schemaPath: "#/$defs/CardinalityLimits/properties/counter/exclusiveMinimum", keyword: "exclusiveMinimum", params: { comparison: ">", limit: 0 }, message: "must be > 0" }];
@@ -90354,19 +91740,19 @@ If omitted, ignore.
                                     }
                                   }
                                 }
-                                var valid3 = _errs16 === errors;
+                                var valid3 = _errs16 === errors2;
                               } else {
                                 var valid3 = true;
                               }
                               if (valid3) {
                                 if (data5.gauge !== undefined) {
                                   let data8 = data5.gauge;
-                                  const _errs18 = errors;
+                                  const _errs18 = errors2;
                                   if (!(typeof data8 == "number" && (!(data8 % 1) && !isNaN(data8))) && data8 !== null) {
                                     validate45.errors = [{ instancePath: instancePath + "/cardinality_limits/gauge", schemaPath: "#/$defs/CardinalityLimits/properties/gauge/type", keyword: "type", params: { type: schema76.properties.gauge.type }, message: "must be integer,null" }];
                                     return false;
                                   }
-                                  if (errors === _errs18) {
+                                  if (errors2 === _errs18) {
                                     if (typeof data8 == "number") {
                                       if (data8 <= 0 || isNaN(data8)) {
                                         validate45.errors = [{ instancePath: instancePath + "/cardinality_limits/gauge", schemaPath: "#/$defs/CardinalityLimits/properties/gauge/exclusiveMinimum", keyword: "exclusiveMinimum", params: { comparison: ">", limit: 0 }, message: "must be > 0" }];
@@ -90374,19 +91760,19 @@ If omitted, ignore.
                                       }
                                     }
                                   }
-                                  var valid3 = _errs18 === errors;
+                                  var valid3 = _errs18 === errors2;
                                 } else {
                                   var valid3 = true;
                                 }
                                 if (valid3) {
                                   if (data5.histogram !== undefined) {
                                     let data9 = data5.histogram;
-                                    const _errs20 = errors;
+                                    const _errs20 = errors2;
                                     if (!(typeof data9 == "number" && (!(data9 % 1) && !isNaN(data9))) && data9 !== null) {
                                       validate45.errors = [{ instancePath: instancePath + "/cardinality_limits/histogram", schemaPath: "#/$defs/CardinalityLimits/properties/histogram/type", keyword: "type", params: { type: schema76.properties.histogram.type }, message: "must be integer,null" }];
                                       return false;
                                     }
-                                    if (errors === _errs20) {
+                                    if (errors2 === _errs20) {
                                       if (typeof data9 == "number") {
                                         if (data9 <= 0 || isNaN(data9)) {
                                           validate45.errors = [{ instancePath: instancePath + "/cardinality_limits/histogram", schemaPath: "#/$defs/CardinalityLimits/properties/histogram/exclusiveMinimum", keyword: "exclusiveMinimum", params: { comparison: ">", limit: 0 }, message: "must be > 0" }];
@@ -90394,19 +91780,19 @@ If omitted, ignore.
                                         }
                                       }
                                     }
-                                    var valid3 = _errs20 === errors;
+                                    var valid3 = _errs20 === errors2;
                                   } else {
                                     var valid3 = true;
                                   }
                                   if (valid3) {
                                     if (data5.observable_counter !== undefined) {
                                       let data10 = data5.observable_counter;
-                                      const _errs22 = errors;
+                                      const _errs22 = errors2;
                                       if (!(typeof data10 == "number" && (!(data10 % 1) && !isNaN(data10))) && data10 !== null) {
                                         validate45.errors = [{ instancePath: instancePath + "/cardinality_limits/observable_counter", schemaPath: "#/$defs/CardinalityLimits/properties/observable_counter/type", keyword: "type", params: { type: schema76.properties.observable_counter.type }, message: "must be integer,null" }];
                                         return false;
                                       }
-                                      if (errors === _errs22) {
+                                      if (errors2 === _errs22) {
                                         if (typeof data10 == "number") {
                                           if (data10 <= 0 || isNaN(data10)) {
                                             validate45.errors = [{ instancePath: instancePath + "/cardinality_limits/observable_counter", schemaPath: "#/$defs/CardinalityLimits/properties/observable_counter/exclusiveMinimum", keyword: "exclusiveMinimum", params: { comparison: ">", limit: 0 }, message: "must be > 0" }];
@@ -90414,19 +91800,19 @@ If omitted, ignore.
                                           }
                                         }
                                       }
-                                      var valid3 = _errs22 === errors;
+                                      var valid3 = _errs22 === errors2;
                                     } else {
                                       var valid3 = true;
                                     }
                                     if (valid3) {
                                       if (data5.observable_gauge !== undefined) {
                                         let data11 = data5.observable_gauge;
-                                        const _errs24 = errors;
+                                        const _errs24 = errors2;
                                         if (!(typeof data11 == "number" && (!(data11 % 1) && !isNaN(data11))) && data11 !== null) {
                                           validate45.errors = [{ instancePath: instancePath + "/cardinality_limits/observable_gauge", schemaPath: "#/$defs/CardinalityLimits/properties/observable_gauge/type", keyword: "type", params: { type: schema76.properties.observable_gauge.type }, message: "must be integer,null" }];
                                           return false;
                                         }
-                                        if (errors === _errs24) {
+                                        if (errors2 === _errs24) {
                                           if (typeof data11 == "number") {
                                             if (data11 <= 0 || isNaN(data11)) {
                                               validate45.errors = [{ instancePath: instancePath + "/cardinality_limits/observable_gauge", schemaPath: "#/$defs/CardinalityLimits/properties/observable_gauge/exclusiveMinimum", keyword: "exclusiveMinimum", params: { comparison: ">", limit: 0 }, message: "must be > 0" }];
@@ -90434,19 +91820,19 @@ If omitted, ignore.
                                             }
                                           }
                                         }
-                                        var valid3 = _errs24 === errors;
+                                        var valid3 = _errs24 === errors2;
                                       } else {
                                         var valid3 = true;
                                       }
                                       if (valid3) {
                                         if (data5.observable_up_down_counter !== undefined) {
                                           let data12 = data5.observable_up_down_counter;
-                                          const _errs26 = errors;
+                                          const _errs26 = errors2;
                                           if (!(typeof data12 == "number" && (!(data12 % 1) && !isNaN(data12))) && data12 !== null) {
                                             validate45.errors = [{ instancePath: instancePath + "/cardinality_limits/observable_up_down_counter", schemaPath: "#/$defs/CardinalityLimits/properties/observable_up_down_counter/type", keyword: "type", params: { type: schema76.properties.observable_up_down_counter.type }, message: "must be integer,null" }];
                                             return false;
                                           }
-                                          if (errors === _errs26) {
+                                          if (errors2 === _errs26) {
                                             if (typeof data12 == "number") {
                                               if (data12 <= 0 || isNaN(data12)) {
                                                 validate45.errors = [{ instancePath: instancePath + "/cardinality_limits/observable_up_down_counter", schemaPath: "#/$defs/CardinalityLimits/properties/observable_up_down_counter/exclusiveMinimum", keyword: "exclusiveMinimum", params: { comparison: ">", limit: 0 }, message: "must be > 0" }];
@@ -90454,19 +91840,19 @@ If omitted, ignore.
                                               }
                                             }
                                           }
-                                          var valid3 = _errs26 === errors;
+                                          var valid3 = _errs26 === errors2;
                                         } else {
                                           var valid3 = true;
                                         }
                                         if (valid3) {
                                           if (data5.up_down_counter !== undefined) {
                                             let data13 = data5.up_down_counter;
-                                            const _errs28 = errors;
+                                            const _errs28 = errors2;
                                             if (!(typeof data13 == "number" && (!(data13 % 1) && !isNaN(data13))) && data13 !== null) {
                                               validate45.errors = [{ instancePath: instancePath + "/cardinality_limits/up_down_counter", schemaPath: "#/$defs/CardinalityLimits/properties/up_down_counter/type", keyword: "type", params: { type: schema76.properties.up_down_counter.type }, message: "must be integer,null" }];
                                               return false;
                                             }
-                                            if (errors === _errs28) {
+                                            if (errors2 === _errs28) {
                                               if (typeof data13 == "number") {
                                                 if (data13 <= 0 || isNaN(data13)) {
                                                   validate45.errors = [{ instancePath: instancePath + "/cardinality_limits/up_down_counter", schemaPath: "#/$defs/CardinalityLimits/properties/up_down_counter/exclusiveMinimum", keyword: "exclusiveMinimum", params: { comparison: ">", limit: 0 }, message: "must be > 0" }];
@@ -90474,7 +91860,7 @@ If omitted, ignore.
                                                 }
                                               }
                                             }
-                                            var valid3 = _errs28 === errors;
+                                            var valid3 = _errs28 === errors2;
                                           } else {
                                             var valid3 = true;
                                           }
@@ -90491,7 +91877,7 @@ If omitted, ignore.
                           return false;
                         }
                       }
-                      var valid0 = _errs10 === errors;
+                      var valid0 = _errs10 === errors2;
                     } else {
                       var valid0 = true;
                     }
@@ -90507,7 +91893,7 @@ If omitted, ignore.
       }
     }
     validate45.errors = vErrors;
-    return errors === 0;
+    return errors2 === 0;
   }
   validate45.evaluated = { props: true, dynamicProps: false, dynamicItems: false };
   var schema78 = { type: "object", additionalProperties: { type: ["object", "null"] }, minProperties: 1, maxProperties: 1, properties: { "prometheus/development": { $ref: "#/$defs/ExperimentalPrometheusMetricExporter", description: `Configure exporter to be prometheus.
@@ -90534,7 +91920,7 @@ If omitted, underscore_escaping_with_suffixes is used.
   var schema81 = { type: ["string", "null"], enum: ["underscore_escaping_with_suffixes", "underscore_escaping_without_suffixes/development", "no_utf8_escaping_with_suffixes/development", "no_translation/development"] };
   function validate61(data, { instancePath = "", parentData, parentDataProperty, rootData = data, dynamicAnchors = {} } = {}) {
     let vErrors = null;
-    let errors = 0;
+    let errors2 = 0;
     const evaluated0 = validate61.evaluated;
     if (evaluated0.dynamicProps) {
       evaluated0.props = undefined;
@@ -90546,9 +91932,9 @@ If omitted, underscore_escaping_with_suffixes is used.
       validate61.errors = [{ instancePath, schemaPath: "#/type", keyword: "type", params: { type: schema79.type }, message: "must be object,null" }];
       return false;
     }
-    if (errors === 0) {
+    if (errors2 === 0) {
       if (data && typeof data == "object" && !Array.isArray(data)) {
-        const _errs1 = errors;
+        const _errs1 = errors2;
         for (const key0 in data) {
           if (!(key0 === "host" || key0 === "port" || key0 === "without_scope_info" || key0 === "without_target_info/development" || key0 === "with_resource_constant_labels" || key0 === "translation_strategy")) {
             validate61.errors = [{ instancePath, schemaPath: "#/additionalProperties", keyword: "additionalProperties", params: { additionalProperty: key0 }, message: "must NOT have additional properties" }];
@@ -90556,62 +91942,62 @@ If omitted, underscore_escaping_with_suffixes is used.
             break;
           }
         }
-        if (_errs1 === errors) {
+        if (_errs1 === errors2) {
           if (data.host !== undefined) {
             let data0 = data.host;
-            const _errs2 = errors;
+            const _errs2 = errors2;
             if (typeof data0 !== "string" && data0 !== null) {
               validate61.errors = [{ instancePath: instancePath + "/host", schemaPath: "#/properties/host/type", keyword: "type", params: { type: schema79.properties.host.type }, message: "must be string,null" }];
               return false;
             }
-            var valid0 = _errs2 === errors;
+            var valid0 = _errs2 === errors2;
           } else {
             var valid0 = true;
           }
           if (valid0) {
             if (data.port !== undefined) {
               let data1 = data.port;
-              const _errs4 = errors;
+              const _errs4 = errors2;
               if (!(typeof data1 == "number" && (!(data1 % 1) && !isNaN(data1))) && data1 !== null) {
                 validate61.errors = [{ instancePath: instancePath + "/port", schemaPath: "#/properties/port/type", keyword: "type", params: { type: schema79.properties.port.type }, message: "must be integer,null" }];
                 return false;
               }
-              var valid0 = _errs4 === errors;
+              var valid0 = _errs4 === errors2;
             } else {
               var valid0 = true;
             }
             if (valid0) {
               if (data.without_scope_info !== undefined) {
                 let data2 = data.without_scope_info;
-                const _errs6 = errors;
+                const _errs6 = errors2;
                 if (typeof data2 !== "boolean" && data2 !== null) {
                   validate61.errors = [{ instancePath: instancePath + "/without_scope_info", schemaPath: "#/properties/without_scope_info/type", keyword: "type", params: { type: schema79.properties.without_scope_info.type }, message: "must be boolean,null" }];
                   return false;
                 }
-                var valid0 = _errs6 === errors;
+                var valid0 = _errs6 === errors2;
               } else {
                 var valid0 = true;
               }
               if (valid0) {
                 if (data["without_target_info/development"] !== undefined) {
                   let data3 = data["without_target_info/development"];
-                  const _errs8 = errors;
+                  const _errs8 = errors2;
                   if (typeof data3 !== "boolean" && data3 !== null) {
                     validate61.errors = [{ instancePath: instancePath + "/without_target_info~1development", schemaPath: "#/properties/without_target_info~1development/type", keyword: "type", params: { type: schema79.properties["without_target_info/development"].type }, message: "must be boolean,null" }];
                     return false;
                   }
-                  var valid0 = _errs8 === errors;
+                  var valid0 = _errs8 === errors2;
                 } else {
                   var valid0 = true;
                 }
                 if (valid0) {
                   if (data.with_resource_constant_labels !== undefined) {
                     let data4 = data.with_resource_constant_labels;
-                    const _errs10 = errors;
-                    const _errs11 = errors;
-                    if (errors === _errs11) {
+                    const _errs10 = errors2;
+                    const _errs11 = errors2;
+                    if (errors2 === _errs11) {
                       if (data4 && typeof data4 == "object" && !Array.isArray(data4)) {
-                        const _errs13 = errors;
+                        const _errs13 = errors2;
                         for (const key1 in data4) {
                           if (!(key1 === "included" || key1 === "excluded")) {
                             validate61.errors = [{ instancePath: instancePath + "/with_resource_constant_labels", schemaPath: "#/$defs/IncludeExclude/additionalProperties", keyword: "additionalProperties", params: { additionalProperty: key1 }, message: "must NOT have additional properties" }];
@@ -90619,11 +92005,11 @@ If omitted, underscore_escaping_with_suffixes is used.
                             break;
                           }
                         }
-                        if (_errs13 === errors) {
+                        if (_errs13 === errors2) {
                           if (data4.included !== undefined) {
                             let data5 = data4.included;
-                            const _errs14 = errors;
-                            if (errors === _errs14) {
+                            const _errs14 = errors2;
+                            if (errors2 === _errs14) {
                               if (Array.isArray(data5)) {
                                 if (data5.length < 1) {
                                   validate61.errors = [{ instancePath: instancePath + "/with_resource_constant_labels/included", schemaPath: "#/$defs/IncludeExclude/properties/included/minItems", keyword: "minItems", params: { limit: 1 }, message: "must NOT have fewer than 1 items" }];
@@ -90632,12 +92018,12 @@ If omitted, underscore_escaping_with_suffixes is used.
                                   var valid3 = true;
                                   const len0 = data5.length;
                                   for (let i0 = 0;i0 < len0; i0++) {
-                                    const _errs16 = errors;
+                                    const _errs16 = errors2;
                                     if (typeof data5[i0] !== "string") {
                                       validate61.errors = [{ instancePath: instancePath + "/with_resource_constant_labels/included/" + i0, schemaPath: "#/$defs/IncludeExclude/properties/included/items/type", keyword: "type", params: { type: "string" }, message: "must be string" }];
                                       return false;
                                     }
-                                    var valid3 = _errs16 === errors;
+                                    var valid3 = _errs16 === errors2;
                                     if (!valid3) {
                                       break;
                                     }
@@ -90648,15 +92034,15 @@ If omitted, underscore_escaping_with_suffixes is used.
                                 return false;
                               }
                             }
-                            var valid2 = _errs14 === errors;
+                            var valid2 = _errs14 === errors2;
                           } else {
                             var valid2 = true;
                           }
                           if (valid2) {
                             if (data4.excluded !== undefined) {
                               let data7 = data4.excluded;
-                              const _errs18 = errors;
-                              if (errors === _errs18) {
+                              const _errs18 = errors2;
+                              if (errors2 === _errs18) {
                                 if (Array.isArray(data7)) {
                                   if (data7.length < 1) {
                                     validate61.errors = [{ instancePath: instancePath + "/with_resource_constant_labels/excluded", schemaPath: "#/$defs/IncludeExclude/properties/excluded/minItems", keyword: "minItems", params: { limit: 1 }, message: "must NOT have fewer than 1 items" }];
@@ -90665,12 +92051,12 @@ If omitted, underscore_escaping_with_suffixes is used.
                                     var valid4 = true;
                                     const len1 = data7.length;
                                     for (let i1 = 0;i1 < len1; i1++) {
-                                      const _errs20 = errors;
+                                      const _errs20 = errors2;
                                       if (typeof data7[i1] !== "string") {
                                         validate61.errors = [{ instancePath: instancePath + "/with_resource_constant_labels/excluded/" + i1, schemaPath: "#/$defs/IncludeExclude/properties/excluded/items/type", keyword: "type", params: { type: "string" }, message: "must be string" }];
                                         return false;
                                       }
-                                      var valid4 = _errs20 === errors;
+                                      var valid4 = _errs20 === errors2;
                                       if (!valid4) {
                                         break;
                                       }
@@ -90681,7 +92067,7 @@ If omitted, underscore_escaping_with_suffixes is used.
                                   return false;
                                 }
                               }
-                              var valid2 = _errs18 === errors;
+                              var valid2 = _errs18 === errors2;
                             } else {
                               var valid2 = true;
                             }
@@ -90692,14 +92078,14 @@ If omitted, underscore_escaping_with_suffixes is used.
                         return false;
                       }
                     }
-                    var valid0 = _errs10 === errors;
+                    var valid0 = _errs10 === errors2;
                   } else {
                     var valid0 = true;
                   }
                   if (valid0) {
                     if (data.translation_strategy !== undefined) {
                       let data9 = data.translation_strategy;
-                      const _errs22 = errors;
+                      const _errs22 = errors2;
                       if (typeof data9 !== "string" && data9 !== null) {
                         validate61.errors = [{ instancePath: instancePath + "/translation_strategy", schemaPath: "#/$defs/ExperimentalPrometheusTranslationStrategy/type", keyword: "type", params: { type: schema81.type }, message: "must be string,null" }];
                         return false;
@@ -90708,7 +92094,7 @@ If omitted, underscore_escaping_with_suffixes is used.
                         validate61.errors = [{ instancePath: instancePath + "/translation_strategy", schemaPath: "#/$defs/ExperimentalPrometheusTranslationStrategy/enum", keyword: "enum", params: { allowedValues: schema81.enum }, message: "must be equal to one of the allowed values" }];
                         return false;
                       }
-                      var valid0 = _errs22 === errors;
+                      var valid0 = _errs22 === errors2;
                     } else {
                       var valid0 = true;
                     }
@@ -90721,12 +92107,12 @@ If omitted, underscore_escaping_with_suffixes is used.
       }
     }
     validate61.errors = vErrors;
-    return errors === 0;
+    return errors2 === 0;
   }
   validate61.evaluated = { props: true, dynamicProps: false, dynamicItems: false };
   function validate60(data, { instancePath = "", parentData, parentDataProperty, rootData = data, dynamicAnchors = {} } = {}) {
     let vErrors = null;
-    let errors = 0;
+    let errors2 = 0;
     const evaluated0 = validate60.evaluated;
     if (evaluated0.dynamicProps) {
       evaluated0.props = undefined;
@@ -90734,7 +92120,7 @@ If omitted, underscore_escaping_with_suffixes is used.
     if (evaluated0.dynamicItems) {
       evaluated0.items = undefined;
     }
-    if (errors === 0) {
+    if (errors2 === 0) {
       if (data && typeof data == "object" && !Array.isArray(data)) {
         if (Object.keys(data).length > 1) {
           validate60.errors = [{ instancePath, schemaPath: "#/maxProperties", keyword: "maxProperties", params: { limit: 1 }, message: "must NOT have more than 1 properties" }];
@@ -90744,26 +92130,26 @@ If omitted, underscore_escaping_with_suffixes is used.
             validate60.errors = [{ instancePath, schemaPath: "#/minProperties", keyword: "minProperties", params: { limit: 1 }, message: "must NOT have fewer than 1 properties" }];
             return false;
           } else {
-            const _errs1 = errors;
+            const _errs1 = errors2;
             for (const key0 in data) {
               if (!(key0 === "prometheus/development")) {
                 let data0 = data[key0];
-                const _errs2 = errors;
+                const _errs2 = errors2;
                 if (!(data0 && typeof data0 == "object" && !Array.isArray(data0)) && data0 !== null) {
                   validate60.errors = [{ instancePath: instancePath + "/" + key0.replace(/~/g, "~0").replace(/\//g, "~1"), schemaPath: "#/additionalProperties/type", keyword: "type", params: { type: schema78.additionalProperties.type }, message: "must be object,null" }];
                   return false;
                 }
-                var valid0 = _errs2 === errors;
+                var valid0 = _errs2 === errors2;
                 if (!valid0) {
                   break;
                 }
               }
             }
-            if (_errs1 === errors) {
+            if (_errs1 === errors2) {
               if (data["prometheus/development"] !== undefined) {
                 if (!validate61(data["prometheus/development"], { instancePath: instancePath + "/prometheus~1development", parentData: data, parentDataProperty: "prometheus/development", rootData, dynamicAnchors })) {
                   vErrors = vErrors === null ? validate61.errors : vErrors.concat(validate61.errors);
-                  errors = vErrors.length;
+                  errors2 = vErrors.length;
                 }
               }
             }
@@ -90775,12 +92161,12 @@ If omitted, underscore_escaping_with_suffixes is used.
       }
     }
     validate60.errors = vErrors;
-    return errors === 0;
+    return errors2 === 0;
   }
   validate60.evaluated = { props: true, dynamicProps: false, dynamicItems: false };
   function validate59(data, { instancePath = "", parentData, parentDataProperty, rootData = data, dynamicAnchors = {} } = {}) {
     let vErrors = null;
-    let errors = 0;
+    let errors2 = 0;
     const evaluated0 = validate59.evaluated;
     if (evaluated0.dynamicProps) {
       evaluated0.props = undefined;
@@ -90788,14 +92174,14 @@ If omitted, underscore_escaping_with_suffixes is used.
     if (evaluated0.dynamicItems) {
       evaluated0.items = undefined;
     }
-    if (errors === 0) {
+    if (errors2 === 0) {
       if (data && typeof data == "object" && !Array.isArray(data)) {
         let missing0;
         if (data.exporter === undefined && (missing0 = "exporter")) {
           validate59.errors = [{ instancePath, schemaPath: "#/required", keyword: "required", params: { missingProperty: missing0 }, message: "must have required property '" + missing0 + "'" }];
           return false;
         } else {
-          const _errs1 = errors;
+          const _errs1 = errors2;
           for (const key0 in data) {
             if (!(key0 === "exporter" || key0 === "producers" || key0 === "cardinality_limits")) {
               validate59.errors = [{ instancePath, schemaPath: "#/additionalProperties", keyword: "additionalProperties", params: { additionalProperty: key0 }, message: "must NOT have additional properties" }];
@@ -90803,22 +92189,22 @@ If omitted, underscore_escaping_with_suffixes is used.
               break;
             }
           }
-          if (_errs1 === errors) {
+          if (_errs1 === errors2) {
             if (data.exporter !== undefined) {
-              const _errs2 = errors;
+              const _errs2 = errors2;
               if (!validate60(data.exporter, { instancePath: instancePath + "/exporter", parentData: data, parentDataProperty: "exporter", rootData, dynamicAnchors })) {
                 vErrors = vErrors === null ? validate60.errors : vErrors.concat(validate60.errors);
-                errors = vErrors.length;
+                errors2 = vErrors.length;
               }
-              var valid0 = _errs2 === errors;
+              var valid0 = _errs2 === errors2;
             } else {
               var valid0 = true;
             }
             if (valid0) {
               if (data.producers !== undefined) {
                 let data1 = data.producers;
-                const _errs3 = errors;
-                if (errors === _errs3) {
+                const _errs3 = errors2;
+                if (errors2 === _errs3) {
                   if (Array.isArray(data1)) {
                     if (data1.length < 1) {
                       validate59.errors = [{ instancePath: instancePath + "/producers", schemaPath: "#/properties/producers/minItems", keyword: "minItems", params: { limit: 1 }, message: "must NOT have fewer than 1 items" }];
@@ -90827,12 +92213,12 @@ If omitted, underscore_escaping_with_suffixes is used.
                       var valid1 = true;
                       const len0 = data1.length;
                       for (let i0 = 0;i0 < len0; i0++) {
-                        const _errs5 = errors;
+                        const _errs5 = errors2;
                         if (!validate56(data1[i0], { instancePath: instancePath + "/producers/" + i0, parentData: data1, parentDataProperty: i0, rootData, dynamicAnchors })) {
                           vErrors = vErrors === null ? validate56.errors : vErrors.concat(validate56.errors);
-                          errors = vErrors.length;
+                          errors2 = vErrors.length;
                         }
-                        var valid1 = _errs5 === errors;
+                        var valid1 = _errs5 === errors2;
                         if (!valid1) {
                           break;
                         }
@@ -90843,18 +92229,18 @@ If omitted, underscore_escaping_with_suffixes is used.
                     return false;
                   }
                 }
-                var valid0 = _errs3 === errors;
+                var valid0 = _errs3 === errors2;
               } else {
                 var valid0 = true;
               }
               if (valid0) {
                 if (data.cardinality_limits !== undefined) {
                   let data3 = data.cardinality_limits;
-                  const _errs6 = errors;
-                  const _errs7 = errors;
-                  if (errors === _errs7) {
+                  const _errs6 = errors2;
+                  const _errs7 = errors2;
+                  if (errors2 === _errs7) {
                     if (data3 && typeof data3 == "object" && !Array.isArray(data3)) {
-                      const _errs9 = errors;
+                      const _errs9 = errors2;
                       for (const key1 in data3) {
                         if (!(key1 === "default" || key1 === "counter" || key1 === "gauge" || key1 === "histogram" || key1 === "observable_counter" || key1 === "observable_gauge" || key1 === "observable_up_down_counter" || key1 === "up_down_counter")) {
                           validate59.errors = [{ instancePath: instancePath + "/cardinality_limits", schemaPath: "#/$defs/CardinalityLimits/additionalProperties", keyword: "additionalProperties", params: { additionalProperty: key1 }, message: "must NOT have additional properties" }];
@@ -90862,15 +92248,15 @@ If omitted, underscore_escaping_with_suffixes is used.
                           break;
                         }
                       }
-                      if (_errs9 === errors) {
+                      if (_errs9 === errors2) {
                         if (data3.default !== undefined) {
                           let data4 = data3.default;
-                          const _errs10 = errors;
+                          const _errs10 = errors2;
                           if (!(typeof data4 == "number" && (!(data4 % 1) && !isNaN(data4))) && data4 !== null) {
                             validate59.errors = [{ instancePath: instancePath + "/cardinality_limits/default", schemaPath: "#/$defs/CardinalityLimits/properties/default/type", keyword: "type", params: { type: schema76.properties.default.type }, message: "must be integer,null" }];
                             return false;
                           }
-                          if (errors === _errs10) {
+                          if (errors2 === _errs10) {
                             if (typeof data4 == "number") {
                               if (data4 <= 0 || isNaN(data4)) {
                                 validate59.errors = [{ instancePath: instancePath + "/cardinality_limits/default", schemaPath: "#/$defs/CardinalityLimits/properties/default/exclusiveMinimum", keyword: "exclusiveMinimum", params: { comparison: ">", limit: 0 }, message: "must be > 0" }];
@@ -90878,19 +92264,19 @@ If omitted, underscore_escaping_with_suffixes is used.
                               }
                             }
                           }
-                          var valid3 = _errs10 === errors;
+                          var valid3 = _errs10 === errors2;
                         } else {
                           var valid3 = true;
                         }
                         if (valid3) {
                           if (data3.counter !== undefined) {
                             let data5 = data3.counter;
-                            const _errs12 = errors;
+                            const _errs12 = errors2;
                             if (!(typeof data5 == "number" && (!(data5 % 1) && !isNaN(data5))) && data5 !== null) {
                               validate59.errors = [{ instancePath: instancePath + "/cardinality_limits/counter", schemaPath: "#/$defs/CardinalityLimits/properties/counter/type", keyword: "type", params: { type: schema76.properties.counter.type }, message: "must be integer,null" }];
                               return false;
                             }
-                            if (errors === _errs12) {
+                            if (errors2 === _errs12) {
                               if (typeof data5 == "number") {
                                 if (data5 <= 0 || isNaN(data5)) {
                                   validate59.errors = [{ instancePath: instancePath + "/cardinality_limits/counter", schemaPath: "#/$defs/CardinalityLimits/properties/counter/exclusiveMinimum", keyword: "exclusiveMinimum", params: { comparison: ">", limit: 0 }, message: "must be > 0" }];
@@ -90898,19 +92284,19 @@ If omitted, underscore_escaping_with_suffixes is used.
                                 }
                               }
                             }
-                            var valid3 = _errs12 === errors;
+                            var valid3 = _errs12 === errors2;
                           } else {
                             var valid3 = true;
                           }
                           if (valid3) {
                             if (data3.gauge !== undefined) {
                               let data6 = data3.gauge;
-                              const _errs14 = errors;
+                              const _errs14 = errors2;
                               if (!(typeof data6 == "number" && (!(data6 % 1) && !isNaN(data6))) && data6 !== null) {
                                 validate59.errors = [{ instancePath: instancePath + "/cardinality_limits/gauge", schemaPath: "#/$defs/CardinalityLimits/properties/gauge/type", keyword: "type", params: { type: schema76.properties.gauge.type }, message: "must be integer,null" }];
                                 return false;
                               }
-                              if (errors === _errs14) {
+                              if (errors2 === _errs14) {
                                 if (typeof data6 == "number") {
                                   if (data6 <= 0 || isNaN(data6)) {
                                     validate59.errors = [{ instancePath: instancePath + "/cardinality_limits/gauge", schemaPath: "#/$defs/CardinalityLimits/properties/gauge/exclusiveMinimum", keyword: "exclusiveMinimum", params: { comparison: ">", limit: 0 }, message: "must be > 0" }];
@@ -90918,19 +92304,19 @@ If omitted, underscore_escaping_with_suffixes is used.
                                   }
                                 }
                               }
-                              var valid3 = _errs14 === errors;
+                              var valid3 = _errs14 === errors2;
                             } else {
                               var valid3 = true;
                             }
                             if (valid3) {
                               if (data3.histogram !== undefined) {
                                 let data7 = data3.histogram;
-                                const _errs16 = errors;
+                                const _errs16 = errors2;
                                 if (!(typeof data7 == "number" && (!(data7 % 1) && !isNaN(data7))) && data7 !== null) {
                                   validate59.errors = [{ instancePath: instancePath + "/cardinality_limits/histogram", schemaPath: "#/$defs/CardinalityLimits/properties/histogram/type", keyword: "type", params: { type: schema76.properties.histogram.type }, message: "must be integer,null" }];
                                   return false;
                                 }
-                                if (errors === _errs16) {
+                                if (errors2 === _errs16) {
                                   if (typeof data7 == "number") {
                                     if (data7 <= 0 || isNaN(data7)) {
                                       validate59.errors = [{ instancePath: instancePath + "/cardinality_limits/histogram", schemaPath: "#/$defs/CardinalityLimits/properties/histogram/exclusiveMinimum", keyword: "exclusiveMinimum", params: { comparison: ">", limit: 0 }, message: "must be > 0" }];
@@ -90938,19 +92324,19 @@ If omitted, underscore_escaping_with_suffixes is used.
                                     }
                                   }
                                 }
-                                var valid3 = _errs16 === errors;
+                                var valid3 = _errs16 === errors2;
                               } else {
                                 var valid3 = true;
                               }
                               if (valid3) {
                                 if (data3.observable_counter !== undefined) {
                                   let data8 = data3.observable_counter;
-                                  const _errs18 = errors;
+                                  const _errs18 = errors2;
                                   if (!(typeof data8 == "number" && (!(data8 % 1) && !isNaN(data8))) && data8 !== null) {
                                     validate59.errors = [{ instancePath: instancePath + "/cardinality_limits/observable_counter", schemaPath: "#/$defs/CardinalityLimits/properties/observable_counter/type", keyword: "type", params: { type: schema76.properties.observable_counter.type }, message: "must be integer,null" }];
                                     return false;
                                   }
-                                  if (errors === _errs18) {
+                                  if (errors2 === _errs18) {
                                     if (typeof data8 == "number") {
                                       if (data8 <= 0 || isNaN(data8)) {
                                         validate59.errors = [{ instancePath: instancePath + "/cardinality_limits/observable_counter", schemaPath: "#/$defs/CardinalityLimits/properties/observable_counter/exclusiveMinimum", keyword: "exclusiveMinimum", params: { comparison: ">", limit: 0 }, message: "must be > 0" }];
@@ -90958,19 +92344,19 @@ If omitted, underscore_escaping_with_suffixes is used.
                                       }
                                     }
                                   }
-                                  var valid3 = _errs18 === errors;
+                                  var valid3 = _errs18 === errors2;
                                 } else {
                                   var valid3 = true;
                                 }
                                 if (valid3) {
                                   if (data3.observable_gauge !== undefined) {
                                     let data9 = data3.observable_gauge;
-                                    const _errs20 = errors;
+                                    const _errs20 = errors2;
                                     if (!(typeof data9 == "number" && (!(data9 % 1) && !isNaN(data9))) && data9 !== null) {
                                       validate59.errors = [{ instancePath: instancePath + "/cardinality_limits/observable_gauge", schemaPath: "#/$defs/CardinalityLimits/properties/observable_gauge/type", keyword: "type", params: { type: schema76.properties.observable_gauge.type }, message: "must be integer,null" }];
                                       return false;
                                     }
-                                    if (errors === _errs20) {
+                                    if (errors2 === _errs20) {
                                       if (typeof data9 == "number") {
                                         if (data9 <= 0 || isNaN(data9)) {
                                           validate59.errors = [{ instancePath: instancePath + "/cardinality_limits/observable_gauge", schemaPath: "#/$defs/CardinalityLimits/properties/observable_gauge/exclusiveMinimum", keyword: "exclusiveMinimum", params: { comparison: ">", limit: 0 }, message: "must be > 0" }];
@@ -90978,19 +92364,19 @@ If omitted, underscore_escaping_with_suffixes is used.
                                         }
                                       }
                                     }
-                                    var valid3 = _errs20 === errors;
+                                    var valid3 = _errs20 === errors2;
                                   } else {
                                     var valid3 = true;
                                   }
                                   if (valid3) {
                                     if (data3.observable_up_down_counter !== undefined) {
                                       let data10 = data3.observable_up_down_counter;
-                                      const _errs22 = errors;
+                                      const _errs22 = errors2;
                                       if (!(typeof data10 == "number" && (!(data10 % 1) && !isNaN(data10))) && data10 !== null) {
                                         validate59.errors = [{ instancePath: instancePath + "/cardinality_limits/observable_up_down_counter", schemaPath: "#/$defs/CardinalityLimits/properties/observable_up_down_counter/type", keyword: "type", params: { type: schema76.properties.observable_up_down_counter.type }, message: "must be integer,null" }];
                                         return false;
                                       }
-                                      if (errors === _errs22) {
+                                      if (errors2 === _errs22) {
                                         if (typeof data10 == "number") {
                                           if (data10 <= 0 || isNaN(data10)) {
                                             validate59.errors = [{ instancePath: instancePath + "/cardinality_limits/observable_up_down_counter", schemaPath: "#/$defs/CardinalityLimits/properties/observable_up_down_counter/exclusiveMinimum", keyword: "exclusiveMinimum", params: { comparison: ">", limit: 0 }, message: "must be > 0" }];
@@ -90998,19 +92384,19 @@ If omitted, underscore_escaping_with_suffixes is used.
                                           }
                                         }
                                       }
-                                      var valid3 = _errs22 === errors;
+                                      var valid3 = _errs22 === errors2;
                                     } else {
                                       var valid3 = true;
                                     }
                                     if (valid3) {
                                       if (data3.up_down_counter !== undefined) {
                                         let data11 = data3.up_down_counter;
-                                        const _errs24 = errors;
+                                        const _errs24 = errors2;
                                         if (!(typeof data11 == "number" && (!(data11 % 1) && !isNaN(data11))) && data11 !== null) {
                                           validate59.errors = [{ instancePath: instancePath + "/cardinality_limits/up_down_counter", schemaPath: "#/$defs/CardinalityLimits/properties/up_down_counter/type", keyword: "type", params: { type: schema76.properties.up_down_counter.type }, message: "must be integer,null" }];
                                           return false;
                                         }
-                                        if (errors === _errs24) {
+                                        if (errors2 === _errs24) {
                                           if (typeof data11 == "number") {
                                             if (data11 <= 0 || isNaN(data11)) {
                                               validate59.errors = [{ instancePath: instancePath + "/cardinality_limits/up_down_counter", schemaPath: "#/$defs/CardinalityLimits/properties/up_down_counter/exclusiveMinimum", keyword: "exclusiveMinimum", params: { comparison: ">", limit: 0 }, message: "must be > 0" }];
@@ -91018,7 +92404,7 @@ If omitted, underscore_escaping_with_suffixes is used.
                                             }
                                           }
                                         }
-                                        var valid3 = _errs24 === errors;
+                                        var valid3 = _errs24 === errors2;
                                       } else {
                                         var valid3 = true;
                                       }
@@ -91035,7 +92421,7 @@ If omitted, underscore_escaping_with_suffixes is used.
                       return false;
                     }
                   }
-                  var valid0 = _errs6 === errors;
+                  var valid0 = _errs6 === errors2;
                 } else {
                   var valid0 = true;
                 }
@@ -91049,12 +92435,12 @@ If omitted, underscore_escaping_with_suffixes is used.
       }
     }
     validate59.errors = vErrors;
-    return errors === 0;
+    return errors2 === 0;
   }
   validate59.evaluated = { props: true, dynamicProps: false, dynamicItems: false };
   function validate44(data, { instancePath = "", parentData, parentDataProperty, rootData = data, dynamicAnchors = {} } = {}) {
     let vErrors = null;
-    let errors = 0;
+    let errors2 = 0;
     const evaluated0 = validate44.evaluated;
     if (evaluated0.dynamicProps) {
       evaluated0.props = undefined;
@@ -91062,7 +92448,7 @@ If omitted, underscore_escaping_with_suffixes is used.
     if (evaluated0.dynamicItems) {
       evaluated0.items = undefined;
     }
-    if (errors === 0) {
+    if (errors2 === 0) {
       if (data && typeof data == "object" && !Array.isArray(data)) {
         if (Object.keys(data).length > 1) {
           validate44.errors = [{ instancePath, schemaPath: "#/maxProperties", keyword: "maxProperties", params: { limit: 1 }, message: "must NOT have more than 1 properties" }];
@@ -91072,7 +92458,7 @@ If omitted, underscore_escaping_with_suffixes is used.
             validate44.errors = [{ instancePath, schemaPath: "#/minProperties", keyword: "minProperties", params: { limit: 1 }, message: "must NOT have fewer than 1 properties" }];
             return false;
           } else {
-            const _errs1 = errors;
+            const _errs1 = errors2;
             for (const key0 in data) {
               if (!(key0 === "periodic" || key0 === "pull")) {
                 validate44.errors = [{ instancePath, schemaPath: "#/additionalProperties", keyword: "additionalProperties", params: { additionalProperty: key0 }, message: "must NOT have additional properties" }];
@@ -91080,25 +92466,25 @@ If omitted, underscore_escaping_with_suffixes is used.
                 break;
               }
             }
-            if (_errs1 === errors) {
+            if (_errs1 === errors2) {
               if (data.periodic !== undefined) {
-                const _errs2 = errors;
+                const _errs2 = errors2;
                 if (!validate45(data.periodic, { instancePath: instancePath + "/periodic", parentData: data, parentDataProperty: "periodic", rootData, dynamicAnchors })) {
                   vErrors = vErrors === null ? validate45.errors : vErrors.concat(validate45.errors);
-                  errors = vErrors.length;
+                  errors2 = vErrors.length;
                 }
-                var valid0 = _errs2 === errors;
+                var valid0 = _errs2 === errors2;
               } else {
                 var valid0 = true;
               }
               if (valid0) {
                 if (data.pull !== undefined) {
-                  const _errs3 = errors;
+                  const _errs3 = errors2;
                   if (!validate59(data.pull, { instancePath: instancePath + "/pull", parentData: data, parentDataProperty: "pull", rootData, dynamicAnchors })) {
                     vErrors = vErrors === null ? validate59.errors : vErrors.concat(validate59.errors);
-                    errors = vErrors.length;
+                    errors2 = vErrors.length;
                   }
-                  var valid0 = _errs3 === errors;
+                  var valid0 = _errs3 === errors2;
                 } else {
                   var valid0 = true;
                 }
@@ -91112,7 +92498,7 @@ If omitted, underscore_escaping_with_suffixes is used.
       }
     }
     validate44.errors = vErrors;
-    return errors === 0;
+    return errors2 === 0;
   }
   validate44.evaluated = { props: true, dynamicProps: false, dynamicItems: false };
   var schema84 = { type: "object", additionalProperties: false, properties: { instrument_name: { type: ["string", "null"], description: `Configure instrument name selection criteria.
@@ -91139,7 +92525,7 @@ If omitted or null, all meter schema URLs match.
   var schema85 = { type: ["string", "null"], enum: ["counter", "gauge", "histogram", "observable_counter", "observable_gauge", "observable_up_down_counter", "up_down_counter"] };
   function validate68(data, { instancePath = "", parentData, parentDataProperty, rootData = data, dynamicAnchors = {} } = {}) {
     let vErrors = null;
-    let errors = 0;
+    let errors2 = 0;
     const evaluated0 = validate68.evaluated;
     if (evaluated0.dynamicProps) {
       evaluated0.props = undefined;
@@ -91147,9 +92533,9 @@ If omitted or null, all meter schema URLs match.
     if (evaluated0.dynamicItems) {
       evaluated0.items = undefined;
     }
-    if (errors === 0) {
+    if (errors2 === 0) {
       if (data && typeof data == "object" && !Array.isArray(data)) {
-        const _errs1 = errors;
+        const _errs1 = errors2;
         for (const key0 in data) {
           if (!(key0 === "instrument_name" || key0 === "instrument_type" || key0 === "unit" || key0 === "meter_name" || key0 === "meter_version" || key0 === "meter_schema_url")) {
             validate68.errors = [{ instancePath, schemaPath: "#/additionalProperties", keyword: "additionalProperties", params: { additionalProperty: key0 }, message: "must NOT have additional properties" }];
@@ -91157,22 +92543,22 @@ If omitted or null, all meter schema URLs match.
             break;
           }
         }
-        if (_errs1 === errors) {
+        if (_errs1 === errors2) {
           if (data.instrument_name !== undefined) {
             let data0 = data.instrument_name;
-            const _errs2 = errors;
+            const _errs2 = errors2;
             if (typeof data0 !== "string" && data0 !== null) {
               validate68.errors = [{ instancePath: instancePath + "/instrument_name", schemaPath: "#/properties/instrument_name/type", keyword: "type", params: { type: schema84.properties.instrument_name.type }, message: "must be string,null" }];
               return false;
             }
-            var valid0 = _errs2 === errors;
+            var valid0 = _errs2 === errors2;
           } else {
             var valid0 = true;
           }
           if (valid0) {
             if (data.instrument_type !== undefined) {
               let data1 = data.instrument_type;
-              const _errs4 = errors;
+              const _errs4 = errors2;
               if (typeof data1 !== "string" && data1 !== null) {
                 validate68.errors = [{ instancePath: instancePath + "/instrument_type", schemaPath: "#/$defs/InstrumentType/type", keyword: "type", params: { type: schema85.type }, message: "must be string,null" }];
                 return false;
@@ -91181,55 +92567,55 @@ If omitted or null, all meter schema URLs match.
                 validate68.errors = [{ instancePath: instancePath + "/instrument_type", schemaPath: "#/$defs/InstrumentType/enum", keyword: "enum", params: { allowedValues: schema85.enum }, message: "must be equal to one of the allowed values" }];
                 return false;
               }
-              var valid0 = _errs4 === errors;
+              var valid0 = _errs4 === errors2;
             } else {
               var valid0 = true;
             }
             if (valid0) {
               if (data.unit !== undefined) {
                 let data2 = data.unit;
-                const _errs7 = errors;
+                const _errs7 = errors2;
                 if (typeof data2 !== "string" && data2 !== null) {
                   validate68.errors = [{ instancePath: instancePath + "/unit", schemaPath: "#/properties/unit/type", keyword: "type", params: { type: schema84.properties.unit.type }, message: "must be string,null" }];
                   return false;
                 }
-                var valid0 = _errs7 === errors;
+                var valid0 = _errs7 === errors2;
               } else {
                 var valid0 = true;
               }
               if (valid0) {
                 if (data.meter_name !== undefined) {
                   let data3 = data.meter_name;
-                  const _errs9 = errors;
+                  const _errs9 = errors2;
                   if (typeof data3 !== "string" && data3 !== null) {
                     validate68.errors = [{ instancePath: instancePath + "/meter_name", schemaPath: "#/properties/meter_name/type", keyword: "type", params: { type: schema84.properties.meter_name.type }, message: "must be string,null" }];
                     return false;
                   }
-                  var valid0 = _errs9 === errors;
+                  var valid0 = _errs9 === errors2;
                 } else {
                   var valid0 = true;
                 }
                 if (valid0) {
                   if (data.meter_version !== undefined) {
                     let data4 = data.meter_version;
-                    const _errs11 = errors;
+                    const _errs11 = errors2;
                     if (typeof data4 !== "string" && data4 !== null) {
                       validate68.errors = [{ instancePath: instancePath + "/meter_version", schemaPath: "#/properties/meter_version/type", keyword: "type", params: { type: schema84.properties.meter_version.type }, message: "must be string,null" }];
                       return false;
                     }
-                    var valid0 = _errs11 === errors;
+                    var valid0 = _errs11 === errors2;
                   } else {
                     var valid0 = true;
                   }
                   if (valid0) {
                     if (data.meter_schema_url !== undefined) {
                       let data5 = data.meter_schema_url;
-                      const _errs13 = errors;
+                      const _errs13 = errors2;
                       if (typeof data5 !== "string" && data5 !== null) {
                         validate68.errors = [{ instancePath: instancePath + "/meter_schema_url", schemaPath: "#/properties/meter_schema_url/type", keyword: "type", params: { type: schema84.properties.meter_schema_url.type }, message: "must be string,null" }];
                         return false;
                       }
-                      var valid0 = _errs13 === errors;
+                      var valid0 = _errs13 === errors2;
                     } else {
                       var valid0 = true;
                     }
@@ -91245,7 +92631,7 @@ If omitted or null, all meter schema URLs match.
       }
     }
     validate68.errors = vErrors;
-    return errors === 0;
+    return errors2 === 0;
   }
   validate68.evaluated = { props: true, dynamicProps: false, dynamicItems: false };
   var schema86 = { type: "object", additionalProperties: false, properties: { name: { type: ["string", "null"], description: `Configure metric name of the resulting stream(s).
@@ -91277,7 +92663,7 @@ If omitted or null, true is used.
   var schema93 = { type: ["object", "null"], additionalProperties: false };
   function validate71(data, { instancePath = "", parentData, parentDataProperty, rootData = data, dynamicAnchors = {} } = {}) {
     let vErrors = null;
-    let errors = 0;
+    let errors2 = 0;
     const evaluated0 = validate71.evaluated;
     if (evaluated0.dynamicProps) {
       evaluated0.props = undefined;
@@ -91285,7 +92671,7 @@ If omitted or null, true is used.
     if (evaluated0.dynamicItems) {
       evaluated0.items = undefined;
     }
-    if (errors === 0) {
+    if (errors2 === 0) {
       if (data && typeof data == "object" && !Array.isArray(data)) {
         if (Object.keys(data).length > 1) {
           validate71.errors = [{ instancePath, schemaPath: "#/maxProperties", keyword: "maxProperties", params: { limit: 1 }, message: "must NOT have more than 1 properties" }];
@@ -91295,7 +92681,7 @@ If omitted or null, true is used.
             validate71.errors = [{ instancePath, schemaPath: "#/minProperties", keyword: "minProperties", params: { limit: 1 }, message: "must NOT have fewer than 1 properties" }];
             return false;
           } else {
-            const _errs1 = errors;
+            const _errs1 = errors2;
             for (const key0 in data) {
               if (!(key0 === "default" || key0 === "drop" || key0 === "explicit_bucket_histogram" || key0 === "base2_exponential_bucket_histogram" || key0 === "last_value" || key0 === "sum")) {
                 validate71.errors = [{ instancePath, schemaPath: "#/additionalProperties", keyword: "additionalProperties", params: { additionalProperty: key0 }, message: "must NOT have additional properties" }];
@@ -91303,16 +92689,16 @@ If omitted or null, true is used.
                 break;
               }
             }
-            if (_errs1 === errors) {
+            if (_errs1 === errors2) {
               if (data.default !== undefined) {
                 let data0 = data.default;
-                const _errs2 = errors;
-                const _errs3 = errors;
+                const _errs2 = errors2;
+                const _errs3 = errors2;
                 if (!(data0 && typeof data0 == "object" && !Array.isArray(data0)) && data0 !== null) {
                   validate71.errors = [{ instancePath: instancePath + "/default", schemaPath: "#/$defs/DefaultAggregation/type", keyword: "type", params: { type: schema88.type }, message: "must be object,null" }];
                   return false;
                 }
-                if (errors === _errs3) {
+                if (errors2 === _errs3) {
                   if (data0 && typeof data0 == "object" && !Array.isArray(data0)) {
                     for (const key1 in data0) {
                       validate71.errors = [{ instancePath: instancePath + "/default", schemaPath: "#/$defs/DefaultAggregation/additionalProperties", keyword: "additionalProperties", params: { additionalProperty: key1 }, message: "must NOT have additional properties" }];
@@ -91321,20 +92707,20 @@ If omitted or null, true is used.
                     }
                   }
                 }
-                var valid0 = _errs2 === errors;
+                var valid0 = _errs2 === errors2;
               } else {
                 var valid0 = true;
               }
               if (valid0) {
                 if (data.drop !== undefined) {
                   let data1 = data.drop;
-                  const _errs6 = errors;
-                  const _errs7 = errors;
+                  const _errs6 = errors2;
+                  const _errs7 = errors2;
                   if (!(data1 && typeof data1 == "object" && !Array.isArray(data1)) && data1 !== null) {
                     validate71.errors = [{ instancePath: instancePath + "/drop", schemaPath: "#/$defs/DropAggregation/type", keyword: "type", params: { type: schema89.type }, message: "must be object,null" }];
                     return false;
                   }
-                  if (errors === _errs7) {
+                  if (errors2 === _errs7) {
                     if (data1 && typeof data1 == "object" && !Array.isArray(data1)) {
                       for (const key2 in data1) {
                         validate71.errors = [{ instancePath: instancePath + "/drop", schemaPath: "#/$defs/DropAggregation/additionalProperties", keyword: "additionalProperties", params: { additionalProperty: key2 }, message: "must NOT have additional properties" }];
@@ -91343,22 +92729,22 @@ If omitted or null, true is used.
                       }
                     }
                   }
-                  var valid0 = _errs6 === errors;
+                  var valid0 = _errs6 === errors2;
                 } else {
                   var valid0 = true;
                 }
                 if (valid0) {
                   if (data.explicit_bucket_histogram !== undefined) {
                     let data2 = data.explicit_bucket_histogram;
-                    const _errs10 = errors;
-                    const _errs11 = errors;
+                    const _errs10 = errors2;
+                    const _errs11 = errors2;
                     if (!(data2 && typeof data2 == "object" && !Array.isArray(data2)) && data2 !== null) {
                       validate71.errors = [{ instancePath: instancePath + "/explicit_bucket_histogram", schemaPath: "#/$defs/ExplicitBucketHistogramAggregation/type", keyword: "type", params: { type: schema90.type }, message: "must be object,null" }];
                       return false;
                     }
-                    if (errors === _errs11) {
+                    if (errors2 === _errs11) {
                       if (data2 && typeof data2 == "object" && !Array.isArray(data2)) {
-                        const _errs13 = errors;
+                        const _errs13 = errors2;
                         for (const key3 in data2) {
                           if (!(key3 === "boundaries" || key3 === "record_min_max")) {
                             validate71.errors = [{ instancePath: instancePath + "/explicit_bucket_histogram", schemaPath: "#/$defs/ExplicitBucketHistogramAggregation/additionalProperties", keyword: "additionalProperties", params: { additionalProperty: key3 }, message: "must NOT have additional properties" }];
@@ -91366,11 +92752,11 @@ If omitted or null, true is used.
                             break;
                           }
                         }
-                        if (_errs13 === errors) {
+                        if (_errs13 === errors2) {
                           if (data2.boundaries !== undefined) {
                             let data3 = data2.boundaries;
-                            const _errs14 = errors;
-                            if (errors === _errs14) {
+                            const _errs14 = errors2;
+                            if (errors2 === _errs14) {
                               if (Array.isArray(data3)) {
                                 if (data3.length < 0) {
                                   validate71.errors = [{ instancePath: instancePath + "/explicit_bucket_histogram/boundaries", schemaPath: "#/$defs/ExplicitBucketHistogramAggregation/properties/boundaries/minItems", keyword: "minItems", params: { limit: 0 }, message: "must NOT have fewer than 0 items" }];
@@ -91379,12 +92765,12 @@ If omitted or null, true is used.
                                   var valid5 = true;
                                   const len0 = data3.length;
                                   for (let i0 = 0;i0 < len0; i0++) {
-                                    const _errs16 = errors;
+                                    const _errs16 = errors2;
                                     if (!(typeof data3[i0] == "number")) {
                                       validate71.errors = [{ instancePath: instancePath + "/explicit_bucket_histogram/boundaries/" + i0, schemaPath: "#/$defs/ExplicitBucketHistogramAggregation/properties/boundaries/items/type", keyword: "type", params: { type: "number" }, message: "must be number" }];
                                       return false;
                                     }
-                                    var valid5 = _errs16 === errors;
+                                    var valid5 = _errs16 === errors2;
                                     if (!valid5) {
                                       break;
                                     }
@@ -91395,19 +92781,19 @@ If omitted or null, true is used.
                                 return false;
                               }
                             }
-                            var valid4 = _errs14 === errors;
+                            var valid4 = _errs14 === errors2;
                           } else {
                             var valid4 = true;
                           }
                           if (valid4) {
                             if (data2.record_min_max !== undefined) {
                               let data5 = data2.record_min_max;
-                              const _errs18 = errors;
+                              const _errs18 = errors2;
                               if (typeof data5 !== "boolean" && data5 !== null) {
                                 validate71.errors = [{ instancePath: instancePath + "/explicit_bucket_histogram/record_min_max", schemaPath: "#/$defs/ExplicitBucketHistogramAggregation/properties/record_min_max/type", keyword: "type", params: { type: schema90.properties.record_min_max.type }, message: "must be boolean,null" }];
                                 return false;
                               }
-                              var valid4 = _errs18 === errors;
+                              var valid4 = _errs18 === errors2;
                             } else {
                               var valid4 = true;
                             }
@@ -91415,22 +92801,22 @@ If omitted or null, true is used.
                         }
                       }
                     }
-                    var valid0 = _errs10 === errors;
+                    var valid0 = _errs10 === errors2;
                   } else {
                     var valid0 = true;
                   }
                   if (valid0) {
                     if (data.base2_exponential_bucket_histogram !== undefined) {
                       let data6 = data.base2_exponential_bucket_histogram;
-                      const _errs20 = errors;
-                      const _errs21 = errors;
+                      const _errs20 = errors2;
+                      const _errs21 = errors2;
                       if (!(data6 && typeof data6 == "object" && !Array.isArray(data6)) && data6 !== null) {
                         validate71.errors = [{ instancePath: instancePath + "/base2_exponential_bucket_histogram", schemaPath: "#/$defs/Base2ExponentialBucketHistogramAggregation/type", keyword: "type", params: { type: schema91.type }, message: "must be object,null" }];
                         return false;
                       }
-                      if (errors === _errs21) {
+                      if (errors2 === _errs21) {
                         if (data6 && typeof data6 == "object" && !Array.isArray(data6)) {
-                          const _errs23 = errors;
+                          const _errs23 = errors2;
                           for (const key4 in data6) {
                             if (!(key4 === "max_scale" || key4 === "max_size" || key4 === "record_min_max")) {
                               validate71.errors = [{ instancePath: instancePath + "/base2_exponential_bucket_histogram", schemaPath: "#/$defs/Base2ExponentialBucketHistogramAggregation/additionalProperties", keyword: "additionalProperties", params: { additionalProperty: key4 }, message: "must NOT have additional properties" }];
@@ -91438,15 +92824,15 @@ If omitted or null, true is used.
                               break;
                             }
                           }
-                          if (_errs23 === errors) {
+                          if (_errs23 === errors2) {
                             if (data6.max_scale !== undefined) {
                               let data7 = data6.max_scale;
-                              const _errs24 = errors;
+                              const _errs24 = errors2;
                               if (!(typeof data7 == "number" && (!(data7 % 1) && !isNaN(data7))) && data7 !== null) {
                                 validate71.errors = [{ instancePath: instancePath + "/base2_exponential_bucket_histogram/max_scale", schemaPath: "#/$defs/Base2ExponentialBucketHistogramAggregation/properties/max_scale/type", keyword: "type", params: { type: schema91.properties.max_scale.type }, message: "must be integer,null" }];
                                 return false;
                               }
-                              if (errors === _errs24) {
+                              if (errors2 === _errs24) {
                                 if (typeof data7 == "number") {
                                   if (data7 > 20 || isNaN(data7)) {
                                     validate71.errors = [{ instancePath: instancePath + "/base2_exponential_bucket_histogram/max_scale", schemaPath: "#/$defs/Base2ExponentialBucketHistogramAggregation/properties/max_scale/maximum", keyword: "maximum", params: { comparison: "<=", limit: 20 }, message: "must be <= 20" }];
@@ -91459,19 +92845,19 @@ If omitted or null, true is used.
                                   }
                                 }
                               }
-                              var valid7 = _errs24 === errors;
+                              var valid7 = _errs24 === errors2;
                             } else {
                               var valid7 = true;
                             }
                             if (valid7) {
                               if (data6.max_size !== undefined) {
                                 let data8 = data6.max_size;
-                                const _errs26 = errors;
+                                const _errs26 = errors2;
                                 if (!(typeof data8 == "number" && (!(data8 % 1) && !isNaN(data8))) && data8 !== null) {
                                   validate71.errors = [{ instancePath: instancePath + "/base2_exponential_bucket_histogram/max_size", schemaPath: "#/$defs/Base2ExponentialBucketHistogramAggregation/properties/max_size/type", keyword: "type", params: { type: schema91.properties.max_size.type }, message: "must be integer,null" }];
                                   return false;
                                 }
-                                if (errors === _errs26) {
+                                if (errors2 === _errs26) {
                                   if (typeof data8 == "number") {
                                     if (data8 < 2 || isNaN(data8)) {
                                       validate71.errors = [{ instancePath: instancePath + "/base2_exponential_bucket_histogram/max_size", schemaPath: "#/$defs/Base2ExponentialBucketHistogramAggregation/properties/max_size/minimum", keyword: "minimum", params: { comparison: ">=", limit: 2 }, message: "must be >= 2" }];
@@ -91479,19 +92865,19 @@ If omitted or null, true is used.
                                     }
                                   }
                                 }
-                                var valid7 = _errs26 === errors;
+                                var valid7 = _errs26 === errors2;
                               } else {
                                 var valid7 = true;
                               }
                               if (valid7) {
                                 if (data6.record_min_max !== undefined) {
                                   let data9 = data6.record_min_max;
-                                  const _errs28 = errors;
+                                  const _errs28 = errors2;
                                   if (typeof data9 !== "boolean" && data9 !== null) {
                                     validate71.errors = [{ instancePath: instancePath + "/base2_exponential_bucket_histogram/record_min_max", schemaPath: "#/$defs/Base2ExponentialBucketHistogramAggregation/properties/record_min_max/type", keyword: "type", params: { type: schema91.properties.record_min_max.type }, message: "must be boolean,null" }];
                                     return false;
                                   }
-                                  var valid7 = _errs28 === errors;
+                                  var valid7 = _errs28 === errors2;
                                 } else {
                                   var valid7 = true;
                                 }
@@ -91500,20 +92886,20 @@ If omitted or null, true is used.
                           }
                         }
                       }
-                      var valid0 = _errs20 === errors;
+                      var valid0 = _errs20 === errors2;
                     } else {
                       var valid0 = true;
                     }
                     if (valid0) {
                       if (data.last_value !== undefined) {
                         let data10 = data.last_value;
-                        const _errs30 = errors;
-                        const _errs31 = errors;
+                        const _errs30 = errors2;
+                        const _errs31 = errors2;
                         if (!(data10 && typeof data10 == "object" && !Array.isArray(data10)) && data10 !== null) {
                           validate71.errors = [{ instancePath: instancePath + "/last_value", schemaPath: "#/$defs/LastValueAggregation/type", keyword: "type", params: { type: schema92.type }, message: "must be object,null" }];
                           return false;
                         }
-                        if (errors === _errs31) {
+                        if (errors2 === _errs31) {
                           if (data10 && typeof data10 == "object" && !Array.isArray(data10)) {
                             for (const key5 in data10) {
                               validate71.errors = [{ instancePath: instancePath + "/last_value", schemaPath: "#/$defs/LastValueAggregation/additionalProperties", keyword: "additionalProperties", params: { additionalProperty: key5 }, message: "must NOT have additional properties" }];
@@ -91522,20 +92908,20 @@ If omitted or null, true is used.
                             }
                           }
                         }
-                        var valid0 = _errs30 === errors;
+                        var valid0 = _errs30 === errors2;
                       } else {
                         var valid0 = true;
                       }
                       if (valid0) {
                         if (data.sum !== undefined) {
                           let data11 = data.sum;
-                          const _errs34 = errors;
-                          const _errs35 = errors;
+                          const _errs34 = errors2;
+                          const _errs35 = errors2;
                           if (!(data11 && typeof data11 == "object" && !Array.isArray(data11)) && data11 !== null) {
                             validate71.errors = [{ instancePath: instancePath + "/sum", schemaPath: "#/$defs/SumAggregation/type", keyword: "type", params: { type: schema93.type }, message: "must be object,null" }];
                             return false;
                           }
-                          if (errors === _errs35) {
+                          if (errors2 === _errs35) {
                             if (data11 && typeof data11 == "object" && !Array.isArray(data11)) {
                               for (const key6 in data11) {
                                 validate71.errors = [{ instancePath: instancePath + "/sum", schemaPath: "#/$defs/SumAggregation/additionalProperties", keyword: "additionalProperties", params: { additionalProperty: key6 }, message: "must NOT have additional properties" }];
@@ -91544,7 +92930,7 @@ If omitted or null, true is used.
                               }
                             }
                           }
-                          var valid0 = _errs34 === errors;
+                          var valid0 = _errs34 === errors2;
                         } else {
                           var valid0 = true;
                         }
@@ -91562,12 +92948,12 @@ If omitted or null, true is used.
       }
     }
     validate71.errors = vErrors;
-    return errors === 0;
+    return errors2 === 0;
   }
   validate71.evaluated = { props: true, dynamicProps: false, dynamicItems: false };
   function validate70(data, { instancePath = "", parentData, parentDataProperty, rootData = data, dynamicAnchors = {} } = {}) {
     let vErrors = null;
-    let errors = 0;
+    let errors2 = 0;
     const evaluated0 = validate70.evaluated;
     if (evaluated0.dynamicProps) {
       evaluated0.props = undefined;
@@ -91575,9 +92961,9 @@ If omitted or null, true is used.
     if (evaluated0.dynamicItems) {
       evaluated0.items = undefined;
     }
-    if (errors === 0) {
+    if (errors2 === 0) {
       if (data && typeof data == "object" && !Array.isArray(data)) {
-        const _errs1 = errors;
+        const _errs1 = errors2;
         for (const key0 in data) {
           if (!(key0 === "name" || key0 === "description" || key0 === "aggregation" || key0 === "aggregation_cardinality_limit" || key0 === "attribute_keys")) {
             validate70.errors = [{ instancePath, schemaPath: "#/additionalProperties", keyword: "additionalProperties", params: { additionalProperty: key0 }, message: "must NOT have additional properties" }];
@@ -91585,50 +92971,50 @@ If omitted or null, true is used.
             break;
           }
         }
-        if (_errs1 === errors) {
+        if (_errs1 === errors2) {
           if (data.name !== undefined) {
             let data0 = data.name;
-            const _errs2 = errors;
+            const _errs2 = errors2;
             if (typeof data0 !== "string" && data0 !== null) {
               validate70.errors = [{ instancePath: instancePath + "/name", schemaPath: "#/properties/name/type", keyword: "type", params: { type: schema86.properties.name.type }, message: "must be string,null" }];
               return false;
             }
-            var valid0 = _errs2 === errors;
+            var valid0 = _errs2 === errors2;
           } else {
             var valid0 = true;
           }
           if (valid0) {
             if (data.description !== undefined) {
               let data1 = data.description;
-              const _errs4 = errors;
+              const _errs4 = errors2;
               if (typeof data1 !== "string" && data1 !== null) {
                 validate70.errors = [{ instancePath: instancePath + "/description", schemaPath: "#/properties/description/type", keyword: "type", params: { type: schema86.properties.description.type }, message: "must be string,null" }];
                 return false;
               }
-              var valid0 = _errs4 === errors;
+              var valid0 = _errs4 === errors2;
             } else {
               var valid0 = true;
             }
             if (valid0) {
               if (data.aggregation !== undefined) {
-                const _errs6 = errors;
+                const _errs6 = errors2;
                 if (!validate71(data.aggregation, { instancePath: instancePath + "/aggregation", parentData: data, parentDataProperty: "aggregation", rootData, dynamicAnchors })) {
                   vErrors = vErrors === null ? validate71.errors : vErrors.concat(validate71.errors);
-                  errors = vErrors.length;
+                  errors2 = vErrors.length;
                 }
-                var valid0 = _errs6 === errors;
+                var valid0 = _errs6 === errors2;
               } else {
                 var valid0 = true;
               }
               if (valid0) {
                 if (data.aggregation_cardinality_limit !== undefined) {
                   let data3 = data.aggregation_cardinality_limit;
-                  const _errs7 = errors;
+                  const _errs7 = errors2;
                   if (!(typeof data3 == "number" && (!(data3 % 1) && !isNaN(data3))) && data3 !== null) {
                     validate70.errors = [{ instancePath: instancePath + "/aggregation_cardinality_limit", schemaPath: "#/properties/aggregation_cardinality_limit/type", keyword: "type", params: { type: schema86.properties.aggregation_cardinality_limit.type }, message: "must be integer,null" }];
                     return false;
                   }
-                  if (errors === _errs7) {
+                  if (errors2 === _errs7) {
                     if (typeof data3 == "number") {
                       if (data3 <= 0 || isNaN(data3)) {
                         validate70.errors = [{ instancePath: instancePath + "/aggregation_cardinality_limit", schemaPath: "#/properties/aggregation_cardinality_limit/exclusiveMinimum", keyword: "exclusiveMinimum", params: { comparison: ">", limit: 0 }, message: "must be > 0" }];
@@ -91636,18 +93022,18 @@ If omitted or null, true is used.
                       }
                     }
                   }
-                  var valid0 = _errs7 === errors;
+                  var valid0 = _errs7 === errors2;
                 } else {
                   var valid0 = true;
                 }
                 if (valid0) {
                   if (data.attribute_keys !== undefined) {
                     let data4 = data.attribute_keys;
-                    const _errs9 = errors;
-                    const _errs10 = errors;
-                    if (errors === _errs10) {
+                    const _errs9 = errors2;
+                    const _errs10 = errors2;
+                    if (errors2 === _errs10) {
                       if (data4 && typeof data4 == "object" && !Array.isArray(data4)) {
-                        const _errs12 = errors;
+                        const _errs12 = errors2;
                         for (const key1 in data4) {
                           if (!(key1 === "included" || key1 === "excluded")) {
                             validate70.errors = [{ instancePath: instancePath + "/attribute_keys", schemaPath: "#/$defs/IncludeExclude/additionalProperties", keyword: "additionalProperties", params: { additionalProperty: key1 }, message: "must NOT have additional properties" }];
@@ -91655,11 +93041,11 @@ If omitted or null, true is used.
                             break;
                           }
                         }
-                        if (_errs12 === errors) {
+                        if (_errs12 === errors2) {
                           if (data4.included !== undefined) {
                             let data5 = data4.included;
-                            const _errs13 = errors;
-                            if (errors === _errs13) {
+                            const _errs13 = errors2;
+                            if (errors2 === _errs13) {
                               if (Array.isArray(data5)) {
                                 if (data5.length < 1) {
                                   validate70.errors = [{ instancePath: instancePath + "/attribute_keys/included", schemaPath: "#/$defs/IncludeExclude/properties/included/minItems", keyword: "minItems", params: { limit: 1 }, message: "must NOT have fewer than 1 items" }];
@@ -91668,12 +93054,12 @@ If omitted or null, true is used.
                                   var valid3 = true;
                                   const len0 = data5.length;
                                   for (let i0 = 0;i0 < len0; i0++) {
-                                    const _errs15 = errors;
+                                    const _errs15 = errors2;
                                     if (typeof data5[i0] !== "string") {
                                       validate70.errors = [{ instancePath: instancePath + "/attribute_keys/included/" + i0, schemaPath: "#/$defs/IncludeExclude/properties/included/items/type", keyword: "type", params: { type: "string" }, message: "must be string" }];
                                       return false;
                                     }
-                                    var valid3 = _errs15 === errors;
+                                    var valid3 = _errs15 === errors2;
                                     if (!valid3) {
                                       break;
                                     }
@@ -91684,15 +93070,15 @@ If omitted or null, true is used.
                                 return false;
                               }
                             }
-                            var valid2 = _errs13 === errors;
+                            var valid2 = _errs13 === errors2;
                           } else {
                             var valid2 = true;
                           }
                           if (valid2) {
                             if (data4.excluded !== undefined) {
                               let data7 = data4.excluded;
-                              const _errs17 = errors;
-                              if (errors === _errs17) {
+                              const _errs17 = errors2;
+                              if (errors2 === _errs17) {
                                 if (Array.isArray(data7)) {
                                   if (data7.length < 1) {
                                     validate70.errors = [{ instancePath: instancePath + "/attribute_keys/excluded", schemaPath: "#/$defs/IncludeExclude/properties/excluded/minItems", keyword: "minItems", params: { limit: 1 }, message: "must NOT have fewer than 1 items" }];
@@ -91701,12 +93087,12 @@ If omitted or null, true is used.
                                     var valid4 = true;
                                     const len1 = data7.length;
                                     for (let i1 = 0;i1 < len1; i1++) {
-                                      const _errs19 = errors;
+                                      const _errs19 = errors2;
                                       if (typeof data7[i1] !== "string") {
                                         validate70.errors = [{ instancePath: instancePath + "/attribute_keys/excluded/" + i1, schemaPath: "#/$defs/IncludeExclude/properties/excluded/items/type", keyword: "type", params: { type: "string" }, message: "must be string" }];
                                         return false;
                                       }
-                                      var valid4 = _errs19 === errors;
+                                      var valid4 = _errs19 === errors2;
                                       if (!valid4) {
                                         break;
                                       }
@@ -91717,7 +93103,7 @@ If omitted or null, true is used.
                                   return false;
                                 }
                               }
-                              var valid2 = _errs17 === errors;
+                              var valid2 = _errs17 === errors2;
                             } else {
                               var valid2 = true;
                             }
@@ -91728,7 +93114,7 @@ If omitted or null, true is used.
                         return false;
                       }
                     }
-                    var valid0 = _errs9 === errors;
+                    var valid0 = _errs9 === errors2;
                   } else {
                     var valid0 = true;
                   }
@@ -91743,12 +93129,12 @@ If omitted or null, true is used.
       }
     }
     validate70.errors = vErrors;
-    return errors === 0;
+    return errors2 === 0;
   }
   validate70.evaluated = { props: true, dynamicProps: false, dynamicItems: false };
   function validate67(data, { instancePath = "", parentData, parentDataProperty, rootData = data, dynamicAnchors = {} } = {}) {
     let vErrors = null;
-    let errors = 0;
+    let errors2 = 0;
     const evaluated0 = validate67.evaluated;
     if (evaluated0.dynamicProps) {
       evaluated0.props = undefined;
@@ -91756,14 +93142,14 @@ If omitted or null, true is used.
     if (evaluated0.dynamicItems) {
       evaluated0.items = undefined;
     }
-    if (errors === 0) {
+    if (errors2 === 0) {
       if (data && typeof data == "object" && !Array.isArray(data)) {
         let missing0;
         if (data.selector === undefined && (missing0 = "selector") || data.stream === undefined && (missing0 = "stream")) {
           validate67.errors = [{ instancePath, schemaPath: "#/required", keyword: "required", params: { missingProperty: missing0 }, message: "must have required property '" + missing0 + "'" }];
           return false;
         } else {
-          const _errs1 = errors;
+          const _errs1 = errors2;
           for (const key0 in data) {
             if (!(key0 === "selector" || key0 === "stream")) {
               validate67.errors = [{ instancePath, schemaPath: "#/additionalProperties", keyword: "additionalProperties", params: { additionalProperty: key0 }, message: "must NOT have additional properties" }];
@@ -91771,25 +93157,25 @@ If omitted or null, true is used.
               break;
             }
           }
-          if (_errs1 === errors) {
+          if (_errs1 === errors2) {
             if (data.selector !== undefined) {
-              const _errs2 = errors;
+              const _errs2 = errors2;
               if (!validate68(data.selector, { instancePath: instancePath + "/selector", parentData: data, parentDataProperty: "selector", rootData, dynamicAnchors })) {
                 vErrors = vErrors === null ? validate68.errors : vErrors.concat(validate68.errors);
-                errors = vErrors.length;
+                errors2 = vErrors.length;
               }
-              var valid0 = _errs2 === errors;
+              var valid0 = _errs2 === errors2;
             } else {
               var valid0 = true;
             }
             if (valid0) {
               if (data.stream !== undefined) {
-                const _errs3 = errors;
+                const _errs3 = errors2;
                 if (!validate70(data.stream, { instancePath: instancePath + "/stream", parentData: data, parentDataProperty: "stream", rootData, dynamicAnchors })) {
                   vErrors = vErrors === null ? validate70.errors : vErrors.concat(validate70.errors);
-                  errors = vErrors.length;
+                  errors2 = vErrors.length;
                 }
-                var valid0 = _errs3 === errors;
+                var valid0 = _errs3 === errors2;
               } else {
                 var valid0 = true;
               }
@@ -91802,7 +93188,7 @@ If omitted or null, true is used.
       }
     }
     validate67.errors = vErrors;
-    return errors === 0;
+    return errors2 === 0;
   }
   validate67.evaluated = { props: true, dynamicProps: false, dynamicItems: false };
   var schema96 = { type: ["object"], additionalProperties: false, properties: { default_config: { $ref: "#/$defs/ExperimentalMeterConfig", description: `Configure the default meter config used there is no matching entry in .meter_configurator/development.meters.
@@ -91823,7 +93209,7 @@ Property is required and must be non-null.
 ` } }, required: ["name", "config"] };
   function validate76(data, { instancePath = "", parentData, parentDataProperty, rootData = data, dynamicAnchors = {} } = {}) {
     let vErrors = null;
-    let errors = 0;
+    let errors2 = 0;
     const evaluated0 = validate76.evaluated;
     if (evaluated0.dynamicProps) {
       evaluated0.props = undefined;
@@ -91831,14 +93217,14 @@ Property is required and must be non-null.
     if (evaluated0.dynamicItems) {
       evaluated0.items = undefined;
     }
-    if (errors === 0) {
+    if (errors2 === 0) {
       if (data && typeof data == "object" && !Array.isArray(data)) {
         let missing0;
         if (data.name === undefined && (missing0 = "name") || data.config === undefined && (missing0 = "config")) {
           validate76.errors = [{ instancePath, schemaPath: "#/required", keyword: "required", params: { missingProperty: missing0 }, message: "must have required property '" + missing0 + "'" }];
           return false;
         } else {
-          const _errs1 = errors;
+          const _errs1 = errors2;
           for (const key0 in data) {
             if (!(key0 === "name" || key0 === "config")) {
               validate76.errors = [{ instancePath, schemaPath: "#/additionalProperties", keyword: "additionalProperties", params: { additionalProperty: key0 }, message: "must NOT have additional properties" }];
@@ -91846,25 +93232,25 @@ Property is required and must be non-null.
               break;
             }
           }
-          if (_errs1 === errors) {
+          if (_errs1 === errors2) {
             if (data.name !== undefined) {
-              const _errs2 = errors;
+              const _errs2 = errors2;
               if (typeof data.name !== "string") {
                 validate76.errors = [{ instancePath: instancePath + "/name", schemaPath: "#/properties/name/type", keyword: "type", params: { type: schema98.properties.name.type }, message: "must be string" }];
                 return false;
               }
-              var valid0 = _errs2 === errors;
+              var valid0 = _errs2 === errors2;
             } else {
               var valid0 = true;
             }
             if (valid0) {
               if (data.config !== undefined) {
                 let data1 = data.config;
-                const _errs4 = errors;
-                const _errs5 = errors;
-                if (errors === _errs5) {
+                const _errs4 = errors2;
+                const _errs5 = errors2;
+                if (errors2 === _errs5) {
                   if (data1 && typeof data1 == "object" && !Array.isArray(data1)) {
-                    const _errs7 = errors;
+                    const _errs7 = errors2;
                     for (const key1 in data1) {
                       if (!(key1 === "enabled")) {
                         validate76.errors = [{ instancePath: instancePath + "/config", schemaPath: "#/$defs/ExperimentalMeterConfig/additionalProperties", keyword: "additionalProperties", params: { additionalProperty: key1 }, message: "must NOT have additional properties" }];
@@ -91872,7 +93258,7 @@ Property is required and must be non-null.
                         break;
                       }
                     }
-                    if (_errs7 === errors) {
+                    if (_errs7 === errors2) {
                       if (data1.enabled !== undefined) {
                         if (typeof data1.enabled !== "boolean") {
                           validate76.errors = [{ instancePath: instancePath + "/config/enabled", schemaPath: "#/$defs/ExperimentalMeterConfig/properties/enabled/type", keyword: "type", params: { type: schema97.properties.enabled.type }, message: "must be boolean" }];
@@ -91885,7 +93271,7 @@ Property is required and must be non-null.
                     return false;
                   }
                 }
-                var valid0 = _errs4 === errors;
+                var valid0 = _errs4 === errors2;
               } else {
                 var valid0 = true;
               }
@@ -91898,12 +93284,12 @@ Property is required and must be non-null.
       }
     }
     validate76.errors = vErrors;
-    return errors === 0;
+    return errors2 === 0;
   }
   validate76.evaluated = { props: true, dynamicProps: false, dynamicItems: false };
   function validate75(data, { instancePath = "", parentData, parentDataProperty, rootData = data, dynamicAnchors = {} } = {}) {
     let vErrors = null;
-    let errors = 0;
+    let errors2 = 0;
     const evaluated0 = validate75.evaluated;
     if (evaluated0.dynamicProps) {
       evaluated0.props = undefined;
@@ -91911,9 +93297,9 @@ Property is required and must be non-null.
     if (evaluated0.dynamicItems) {
       evaluated0.items = undefined;
     }
-    if (errors === 0) {
+    if (errors2 === 0) {
       if (data && typeof data == "object" && !Array.isArray(data)) {
-        const _errs1 = errors;
+        const _errs1 = errors2;
         for (const key0 in data) {
           if (!(key0 === "default_config" || key0 === "meters")) {
             validate75.errors = [{ instancePath, schemaPath: "#/additionalProperties", keyword: "additionalProperties", params: { additionalProperty: key0 }, message: "must NOT have additional properties" }];
@@ -91921,14 +93307,14 @@ Property is required and must be non-null.
             break;
           }
         }
-        if (_errs1 === errors) {
+        if (_errs1 === errors2) {
           if (data.default_config !== undefined) {
             let data0 = data.default_config;
-            const _errs2 = errors;
-            const _errs3 = errors;
-            if (errors === _errs3) {
+            const _errs2 = errors2;
+            const _errs3 = errors2;
+            if (errors2 === _errs3) {
               if (data0 && typeof data0 == "object" && !Array.isArray(data0)) {
-                const _errs5 = errors;
+                const _errs5 = errors2;
                 for (const key1 in data0) {
                   if (!(key1 === "enabled")) {
                     validate75.errors = [{ instancePath: instancePath + "/default_config", schemaPath: "#/$defs/ExperimentalMeterConfig/additionalProperties", keyword: "additionalProperties", params: { additionalProperty: key1 }, message: "must NOT have additional properties" }];
@@ -91936,7 +93322,7 @@ Property is required and must be non-null.
                     break;
                   }
                 }
-                if (_errs5 === errors) {
+                if (_errs5 === errors2) {
                   if (data0.enabled !== undefined) {
                     if (typeof data0.enabled !== "boolean") {
                       validate75.errors = [{ instancePath: instancePath + "/default_config/enabled", schemaPath: "#/$defs/ExperimentalMeterConfig/properties/enabled/type", keyword: "type", params: { type: schema97.properties.enabled.type }, message: "must be boolean" }];
@@ -91949,15 +93335,15 @@ Property is required and must be non-null.
                 return false;
               }
             }
-            var valid0 = _errs2 === errors;
+            var valid0 = _errs2 === errors2;
           } else {
             var valid0 = true;
           }
           if (valid0) {
             if (data.meters !== undefined) {
               let data2 = data.meters;
-              const _errs8 = errors;
-              if (errors === _errs8) {
+              const _errs8 = errors2;
+              if (errors2 === _errs8) {
                 if (Array.isArray(data2)) {
                   if (data2.length < 1) {
                     validate75.errors = [{ instancePath: instancePath + "/meters", schemaPath: "#/properties/meters/minItems", keyword: "minItems", params: { limit: 1 }, message: "must NOT have fewer than 1 items" }];
@@ -91966,12 +93352,12 @@ Property is required and must be non-null.
                     var valid3 = true;
                     const len0 = data2.length;
                     for (let i0 = 0;i0 < len0; i0++) {
-                      const _errs10 = errors;
+                      const _errs10 = errors2;
                       if (!validate76(data2[i0], { instancePath: instancePath + "/meters/" + i0, parentData: data2, parentDataProperty: i0, rootData, dynamicAnchors })) {
                         vErrors = vErrors === null ? validate76.errors : vErrors.concat(validate76.errors);
-                        errors = vErrors.length;
+                        errors2 = vErrors.length;
                       }
-                      var valid3 = _errs10 === errors;
+                      var valid3 = _errs10 === errors2;
                       if (!valid3) {
                         break;
                       }
@@ -91982,7 +93368,7 @@ Property is required and must be non-null.
                   return false;
                 }
               }
-              var valid0 = _errs8 === errors;
+              var valid0 = _errs8 === errors2;
             } else {
               var valid0 = true;
             }
@@ -91994,12 +93380,12 @@ Property is required and must be non-null.
       }
     }
     validate75.errors = vErrors;
-    return errors === 0;
+    return errors2 === 0;
   }
   validate75.evaluated = { props: true, dynamicProps: false, dynamicItems: false };
   function validate43(data, { instancePath = "", parentData, parentDataProperty, rootData = data, dynamicAnchors = {} } = {}) {
     let vErrors = null;
-    let errors = 0;
+    let errors2 = 0;
     const evaluated0 = validate43.evaluated;
     if (evaluated0.dynamicProps) {
       evaluated0.props = undefined;
@@ -92007,14 +93393,14 @@ Property is required and must be non-null.
     if (evaluated0.dynamicItems) {
       evaluated0.items = undefined;
     }
-    if (errors === 0) {
+    if (errors2 === 0) {
       if (data && typeof data == "object" && !Array.isArray(data)) {
         let missing0;
         if (data.readers === undefined && (missing0 = "readers")) {
           validate43.errors = [{ instancePath, schemaPath: "#/required", keyword: "required", params: { missingProperty: missing0 }, message: "must have required property '" + missing0 + "'" }];
           return false;
         } else {
-          const _errs1 = errors;
+          const _errs1 = errors2;
           for (const key0 in data) {
             if (!(key0 === "readers" || key0 === "views" || key0 === "exemplar_filter" || key0 === "meter_configurator/development")) {
               validate43.errors = [{ instancePath, schemaPath: "#/additionalProperties", keyword: "additionalProperties", params: { additionalProperty: key0 }, message: "must NOT have additional properties" }];
@@ -92022,11 +93408,11 @@ Property is required and must be non-null.
               break;
             }
           }
-          if (_errs1 === errors) {
+          if (_errs1 === errors2) {
             if (data.readers !== undefined) {
               let data0 = data.readers;
-              const _errs2 = errors;
-              if (errors === _errs2) {
+              const _errs2 = errors2;
+              if (errors2 === _errs2) {
                 if (Array.isArray(data0)) {
                   if (data0.length < 1) {
                     validate43.errors = [{ instancePath: instancePath + "/readers", schemaPath: "#/properties/readers/minItems", keyword: "minItems", params: { limit: 1 }, message: "must NOT have fewer than 1 items" }];
@@ -92035,12 +93421,12 @@ Property is required and must be non-null.
                     var valid1 = true;
                     const len0 = data0.length;
                     for (let i0 = 0;i0 < len0; i0++) {
-                      const _errs4 = errors;
+                      const _errs4 = errors2;
                       if (!validate44(data0[i0], { instancePath: instancePath + "/readers/" + i0, parentData: data0, parentDataProperty: i0, rootData, dynamicAnchors })) {
                         vErrors = vErrors === null ? validate44.errors : vErrors.concat(validate44.errors);
-                        errors = vErrors.length;
+                        errors2 = vErrors.length;
                       }
-                      var valid1 = _errs4 === errors;
+                      var valid1 = _errs4 === errors2;
                       if (!valid1) {
                         break;
                       }
@@ -92051,15 +93437,15 @@ Property is required and must be non-null.
                   return false;
                 }
               }
-              var valid0 = _errs2 === errors;
+              var valid0 = _errs2 === errors2;
             } else {
               var valid0 = true;
             }
             if (valid0) {
               if (data.views !== undefined) {
                 let data2 = data.views;
-                const _errs5 = errors;
-                if (errors === _errs5) {
+                const _errs5 = errors2;
+                if (errors2 === _errs5) {
                   if (Array.isArray(data2)) {
                     if (data2.length < 1) {
                       validate43.errors = [{ instancePath: instancePath + "/views", schemaPath: "#/properties/views/minItems", keyword: "minItems", params: { limit: 1 }, message: "must NOT have fewer than 1 items" }];
@@ -92068,12 +93454,12 @@ Property is required and must be non-null.
                       var valid2 = true;
                       const len1 = data2.length;
                       for (let i1 = 0;i1 < len1; i1++) {
-                        const _errs7 = errors;
+                        const _errs7 = errors2;
                         if (!validate67(data2[i1], { instancePath: instancePath + "/views/" + i1, parentData: data2, parentDataProperty: i1, rootData, dynamicAnchors })) {
                           vErrors = vErrors === null ? validate67.errors : vErrors.concat(validate67.errors);
-                          errors = vErrors.length;
+                          errors2 = vErrors.length;
                         }
-                        var valid2 = _errs7 === errors;
+                        var valid2 = _errs7 === errors2;
                         if (!valid2) {
                           break;
                         }
@@ -92084,14 +93470,14 @@ Property is required and must be non-null.
                     return false;
                   }
                 }
-                var valid0 = _errs5 === errors;
+                var valid0 = _errs5 === errors2;
               } else {
                 var valid0 = true;
               }
               if (valid0) {
                 if (data.exemplar_filter !== undefined) {
                   let data4 = data.exemplar_filter;
-                  const _errs8 = errors;
+                  const _errs8 = errors2;
                   if (typeof data4 !== "string" && data4 !== null) {
                     validate43.errors = [{ instancePath: instancePath + "/exemplar_filter", schemaPath: "#/$defs/ExemplarFilter/type", keyword: "type", params: { type: schema95.type }, message: "must be string,null" }];
                     return false;
@@ -92100,18 +93486,18 @@ Property is required and must be non-null.
                     validate43.errors = [{ instancePath: instancePath + "/exemplar_filter", schemaPath: "#/$defs/ExemplarFilter/enum", keyword: "enum", params: { allowedValues: schema95.enum }, message: "must be equal to one of the allowed values" }];
                     return false;
                   }
-                  var valid0 = _errs8 === errors;
+                  var valid0 = _errs8 === errors2;
                 } else {
                   var valid0 = true;
                 }
                 if (valid0) {
                   if (data["meter_configurator/development"] !== undefined) {
-                    const _errs11 = errors;
+                    const _errs11 = errors2;
                     if (!validate75(data["meter_configurator/development"], { instancePath: instancePath + "/meter_configurator~1development", parentData: data, parentDataProperty: "meter_configurator/development", rootData, dynamicAnchors })) {
                       vErrors = vErrors === null ? validate75.errors : vErrors.concat(validate75.errors);
-                      errors = vErrors.length;
+                      errors2 = vErrors.length;
                     }
-                    var valid0 = _errs11 === errors;
+                    var valid0 = _errs11 === errors2;
                   } else {
                     var valid0 = true;
                   }
@@ -92126,7 +93512,7 @@ Property is required and must be non-null.
       }
     }
     validate43.errors = vErrors;
-    return errors === 0;
+    return errors2 === 0;
   }
   validate43.evaluated = { props: true, dynamicProps: false, dynamicItems: false };
   var schema100 = { type: "object", additionalProperties: false, properties: { composite: { type: "array", minItems: 1, items: { $ref: "#/$defs/TextMapPropagator" }, description: `Configure the propagators in the composite text map propagator. Entries from .composite_list are appended to the list here with duplicates filtered out.
@@ -92152,7 +93538,7 @@ If omitted, ignore.
   var schema105 = { type: ["object", "null"], additionalProperties: false };
   function validate81(data, { instancePath = "", parentData, parentDataProperty, rootData = data, dynamicAnchors = {} } = {}) {
     let vErrors = null;
-    let errors = 0;
+    let errors2 = 0;
     const evaluated0 = validate81.evaluated;
     if (evaluated0.dynamicProps) {
       evaluated0.props = undefined;
@@ -92160,7 +93546,7 @@ If omitted, ignore.
     if (evaluated0.dynamicItems) {
       evaluated0.items = undefined;
     }
-    if (errors === 0) {
+    if (errors2 === 0) {
       if (data && typeof data == "object" && !Array.isArray(data)) {
         if (Object.keys(data).length > 1) {
           validate81.errors = [{ instancePath, schemaPath: "#/maxProperties", keyword: "maxProperties", params: { limit: 1 }, message: "must NOT have more than 1 properties" }];
@@ -92170,31 +93556,31 @@ If omitted, ignore.
             validate81.errors = [{ instancePath, schemaPath: "#/minProperties", keyword: "minProperties", params: { limit: 1 }, message: "must NOT have fewer than 1 properties" }];
             return false;
           } else {
-            const _errs1 = errors;
+            const _errs1 = errors2;
             for (const key0 in data) {
               if (!(key0 === "tracecontext" || key0 === "baggage" || key0 === "b3" || key0 === "b3multi")) {
                 let data0 = data[key0];
-                const _errs2 = errors;
+                const _errs2 = errors2;
                 if (!(data0 && typeof data0 == "object" && !Array.isArray(data0)) && data0 !== null) {
                   validate81.errors = [{ instancePath: instancePath + "/" + key0.replace(/~/g, "~0").replace(/\//g, "~1"), schemaPath: "#/additionalProperties/type", keyword: "type", params: { type: schema101.additionalProperties.type }, message: "must be object,null" }];
                   return false;
                 }
-                var valid0 = _errs2 === errors;
+                var valid0 = _errs2 === errors2;
                 if (!valid0) {
                   break;
                 }
               }
             }
-            if (_errs1 === errors) {
+            if (_errs1 === errors2) {
               if (data.tracecontext !== undefined) {
                 let data1 = data.tracecontext;
-                const _errs4 = errors;
-                const _errs5 = errors;
+                const _errs4 = errors2;
+                const _errs5 = errors2;
                 if (!(data1 && typeof data1 == "object" && !Array.isArray(data1)) && data1 !== null) {
                   validate81.errors = [{ instancePath: instancePath + "/tracecontext", schemaPath: "#/$defs/TraceContextPropagator/type", keyword: "type", params: { type: schema102.type }, message: "must be object,null" }];
                   return false;
                 }
-                if (errors === _errs5) {
+                if (errors2 === _errs5) {
                   if (data1 && typeof data1 == "object" && !Array.isArray(data1)) {
                     for (const key1 in data1) {
                       validate81.errors = [{ instancePath: instancePath + "/tracecontext", schemaPath: "#/$defs/TraceContextPropagator/additionalProperties", keyword: "additionalProperties", params: { additionalProperty: key1 }, message: "must NOT have additional properties" }];
@@ -92203,20 +93589,20 @@ If omitted, ignore.
                     }
                   }
                 }
-                var valid1 = _errs4 === errors;
+                var valid1 = _errs4 === errors2;
               } else {
                 var valid1 = true;
               }
               if (valid1) {
                 if (data.baggage !== undefined) {
                   let data2 = data.baggage;
-                  const _errs8 = errors;
-                  const _errs9 = errors;
+                  const _errs8 = errors2;
+                  const _errs9 = errors2;
                   if (!(data2 && typeof data2 == "object" && !Array.isArray(data2)) && data2 !== null) {
                     validate81.errors = [{ instancePath: instancePath + "/baggage", schemaPath: "#/$defs/BaggagePropagator/type", keyword: "type", params: { type: schema103.type }, message: "must be object,null" }];
                     return false;
                   }
-                  if (errors === _errs9) {
+                  if (errors2 === _errs9) {
                     if (data2 && typeof data2 == "object" && !Array.isArray(data2)) {
                       for (const key2 in data2) {
                         validate81.errors = [{ instancePath: instancePath + "/baggage", schemaPath: "#/$defs/BaggagePropagator/additionalProperties", keyword: "additionalProperties", params: { additionalProperty: key2 }, message: "must NOT have additional properties" }];
@@ -92225,20 +93611,20 @@ If omitted, ignore.
                       }
                     }
                   }
-                  var valid1 = _errs8 === errors;
+                  var valid1 = _errs8 === errors2;
                 } else {
                   var valid1 = true;
                 }
                 if (valid1) {
                   if (data.b3 !== undefined) {
                     let data3 = data.b3;
-                    const _errs12 = errors;
-                    const _errs13 = errors;
+                    const _errs12 = errors2;
+                    const _errs13 = errors2;
                     if (!(data3 && typeof data3 == "object" && !Array.isArray(data3)) && data3 !== null) {
                       validate81.errors = [{ instancePath: instancePath + "/b3", schemaPath: "#/$defs/B3Propagator/type", keyword: "type", params: { type: schema104.type }, message: "must be object,null" }];
                       return false;
                     }
-                    if (errors === _errs13) {
+                    if (errors2 === _errs13) {
                       if (data3 && typeof data3 == "object" && !Array.isArray(data3)) {
                         for (const key3 in data3) {
                           validate81.errors = [{ instancePath: instancePath + "/b3", schemaPath: "#/$defs/B3Propagator/additionalProperties", keyword: "additionalProperties", params: { additionalProperty: key3 }, message: "must NOT have additional properties" }];
@@ -92247,20 +93633,20 @@ If omitted, ignore.
                         }
                       }
                     }
-                    var valid1 = _errs12 === errors;
+                    var valid1 = _errs12 === errors2;
                   } else {
                     var valid1 = true;
                   }
                   if (valid1) {
                     if (data.b3multi !== undefined) {
                       let data4 = data.b3multi;
-                      const _errs16 = errors;
-                      const _errs17 = errors;
+                      const _errs16 = errors2;
+                      const _errs17 = errors2;
                       if (!(data4 && typeof data4 == "object" && !Array.isArray(data4)) && data4 !== null) {
                         validate81.errors = [{ instancePath: instancePath + "/b3multi", schemaPath: "#/$defs/B3MultiPropagator/type", keyword: "type", params: { type: schema105.type }, message: "must be object,null" }];
                         return false;
                       }
-                      if (errors === _errs17) {
+                      if (errors2 === _errs17) {
                         if (data4 && typeof data4 == "object" && !Array.isArray(data4)) {
                           for (const key4 in data4) {
                             validate81.errors = [{ instancePath: instancePath + "/b3multi", schemaPath: "#/$defs/B3MultiPropagator/additionalProperties", keyword: "additionalProperties", params: { additionalProperty: key4 }, message: "must NOT have additional properties" }];
@@ -92269,7 +93655,7 @@ If omitted, ignore.
                           }
                         }
                       }
-                      var valid1 = _errs16 === errors;
+                      var valid1 = _errs16 === errors2;
                     } else {
                       var valid1 = true;
                     }
@@ -92285,12 +93671,12 @@ If omitted, ignore.
       }
     }
     validate81.errors = vErrors;
-    return errors === 0;
+    return errors2 === 0;
   }
   validate81.evaluated = { props: true, dynamicProps: false, dynamicItems: false };
   function validate80(data, { instancePath = "", parentData, parentDataProperty, rootData = data, dynamicAnchors = {} } = {}) {
     let vErrors = null;
-    let errors = 0;
+    let errors2 = 0;
     const evaluated0 = validate80.evaluated;
     if (evaluated0.dynamicProps) {
       evaluated0.props = undefined;
@@ -92298,9 +93684,9 @@ If omitted, ignore.
     if (evaluated0.dynamicItems) {
       evaluated0.items = undefined;
     }
-    if (errors === 0) {
+    if (errors2 === 0) {
       if (data && typeof data == "object" && !Array.isArray(data)) {
-        const _errs1 = errors;
+        const _errs1 = errors2;
         for (const key0 in data) {
           if (!(key0 === "composite" || key0 === "composite_list")) {
             validate80.errors = [{ instancePath, schemaPath: "#/additionalProperties", keyword: "additionalProperties", params: { additionalProperty: key0 }, message: "must NOT have additional properties" }];
@@ -92308,11 +93694,11 @@ If omitted, ignore.
             break;
           }
         }
-        if (_errs1 === errors) {
+        if (_errs1 === errors2) {
           if (data.composite !== undefined) {
             let data0 = data.composite;
-            const _errs2 = errors;
-            if (errors === _errs2) {
+            const _errs2 = errors2;
+            if (errors2 === _errs2) {
               if (Array.isArray(data0)) {
                 if (data0.length < 1) {
                   validate80.errors = [{ instancePath: instancePath + "/composite", schemaPath: "#/properties/composite/minItems", keyword: "minItems", params: { limit: 1 }, message: "must NOT have fewer than 1 items" }];
@@ -92321,12 +93707,12 @@ If omitted, ignore.
                   var valid1 = true;
                   const len0 = data0.length;
                   for (let i0 = 0;i0 < len0; i0++) {
-                    const _errs4 = errors;
+                    const _errs4 = errors2;
                     if (!validate81(data0[i0], { instancePath: instancePath + "/composite/" + i0, parentData: data0, parentDataProperty: i0, rootData, dynamicAnchors })) {
                       vErrors = vErrors === null ? validate81.errors : vErrors.concat(validate81.errors);
-                      errors = vErrors.length;
+                      errors2 = vErrors.length;
                     }
-                    var valid1 = _errs4 === errors;
+                    var valid1 = _errs4 === errors2;
                     if (!valid1) {
                       break;
                     }
@@ -92337,19 +93723,19 @@ If omitted, ignore.
                 return false;
               }
             }
-            var valid0 = _errs2 === errors;
+            var valid0 = _errs2 === errors2;
           } else {
             var valid0 = true;
           }
           if (valid0) {
             if (data.composite_list !== undefined) {
               let data2 = data.composite_list;
-              const _errs5 = errors;
+              const _errs5 = errors2;
               if (typeof data2 !== "string" && data2 !== null) {
                 validate80.errors = [{ instancePath: instancePath + "/composite_list", schemaPath: "#/properties/composite_list/type", keyword: "type", params: { type: schema100.properties.composite_list.type }, message: "must be string,null" }];
                 return false;
               }
-              var valid0 = _errs5 === errors;
+              var valid0 = _errs5 === errors2;
             } else {
               var valid0 = true;
             }
@@ -92361,7 +93747,7 @@ If omitted, ignore.
       }
     }
     validate80.errors = vErrors;
-    return errors === 0;
+    return errors2 === 0;
   }
   validate80.evaluated = { props: true, dynamicProps: false, dynamicItems: false };
   var schema113 = { type: "object", additionalProperties: false, properties: { attribute_value_length_limit: { type: ["integer", "null"], minimum: 0, description: `Configure max attribute value size. Overrides .attribute_limits.attribute_value_length_limit. 
@@ -92412,7 +93798,7 @@ If omitted, ignore.
 ` } } };
   function validate87(data, { instancePath = "", parentData, parentDataProperty, rootData = data, dynamicAnchors = {} } = {}) {
     let vErrors = null;
-    let errors = 0;
+    let errors2 = 0;
     const evaluated0 = validate87.evaluated;
     if (evaluated0.dynamicProps) {
       evaluated0.props = undefined;
@@ -92420,7 +93806,7 @@ If omitted, ignore.
     if (evaluated0.dynamicItems) {
       evaluated0.items = undefined;
     }
-    if (errors === 0) {
+    if (errors2 === 0) {
       if (data && typeof data == "object" && !Array.isArray(data)) {
         if (Object.keys(data).length > 1) {
           validate87.errors = [{ instancePath, schemaPath: "#/maxProperties", keyword: "maxProperties", params: { limit: 1 }, message: "must NOT have more than 1 properties" }];
@@ -92430,55 +93816,55 @@ If omitted, ignore.
             validate87.errors = [{ instancePath, schemaPath: "#/minProperties", keyword: "minProperties", params: { limit: 1 }, message: "must NOT have fewer than 1 properties" }];
             return false;
           } else {
-            const _errs1 = errors;
+            const _errs1 = errors2;
             for (const key0 in data) {
               if (!(key0 === "otlp_http" || key0 === "otlp_grpc" || key0 === "otlp_file/development" || key0 === "console")) {
                 let data0 = data[key0];
-                const _errs2 = errors;
+                const _errs2 = errors2;
                 if (!(data0 && typeof data0 == "object" && !Array.isArray(data0)) && data0 !== null) {
                   validate87.errors = [{ instancePath: instancePath + "/" + key0.replace(/~/g, "~0").replace(/\//g, "~1"), schemaPath: "#/additionalProperties/type", keyword: "type", params: { type: schema109.additionalProperties.type }, message: "must be object,null" }];
                   return false;
                 }
-                var valid0 = _errs2 === errors;
+                var valid0 = _errs2 === errors2;
                 if (!valid0) {
                   break;
                 }
               }
             }
-            if (_errs1 === errors) {
+            if (_errs1 === errors2) {
               if (data.otlp_http !== undefined) {
-                const _errs4 = errors;
+                const _errs4 = errors2;
                 if (!validate25(data.otlp_http, { instancePath: instancePath + "/otlp_http", parentData: data, parentDataProperty: "otlp_http", rootData, dynamicAnchors })) {
                   vErrors = vErrors === null ? validate25.errors : vErrors.concat(validate25.errors);
-                  errors = vErrors.length;
+                  errors2 = vErrors.length;
                 }
-                var valid1 = _errs4 === errors;
+                var valid1 = _errs4 === errors2;
               } else {
                 var valid1 = true;
               }
               if (valid1) {
                 if (data.otlp_grpc !== undefined) {
-                  const _errs5 = errors;
+                  const _errs5 = errors2;
                   if (!validate27(data.otlp_grpc, { instancePath: instancePath + "/otlp_grpc", parentData: data, parentDataProperty: "otlp_grpc", rootData, dynamicAnchors })) {
                     vErrors = vErrors === null ? validate27.errors : vErrors.concat(validate27.errors);
-                    errors = vErrors.length;
+                    errors2 = vErrors.length;
                   }
-                  var valid1 = _errs5 === errors;
+                  var valid1 = _errs5 === errors2;
                 } else {
                   var valid1 = true;
                 }
                 if (valid1) {
                   if (data["otlp_file/development"] !== undefined) {
                     let data3 = data["otlp_file/development"];
-                    const _errs6 = errors;
-                    const _errs7 = errors;
+                    const _errs6 = errors2;
+                    const _errs7 = errors2;
                     if (!(data3 && typeof data3 == "object" && !Array.isArray(data3)) && data3 !== null) {
                       validate87.errors = [{ instancePath: instancePath + "/otlp_file~1development", schemaPath: "#/$defs/ExperimentalOtlpFileExporter/type", keyword: "type", params: { type: schema45.type }, message: "must be object,null" }];
                       return false;
                     }
-                    if (errors === _errs7) {
+                    if (errors2 === _errs7) {
                       if (data3 && typeof data3 == "object" && !Array.isArray(data3)) {
-                        const _errs9 = errors;
+                        const _errs9 = errors2;
                         for (const key1 in data3) {
                           if (!(key1 === "output_stream")) {
                             validate87.errors = [{ instancePath: instancePath + "/otlp_file~1development", schemaPath: "#/$defs/ExperimentalOtlpFileExporter/additionalProperties", keyword: "additionalProperties", params: { additionalProperty: key1 }, message: "must NOT have additional properties" }];
@@ -92486,7 +93872,7 @@ If omitted, ignore.
                             break;
                           }
                         }
-                        if (_errs9 === errors) {
+                        if (_errs9 === errors2) {
                           if (data3.output_stream !== undefined) {
                             let data4 = data3.output_stream;
                             if (typeof data4 !== "string" && data4 !== null) {
@@ -92497,20 +93883,20 @@ If omitted, ignore.
                         }
                       }
                     }
-                    var valid1 = _errs6 === errors;
+                    var valid1 = _errs6 === errors2;
                   } else {
                     var valid1 = true;
                   }
                   if (valid1) {
                     if (data.console !== undefined) {
                       let data5 = data.console;
-                      const _errs12 = errors;
-                      const _errs13 = errors;
+                      const _errs12 = errors2;
+                      const _errs13 = errors2;
                       if (!(data5 && typeof data5 == "object" && !Array.isArray(data5)) && data5 !== null) {
                         validate87.errors = [{ instancePath: instancePath + "/console", schemaPath: "#/$defs/ConsoleExporter/type", keyword: "type", params: { type: schema46.type }, message: "must be object,null" }];
                         return false;
                       }
-                      if (errors === _errs13) {
+                      if (errors2 === _errs13) {
                         if (data5 && typeof data5 == "object" && !Array.isArray(data5)) {
                           for (const key2 in data5) {
                             validate87.errors = [{ instancePath: instancePath + "/console", schemaPath: "#/$defs/ConsoleExporter/additionalProperties", keyword: "additionalProperties", params: { additionalProperty: key2 }, message: "must NOT have additional properties" }];
@@ -92519,7 +93905,7 @@ If omitted, ignore.
                           }
                         }
                       }
-                      var valid1 = _errs12 === errors;
+                      var valid1 = _errs12 === errors2;
                     } else {
                       var valid1 = true;
                     }
@@ -92535,12 +93921,12 @@ If omitted, ignore.
       }
     }
     validate87.errors = vErrors;
-    return errors === 0;
+    return errors2 === 0;
   }
   validate87.evaluated = { props: true, dynamicProps: false, dynamicItems: false };
   function validate86(data, { instancePath = "", parentData, parentDataProperty, rootData = data, dynamicAnchors = {} } = {}) {
     let vErrors = null;
-    let errors = 0;
+    let errors2 = 0;
     const evaluated0 = validate86.evaluated;
     if (evaluated0.dynamicProps) {
       evaluated0.props = undefined;
@@ -92548,14 +93934,14 @@ If omitted, ignore.
     if (evaluated0.dynamicItems) {
       evaluated0.items = undefined;
     }
-    if (errors === 0) {
+    if (errors2 === 0) {
       if (data && typeof data == "object" && !Array.isArray(data)) {
         let missing0;
         if (data.exporter === undefined && (missing0 = "exporter")) {
           validate86.errors = [{ instancePath, schemaPath: "#/required", keyword: "required", params: { missingProperty: missing0 }, message: "must have required property '" + missing0 + "'" }];
           return false;
         } else {
-          const _errs1 = errors;
+          const _errs1 = errors2;
           for (const key0 in data) {
             if (!(key0 === "schedule_delay" || key0 === "export_timeout" || key0 === "max_queue_size" || key0 === "max_export_batch_size" || key0 === "exporter")) {
               validate86.errors = [{ instancePath, schemaPath: "#/additionalProperties", keyword: "additionalProperties", params: { additionalProperty: key0 }, message: "must NOT have additional properties" }];
@@ -92563,15 +93949,15 @@ If omitted, ignore.
               break;
             }
           }
-          if (_errs1 === errors) {
+          if (_errs1 === errors2) {
             if (data.schedule_delay !== undefined) {
               let data0 = data.schedule_delay;
-              const _errs2 = errors;
+              const _errs2 = errors2;
               if (!(typeof data0 == "number" && (!(data0 % 1) && !isNaN(data0))) && data0 !== null) {
                 validate86.errors = [{ instancePath: instancePath + "/schedule_delay", schemaPath: "#/properties/schedule_delay/type", keyword: "type", params: { type: schema108.properties.schedule_delay.type }, message: "must be integer,null" }];
                 return false;
               }
-              if (errors === _errs2) {
+              if (errors2 === _errs2) {
                 if (typeof data0 == "number") {
                   if (data0 < 0 || isNaN(data0)) {
                     validate86.errors = [{ instancePath: instancePath + "/schedule_delay", schemaPath: "#/properties/schedule_delay/minimum", keyword: "minimum", params: { comparison: ">=", limit: 0 }, message: "must be >= 0" }];
@@ -92579,19 +93965,19 @@ If omitted, ignore.
                   }
                 }
               }
-              var valid0 = _errs2 === errors;
+              var valid0 = _errs2 === errors2;
             } else {
               var valid0 = true;
             }
             if (valid0) {
               if (data.export_timeout !== undefined) {
                 let data1 = data.export_timeout;
-                const _errs4 = errors;
+                const _errs4 = errors2;
                 if (!(typeof data1 == "number" && (!(data1 % 1) && !isNaN(data1))) && data1 !== null) {
                   validate86.errors = [{ instancePath: instancePath + "/export_timeout", schemaPath: "#/properties/export_timeout/type", keyword: "type", params: { type: schema108.properties.export_timeout.type }, message: "must be integer,null" }];
                   return false;
                 }
-                if (errors === _errs4) {
+                if (errors2 === _errs4) {
                   if (typeof data1 == "number") {
                     if (data1 < 0 || isNaN(data1)) {
                       validate86.errors = [{ instancePath: instancePath + "/export_timeout", schemaPath: "#/properties/export_timeout/minimum", keyword: "minimum", params: { comparison: ">=", limit: 0 }, message: "must be >= 0" }];
@@ -92599,19 +93985,19 @@ If omitted, ignore.
                     }
                   }
                 }
-                var valid0 = _errs4 === errors;
+                var valid0 = _errs4 === errors2;
               } else {
                 var valid0 = true;
               }
               if (valid0) {
                 if (data.max_queue_size !== undefined) {
                   let data2 = data.max_queue_size;
-                  const _errs6 = errors;
+                  const _errs6 = errors2;
                   if (!(typeof data2 == "number" && (!(data2 % 1) && !isNaN(data2))) && data2 !== null) {
                     validate86.errors = [{ instancePath: instancePath + "/max_queue_size", schemaPath: "#/properties/max_queue_size/type", keyword: "type", params: { type: schema108.properties.max_queue_size.type }, message: "must be integer,null" }];
                     return false;
                   }
-                  if (errors === _errs6) {
+                  if (errors2 === _errs6) {
                     if (typeof data2 == "number") {
                       if (data2 <= 0 || isNaN(data2)) {
                         validate86.errors = [{ instancePath: instancePath + "/max_queue_size", schemaPath: "#/properties/max_queue_size/exclusiveMinimum", keyword: "exclusiveMinimum", params: { comparison: ">", limit: 0 }, message: "must be > 0" }];
@@ -92619,19 +94005,19 @@ If omitted, ignore.
                       }
                     }
                   }
-                  var valid0 = _errs6 === errors;
+                  var valid0 = _errs6 === errors2;
                 } else {
                   var valid0 = true;
                 }
                 if (valid0) {
                   if (data.max_export_batch_size !== undefined) {
                     let data3 = data.max_export_batch_size;
-                    const _errs8 = errors;
+                    const _errs8 = errors2;
                     if (!(typeof data3 == "number" && (!(data3 % 1) && !isNaN(data3))) && data3 !== null) {
                       validate86.errors = [{ instancePath: instancePath + "/max_export_batch_size", schemaPath: "#/properties/max_export_batch_size/type", keyword: "type", params: { type: schema108.properties.max_export_batch_size.type }, message: "must be integer,null" }];
                       return false;
                     }
-                    if (errors === _errs8) {
+                    if (errors2 === _errs8) {
                       if (typeof data3 == "number") {
                         if (data3 <= 0 || isNaN(data3)) {
                           validate86.errors = [{ instancePath: instancePath + "/max_export_batch_size", schemaPath: "#/properties/max_export_batch_size/exclusiveMinimum", keyword: "exclusiveMinimum", params: { comparison: ">", limit: 0 }, message: "must be > 0" }];
@@ -92639,18 +94025,18 @@ If omitted, ignore.
                         }
                       }
                     }
-                    var valid0 = _errs8 === errors;
+                    var valid0 = _errs8 === errors2;
                   } else {
                     var valid0 = true;
                   }
                   if (valid0) {
                     if (data.exporter !== undefined) {
-                      const _errs10 = errors;
+                      const _errs10 = errors2;
                       if (!validate87(data.exporter, { instancePath: instancePath + "/exporter", parentData: data, parentDataProperty: "exporter", rootData, dynamicAnchors })) {
                         vErrors = vErrors === null ? validate87.errors : vErrors.concat(validate87.errors);
-                        errors = vErrors.length;
+                        errors2 = vErrors.length;
                       }
-                      var valid0 = _errs10 === errors;
+                      var valid0 = _errs10 === errors2;
                     } else {
                       var valid0 = true;
                     }
@@ -92666,12 +94052,12 @@ If omitted, ignore.
       }
     }
     validate86.errors = vErrors;
-    return errors === 0;
+    return errors2 === 0;
   }
   validate86.evaluated = { props: true, dynamicProps: false, dynamicItems: false };
   function validate92(data, { instancePath = "", parentData, parentDataProperty, rootData = data, dynamicAnchors = {} } = {}) {
     let vErrors = null;
-    let errors = 0;
+    let errors2 = 0;
     const evaluated0 = validate92.evaluated;
     if (evaluated0.dynamicProps) {
       evaluated0.props = undefined;
@@ -92679,14 +94065,14 @@ If omitted, ignore.
     if (evaluated0.dynamicItems) {
       evaluated0.items = undefined;
     }
-    if (errors === 0) {
+    if (errors2 === 0) {
       if (data && typeof data == "object" && !Array.isArray(data)) {
         let missing0;
         if (data.exporter === undefined && (missing0 = "exporter")) {
           validate92.errors = [{ instancePath, schemaPath: "#/required", keyword: "required", params: { missingProperty: missing0 }, message: "must have required property '" + missing0 + "'" }];
           return false;
         } else {
-          const _errs1 = errors;
+          const _errs1 = errors2;
           for (const key0 in data) {
             if (!(key0 === "exporter")) {
               validate92.errors = [{ instancePath, schemaPath: "#/additionalProperties", keyword: "additionalProperties", params: { additionalProperty: key0 }, message: "must NOT have additional properties" }];
@@ -92694,11 +94080,11 @@ If omitted, ignore.
               break;
             }
           }
-          if (_errs1 === errors) {
+          if (_errs1 === errors2) {
             if (data.exporter !== undefined) {
               if (!validate87(data.exporter, { instancePath: instancePath + "/exporter", parentData: data, parentDataProperty: "exporter", rootData, dynamicAnchors })) {
                 vErrors = vErrors === null ? validate87.errors : vErrors.concat(validate87.errors);
-                errors = vErrors.length;
+                errors2 = vErrors.length;
               }
             }
           }
@@ -92709,12 +94095,12 @@ If omitted, ignore.
       }
     }
     validate92.errors = vErrors;
-    return errors === 0;
+    return errors2 === 0;
   }
   validate92.evaluated = { props: true, dynamicProps: false, dynamicItems: false };
   function validate85(data, { instancePath = "", parentData, parentDataProperty, rootData = data, dynamicAnchors = {} } = {}) {
     let vErrors = null;
-    let errors = 0;
+    let errors2 = 0;
     const evaluated0 = validate85.evaluated;
     if (evaluated0.dynamicProps) {
       evaluated0.props = undefined;
@@ -92722,7 +94108,7 @@ If omitted, ignore.
     if (evaluated0.dynamicItems) {
       evaluated0.items = undefined;
     }
-    if (errors === 0) {
+    if (errors2 === 0) {
       if (data && typeof data == "object" && !Array.isArray(data)) {
         if (Object.keys(data).length > 1) {
           validate85.errors = [{ instancePath, schemaPath: "#/maxProperties", keyword: "maxProperties", params: { limit: 1 }, message: "must NOT have more than 1 properties" }];
@@ -92732,40 +94118,40 @@ If omitted, ignore.
             validate85.errors = [{ instancePath, schemaPath: "#/minProperties", keyword: "minProperties", params: { limit: 1 }, message: "must NOT have fewer than 1 properties" }];
             return false;
           } else {
-            const _errs1 = errors;
+            const _errs1 = errors2;
             for (const key0 in data) {
               if (!(key0 === "batch" || key0 === "simple")) {
                 let data0 = data[key0];
-                const _errs2 = errors;
+                const _errs2 = errors2;
                 if (!(data0 && typeof data0 == "object" && !Array.isArray(data0)) && data0 !== null) {
                   validate85.errors = [{ instancePath: instancePath + "/" + key0.replace(/~/g, "~0").replace(/\//g, "~1"), schemaPath: "#/additionalProperties/type", keyword: "type", params: { type: schema107.additionalProperties.type }, message: "must be object,null" }];
                   return false;
                 }
-                var valid0 = _errs2 === errors;
+                var valid0 = _errs2 === errors2;
                 if (!valid0) {
                   break;
                 }
               }
             }
-            if (_errs1 === errors) {
+            if (_errs1 === errors2) {
               if (data.batch !== undefined) {
-                const _errs4 = errors;
+                const _errs4 = errors2;
                 if (!validate86(data.batch, { instancePath: instancePath + "/batch", parentData: data, parentDataProperty: "batch", rootData, dynamicAnchors })) {
                   vErrors = vErrors === null ? validate86.errors : vErrors.concat(validate86.errors);
-                  errors = vErrors.length;
+                  errors2 = vErrors.length;
                 }
-                var valid1 = _errs4 === errors;
+                var valid1 = _errs4 === errors2;
               } else {
                 var valid1 = true;
               }
               if (valid1) {
                 if (data.simple !== undefined) {
-                  const _errs5 = errors;
+                  const _errs5 = errors2;
                   if (!validate92(data.simple, { instancePath: instancePath + "/simple", parentData: data, parentDataProperty: "simple", rootData, dynamicAnchors })) {
                     vErrors = vErrors === null ? validate92.errors : vErrors.concat(validate92.errors);
-                    errors = vErrors.length;
+                    errors2 = vErrors.length;
                   }
-                  var valid1 = _errs5 === errors;
+                  var valid1 = _errs5 === errors2;
                 } else {
                   var valid1 = true;
                 }
@@ -92779,7 +94165,7 @@ If omitted, ignore.
       }
     }
     validate85.errors = vErrors;
-    return errors === 0;
+    return errors2 === 0;
   }
   validate85.evaluated = { props: true, dynamicProps: false, dynamicItems: false };
   var schema114 = { type: "object", additionalProperties: { type: ["object", "null"] }, minProperties: 1, maxProperties: 1, properties: { always_off: { $ref: "#/$defs/AlwaysOffSampler", description: `Configure sampler to be always_off.
@@ -92827,7 +94213,7 @@ Property is required and must be non-null.
   var wrapper0 = { validate: validate97 };
   function validate98(data, { instancePath = "", parentData, parentDataProperty, rootData = data, dynamicAnchors = {} } = {}) {
     let vErrors = null;
-    let errors = 0;
+    let errors2 = 0;
     const evaluated0 = validate98.evaluated;
     if (evaluated0.dynamicProps) {
       evaluated0.props = undefined;
@@ -92835,14 +94221,14 @@ Property is required and must be non-null.
     if (evaluated0.dynamicItems) {
       evaluated0.items = undefined;
     }
-    if (errors === 0) {
+    if (errors2 === 0) {
       if (data && typeof data == "object" && !Array.isArray(data)) {
         let missing0;
         if (data.root === undefined && (missing0 = "root")) {
           validate98.errors = [{ instancePath, schemaPath: "#/required", keyword: "required", params: { missingProperty: missing0 }, message: "must have required property '" + missing0 + "'" }];
           return false;
         } else {
-          const _errs1 = errors;
+          const _errs1 = errors2;
           for (const key0 in data) {
             if (!(key0 === "root")) {
               validate98.errors = [{ instancePath, schemaPath: "#/additionalProperties", keyword: "additionalProperties", params: { additionalProperty: key0 }, message: "must NOT have additional properties" }];
@@ -92850,11 +94236,11 @@ Property is required and must be non-null.
               break;
             }
           }
-          if (_errs1 === errors) {
+          if (_errs1 === errors2) {
             if (data.root !== undefined) {
               if (!wrapper0.validate(data.root, { instancePath: instancePath + "/root", parentData: data, parentDataProperty: "root", rootData, dynamicAnchors })) {
                 vErrors = vErrors === null ? wrapper0.validate.errors : vErrors.concat(wrapper0.validate.errors);
-                errors = vErrors.length;
+                errors2 = vErrors.length;
               }
             }
           }
@@ -92865,7 +94251,7 @@ Property is required and must be non-null.
       }
     }
     validate98.errors = vErrors;
-    return errors === 0;
+    return errors2 === 0;
   }
   validate98.evaluated = { props: true, dynamicProps: false, dynamicItems: false };
   var schema122 = { type: ["object", "null"], additionalProperties: false, properties: { rules: { type: "array", minItems: 1, items: { $ref: "#/$defs/ExperimentalComposableRuleBasedSamplerRule" }, description: `The rules for the sampler, matched in order.
@@ -92878,7 +94264,7 @@ If omitted, no span is sampled.
   var schema127 = { type: ["string", "null"], enum: ["none", "remote", "local"] };
   function validate101(data, { instancePath = "", parentData, parentDataProperty, rootData = data, dynamicAnchors = {} } = {}) {
     let vErrors = null;
-    let errors = 0;
+    let errors2 = 0;
     const evaluated0 = validate101.evaluated;
     if (evaluated0.dynamicProps) {
       evaluated0.props = undefined;
@@ -92886,14 +94272,14 @@ If omitted, no span is sampled.
     if (evaluated0.dynamicItems) {
       evaluated0.items = undefined;
     }
-    if (errors === 0) {
+    if (errors2 === 0) {
       if (data && typeof data == "object" && !Array.isArray(data)) {
         let missing0;
         if (data.sampler === undefined && (missing0 = "sampler")) {
           validate101.errors = [{ instancePath, schemaPath: "#/required", keyword: "required", params: { missingProperty: missing0 }, message: "must have required property '" + missing0 + "'" }];
           return false;
         } else {
-          const _errs1 = errors;
+          const _errs1 = errors2;
           for (const key0 in data) {
             if (!(key0 === "attribute_values" || key0 === "attribute_patterns" || key0 === "span_kinds" || key0 === "parent" || key0 === "sampler")) {
               validate101.errors = [{ instancePath, schemaPath: "#/additionalProperties", keyword: "additionalProperties", params: { additionalProperty: key0 }, message: "must NOT have additional properties" }];
@@ -92901,19 +94287,19 @@ If omitted, no span is sampled.
               break;
             }
           }
-          if (_errs1 === errors) {
+          if (_errs1 === errors2) {
             if (data.attribute_values !== undefined) {
               let data0 = data.attribute_values;
-              const _errs2 = errors;
-              const _errs3 = errors;
-              if (errors === _errs3) {
+              const _errs2 = errors2;
+              const _errs3 = errors2;
+              if (errors2 === _errs3) {
                 if (data0 && typeof data0 == "object" && !Array.isArray(data0)) {
                   let missing1;
                   if (data0.key === undefined && (missing1 = "key") || data0.values === undefined && (missing1 = "values")) {
                     validate101.errors = [{ instancePath: instancePath + "/attribute_values", schemaPath: "#/$defs/ExperimentalComposableRuleBasedSamplerRuleAttributeValues/required", keyword: "required", params: { missingProperty: missing1 }, message: "must have required property '" + missing1 + "'" }];
                     return false;
                   } else {
-                    const _errs5 = errors;
+                    const _errs5 = errors2;
                     for (const key1 in data0) {
                       if (!(key1 === "key" || key1 === "values")) {
                         validate101.errors = [{ instancePath: instancePath + "/attribute_values", schemaPath: "#/$defs/ExperimentalComposableRuleBasedSamplerRuleAttributeValues/additionalProperties", keyword: "additionalProperties", params: { additionalProperty: key1 }, message: "must NOT have additional properties" }];
@@ -92921,22 +94307,22 @@ If omitted, no span is sampled.
                         break;
                       }
                     }
-                    if (_errs5 === errors) {
+                    if (_errs5 === errors2) {
                       if (data0.key !== undefined) {
-                        const _errs6 = errors;
+                        const _errs6 = errors2;
                         if (typeof data0.key !== "string") {
                           validate101.errors = [{ instancePath: instancePath + "/attribute_values/key", schemaPath: "#/$defs/ExperimentalComposableRuleBasedSamplerRuleAttributeValues/properties/key/type", keyword: "type", params: { type: "string" }, message: "must be string" }];
                           return false;
                         }
-                        var valid2 = _errs6 === errors;
+                        var valid2 = _errs6 === errors2;
                       } else {
                         var valid2 = true;
                       }
                       if (valid2) {
                         if (data0.values !== undefined) {
                           let data2 = data0.values;
-                          const _errs8 = errors;
-                          if (errors === _errs8) {
+                          const _errs8 = errors2;
+                          if (errors2 === _errs8) {
                             if (Array.isArray(data2)) {
                               if (data2.length < 1) {
                                 validate101.errors = [{ instancePath: instancePath + "/attribute_values/values", schemaPath: "#/$defs/ExperimentalComposableRuleBasedSamplerRuleAttributeValues/properties/values/minItems", keyword: "minItems", params: { limit: 1 }, message: "must NOT have fewer than 1 items" }];
@@ -92945,12 +94331,12 @@ If omitted, no span is sampled.
                                 var valid3 = true;
                                 const len0 = data2.length;
                                 for (let i0 = 0;i0 < len0; i0++) {
-                                  const _errs10 = errors;
+                                  const _errs10 = errors2;
                                   if (typeof data2[i0] !== "string") {
                                     validate101.errors = [{ instancePath: instancePath + "/attribute_values/values/" + i0, schemaPath: "#/$defs/ExperimentalComposableRuleBasedSamplerRuleAttributeValues/properties/values/items/type", keyword: "type", params: { type: "string" }, message: "must be string" }];
                                     return false;
                                   }
-                                  var valid3 = _errs10 === errors;
+                                  var valid3 = _errs10 === errors2;
                                   if (!valid3) {
                                     break;
                                   }
@@ -92961,7 +94347,7 @@ If omitted, no span is sampled.
                               return false;
                             }
                           }
-                          var valid2 = _errs8 === errors;
+                          var valid2 = _errs8 === errors2;
                         } else {
                           var valid2 = true;
                         }
@@ -92973,23 +94359,23 @@ If omitted, no span is sampled.
                   return false;
                 }
               }
-              var valid0 = _errs2 === errors;
+              var valid0 = _errs2 === errors2;
             } else {
               var valid0 = true;
             }
             if (valid0) {
               if (data.attribute_patterns !== undefined) {
                 let data4 = data.attribute_patterns;
-                const _errs12 = errors;
-                const _errs13 = errors;
-                if (errors === _errs13) {
+                const _errs12 = errors2;
+                const _errs13 = errors2;
+                if (errors2 === _errs13) {
                   if (data4 && typeof data4 == "object" && !Array.isArray(data4)) {
                     let missing2;
                     if (data4.key === undefined && (missing2 = "key")) {
                       validate101.errors = [{ instancePath: instancePath + "/attribute_patterns", schemaPath: "#/$defs/ExperimentalComposableRuleBasedSamplerRuleAttributePatterns/required", keyword: "required", params: { missingProperty: missing2 }, message: "must have required property '" + missing2 + "'" }];
                       return false;
                     } else {
-                      const _errs15 = errors;
+                      const _errs15 = errors2;
                       for (const key2 in data4) {
                         if (!(key2 === "key" || key2 === "included" || key2 === "excluded")) {
                           validate101.errors = [{ instancePath: instancePath + "/attribute_patterns", schemaPath: "#/$defs/ExperimentalComposableRuleBasedSamplerRuleAttributePatterns/additionalProperties", keyword: "additionalProperties", params: { additionalProperty: key2 }, message: "must NOT have additional properties" }];
@@ -92997,22 +94383,22 @@ If omitted, no span is sampled.
                           break;
                         }
                       }
-                      if (_errs15 === errors) {
+                      if (_errs15 === errors2) {
                         if (data4.key !== undefined) {
-                          const _errs16 = errors;
+                          const _errs16 = errors2;
                           if (typeof data4.key !== "string") {
                             validate101.errors = [{ instancePath: instancePath + "/attribute_patterns/key", schemaPath: "#/$defs/ExperimentalComposableRuleBasedSamplerRuleAttributePatterns/properties/key/type", keyword: "type", params: { type: "string" }, message: "must be string" }];
                             return false;
                           }
-                          var valid5 = _errs16 === errors;
+                          var valid5 = _errs16 === errors2;
                         } else {
                           var valid5 = true;
                         }
                         if (valid5) {
                           if (data4.included !== undefined) {
                             let data6 = data4.included;
-                            const _errs18 = errors;
-                            if (errors === _errs18) {
+                            const _errs18 = errors2;
+                            if (errors2 === _errs18) {
                               if (Array.isArray(data6)) {
                                 if (data6.length < 1) {
                                   validate101.errors = [{ instancePath: instancePath + "/attribute_patterns/included", schemaPath: "#/$defs/ExperimentalComposableRuleBasedSamplerRuleAttributePatterns/properties/included/minItems", keyword: "minItems", params: { limit: 1 }, message: "must NOT have fewer than 1 items" }];
@@ -93021,12 +94407,12 @@ If omitted, no span is sampled.
                                   var valid6 = true;
                                   const len1 = data6.length;
                                   for (let i1 = 0;i1 < len1; i1++) {
-                                    const _errs20 = errors;
+                                    const _errs20 = errors2;
                                     if (typeof data6[i1] !== "string") {
                                       validate101.errors = [{ instancePath: instancePath + "/attribute_patterns/included/" + i1, schemaPath: "#/$defs/ExperimentalComposableRuleBasedSamplerRuleAttributePatterns/properties/included/items/type", keyword: "type", params: { type: "string" }, message: "must be string" }];
                                       return false;
                                     }
-                                    var valid6 = _errs20 === errors;
+                                    var valid6 = _errs20 === errors2;
                                     if (!valid6) {
                                       break;
                                     }
@@ -93037,15 +94423,15 @@ If omitted, no span is sampled.
                                 return false;
                               }
                             }
-                            var valid5 = _errs18 === errors;
+                            var valid5 = _errs18 === errors2;
                           } else {
                             var valid5 = true;
                           }
                           if (valid5) {
                             if (data4.excluded !== undefined) {
                               let data8 = data4.excluded;
-                              const _errs22 = errors;
-                              if (errors === _errs22) {
+                              const _errs22 = errors2;
+                              if (errors2 === _errs22) {
                                 if (Array.isArray(data8)) {
                                   if (data8.length < 1) {
                                     validate101.errors = [{ instancePath: instancePath + "/attribute_patterns/excluded", schemaPath: "#/$defs/ExperimentalComposableRuleBasedSamplerRuleAttributePatterns/properties/excluded/minItems", keyword: "minItems", params: { limit: 1 }, message: "must NOT have fewer than 1 items" }];
@@ -93054,12 +94440,12 @@ If omitted, no span is sampled.
                                     var valid7 = true;
                                     const len2 = data8.length;
                                     for (let i22 = 0;i22 < len2; i22++) {
-                                      const _errs24 = errors;
+                                      const _errs24 = errors2;
                                       if (typeof data8[i22] !== "string") {
                                         validate101.errors = [{ instancePath: instancePath + "/attribute_patterns/excluded/" + i22, schemaPath: "#/$defs/ExperimentalComposableRuleBasedSamplerRuleAttributePatterns/properties/excluded/items/type", keyword: "type", params: { type: "string" }, message: "must be string" }];
                                         return false;
                                       }
-                                      var valid7 = _errs24 === errors;
+                                      var valid7 = _errs24 === errors2;
                                       if (!valid7) {
                                         break;
                                       }
@@ -93070,7 +94456,7 @@ If omitted, no span is sampled.
                                   return false;
                                 }
                               }
-                              var valid5 = _errs22 === errors;
+                              var valid5 = _errs22 === errors2;
                             } else {
                               var valid5 = true;
                             }
@@ -93083,15 +94469,15 @@ If omitted, no span is sampled.
                     return false;
                   }
                 }
-                var valid0 = _errs12 === errors;
+                var valid0 = _errs12 === errors2;
               } else {
                 var valid0 = true;
               }
               if (valid0) {
                 if (data.span_kinds !== undefined) {
                   let data10 = data.span_kinds;
-                  const _errs26 = errors;
-                  if (errors === _errs26) {
+                  const _errs26 = errors2;
+                  if (errors2 === _errs26) {
                     if (Array.isArray(data10)) {
                       if (data10.length < 1) {
                         validate101.errors = [{ instancePath: instancePath + "/span_kinds", schemaPath: "#/properties/span_kinds/minItems", keyword: "minItems", params: { limit: 1 }, message: "must NOT have fewer than 1 items" }];
@@ -93101,7 +94487,7 @@ If omitted, no span is sampled.
                         const len3 = data10.length;
                         for (let i3 = 0;i3 < len3; i3++) {
                           let data11 = data10[i3];
-                          const _errs28 = errors;
+                          const _errs28 = errors2;
                           if (typeof data11 !== "string" && data11 !== null) {
                             validate101.errors = [{ instancePath: instancePath + "/span_kinds/" + i3, schemaPath: "#/$defs/SpanKind/type", keyword: "type", params: { type: schema126.type }, message: "must be string,null" }];
                             return false;
@@ -93110,7 +94496,7 @@ If omitted, no span is sampled.
                             validate101.errors = [{ instancePath: instancePath + "/span_kinds/" + i3, schemaPath: "#/$defs/SpanKind/enum", keyword: "enum", params: { allowedValues: schema126.enum }, message: "must be equal to one of the allowed values" }];
                             return false;
                           }
-                          var valid8 = _errs28 === errors;
+                          var valid8 = _errs28 === errors2;
                           if (!valid8) {
                             break;
                           }
@@ -93121,15 +94507,15 @@ If omitted, no span is sampled.
                       return false;
                     }
                   }
-                  var valid0 = _errs26 === errors;
+                  var valid0 = _errs26 === errors2;
                 } else {
                   var valid0 = true;
                 }
                 if (valid0) {
                   if (data.parent !== undefined) {
                     let data12 = data.parent;
-                    const _errs31 = errors;
-                    if (errors === _errs31) {
+                    const _errs31 = errors2;
+                    if (errors2 === _errs31) {
                       if (Array.isArray(data12)) {
                         if (data12.length < 1) {
                           validate101.errors = [{ instancePath: instancePath + "/parent", schemaPath: "#/properties/parent/minItems", keyword: "minItems", params: { limit: 1 }, message: "must NOT have fewer than 1 items" }];
@@ -93139,7 +94525,7 @@ If omitted, no span is sampled.
                           const len4 = data12.length;
                           for (let i4 = 0;i4 < len4; i4++) {
                             let data13 = data12[i4];
-                            const _errs33 = errors;
+                            const _errs33 = errors2;
                             if (typeof data13 !== "string" && data13 !== null) {
                               validate101.errors = [{ instancePath: instancePath + "/parent/" + i4, schemaPath: "#/$defs/ExperimentalSpanParent/type", keyword: "type", params: { type: schema127.type }, message: "must be string,null" }];
                               return false;
@@ -93148,7 +94534,7 @@ If omitted, no span is sampled.
                               validate101.errors = [{ instancePath: instancePath + "/parent/" + i4, schemaPath: "#/$defs/ExperimentalSpanParent/enum", keyword: "enum", params: { allowedValues: schema127.enum }, message: "must be equal to one of the allowed values" }];
                               return false;
                             }
-                            var valid10 = _errs33 === errors;
+                            var valid10 = _errs33 === errors2;
                             if (!valid10) {
                               break;
                             }
@@ -93159,18 +94545,18 @@ If omitted, no span is sampled.
                         return false;
                       }
                     }
-                    var valid0 = _errs31 === errors;
+                    var valid0 = _errs31 === errors2;
                   } else {
                     var valid0 = true;
                   }
                   if (valid0) {
                     if (data.sampler !== undefined) {
-                      const _errs36 = errors;
+                      const _errs36 = errors2;
                       if (!wrapper0.validate(data.sampler, { instancePath: instancePath + "/sampler", parentData: data, parentDataProperty: "sampler", rootData, dynamicAnchors })) {
                         vErrors = vErrors === null ? wrapper0.validate.errors : vErrors.concat(wrapper0.validate.errors);
-                        errors = vErrors.length;
+                        errors2 = vErrors.length;
                       }
-                      var valid0 = _errs36 === errors;
+                      var valid0 = _errs36 === errors2;
                     } else {
                       var valid0 = true;
                     }
@@ -93186,12 +94572,12 @@ If omitted, no span is sampled.
       }
     }
     validate101.errors = vErrors;
-    return errors === 0;
+    return errors2 === 0;
   }
   validate101.evaluated = { props: true, dynamicProps: false, dynamicItems: false };
   function validate100(data, { instancePath = "", parentData, parentDataProperty, rootData = data, dynamicAnchors = {} } = {}) {
     let vErrors = null;
-    let errors = 0;
+    let errors2 = 0;
     const evaluated0 = validate100.evaluated;
     if (evaluated0.dynamicProps) {
       evaluated0.props = undefined;
@@ -93203,9 +94589,9 @@ If omitted, no span is sampled.
       validate100.errors = [{ instancePath, schemaPath: "#/type", keyword: "type", params: { type: schema122.type }, message: "must be object,null" }];
       return false;
     }
-    if (errors === 0) {
+    if (errors2 === 0) {
       if (data && typeof data == "object" && !Array.isArray(data)) {
-        const _errs1 = errors;
+        const _errs1 = errors2;
         for (const key0 in data) {
           if (!(key0 === "rules")) {
             validate100.errors = [{ instancePath, schemaPath: "#/additionalProperties", keyword: "additionalProperties", params: { additionalProperty: key0 }, message: "must NOT have additional properties" }];
@@ -93213,11 +94599,11 @@ If omitted, no span is sampled.
             break;
           }
         }
-        if (_errs1 === errors) {
+        if (_errs1 === errors2) {
           if (data.rules !== undefined) {
             let data0 = data.rules;
-            const _errs2 = errors;
-            if (errors === _errs2) {
+            const _errs2 = errors2;
+            if (errors2 === _errs2) {
               if (Array.isArray(data0)) {
                 if (data0.length < 1) {
                   validate100.errors = [{ instancePath: instancePath + "/rules", schemaPath: "#/properties/rules/minItems", keyword: "minItems", params: { limit: 1 }, message: "must NOT have fewer than 1 items" }];
@@ -93226,12 +94612,12 @@ If omitted, no span is sampled.
                   var valid1 = true;
                   const len0 = data0.length;
                   for (let i0 = 0;i0 < len0; i0++) {
-                    const _errs4 = errors;
+                    const _errs4 = errors2;
                     if (!validate101(data0[i0], { instancePath: instancePath + "/rules/" + i0, parentData: data0, parentDataProperty: i0, rootData, dynamicAnchors })) {
                       vErrors = vErrors === null ? validate101.errors : vErrors.concat(validate101.errors);
-                      errors = vErrors.length;
+                      errors2 = vErrors.length;
                     }
-                    var valid1 = _errs4 === errors;
+                    var valid1 = _errs4 === errors2;
                     if (!valid1) {
                       break;
                     }
@@ -93247,12 +94633,12 @@ If omitted, no span is sampled.
       }
     }
     validate100.errors = vErrors;
-    return errors === 0;
+    return errors2 === 0;
   }
   validate100.evaluated = { props: true, dynamicProps: false, dynamicItems: false };
   function validate97(data, { instancePath = "", parentData, parentDataProperty, rootData = data, dynamicAnchors = {} } = {}) {
     let vErrors = null;
-    let errors = 0;
+    let errors2 = 0;
     const evaluated0 = validate97.evaluated;
     if (evaluated0.dynamicProps) {
       evaluated0.props = undefined;
@@ -93260,7 +94646,7 @@ If omitted, no span is sampled.
     if (evaluated0.dynamicItems) {
       evaluated0.items = undefined;
     }
-    if (errors === 0) {
+    if (errors2 === 0) {
       if (data && typeof data == "object" && !Array.isArray(data)) {
         if (Object.keys(data).length > 1) {
           validate97.errors = [{ instancePath, schemaPath: "#/maxProperties", keyword: "maxProperties", params: { limit: 1 }, message: "must NOT have more than 1 properties" }];
@@ -93270,31 +94656,31 @@ If omitted, no span is sampled.
             validate97.errors = [{ instancePath, schemaPath: "#/minProperties", keyword: "minProperties", params: { limit: 1 }, message: "must NOT have fewer than 1 properties" }];
             return false;
           } else {
-            const _errs1 = errors;
+            const _errs1 = errors2;
             for (const key0 in data) {
               if (!(key0 === "always_off" || key0 === "always_on" || key0 === "parent_threshold" || key0 === "probability" || key0 === "rule_based")) {
                 let data0 = data[key0];
-                const _errs2 = errors;
+                const _errs2 = errors2;
                 if (!(data0 && typeof data0 == "object" && !Array.isArray(data0)) && data0 !== null) {
                   validate97.errors = [{ instancePath: instancePath + "/" + key0.replace(/~/g, "~0").replace(/\//g, "~1"), schemaPath: "#/additionalProperties/type", keyword: "type", params: { type: schema117.additionalProperties.type }, message: "must be object,null" }];
                   return false;
                 }
-                var valid0 = _errs2 === errors;
+                var valid0 = _errs2 === errors2;
                 if (!valid0) {
                   break;
                 }
               }
             }
-            if (_errs1 === errors) {
+            if (_errs1 === errors2) {
               if (data.always_off !== undefined) {
                 let data1 = data.always_off;
-                const _errs4 = errors;
-                const _errs5 = errors;
+                const _errs4 = errors2;
+                const _errs5 = errors2;
                 if (!(data1 && typeof data1 == "object" && !Array.isArray(data1)) && data1 !== null) {
                   validate97.errors = [{ instancePath: instancePath + "/always_off", schemaPath: "#/$defs/ExperimentalComposableAlwaysOffSampler/type", keyword: "type", params: { type: schema118.type }, message: "must be object,null" }];
                   return false;
                 }
-                if (errors === _errs5) {
+                if (errors2 === _errs5) {
                   if (data1 && typeof data1 == "object" && !Array.isArray(data1)) {
                     for (const key1 in data1) {
                       validate97.errors = [{ instancePath: instancePath + "/always_off", schemaPath: "#/$defs/ExperimentalComposableAlwaysOffSampler/additionalProperties", keyword: "additionalProperties", params: { additionalProperty: key1 }, message: "must NOT have additional properties" }];
@@ -93303,20 +94689,20 @@ If omitted, no span is sampled.
                     }
                   }
                 }
-                var valid1 = _errs4 === errors;
+                var valid1 = _errs4 === errors2;
               } else {
                 var valid1 = true;
               }
               if (valid1) {
                 if (data.always_on !== undefined) {
                   let data2 = data.always_on;
-                  const _errs8 = errors;
-                  const _errs9 = errors;
+                  const _errs8 = errors2;
+                  const _errs9 = errors2;
                   if (!(data2 && typeof data2 == "object" && !Array.isArray(data2)) && data2 !== null) {
                     validate97.errors = [{ instancePath: instancePath + "/always_on", schemaPath: "#/$defs/ExperimentalComposableAlwaysOnSampler/type", keyword: "type", params: { type: schema119.type }, message: "must be object,null" }];
                     return false;
                   }
-                  if (errors === _errs9) {
+                  if (errors2 === _errs9) {
                     if (data2 && typeof data2 == "object" && !Array.isArray(data2)) {
                       for (const key2 in data2) {
                         validate97.errors = [{ instancePath: instancePath + "/always_on", schemaPath: "#/$defs/ExperimentalComposableAlwaysOnSampler/additionalProperties", keyword: "additionalProperties", params: { additionalProperty: key2 }, message: "must NOT have additional properties" }];
@@ -93325,33 +94711,33 @@ If omitted, no span is sampled.
                       }
                     }
                   }
-                  var valid1 = _errs8 === errors;
+                  var valid1 = _errs8 === errors2;
                 } else {
                   var valid1 = true;
                 }
                 if (valid1) {
                   if (data.parent_threshold !== undefined) {
-                    const _errs12 = errors;
+                    const _errs12 = errors2;
                     if (!validate98(data.parent_threshold, { instancePath: instancePath + "/parent_threshold", parentData: data, parentDataProperty: "parent_threshold", rootData, dynamicAnchors })) {
                       vErrors = vErrors === null ? validate98.errors : vErrors.concat(validate98.errors);
-                      errors = vErrors.length;
+                      errors2 = vErrors.length;
                     }
-                    var valid1 = _errs12 === errors;
+                    var valid1 = _errs12 === errors2;
                   } else {
                     var valid1 = true;
                   }
                   if (valid1) {
                     if (data.probability !== undefined) {
                       let data4 = data.probability;
-                      const _errs13 = errors;
-                      const _errs14 = errors;
+                      const _errs13 = errors2;
+                      const _errs14 = errors2;
                       if (!(data4 && typeof data4 == "object" && !Array.isArray(data4)) && data4 !== null) {
                         validate97.errors = [{ instancePath: instancePath + "/probability", schemaPath: "#/$defs/ExperimentalComposableProbabilitySampler/type", keyword: "type", params: { type: schema121.type }, message: "must be object,null" }];
                         return false;
                       }
-                      if (errors === _errs14) {
+                      if (errors2 === _errs14) {
                         if (data4 && typeof data4 == "object" && !Array.isArray(data4)) {
-                          const _errs16 = errors;
+                          const _errs16 = errors2;
                           for (const key3 in data4) {
                             if (!(key3 === "ratio")) {
                               validate97.errors = [{ instancePath: instancePath + "/probability", schemaPath: "#/$defs/ExperimentalComposableProbabilitySampler/additionalProperties", keyword: "additionalProperties", params: { additionalProperty: key3 }, message: "must NOT have additional properties" }];
@@ -93359,15 +94745,15 @@ If omitted, no span is sampled.
                               break;
                             }
                           }
-                          if (_errs16 === errors) {
+                          if (_errs16 === errors2) {
                             if (data4.ratio !== undefined) {
                               let data5 = data4.ratio;
-                              const _errs17 = errors;
+                              const _errs17 = errors2;
                               if (!(typeof data5 == "number") && data5 !== null) {
                                 validate97.errors = [{ instancePath: instancePath + "/probability/ratio", schemaPath: "#/$defs/ExperimentalComposableProbabilitySampler/properties/ratio/type", keyword: "type", params: { type: schema121.properties.ratio.type }, message: "must be number,null" }];
                                 return false;
                               }
-                              if (errors === _errs17) {
+                              if (errors2 === _errs17) {
                                 if (typeof data5 == "number") {
                                   if (data5 > 1 || isNaN(data5)) {
                                     validate97.errors = [{ instancePath: instancePath + "/probability/ratio", schemaPath: "#/$defs/ExperimentalComposableProbabilitySampler/properties/ratio/maximum", keyword: "maximum", params: { comparison: "<=", limit: 1 }, message: "must be <= 1" }];
@@ -93384,18 +94770,18 @@ If omitted, no span is sampled.
                           }
                         }
                       }
-                      var valid1 = _errs13 === errors;
+                      var valid1 = _errs13 === errors2;
                     } else {
                       var valid1 = true;
                     }
                     if (valid1) {
                       if (data.rule_based !== undefined) {
-                        const _errs19 = errors;
+                        const _errs19 = errors2;
                         if (!validate100(data.rule_based, { instancePath: instancePath + "/rule_based", parentData: data, parentDataProperty: "rule_based", rootData, dynamicAnchors })) {
                           vErrors = vErrors === null ? validate100.errors : vErrors.concat(validate100.errors);
-                          errors = vErrors.length;
+                          errors2 = vErrors.length;
                         }
-                        var valid1 = _errs19 === errors;
+                        var valid1 = _errs19 === errors2;
                       } else {
                         var valid1 = true;
                       }
@@ -93412,7 +94798,7 @@ If omitted, no span is sampled.
       }
     }
     validate97.errors = vErrors;
-    return errors === 0;
+    return errors2 === 0;
   }
   validate97.evaluated = { props: true, dynamicProps: false, dynamicItems: false };
   var schema128 = { type: ["object", "null"], additionalProperties: false, properties: { endpoint: { type: ["string"], description: `Configure the endpoint of the jaeger remote sampling service.
@@ -93425,7 +94811,7 @@ Property is required and must be non-null.
   var wrapper2 = { validate: validate96 };
   function validate105(data, { instancePath = "", parentData, parentDataProperty, rootData = data, dynamicAnchors = {} } = {}) {
     let vErrors = null;
-    let errors = 0;
+    let errors2 = 0;
     const evaluated0 = validate105.evaluated;
     if (evaluated0.dynamicProps) {
       evaluated0.props = undefined;
@@ -93437,14 +94823,14 @@ Property is required and must be non-null.
       validate105.errors = [{ instancePath, schemaPath: "#/type", keyword: "type", params: { type: schema128.type }, message: "must be object,null" }];
       return false;
     }
-    if (errors === 0) {
+    if (errors2 === 0) {
       if (data && typeof data == "object" && !Array.isArray(data)) {
         let missing0;
         if (data.endpoint === undefined && (missing0 = "endpoint") || data.initial_sampler === undefined && (missing0 = "initial_sampler")) {
           validate105.errors = [{ instancePath, schemaPath: "#/required", keyword: "required", params: { missingProperty: missing0 }, message: "must have required property '" + missing0 + "'" }];
           return false;
         } else {
-          const _errs1 = errors;
+          const _errs1 = errors2;
           for (const key0 in data) {
             if (!(key0 === "endpoint" || key0 === "interval" || key0 === "initial_sampler")) {
               validate105.errors = [{ instancePath, schemaPath: "#/additionalProperties", keyword: "additionalProperties", params: { additionalProperty: key0 }, message: "must NOT have additional properties" }];
@@ -93452,26 +94838,26 @@ Property is required and must be non-null.
               break;
             }
           }
-          if (_errs1 === errors) {
+          if (_errs1 === errors2) {
             if (data.endpoint !== undefined) {
-              const _errs2 = errors;
+              const _errs2 = errors2;
               if (typeof data.endpoint !== "string") {
                 validate105.errors = [{ instancePath: instancePath + "/endpoint", schemaPath: "#/properties/endpoint/type", keyword: "type", params: { type: schema128.properties.endpoint.type }, message: "must be string" }];
                 return false;
               }
-              var valid0 = _errs2 === errors;
+              var valid0 = _errs2 === errors2;
             } else {
               var valid0 = true;
             }
             if (valid0) {
               if (data.interval !== undefined) {
                 let data1 = data.interval;
-                const _errs4 = errors;
+                const _errs4 = errors2;
                 if (!(typeof data1 == "number" && (!(data1 % 1) && !isNaN(data1))) && data1 !== null) {
                   validate105.errors = [{ instancePath: instancePath + "/interval", schemaPath: "#/properties/interval/type", keyword: "type", params: { type: schema128.properties.interval.type }, message: "must be integer,null" }];
                   return false;
                 }
-                if (errors === _errs4) {
+                if (errors2 === _errs4) {
                   if (typeof data1 == "number") {
                     if (data1 < 0 || isNaN(data1)) {
                       validate105.errors = [{ instancePath: instancePath + "/interval", schemaPath: "#/properties/interval/minimum", keyword: "minimum", params: { comparison: ">=", limit: 0 }, message: "must be >= 0" }];
@@ -93479,18 +94865,18 @@ Property is required and must be non-null.
                     }
                   }
                 }
-                var valid0 = _errs4 === errors;
+                var valid0 = _errs4 === errors2;
               } else {
                 var valid0 = true;
               }
               if (valid0) {
                 if (data.initial_sampler !== undefined) {
-                  const _errs6 = errors;
+                  const _errs6 = errors2;
                   if (!wrapper2.validate(data.initial_sampler, { instancePath: instancePath + "/initial_sampler", parentData: data, parentDataProperty: "initial_sampler", rootData, dynamicAnchors })) {
                     vErrors = vErrors === null ? wrapper2.validate.errors : vErrors.concat(wrapper2.validate.errors);
-                    errors = vErrors.length;
+                    errors2 = vErrors.length;
                   }
-                  var valid0 = _errs6 === errors;
+                  var valid0 = _errs6 === errors2;
                 } else {
                   var valid0 = true;
                 }
@@ -93501,7 +94887,7 @@ Property is required and must be non-null.
       }
     }
     validate105.errors = vErrors;
-    return errors === 0;
+    return errors2 === 0;
   }
   validate105.evaluated = { props: true, dynamicProps: false, dynamicItems: false };
   var schema129 = { type: ["object", "null"], additionalProperties: false, properties: { root: { $ref: "#/$defs/Sampler", description: `Configure root sampler.
@@ -93517,7 +94903,7 @@ If omitted, always_off is used.
 ` } } };
   function validate107(data, { instancePath = "", parentData, parentDataProperty, rootData = data, dynamicAnchors = {} } = {}) {
     let vErrors = null;
-    let errors = 0;
+    let errors2 = 0;
     const evaluated0 = validate107.evaluated;
     if (evaluated0.dynamicProps) {
       evaluated0.props = undefined;
@@ -93529,9 +94915,9 @@ If omitted, always_off is used.
       validate107.errors = [{ instancePath, schemaPath: "#/type", keyword: "type", params: { type: schema129.type }, message: "must be object,null" }];
       return false;
     }
-    if (errors === 0) {
+    if (errors2 === 0) {
       if (data && typeof data == "object" && !Array.isArray(data)) {
-        const _errs1 = errors;
+        const _errs1 = errors2;
         for (const key0 in data) {
           if (!(key0 === "root" || key0 === "remote_parent_sampled" || key0 === "remote_parent_not_sampled" || key0 === "local_parent_sampled" || key0 === "local_parent_not_sampled")) {
             validate107.errors = [{ instancePath, schemaPath: "#/additionalProperties", keyword: "additionalProperties", params: { additionalProperty: key0 }, message: "must NOT have additional properties" }];
@@ -93539,58 +94925,58 @@ If omitted, always_off is used.
             break;
           }
         }
-        if (_errs1 === errors) {
+        if (_errs1 === errors2) {
           if (data.root !== undefined) {
-            const _errs2 = errors;
+            const _errs2 = errors2;
             if (!wrapper2.validate(data.root, { instancePath: instancePath + "/root", parentData: data, parentDataProperty: "root", rootData, dynamicAnchors })) {
               vErrors = vErrors === null ? wrapper2.validate.errors : vErrors.concat(wrapper2.validate.errors);
-              errors = vErrors.length;
+              errors2 = vErrors.length;
             }
-            var valid0 = _errs2 === errors;
+            var valid0 = _errs2 === errors2;
           } else {
             var valid0 = true;
           }
           if (valid0) {
             if (data.remote_parent_sampled !== undefined) {
-              const _errs3 = errors;
+              const _errs3 = errors2;
               if (!wrapper2.validate(data.remote_parent_sampled, { instancePath: instancePath + "/remote_parent_sampled", parentData: data, parentDataProperty: "remote_parent_sampled", rootData, dynamicAnchors })) {
                 vErrors = vErrors === null ? wrapper2.validate.errors : vErrors.concat(wrapper2.validate.errors);
-                errors = vErrors.length;
+                errors2 = vErrors.length;
               }
-              var valid0 = _errs3 === errors;
+              var valid0 = _errs3 === errors2;
             } else {
               var valid0 = true;
             }
             if (valid0) {
               if (data.remote_parent_not_sampled !== undefined) {
-                const _errs4 = errors;
+                const _errs4 = errors2;
                 if (!wrapper2.validate(data.remote_parent_not_sampled, { instancePath: instancePath + "/remote_parent_not_sampled", parentData: data, parentDataProperty: "remote_parent_not_sampled", rootData, dynamicAnchors })) {
                   vErrors = vErrors === null ? wrapper2.validate.errors : vErrors.concat(wrapper2.validate.errors);
-                  errors = vErrors.length;
+                  errors2 = vErrors.length;
                 }
-                var valid0 = _errs4 === errors;
+                var valid0 = _errs4 === errors2;
               } else {
                 var valid0 = true;
               }
               if (valid0) {
                 if (data.local_parent_sampled !== undefined) {
-                  const _errs5 = errors;
+                  const _errs5 = errors2;
                   if (!wrapper2.validate(data.local_parent_sampled, { instancePath: instancePath + "/local_parent_sampled", parentData: data, parentDataProperty: "local_parent_sampled", rootData, dynamicAnchors })) {
                     vErrors = vErrors === null ? wrapper2.validate.errors : vErrors.concat(wrapper2.validate.errors);
-                    errors = vErrors.length;
+                    errors2 = vErrors.length;
                   }
-                  var valid0 = _errs5 === errors;
+                  var valid0 = _errs5 === errors2;
                 } else {
                   var valid0 = true;
                 }
                 if (valid0) {
                   if (data.local_parent_not_sampled !== undefined) {
-                    const _errs6 = errors;
+                    const _errs6 = errors2;
                     if (!wrapper2.validate(data.local_parent_not_sampled, { instancePath: instancePath + "/local_parent_not_sampled", parentData: data, parentDataProperty: "local_parent_not_sampled", rootData, dynamicAnchors })) {
                       vErrors = vErrors === null ? wrapper2.validate.errors : vErrors.concat(wrapper2.validate.errors);
-                      errors = vErrors.length;
+                      errors2 = vErrors.length;
                     }
-                    var valid0 = _errs6 === errors;
+                    var valid0 = _errs6 === errors2;
                   } else {
                     var valid0 = true;
                   }
@@ -93602,12 +94988,12 @@ If omitted, always_off is used.
       }
     }
     validate107.errors = vErrors;
-    return errors === 0;
+    return errors2 === 0;
   }
   validate107.evaluated = { props: true, dynamicProps: false, dynamicItems: false };
   function validate96(data, { instancePath = "", parentData, parentDataProperty, rootData = data, dynamicAnchors = {} } = {}) {
     let vErrors = null;
-    let errors = 0;
+    let errors2 = 0;
     const evaluated0 = validate96.evaluated;
     if (evaluated0.dynamicProps) {
       evaluated0.props = undefined;
@@ -93615,7 +95001,7 @@ If omitted, always_off is used.
     if (evaluated0.dynamicItems) {
       evaluated0.items = undefined;
     }
-    if (errors === 0) {
+    if (errors2 === 0) {
       if (data && typeof data == "object" && !Array.isArray(data)) {
         if (Object.keys(data).length > 1) {
           validate96.errors = [{ instancePath, schemaPath: "#/maxProperties", keyword: "maxProperties", params: { limit: 1 }, message: "must NOT have more than 1 properties" }];
@@ -93625,31 +95011,31 @@ If omitted, always_off is used.
             validate96.errors = [{ instancePath, schemaPath: "#/minProperties", keyword: "minProperties", params: { limit: 1 }, message: "must NOT have fewer than 1 properties" }];
             return false;
           } else {
-            const _errs1 = errors;
+            const _errs1 = errors2;
             for (const key0 in data) {
               if (!(key0 === "always_off" || key0 === "always_on" || key0 === "composite/development" || key0 === "jaeger_remote/development" || key0 === "parent_based" || key0 === "probability/development" || key0 === "trace_id_ratio_based")) {
                 let data0 = data[key0];
-                const _errs2 = errors;
+                const _errs2 = errors2;
                 if (!(data0 && typeof data0 == "object" && !Array.isArray(data0)) && data0 !== null) {
                   validate96.errors = [{ instancePath: instancePath + "/" + key0.replace(/~/g, "~0").replace(/\//g, "~1"), schemaPath: "#/additionalProperties/type", keyword: "type", params: { type: schema114.additionalProperties.type }, message: "must be object,null" }];
                   return false;
                 }
-                var valid0 = _errs2 === errors;
+                var valid0 = _errs2 === errors2;
                 if (!valid0) {
                   break;
                 }
               }
             }
-            if (_errs1 === errors) {
+            if (_errs1 === errors2) {
               if (data.always_off !== undefined) {
                 let data1 = data.always_off;
-                const _errs4 = errors;
-                const _errs5 = errors;
+                const _errs4 = errors2;
+                const _errs5 = errors2;
                 if (!(data1 && typeof data1 == "object" && !Array.isArray(data1)) && data1 !== null) {
                   validate96.errors = [{ instancePath: instancePath + "/always_off", schemaPath: "#/$defs/AlwaysOffSampler/type", keyword: "type", params: { type: schema115.type }, message: "must be object,null" }];
                   return false;
                 }
-                if (errors === _errs5) {
+                if (errors2 === _errs5) {
                   if (data1 && typeof data1 == "object" && !Array.isArray(data1)) {
                     for (const key1 in data1) {
                       validate96.errors = [{ instancePath: instancePath + "/always_off", schemaPath: "#/$defs/AlwaysOffSampler/additionalProperties", keyword: "additionalProperties", params: { additionalProperty: key1 }, message: "must NOT have additional properties" }];
@@ -93658,20 +95044,20 @@ If omitted, always_off is used.
                     }
                   }
                 }
-                var valid1 = _errs4 === errors;
+                var valid1 = _errs4 === errors2;
               } else {
                 var valid1 = true;
               }
               if (valid1) {
                 if (data.always_on !== undefined) {
                   let data2 = data.always_on;
-                  const _errs8 = errors;
-                  const _errs9 = errors;
+                  const _errs8 = errors2;
+                  const _errs9 = errors2;
                   if (!(data2 && typeof data2 == "object" && !Array.isArray(data2)) && data2 !== null) {
                     validate96.errors = [{ instancePath: instancePath + "/always_on", schemaPath: "#/$defs/AlwaysOnSampler/type", keyword: "type", params: { type: schema116.type }, message: "must be object,null" }];
                     return false;
                   }
-                  if (errors === _errs9) {
+                  if (errors2 === _errs9) {
                     if (data2 && typeof data2 == "object" && !Array.isArray(data2)) {
                       for (const key2 in data2) {
                         validate96.errors = [{ instancePath: instancePath + "/always_on", schemaPath: "#/$defs/AlwaysOnSampler/additionalProperties", keyword: "additionalProperties", params: { additionalProperty: key2 }, message: "must NOT have additional properties" }];
@@ -93680,55 +95066,55 @@ If omitted, always_off is used.
                       }
                     }
                   }
-                  var valid1 = _errs8 === errors;
+                  var valid1 = _errs8 === errors2;
                 } else {
                   var valid1 = true;
                 }
                 if (valid1) {
                   if (data["composite/development"] !== undefined) {
-                    const _errs12 = errors;
+                    const _errs12 = errors2;
                     if (!validate97(data["composite/development"], { instancePath: instancePath + "/composite~1development", parentData: data, parentDataProperty: "composite/development", rootData, dynamicAnchors })) {
                       vErrors = vErrors === null ? validate97.errors : vErrors.concat(validate97.errors);
-                      errors = vErrors.length;
+                      errors2 = vErrors.length;
                     }
-                    var valid1 = _errs12 === errors;
+                    var valid1 = _errs12 === errors2;
                   } else {
                     var valid1 = true;
                   }
                   if (valid1) {
                     if (data["jaeger_remote/development"] !== undefined) {
-                      const _errs13 = errors;
+                      const _errs13 = errors2;
                       if (!validate105(data["jaeger_remote/development"], { instancePath: instancePath + "/jaeger_remote~1development", parentData: data, parentDataProperty: "jaeger_remote/development", rootData, dynamicAnchors })) {
                         vErrors = vErrors === null ? validate105.errors : vErrors.concat(validate105.errors);
-                        errors = vErrors.length;
+                        errors2 = vErrors.length;
                       }
-                      var valid1 = _errs13 === errors;
+                      var valid1 = _errs13 === errors2;
                     } else {
                       var valid1 = true;
                     }
                     if (valid1) {
                       if (data.parent_based !== undefined) {
-                        const _errs14 = errors;
+                        const _errs14 = errors2;
                         if (!validate107(data.parent_based, { instancePath: instancePath + "/parent_based", parentData: data, parentDataProperty: "parent_based", rootData, dynamicAnchors })) {
                           vErrors = vErrors === null ? validate107.errors : vErrors.concat(validate107.errors);
-                          errors = vErrors.length;
+                          errors2 = vErrors.length;
                         }
-                        var valid1 = _errs14 === errors;
+                        var valid1 = _errs14 === errors2;
                       } else {
                         var valid1 = true;
                       }
                       if (valid1) {
                         if (data["probability/development"] !== undefined) {
                           let data6 = data["probability/development"];
-                          const _errs15 = errors;
-                          const _errs16 = errors;
+                          const _errs15 = errors2;
+                          const _errs16 = errors2;
                           if (!(data6 && typeof data6 == "object" && !Array.isArray(data6)) && data6 !== null) {
                             validate96.errors = [{ instancePath: instancePath + "/probability~1development", schemaPath: "#/$defs/ExperimentalProbabilitySampler/type", keyword: "type", params: { type: schema130.type }, message: "must be object,null" }];
                             return false;
                           }
-                          if (errors === _errs16) {
+                          if (errors2 === _errs16) {
                             if (data6 && typeof data6 == "object" && !Array.isArray(data6)) {
-                              const _errs18 = errors;
+                              const _errs18 = errors2;
                               for (const key3 in data6) {
                                 if (!(key3 === "ratio")) {
                                   validate96.errors = [{ instancePath: instancePath + "/probability~1development", schemaPath: "#/$defs/ExperimentalProbabilitySampler/additionalProperties", keyword: "additionalProperties", params: { additionalProperty: key3 }, message: "must NOT have additional properties" }];
@@ -93736,15 +95122,15 @@ If omitted, always_off is used.
                                   break;
                                 }
                               }
-                              if (_errs18 === errors) {
+                              if (_errs18 === errors2) {
                                 if (data6.ratio !== undefined) {
                                   let data7 = data6.ratio;
-                                  const _errs19 = errors;
+                                  const _errs19 = errors2;
                                   if (!(typeof data7 == "number") && data7 !== null) {
                                     validate96.errors = [{ instancePath: instancePath + "/probability~1development/ratio", schemaPath: "#/$defs/ExperimentalProbabilitySampler/properties/ratio/type", keyword: "type", params: { type: schema130.properties.ratio.type }, message: "must be number,null" }];
                                     return false;
                                   }
-                                  if (errors === _errs19) {
+                                  if (errors2 === _errs19) {
                                     if (typeof data7 == "number") {
                                       if (data7 > 1 || isNaN(data7)) {
                                         validate96.errors = [{ instancePath: instancePath + "/probability~1development/ratio", schemaPath: "#/$defs/ExperimentalProbabilitySampler/properties/ratio/maximum", keyword: "maximum", params: { comparison: "<=", limit: 1 }, message: "must be <= 1" }];
@@ -93761,22 +95147,22 @@ If omitted, always_off is used.
                               }
                             }
                           }
-                          var valid1 = _errs15 === errors;
+                          var valid1 = _errs15 === errors2;
                         } else {
                           var valid1 = true;
                         }
                         if (valid1) {
                           if (data.trace_id_ratio_based !== undefined) {
                             let data8 = data.trace_id_ratio_based;
-                            const _errs21 = errors;
-                            const _errs22 = errors;
+                            const _errs21 = errors2;
+                            const _errs22 = errors2;
                             if (!(data8 && typeof data8 == "object" && !Array.isArray(data8)) && data8 !== null) {
                               validate96.errors = [{ instancePath: instancePath + "/trace_id_ratio_based", schemaPath: "#/$defs/TraceIdRatioBasedSampler/type", keyword: "type", params: { type: schema131.type }, message: "must be object,null" }];
                               return false;
                             }
-                            if (errors === _errs22) {
+                            if (errors2 === _errs22) {
                               if (data8 && typeof data8 == "object" && !Array.isArray(data8)) {
-                                const _errs24 = errors;
+                                const _errs24 = errors2;
                                 for (const key4 in data8) {
                                   if (!(key4 === "ratio")) {
                                     validate96.errors = [{ instancePath: instancePath + "/trace_id_ratio_based", schemaPath: "#/$defs/TraceIdRatioBasedSampler/additionalProperties", keyword: "additionalProperties", params: { additionalProperty: key4 }, message: "must NOT have additional properties" }];
@@ -93784,15 +95170,15 @@ If omitted, always_off is used.
                                     break;
                                   }
                                 }
-                                if (_errs24 === errors) {
+                                if (_errs24 === errors2) {
                                   if (data8.ratio !== undefined) {
                                     let data9 = data8.ratio;
-                                    const _errs25 = errors;
+                                    const _errs25 = errors2;
                                     if (!(typeof data9 == "number") && data9 !== null) {
                                       validate96.errors = [{ instancePath: instancePath + "/trace_id_ratio_based/ratio", schemaPath: "#/$defs/TraceIdRatioBasedSampler/properties/ratio/type", keyword: "type", params: { type: schema131.properties.ratio.type }, message: "must be number,null" }];
                                       return false;
                                     }
-                                    if (errors === _errs25) {
+                                    if (errors2 === _errs25) {
                                       if (typeof data9 == "number") {
                                         if (data9 > 1 || isNaN(data9)) {
                                           validate96.errors = [{ instancePath: instancePath + "/trace_id_ratio_based/ratio", schemaPath: "#/$defs/TraceIdRatioBasedSampler/properties/ratio/maximum", keyword: "maximum", params: { comparison: "<=", limit: 1 }, message: "must be <= 1" }];
@@ -93809,7 +95195,7 @@ If omitted, always_off is used.
                                 }
                               }
                             }
-                            var valid1 = _errs21 === errors;
+                            var valid1 = _errs21 === errors2;
                           } else {
                             var valid1 = true;
                           }
@@ -93828,7 +95214,7 @@ If omitted, always_off is used.
       }
     }
     validate96.errors = vErrors;
-    return errors === 0;
+    return errors2 === 0;
   }
   validate96.evaluated = { props: true, dynamicProps: false, dynamicItems: false };
   var schema132 = { type: ["object"], additionalProperties: false, properties: { default_config: { $ref: "#/$defs/ExperimentalTracerConfig", description: `Configure the default tracer config used there is no matching entry in .tracer_configurator/development.tracers.
@@ -93849,7 +95235,7 @@ Property is required and must be non-null.
 ` } }, required: ["name", "config"] };
   function validate111(data, { instancePath = "", parentData, parentDataProperty, rootData = data, dynamicAnchors = {} } = {}) {
     let vErrors = null;
-    let errors = 0;
+    let errors2 = 0;
     const evaluated0 = validate111.evaluated;
     if (evaluated0.dynamicProps) {
       evaluated0.props = undefined;
@@ -93857,14 +95243,14 @@ Property is required and must be non-null.
     if (evaluated0.dynamicItems) {
       evaluated0.items = undefined;
     }
-    if (errors === 0) {
+    if (errors2 === 0) {
       if (data && typeof data == "object" && !Array.isArray(data)) {
         let missing0;
         if (data.name === undefined && (missing0 = "name") || data.config === undefined && (missing0 = "config")) {
           validate111.errors = [{ instancePath, schemaPath: "#/required", keyword: "required", params: { missingProperty: missing0 }, message: "must have required property '" + missing0 + "'" }];
           return false;
         } else {
-          const _errs1 = errors;
+          const _errs1 = errors2;
           for (const key0 in data) {
             if (!(key0 === "name" || key0 === "config")) {
               validate111.errors = [{ instancePath, schemaPath: "#/additionalProperties", keyword: "additionalProperties", params: { additionalProperty: key0 }, message: "must NOT have additional properties" }];
@@ -93872,25 +95258,25 @@ Property is required and must be non-null.
               break;
             }
           }
-          if (_errs1 === errors) {
+          if (_errs1 === errors2) {
             if (data.name !== undefined) {
-              const _errs2 = errors;
+              const _errs2 = errors2;
               if (typeof data.name !== "string") {
                 validate111.errors = [{ instancePath: instancePath + "/name", schemaPath: "#/properties/name/type", keyword: "type", params: { type: schema134.properties.name.type }, message: "must be string" }];
                 return false;
               }
-              var valid0 = _errs2 === errors;
+              var valid0 = _errs2 === errors2;
             } else {
               var valid0 = true;
             }
             if (valid0) {
               if (data.config !== undefined) {
                 let data1 = data.config;
-                const _errs4 = errors;
-                const _errs5 = errors;
-                if (errors === _errs5) {
+                const _errs4 = errors2;
+                const _errs5 = errors2;
+                if (errors2 === _errs5) {
                   if (data1 && typeof data1 == "object" && !Array.isArray(data1)) {
-                    const _errs7 = errors;
+                    const _errs7 = errors2;
                     for (const key1 in data1) {
                       if (!(key1 === "enabled")) {
                         validate111.errors = [{ instancePath: instancePath + "/config", schemaPath: "#/$defs/ExperimentalTracerConfig/additionalProperties", keyword: "additionalProperties", params: { additionalProperty: key1 }, message: "must NOT have additional properties" }];
@@ -93898,7 +95284,7 @@ Property is required and must be non-null.
                         break;
                       }
                     }
-                    if (_errs7 === errors) {
+                    if (_errs7 === errors2) {
                       if (data1.enabled !== undefined) {
                         if (typeof data1.enabled !== "boolean") {
                           validate111.errors = [{ instancePath: instancePath + "/config/enabled", schemaPath: "#/$defs/ExperimentalTracerConfig/properties/enabled/type", keyword: "type", params: { type: schema133.properties.enabled.type }, message: "must be boolean" }];
@@ -93911,7 +95297,7 @@ Property is required and must be non-null.
                     return false;
                   }
                 }
-                var valid0 = _errs4 === errors;
+                var valid0 = _errs4 === errors2;
               } else {
                 var valid0 = true;
               }
@@ -93924,12 +95310,12 @@ Property is required and must be non-null.
       }
     }
     validate111.errors = vErrors;
-    return errors === 0;
+    return errors2 === 0;
   }
   validate111.evaluated = { props: true, dynamicProps: false, dynamicItems: false };
   function validate110(data, { instancePath = "", parentData, parentDataProperty, rootData = data, dynamicAnchors = {} } = {}) {
     let vErrors = null;
-    let errors = 0;
+    let errors2 = 0;
     const evaluated0 = validate110.evaluated;
     if (evaluated0.dynamicProps) {
       evaluated0.props = undefined;
@@ -93937,9 +95323,9 @@ Property is required and must be non-null.
     if (evaluated0.dynamicItems) {
       evaluated0.items = undefined;
     }
-    if (errors === 0) {
+    if (errors2 === 0) {
       if (data && typeof data == "object" && !Array.isArray(data)) {
-        const _errs1 = errors;
+        const _errs1 = errors2;
         for (const key0 in data) {
           if (!(key0 === "default_config" || key0 === "tracers")) {
             validate110.errors = [{ instancePath, schemaPath: "#/additionalProperties", keyword: "additionalProperties", params: { additionalProperty: key0 }, message: "must NOT have additional properties" }];
@@ -93947,14 +95333,14 @@ Property is required and must be non-null.
             break;
           }
         }
-        if (_errs1 === errors) {
+        if (_errs1 === errors2) {
           if (data.default_config !== undefined) {
             let data0 = data.default_config;
-            const _errs2 = errors;
-            const _errs3 = errors;
-            if (errors === _errs3) {
+            const _errs2 = errors2;
+            const _errs3 = errors2;
+            if (errors2 === _errs3) {
               if (data0 && typeof data0 == "object" && !Array.isArray(data0)) {
-                const _errs5 = errors;
+                const _errs5 = errors2;
                 for (const key1 in data0) {
                   if (!(key1 === "enabled")) {
                     validate110.errors = [{ instancePath: instancePath + "/default_config", schemaPath: "#/$defs/ExperimentalTracerConfig/additionalProperties", keyword: "additionalProperties", params: { additionalProperty: key1 }, message: "must NOT have additional properties" }];
@@ -93962,7 +95348,7 @@ Property is required and must be non-null.
                     break;
                   }
                 }
-                if (_errs5 === errors) {
+                if (_errs5 === errors2) {
                   if (data0.enabled !== undefined) {
                     if (typeof data0.enabled !== "boolean") {
                       validate110.errors = [{ instancePath: instancePath + "/default_config/enabled", schemaPath: "#/$defs/ExperimentalTracerConfig/properties/enabled/type", keyword: "type", params: { type: schema133.properties.enabled.type }, message: "must be boolean" }];
@@ -93975,15 +95361,15 @@ Property is required and must be non-null.
                 return false;
               }
             }
-            var valid0 = _errs2 === errors;
+            var valid0 = _errs2 === errors2;
           } else {
             var valid0 = true;
           }
           if (valid0) {
             if (data.tracers !== undefined) {
               let data2 = data.tracers;
-              const _errs8 = errors;
-              if (errors === _errs8) {
+              const _errs8 = errors2;
+              if (errors2 === _errs8) {
                 if (Array.isArray(data2)) {
                   if (data2.length < 1) {
                     validate110.errors = [{ instancePath: instancePath + "/tracers", schemaPath: "#/properties/tracers/minItems", keyword: "minItems", params: { limit: 1 }, message: "must NOT have fewer than 1 items" }];
@@ -93992,12 +95378,12 @@ Property is required and must be non-null.
                     var valid3 = true;
                     const len0 = data2.length;
                     for (let i0 = 0;i0 < len0; i0++) {
-                      const _errs10 = errors;
+                      const _errs10 = errors2;
                       if (!validate111(data2[i0], { instancePath: instancePath + "/tracers/" + i0, parentData: data2, parentDataProperty: i0, rootData, dynamicAnchors })) {
                         vErrors = vErrors === null ? validate111.errors : vErrors.concat(validate111.errors);
-                        errors = vErrors.length;
+                        errors2 = vErrors.length;
                       }
-                      var valid3 = _errs10 === errors;
+                      var valid3 = _errs10 === errors2;
                       if (!valid3) {
                         break;
                       }
@@ -94008,7 +95394,7 @@ Property is required and must be non-null.
                   return false;
                 }
               }
-              var valid0 = _errs8 === errors;
+              var valid0 = _errs8 === errors2;
             } else {
               var valid0 = true;
             }
@@ -94020,12 +95406,12 @@ Property is required and must be non-null.
       }
     }
     validate110.errors = vErrors;
-    return errors === 0;
+    return errors2 === 0;
   }
   validate110.evaluated = { props: true, dynamicProps: false, dynamicItems: false };
   function validate84(data, { instancePath = "", parentData, parentDataProperty, rootData = data, dynamicAnchors = {} } = {}) {
     let vErrors = null;
-    let errors = 0;
+    let errors2 = 0;
     const evaluated0 = validate84.evaluated;
     if (evaluated0.dynamicProps) {
       evaluated0.props = undefined;
@@ -94033,14 +95419,14 @@ Property is required and must be non-null.
     if (evaluated0.dynamicItems) {
       evaluated0.items = undefined;
     }
-    if (errors === 0) {
+    if (errors2 === 0) {
       if (data && typeof data == "object" && !Array.isArray(data)) {
         let missing0;
         if (data.processors === undefined && (missing0 = "processors")) {
           validate84.errors = [{ instancePath, schemaPath: "#/required", keyword: "required", params: { missingProperty: missing0 }, message: "must have required property '" + missing0 + "'" }];
           return false;
         } else {
-          const _errs1 = errors;
+          const _errs1 = errors2;
           for (const key0 in data) {
             if (!(key0 === "processors" || key0 === "limits" || key0 === "sampler" || key0 === "tracer_configurator/development")) {
               validate84.errors = [{ instancePath, schemaPath: "#/additionalProperties", keyword: "additionalProperties", params: { additionalProperty: key0 }, message: "must NOT have additional properties" }];
@@ -94048,11 +95434,11 @@ Property is required and must be non-null.
               break;
             }
           }
-          if (_errs1 === errors) {
+          if (_errs1 === errors2) {
             if (data.processors !== undefined) {
               let data0 = data.processors;
-              const _errs2 = errors;
-              if (errors === _errs2) {
+              const _errs2 = errors2;
+              if (errors2 === _errs2) {
                 if (Array.isArray(data0)) {
                   if (data0.length < 1) {
                     validate84.errors = [{ instancePath: instancePath + "/processors", schemaPath: "#/properties/processors/minItems", keyword: "minItems", params: { limit: 1 }, message: "must NOT have fewer than 1 items" }];
@@ -94061,12 +95447,12 @@ Property is required and must be non-null.
                     var valid1 = true;
                     const len0 = data0.length;
                     for (let i0 = 0;i0 < len0; i0++) {
-                      const _errs4 = errors;
+                      const _errs4 = errors2;
                       if (!validate85(data0[i0], { instancePath: instancePath + "/processors/" + i0, parentData: data0, parentDataProperty: i0, rootData, dynamicAnchors })) {
                         vErrors = vErrors === null ? validate85.errors : vErrors.concat(validate85.errors);
-                        errors = vErrors.length;
+                        errors2 = vErrors.length;
                       }
-                      var valid1 = _errs4 === errors;
+                      var valid1 = _errs4 === errors2;
                       if (!valid1) {
                         break;
                       }
@@ -94077,18 +95463,18 @@ Property is required and must be non-null.
                   return false;
                 }
               }
-              var valid0 = _errs2 === errors;
+              var valid0 = _errs2 === errors2;
             } else {
               var valid0 = true;
             }
             if (valid0) {
               if (data.limits !== undefined) {
                 let data2 = data.limits;
-                const _errs5 = errors;
-                const _errs6 = errors;
-                if (errors === _errs6) {
+                const _errs5 = errors2;
+                const _errs6 = errors2;
+                if (errors2 === _errs6) {
                   if (data2 && typeof data2 == "object" && !Array.isArray(data2)) {
-                    const _errs8 = errors;
+                    const _errs8 = errors2;
                     for (const key1 in data2) {
                       if (!(key1 === "attribute_value_length_limit" || key1 === "attribute_count_limit" || key1 === "event_count_limit" || key1 === "link_count_limit" || key1 === "event_attribute_count_limit" || key1 === "link_attribute_count_limit")) {
                         validate84.errors = [{ instancePath: instancePath + "/limits", schemaPath: "#/$defs/SpanLimits/additionalProperties", keyword: "additionalProperties", params: { additionalProperty: key1 }, message: "must NOT have additional properties" }];
@@ -94096,15 +95482,15 @@ Property is required and must be non-null.
                         break;
                       }
                     }
-                    if (_errs8 === errors) {
+                    if (_errs8 === errors2) {
                       if (data2.attribute_value_length_limit !== undefined) {
                         let data3 = data2.attribute_value_length_limit;
-                        const _errs9 = errors;
+                        const _errs9 = errors2;
                         if (!(typeof data3 == "number" && (!(data3 % 1) && !isNaN(data3))) && data3 !== null) {
                           validate84.errors = [{ instancePath: instancePath + "/limits/attribute_value_length_limit", schemaPath: "#/$defs/SpanLimits/properties/attribute_value_length_limit/type", keyword: "type", params: { type: schema113.properties.attribute_value_length_limit.type }, message: "must be integer,null" }];
                           return false;
                         }
-                        if (errors === _errs9) {
+                        if (errors2 === _errs9) {
                           if (typeof data3 == "number") {
                             if (data3 < 0 || isNaN(data3)) {
                               validate84.errors = [{ instancePath: instancePath + "/limits/attribute_value_length_limit", schemaPath: "#/$defs/SpanLimits/properties/attribute_value_length_limit/minimum", keyword: "minimum", params: { comparison: ">=", limit: 0 }, message: "must be >= 0" }];
@@ -94112,19 +95498,19 @@ Property is required and must be non-null.
                             }
                           }
                         }
-                        var valid3 = _errs9 === errors;
+                        var valid3 = _errs9 === errors2;
                       } else {
                         var valid3 = true;
                       }
                       if (valid3) {
                         if (data2.attribute_count_limit !== undefined) {
                           let data4 = data2.attribute_count_limit;
-                          const _errs11 = errors;
+                          const _errs11 = errors2;
                           if (!(typeof data4 == "number" && (!(data4 % 1) && !isNaN(data4))) && data4 !== null) {
                             validate84.errors = [{ instancePath: instancePath + "/limits/attribute_count_limit", schemaPath: "#/$defs/SpanLimits/properties/attribute_count_limit/type", keyword: "type", params: { type: schema113.properties.attribute_count_limit.type }, message: "must be integer,null" }];
                             return false;
                           }
-                          if (errors === _errs11) {
+                          if (errors2 === _errs11) {
                             if (typeof data4 == "number") {
                               if (data4 < 0 || isNaN(data4)) {
                                 validate84.errors = [{ instancePath: instancePath + "/limits/attribute_count_limit", schemaPath: "#/$defs/SpanLimits/properties/attribute_count_limit/minimum", keyword: "minimum", params: { comparison: ">=", limit: 0 }, message: "must be >= 0" }];
@@ -94132,19 +95518,19 @@ Property is required and must be non-null.
                               }
                             }
                           }
-                          var valid3 = _errs11 === errors;
+                          var valid3 = _errs11 === errors2;
                         } else {
                           var valid3 = true;
                         }
                         if (valid3) {
                           if (data2.event_count_limit !== undefined) {
                             let data5 = data2.event_count_limit;
-                            const _errs13 = errors;
+                            const _errs13 = errors2;
                             if (!(typeof data5 == "number" && (!(data5 % 1) && !isNaN(data5))) && data5 !== null) {
                               validate84.errors = [{ instancePath: instancePath + "/limits/event_count_limit", schemaPath: "#/$defs/SpanLimits/properties/event_count_limit/type", keyword: "type", params: { type: schema113.properties.event_count_limit.type }, message: "must be integer,null" }];
                               return false;
                             }
-                            if (errors === _errs13) {
+                            if (errors2 === _errs13) {
                               if (typeof data5 == "number") {
                                 if (data5 < 0 || isNaN(data5)) {
                                   validate84.errors = [{ instancePath: instancePath + "/limits/event_count_limit", schemaPath: "#/$defs/SpanLimits/properties/event_count_limit/minimum", keyword: "minimum", params: { comparison: ">=", limit: 0 }, message: "must be >= 0" }];
@@ -94152,19 +95538,19 @@ Property is required and must be non-null.
                                 }
                               }
                             }
-                            var valid3 = _errs13 === errors;
+                            var valid3 = _errs13 === errors2;
                           } else {
                             var valid3 = true;
                           }
                           if (valid3) {
                             if (data2.link_count_limit !== undefined) {
                               let data6 = data2.link_count_limit;
-                              const _errs15 = errors;
+                              const _errs15 = errors2;
                               if (!(typeof data6 == "number" && (!(data6 % 1) && !isNaN(data6))) && data6 !== null) {
                                 validate84.errors = [{ instancePath: instancePath + "/limits/link_count_limit", schemaPath: "#/$defs/SpanLimits/properties/link_count_limit/type", keyword: "type", params: { type: schema113.properties.link_count_limit.type }, message: "must be integer,null" }];
                                 return false;
                               }
-                              if (errors === _errs15) {
+                              if (errors2 === _errs15) {
                                 if (typeof data6 == "number") {
                                   if (data6 < 0 || isNaN(data6)) {
                                     validate84.errors = [{ instancePath: instancePath + "/limits/link_count_limit", schemaPath: "#/$defs/SpanLimits/properties/link_count_limit/minimum", keyword: "minimum", params: { comparison: ">=", limit: 0 }, message: "must be >= 0" }];
@@ -94172,19 +95558,19 @@ Property is required and must be non-null.
                                   }
                                 }
                               }
-                              var valid3 = _errs15 === errors;
+                              var valid3 = _errs15 === errors2;
                             } else {
                               var valid3 = true;
                             }
                             if (valid3) {
                               if (data2.event_attribute_count_limit !== undefined) {
                                 let data7 = data2.event_attribute_count_limit;
-                                const _errs17 = errors;
+                                const _errs17 = errors2;
                                 if (!(typeof data7 == "number" && (!(data7 % 1) && !isNaN(data7))) && data7 !== null) {
                                   validate84.errors = [{ instancePath: instancePath + "/limits/event_attribute_count_limit", schemaPath: "#/$defs/SpanLimits/properties/event_attribute_count_limit/type", keyword: "type", params: { type: schema113.properties.event_attribute_count_limit.type }, message: "must be integer,null" }];
                                   return false;
                                 }
-                                if (errors === _errs17) {
+                                if (errors2 === _errs17) {
                                   if (typeof data7 == "number") {
                                     if (data7 < 0 || isNaN(data7)) {
                                       validate84.errors = [{ instancePath: instancePath + "/limits/event_attribute_count_limit", schemaPath: "#/$defs/SpanLimits/properties/event_attribute_count_limit/minimum", keyword: "minimum", params: { comparison: ">=", limit: 0 }, message: "must be >= 0" }];
@@ -94192,19 +95578,19 @@ Property is required and must be non-null.
                                     }
                                   }
                                 }
-                                var valid3 = _errs17 === errors;
+                                var valid3 = _errs17 === errors2;
                               } else {
                                 var valid3 = true;
                               }
                               if (valid3) {
                                 if (data2.link_attribute_count_limit !== undefined) {
                                   let data8 = data2.link_attribute_count_limit;
-                                  const _errs19 = errors;
+                                  const _errs19 = errors2;
                                   if (!(typeof data8 == "number" && (!(data8 % 1) && !isNaN(data8))) && data8 !== null) {
                                     validate84.errors = [{ instancePath: instancePath + "/limits/link_attribute_count_limit", schemaPath: "#/$defs/SpanLimits/properties/link_attribute_count_limit/type", keyword: "type", params: { type: schema113.properties.link_attribute_count_limit.type }, message: "must be integer,null" }];
                                     return false;
                                   }
-                                  if (errors === _errs19) {
+                                  if (errors2 === _errs19) {
                                     if (typeof data8 == "number") {
                                       if (data8 < 0 || isNaN(data8)) {
                                         validate84.errors = [{ instancePath: instancePath + "/limits/link_attribute_count_limit", schemaPath: "#/$defs/SpanLimits/properties/link_attribute_count_limit/minimum", keyword: "minimum", params: { comparison: ">=", limit: 0 }, message: "must be >= 0" }];
@@ -94212,7 +95598,7 @@ Property is required and must be non-null.
                                       }
                                     }
                                   }
-                                  var valid3 = _errs19 === errors;
+                                  var valid3 = _errs19 === errors2;
                                 } else {
                                   var valid3 = true;
                                 }
@@ -94227,29 +95613,29 @@ Property is required and must be non-null.
                     return false;
                   }
                 }
-                var valid0 = _errs5 === errors;
+                var valid0 = _errs5 === errors2;
               } else {
                 var valid0 = true;
               }
               if (valid0) {
                 if (data.sampler !== undefined) {
-                  const _errs21 = errors;
+                  const _errs21 = errors2;
                   if (!validate96(data.sampler, { instancePath: instancePath + "/sampler", parentData: data, parentDataProperty: "sampler", rootData, dynamicAnchors })) {
                     vErrors = vErrors === null ? validate96.errors : vErrors.concat(validate96.errors);
-                    errors = vErrors.length;
+                    errors2 = vErrors.length;
                   }
-                  var valid0 = _errs21 === errors;
+                  var valid0 = _errs21 === errors2;
                 } else {
                   var valid0 = true;
                 }
                 if (valid0) {
                   if (data["tracer_configurator/development"] !== undefined) {
-                    const _errs22 = errors;
+                    const _errs22 = errors2;
                     if (!validate110(data["tracer_configurator/development"], { instancePath: instancePath + "/tracer_configurator~1development", parentData: data, parentDataProperty: "tracer_configurator/development", rootData, dynamicAnchors })) {
                       vErrors = vErrors === null ? validate110.errors : vErrors.concat(validate110.errors);
-                      errors = vErrors.length;
+                      errors2 = vErrors.length;
                     }
-                    var valid0 = _errs22 === errors;
+                    var valid0 = _errs22 === errors2;
                   } else {
                     var valid0 = true;
                   }
@@ -94264,7 +95650,7 @@ Property is required and must be non-null.
       }
     }
     validate84.errors = vErrors;
-    return errors === 0;
+    return errors2 === 0;
   }
   validate84.evaluated = { props: true, dynamicProps: false, dynamicItems: false };
   var schema136 = { type: "object", additionalProperties: false, properties: { attributes: { type: "array", minItems: 1, items: { $ref: "#/$defs/AttributeNameValue" }, description: `Configure resource attributes. Entries have higher priority than entries from .resource.attributes_list.
@@ -94280,7 +95666,7 @@ If omitted or null, no resource attributes are added.
   var schema138 = { type: ["string", "null"], enum: ["string", "bool", "int", "double", "string_array", "bool_array", "int_array", "double_array"] };
   function validate116(data, { instancePath = "", parentData, parentDataProperty, rootData = data, dynamicAnchors = {} } = {}) {
     let vErrors = null;
-    let errors = 0;
+    let errors2 = 0;
     const evaluated0 = validate116.evaluated;
     if (evaluated0.dynamicProps) {
       evaluated0.props = undefined;
@@ -94288,14 +95674,14 @@ If omitted or null, no resource attributes are added.
     if (evaluated0.dynamicItems) {
       evaluated0.items = undefined;
     }
-    if (errors === 0) {
+    if (errors2 === 0) {
       if (data && typeof data == "object" && !Array.isArray(data)) {
         let missing0;
         if (data.name === undefined && (missing0 = "name") || data.value === undefined && (missing0 = "value")) {
           validate116.errors = [{ instancePath, schemaPath: "#/required", keyword: "required", params: { missingProperty: missing0 }, message: "must have required property '" + missing0 + "'" }];
           return false;
         } else {
-          const _errs1 = errors;
+          const _errs1 = errors2;
           for (const key0 in data) {
             if (!(key0 === "name" || key0 === "value" || key0 === "type")) {
               validate116.errors = [{ instancePath, schemaPath: "#/additionalProperties", keyword: "additionalProperties", params: { additionalProperty: key0 }, message: "must NOT have additional properties" }];
@@ -94303,25 +95689,25 @@ If omitted or null, no resource attributes are added.
               break;
             }
           }
-          if (_errs1 === errors) {
+          if (_errs1 === errors2) {
             if (data.name !== undefined) {
-              const _errs2 = errors;
+              const _errs2 = errors2;
               if (typeof data.name !== "string") {
                 validate116.errors = [{ instancePath: instancePath + "/name", schemaPath: "#/properties/name/type", keyword: "type", params: { type: "string" }, message: "must be string" }];
                 return false;
               }
-              var valid0 = _errs2 === errors;
+              var valid0 = _errs2 === errors2;
             } else {
               var valid0 = true;
             }
             if (valid0) {
               if (data.value !== undefined) {
                 let data1 = data.value;
-                const _errs4 = errors;
-                const _errs5 = errors;
+                const _errs4 = errors2;
+                const _errs5 = errors2;
                 let valid1 = false;
                 let passing0 = null;
-                const _errs6 = errors;
+                const _errs6 = errors2;
                 if (typeof data1 !== "string") {
                   const err0 = { instancePath: instancePath + "/value", schemaPath: "#/properties/value/oneOf/0/type", keyword: "type", params: { type: "string" }, message: "must be string" };
                   if (vErrors === null) {
@@ -94329,14 +95715,14 @@ If omitted or null, no resource attributes are added.
                   } else {
                     vErrors.push(err0);
                   }
-                  errors++;
+                  errors2++;
                 }
-                var _valid0 = _errs6 === errors;
+                var _valid0 = _errs6 === errors2;
                 if (_valid0) {
                   valid1 = true;
                   passing0 = 0;
                 }
-                const _errs8 = errors;
+                const _errs8 = errors2;
                 if (!(typeof data1 == "number")) {
                   const err1 = { instancePath: instancePath + "/value", schemaPath: "#/properties/value/oneOf/1/type", keyword: "type", params: { type: "number" }, message: "must be number" };
                   if (vErrors === null) {
@@ -94344,9 +95730,9 @@ If omitted or null, no resource attributes are added.
                   } else {
                     vErrors.push(err1);
                   }
-                  errors++;
+                  errors2++;
                 }
-                var _valid0 = _errs8 === errors;
+                var _valid0 = _errs8 === errors2;
                 if (_valid0 && valid1) {
                   valid1 = false;
                   passing0 = [passing0, 1];
@@ -94355,7 +95741,7 @@ If omitted or null, no resource attributes are added.
                     valid1 = true;
                     passing0 = 1;
                   }
-                  const _errs10 = errors;
+                  const _errs10 = errors2;
                   if (typeof data1 !== "boolean") {
                     const err2 = { instancePath: instancePath + "/value", schemaPath: "#/properties/value/oneOf/2/type", keyword: "type", params: { type: "boolean" }, message: "must be boolean" };
                     if (vErrors === null) {
@@ -94363,9 +95749,9 @@ If omitted or null, no resource attributes are added.
                     } else {
                       vErrors.push(err2);
                     }
-                    errors++;
+                    errors2++;
                   }
-                  var _valid0 = _errs10 === errors;
+                  var _valid0 = _errs10 === errors2;
                   if (_valid0 && valid1) {
                     valid1 = false;
                     passing0 = [passing0, 2];
@@ -94374,7 +95760,7 @@ If omitted or null, no resource attributes are added.
                       valid1 = true;
                       passing0 = 2;
                     }
-                    const _errs12 = errors;
+                    const _errs12 = errors2;
                     if (data1 !== null) {
                       const err3 = { instancePath: instancePath + "/value", schemaPath: "#/properties/value/oneOf/3/type", keyword: "type", params: { type: "null" }, message: "must be null" };
                       if (vErrors === null) {
@@ -94382,9 +95768,9 @@ If omitted or null, no resource attributes are added.
                       } else {
                         vErrors.push(err3);
                       }
-                      errors++;
+                      errors2++;
                     }
-                    var _valid0 = _errs12 === errors;
+                    var _valid0 = _errs12 === errors2;
                     if (_valid0 && valid1) {
                       valid1 = false;
                       passing0 = [passing0, 3];
@@ -94393,8 +95779,8 @@ If omitted or null, no resource attributes are added.
                         valid1 = true;
                         passing0 = 3;
                       }
-                      const _errs14 = errors;
-                      if (errors === _errs14) {
+                      const _errs14 = errors2;
+                      if (errors2 === _errs14) {
                         if (Array.isArray(data1)) {
                           if (data1.length < 1) {
                             const err4 = { instancePath: instancePath + "/value", schemaPath: "#/properties/value/oneOf/4/minItems", keyword: "minItems", params: { limit: 1 }, message: "must NOT have fewer than 1 items" };
@@ -94403,12 +95789,12 @@ If omitted or null, no resource attributes are added.
                             } else {
                               vErrors.push(err4);
                             }
-                            errors++;
+                            errors2++;
                           } else {
                             var valid2 = true;
                             const len0 = data1.length;
                             for (let i0 = 0;i0 < len0; i0++) {
-                              const _errs16 = errors;
+                              const _errs16 = errors2;
                               if (typeof data1[i0] !== "string") {
                                 const err5 = { instancePath: instancePath + "/value/" + i0, schemaPath: "#/properties/value/oneOf/4/items/type", keyword: "type", params: { type: "string" }, message: "must be string" };
                                 if (vErrors === null) {
@@ -94416,9 +95802,9 @@ If omitted or null, no resource attributes are added.
                                 } else {
                                   vErrors.push(err5);
                                 }
-                                errors++;
+                                errors2++;
                               }
-                              var valid2 = _errs16 === errors;
+                              var valid2 = _errs16 === errors2;
                               if (!valid2) {
                                 break;
                               }
@@ -94431,10 +95817,10 @@ If omitted or null, no resource attributes are added.
                           } else {
                             vErrors.push(err6);
                           }
-                          errors++;
+                          errors2++;
                         }
                       }
-                      var _valid0 = _errs14 === errors;
+                      var _valid0 = _errs14 === errors2;
                       if (_valid0 && valid1) {
                         valid1 = false;
                         passing0 = [passing0, 4];
@@ -94444,8 +95830,8 @@ If omitted or null, no resource attributes are added.
                           passing0 = 4;
                           var items0 = true;
                         }
-                        const _errs18 = errors;
-                        if (errors === _errs18) {
+                        const _errs18 = errors2;
+                        if (errors2 === _errs18) {
                           if (Array.isArray(data1)) {
                             if (data1.length < 1) {
                               const err7 = { instancePath: instancePath + "/value", schemaPath: "#/properties/value/oneOf/5/minItems", keyword: "minItems", params: { limit: 1 }, message: "must NOT have fewer than 1 items" };
@@ -94454,12 +95840,12 @@ If omitted or null, no resource attributes are added.
                               } else {
                                 vErrors.push(err7);
                               }
-                              errors++;
+                              errors2++;
                             } else {
                               var valid3 = true;
                               const len1 = data1.length;
                               for (let i1 = 0;i1 < len1; i1++) {
-                                const _errs20 = errors;
+                                const _errs20 = errors2;
                                 if (typeof data1[i1] !== "boolean") {
                                   const err8 = { instancePath: instancePath + "/value/" + i1, schemaPath: "#/properties/value/oneOf/5/items/type", keyword: "type", params: { type: "boolean" }, message: "must be boolean" };
                                   if (vErrors === null) {
@@ -94467,9 +95853,9 @@ If omitted or null, no resource attributes are added.
                                   } else {
                                     vErrors.push(err8);
                                   }
-                                  errors++;
+                                  errors2++;
                                 }
-                                var valid3 = _errs20 === errors;
+                                var valid3 = _errs20 === errors2;
                                 if (!valid3) {
                                   break;
                                 }
@@ -94482,10 +95868,10 @@ If omitted or null, no resource attributes are added.
                             } else {
                               vErrors.push(err9);
                             }
-                            errors++;
+                            errors2++;
                           }
                         }
-                        var _valid0 = _errs18 === errors;
+                        var _valid0 = _errs18 === errors2;
                         if (_valid0 && valid1) {
                           valid1 = false;
                           passing0 = [passing0, 5];
@@ -94497,8 +95883,8 @@ If omitted or null, no resource attributes are added.
                               items0 = true;
                             }
                           }
-                          const _errs22 = errors;
-                          if (errors === _errs22) {
+                          const _errs22 = errors2;
+                          if (errors2 === _errs22) {
                             if (Array.isArray(data1)) {
                               if (data1.length < 1) {
                                 const err10 = { instancePath: instancePath + "/value", schemaPath: "#/properties/value/oneOf/6/minItems", keyword: "minItems", params: { limit: 1 }, message: "must NOT have fewer than 1 items" };
@@ -94507,12 +95893,12 @@ If omitted or null, no resource attributes are added.
                                 } else {
                                   vErrors.push(err10);
                                 }
-                                errors++;
+                                errors2++;
                               } else {
                                 var valid4 = true;
                                 const len2 = data1.length;
                                 for (let i22 = 0;i22 < len2; i22++) {
-                                  const _errs24 = errors;
+                                  const _errs24 = errors2;
                                   if (!(typeof data1[i22] == "number")) {
                                     const err11 = { instancePath: instancePath + "/value/" + i22, schemaPath: "#/properties/value/oneOf/6/items/type", keyword: "type", params: { type: "number" }, message: "must be number" };
                                     if (vErrors === null) {
@@ -94520,9 +95906,9 @@ If omitted or null, no resource attributes are added.
                                     } else {
                                       vErrors.push(err11);
                                     }
-                                    errors++;
+                                    errors2++;
                                   }
-                                  var valid4 = _errs24 === errors;
+                                  var valid4 = _errs24 === errors2;
                                   if (!valid4) {
                                     break;
                                   }
@@ -94535,10 +95921,10 @@ If omitted or null, no resource attributes are added.
                               } else {
                                 vErrors.push(err12);
                               }
-                              errors++;
+                              errors2++;
                             }
                           }
-                          var _valid0 = _errs22 === errors;
+                          var _valid0 = _errs22 === errors2;
                           if (_valid0 && valid1) {
                             valid1 = false;
                             passing0 = [passing0, 6];
@@ -94563,11 +95949,11 @@ If omitted or null, no resource attributes are added.
                   } else {
                     vErrors.push(err13);
                   }
-                  errors++;
+                  errors2++;
                   validate116.errors = vErrors;
                   return false;
                 } else {
-                  errors = _errs5;
+                  errors2 = _errs5;
                   if (vErrors !== null) {
                     if (_errs5) {
                       vErrors.length = _errs5;
@@ -94576,14 +95962,14 @@ If omitted or null, no resource attributes are added.
                     }
                   }
                 }
-                var valid0 = _errs4 === errors;
+                var valid0 = _errs4 === errors2;
               } else {
                 var valid0 = true;
               }
               if (valid0) {
                 if (data.type !== undefined) {
                   let data5 = data.type;
-                  const _errs26 = errors;
+                  const _errs26 = errors2;
                   if (typeof data5 !== "string" && data5 !== null) {
                     validate116.errors = [{ instancePath: instancePath + "/type", schemaPath: "#/$defs/AttributeType/type", keyword: "type", params: { type: schema138.type }, message: "must be string,null" }];
                     return false;
@@ -94592,7 +95978,7 @@ If omitted or null, no resource attributes are added.
                     validate116.errors = [{ instancePath: instancePath + "/type", schemaPath: "#/$defs/AttributeType/enum", keyword: "enum", params: { allowedValues: schema138.enum }, message: "must be equal to one of the allowed values" }];
                     return false;
                   }
-                  var valid0 = _errs26 === errors;
+                  var valid0 = _errs26 === errors2;
                 } else {
                   var valid0 = true;
                 }
@@ -94606,7 +95992,7 @@ If omitted or null, no resource attributes are added.
       }
     }
     validate116.errors = vErrors;
-    return errors === 0;
+    return errors2 === 0;
   }
   validate116.evaluated = { props: true, dynamicProps: false, dynamicItems: false };
   var schema141 = { type: "object", additionalProperties: { type: ["object", "null"] }, minProperties: 1, maxProperties: 1, properties: { container: { $ref: "#/$defs/ExperimentalContainerResourceDetector", description: `Enable the container resource detector, which populates container.* attributes.
@@ -94624,7 +96010,7 @@ If omitted, ignore.
   var schema145 = { type: ["object", "null"], additionalProperties: false };
   function validate119(data, { instancePath = "", parentData, parentDataProperty, rootData = data, dynamicAnchors = {} } = {}) {
     let vErrors = null;
-    let errors = 0;
+    let errors2 = 0;
     const evaluated0 = validate119.evaluated;
     if (evaluated0.dynamicProps) {
       evaluated0.props = undefined;
@@ -94632,7 +96018,7 @@ If omitted, ignore.
     if (evaluated0.dynamicItems) {
       evaluated0.items = undefined;
     }
-    if (errors === 0) {
+    if (errors2 === 0) {
       if (data && typeof data == "object" && !Array.isArray(data)) {
         if (Object.keys(data).length > 1) {
           validate119.errors = [{ instancePath, schemaPath: "#/maxProperties", keyword: "maxProperties", params: { limit: 1 }, message: "must NOT have more than 1 properties" }];
@@ -94642,31 +96028,31 @@ If omitted, ignore.
             validate119.errors = [{ instancePath, schemaPath: "#/minProperties", keyword: "minProperties", params: { limit: 1 }, message: "must NOT have fewer than 1 properties" }];
             return false;
           } else {
-            const _errs1 = errors;
+            const _errs1 = errors2;
             for (const key0 in data) {
               if (!(key0 === "container" || key0 === "host" || key0 === "process" || key0 === "service")) {
                 let data0 = data[key0];
-                const _errs2 = errors;
+                const _errs2 = errors2;
                 if (!(data0 && typeof data0 == "object" && !Array.isArray(data0)) && data0 !== null) {
                   validate119.errors = [{ instancePath: instancePath + "/" + key0.replace(/~/g, "~0").replace(/\//g, "~1"), schemaPath: "#/additionalProperties/type", keyword: "type", params: { type: schema141.additionalProperties.type }, message: "must be object,null" }];
                   return false;
                 }
-                var valid0 = _errs2 === errors;
+                var valid0 = _errs2 === errors2;
                 if (!valid0) {
                   break;
                 }
               }
             }
-            if (_errs1 === errors) {
+            if (_errs1 === errors2) {
               if (data.container !== undefined) {
                 let data1 = data.container;
-                const _errs4 = errors;
-                const _errs5 = errors;
+                const _errs4 = errors2;
+                const _errs5 = errors2;
                 if (!(data1 && typeof data1 == "object" && !Array.isArray(data1)) && data1 !== null) {
                   validate119.errors = [{ instancePath: instancePath + "/container", schemaPath: "#/$defs/ExperimentalContainerResourceDetector/type", keyword: "type", params: { type: schema142.type }, message: "must be object,null" }];
                   return false;
                 }
-                if (errors === _errs5) {
+                if (errors2 === _errs5) {
                   if (data1 && typeof data1 == "object" && !Array.isArray(data1)) {
                     for (const key1 in data1) {
                       validate119.errors = [{ instancePath: instancePath + "/container", schemaPath: "#/$defs/ExperimentalContainerResourceDetector/additionalProperties", keyword: "additionalProperties", params: { additionalProperty: key1 }, message: "must NOT have additional properties" }];
@@ -94675,20 +96061,20 @@ If omitted, ignore.
                     }
                   }
                 }
-                var valid1 = _errs4 === errors;
+                var valid1 = _errs4 === errors2;
               } else {
                 var valid1 = true;
               }
               if (valid1) {
                 if (data.host !== undefined) {
                   let data2 = data.host;
-                  const _errs8 = errors;
-                  const _errs9 = errors;
+                  const _errs8 = errors2;
+                  const _errs9 = errors2;
                   if (!(data2 && typeof data2 == "object" && !Array.isArray(data2)) && data2 !== null) {
                     validate119.errors = [{ instancePath: instancePath + "/host", schemaPath: "#/$defs/ExperimentalHostResourceDetector/type", keyword: "type", params: { type: schema143.type }, message: "must be object,null" }];
                     return false;
                   }
-                  if (errors === _errs9) {
+                  if (errors2 === _errs9) {
                     if (data2 && typeof data2 == "object" && !Array.isArray(data2)) {
                       for (const key2 in data2) {
                         validate119.errors = [{ instancePath: instancePath + "/host", schemaPath: "#/$defs/ExperimentalHostResourceDetector/additionalProperties", keyword: "additionalProperties", params: { additionalProperty: key2 }, message: "must NOT have additional properties" }];
@@ -94697,20 +96083,20 @@ If omitted, ignore.
                       }
                     }
                   }
-                  var valid1 = _errs8 === errors;
+                  var valid1 = _errs8 === errors2;
                 } else {
                   var valid1 = true;
                 }
                 if (valid1) {
                   if (data.process !== undefined) {
                     let data3 = data.process;
-                    const _errs12 = errors;
-                    const _errs13 = errors;
+                    const _errs12 = errors2;
+                    const _errs13 = errors2;
                     if (!(data3 && typeof data3 == "object" && !Array.isArray(data3)) && data3 !== null) {
                       validate119.errors = [{ instancePath: instancePath + "/process", schemaPath: "#/$defs/ExperimentalProcessResourceDetector/type", keyword: "type", params: { type: schema144.type }, message: "must be object,null" }];
                       return false;
                     }
-                    if (errors === _errs13) {
+                    if (errors2 === _errs13) {
                       if (data3 && typeof data3 == "object" && !Array.isArray(data3)) {
                         for (const key3 in data3) {
                           validate119.errors = [{ instancePath: instancePath + "/process", schemaPath: "#/$defs/ExperimentalProcessResourceDetector/additionalProperties", keyword: "additionalProperties", params: { additionalProperty: key3 }, message: "must NOT have additional properties" }];
@@ -94719,20 +96105,20 @@ If omitted, ignore.
                         }
                       }
                     }
-                    var valid1 = _errs12 === errors;
+                    var valid1 = _errs12 === errors2;
                   } else {
                     var valid1 = true;
                   }
                   if (valid1) {
                     if (data.service !== undefined) {
                       let data4 = data.service;
-                      const _errs16 = errors;
-                      const _errs17 = errors;
+                      const _errs16 = errors2;
+                      const _errs17 = errors2;
                       if (!(data4 && typeof data4 == "object" && !Array.isArray(data4)) && data4 !== null) {
                         validate119.errors = [{ instancePath: instancePath + "/service", schemaPath: "#/$defs/ExperimentalServiceResourceDetector/type", keyword: "type", params: { type: schema145.type }, message: "must be object,null" }];
                         return false;
                       }
-                      if (errors === _errs17) {
+                      if (errors2 === _errs17) {
                         if (data4 && typeof data4 == "object" && !Array.isArray(data4)) {
                           for (const key4 in data4) {
                             validate119.errors = [{ instancePath: instancePath + "/service", schemaPath: "#/$defs/ExperimentalServiceResourceDetector/additionalProperties", keyword: "additionalProperties", params: { additionalProperty: key4 }, message: "must NOT have additional properties" }];
@@ -94741,7 +96127,7 @@ If omitted, ignore.
                           }
                         }
                       }
-                      var valid1 = _errs16 === errors;
+                      var valid1 = _errs16 === errors2;
                     } else {
                       var valid1 = true;
                     }
@@ -94757,12 +96143,12 @@ If omitted, ignore.
       }
     }
     validate119.errors = vErrors;
-    return errors === 0;
+    return errors2 === 0;
   }
   validate119.evaluated = { props: true, dynamicProps: false, dynamicItems: false };
   function validate118(data, { instancePath = "", parentData, parentDataProperty, rootData = data, dynamicAnchors = {} } = {}) {
     let vErrors = null;
-    let errors = 0;
+    let errors2 = 0;
     const evaluated0 = validate118.evaluated;
     if (evaluated0.dynamicProps) {
       evaluated0.props = undefined;
@@ -94770,9 +96156,9 @@ If omitted, ignore.
     if (evaluated0.dynamicItems) {
       evaluated0.items = undefined;
     }
-    if (errors === 0) {
+    if (errors2 === 0) {
       if (data && typeof data == "object" && !Array.isArray(data)) {
-        const _errs1 = errors;
+        const _errs1 = errors2;
         for (const key0 in data) {
           if (!(key0 === "attributes" || key0 === "detectors")) {
             validate118.errors = [{ instancePath, schemaPath: "#/additionalProperties", keyword: "additionalProperties", params: { additionalProperty: key0 }, message: "must NOT have additional properties" }];
@@ -94780,14 +96166,14 @@ If omitted, ignore.
             break;
           }
         }
-        if (_errs1 === errors) {
+        if (_errs1 === errors2) {
           if (data.attributes !== undefined) {
             let data0 = data.attributes;
-            const _errs2 = errors;
-            const _errs3 = errors;
-            if (errors === _errs3) {
+            const _errs2 = errors2;
+            const _errs3 = errors2;
+            if (errors2 === _errs3) {
               if (data0 && typeof data0 == "object" && !Array.isArray(data0)) {
-                const _errs5 = errors;
+                const _errs5 = errors2;
                 for (const key1 in data0) {
                   if (!(key1 === "included" || key1 === "excluded")) {
                     validate118.errors = [{ instancePath: instancePath + "/attributes", schemaPath: "#/$defs/IncludeExclude/additionalProperties", keyword: "additionalProperties", params: { additionalProperty: key1 }, message: "must NOT have additional properties" }];
@@ -94795,11 +96181,11 @@ If omitted, ignore.
                     break;
                   }
                 }
-                if (_errs5 === errors) {
+                if (_errs5 === errors2) {
                   if (data0.included !== undefined) {
                     let data1 = data0.included;
-                    const _errs6 = errors;
-                    if (errors === _errs6) {
+                    const _errs6 = errors2;
+                    if (errors2 === _errs6) {
                       if (Array.isArray(data1)) {
                         if (data1.length < 1) {
                           validate118.errors = [{ instancePath: instancePath + "/attributes/included", schemaPath: "#/$defs/IncludeExclude/properties/included/minItems", keyword: "minItems", params: { limit: 1 }, message: "must NOT have fewer than 1 items" }];
@@ -94808,12 +96194,12 @@ If omitted, ignore.
                           var valid3 = true;
                           const len0 = data1.length;
                           for (let i0 = 0;i0 < len0; i0++) {
-                            const _errs8 = errors;
+                            const _errs8 = errors2;
                             if (typeof data1[i0] !== "string") {
                               validate118.errors = [{ instancePath: instancePath + "/attributes/included/" + i0, schemaPath: "#/$defs/IncludeExclude/properties/included/items/type", keyword: "type", params: { type: "string" }, message: "must be string" }];
                               return false;
                             }
-                            var valid3 = _errs8 === errors;
+                            var valid3 = _errs8 === errors2;
                             if (!valid3) {
                               break;
                             }
@@ -94824,15 +96210,15 @@ If omitted, ignore.
                         return false;
                       }
                     }
-                    var valid2 = _errs6 === errors;
+                    var valid2 = _errs6 === errors2;
                   } else {
                     var valid2 = true;
                   }
                   if (valid2) {
                     if (data0.excluded !== undefined) {
                       let data3 = data0.excluded;
-                      const _errs10 = errors;
-                      if (errors === _errs10) {
+                      const _errs10 = errors2;
+                      if (errors2 === _errs10) {
                         if (Array.isArray(data3)) {
                           if (data3.length < 1) {
                             validate118.errors = [{ instancePath: instancePath + "/attributes/excluded", schemaPath: "#/$defs/IncludeExclude/properties/excluded/minItems", keyword: "minItems", params: { limit: 1 }, message: "must NOT have fewer than 1 items" }];
@@ -94841,12 +96227,12 @@ If omitted, ignore.
                             var valid4 = true;
                             const len1 = data3.length;
                             for (let i1 = 0;i1 < len1; i1++) {
-                              const _errs12 = errors;
+                              const _errs12 = errors2;
                               if (typeof data3[i1] !== "string") {
                                 validate118.errors = [{ instancePath: instancePath + "/attributes/excluded/" + i1, schemaPath: "#/$defs/IncludeExclude/properties/excluded/items/type", keyword: "type", params: { type: "string" }, message: "must be string" }];
                                 return false;
                               }
-                              var valid4 = _errs12 === errors;
+                              var valid4 = _errs12 === errors2;
                               if (!valid4) {
                                 break;
                               }
@@ -94857,7 +96243,7 @@ If omitted, ignore.
                           return false;
                         }
                       }
-                      var valid2 = _errs10 === errors;
+                      var valid2 = _errs10 === errors2;
                     } else {
                       var valid2 = true;
                     }
@@ -94868,15 +96254,15 @@ If omitted, ignore.
                 return false;
               }
             }
-            var valid0 = _errs2 === errors;
+            var valid0 = _errs2 === errors2;
           } else {
             var valid0 = true;
           }
           if (valid0) {
             if (data.detectors !== undefined) {
               let data5 = data.detectors;
-              const _errs14 = errors;
-              if (errors === _errs14) {
+              const _errs14 = errors2;
+              if (errors2 === _errs14) {
                 if (Array.isArray(data5)) {
                   if (data5.length < 1) {
                     validate118.errors = [{ instancePath: instancePath + "/detectors", schemaPath: "#/properties/detectors/minItems", keyword: "minItems", params: { limit: 1 }, message: "must NOT have fewer than 1 items" }];
@@ -94885,12 +96271,12 @@ If omitted, ignore.
                     var valid5 = true;
                     const len2 = data5.length;
                     for (let i22 = 0;i22 < len2; i22++) {
-                      const _errs16 = errors;
+                      const _errs16 = errors2;
                       if (!validate119(data5[i22], { instancePath: instancePath + "/detectors/" + i22, parentData: data5, parentDataProperty: i22, rootData, dynamicAnchors })) {
                         vErrors = vErrors === null ? validate119.errors : vErrors.concat(validate119.errors);
-                        errors = vErrors.length;
+                        errors2 = vErrors.length;
                       }
-                      var valid5 = _errs16 === errors;
+                      var valid5 = _errs16 === errors2;
                       if (!valid5) {
                         break;
                       }
@@ -94901,7 +96287,7 @@ If omitted, ignore.
                   return false;
                 }
               }
-              var valid0 = _errs14 === errors;
+              var valid0 = _errs14 === errors2;
             } else {
               var valid0 = true;
             }
@@ -94913,12 +96299,12 @@ If omitted, ignore.
       }
     }
     validate118.errors = vErrors;
-    return errors === 0;
+    return errors2 === 0;
   }
   validate118.evaluated = { props: true, dynamicProps: false, dynamicItems: false };
   function validate115(data, { instancePath = "", parentData, parentDataProperty, rootData = data, dynamicAnchors = {} } = {}) {
     let vErrors = null;
-    let errors = 0;
+    let errors2 = 0;
     const evaluated0 = validate115.evaluated;
     if (evaluated0.dynamicProps) {
       evaluated0.props = undefined;
@@ -94926,9 +96312,9 @@ If omitted, ignore.
     if (evaluated0.dynamicItems) {
       evaluated0.items = undefined;
     }
-    if (errors === 0) {
+    if (errors2 === 0) {
       if (data && typeof data == "object" && !Array.isArray(data)) {
-        const _errs1 = errors;
+        const _errs1 = errors2;
         for (const key0 in data) {
           if (!(key0 === "attributes" || key0 === "detection/development" || key0 === "schema_url" || key0 === "attributes_list")) {
             validate115.errors = [{ instancePath, schemaPath: "#/additionalProperties", keyword: "additionalProperties", params: { additionalProperty: key0 }, message: "must NOT have additional properties" }];
@@ -94936,11 +96322,11 @@ If omitted, ignore.
             break;
           }
         }
-        if (_errs1 === errors) {
+        if (_errs1 === errors2) {
           if (data.attributes !== undefined) {
             let data0 = data.attributes;
-            const _errs2 = errors;
-            if (errors === _errs2) {
+            const _errs2 = errors2;
+            if (errors2 === _errs2) {
               if (Array.isArray(data0)) {
                 if (data0.length < 1) {
                   validate115.errors = [{ instancePath: instancePath + "/attributes", schemaPath: "#/properties/attributes/minItems", keyword: "minItems", params: { limit: 1 }, message: "must NOT have fewer than 1 items" }];
@@ -94949,12 +96335,12 @@ If omitted, ignore.
                   var valid1 = true;
                   const len0 = data0.length;
                   for (let i0 = 0;i0 < len0; i0++) {
-                    const _errs4 = errors;
+                    const _errs4 = errors2;
                     if (!validate116(data0[i0], { instancePath: instancePath + "/attributes/" + i0, parentData: data0, parentDataProperty: i0, rootData, dynamicAnchors })) {
                       vErrors = vErrors === null ? validate116.errors : vErrors.concat(validate116.errors);
-                      errors = vErrors.length;
+                      errors2 = vErrors.length;
                     }
-                    var valid1 = _errs4 === errors;
+                    var valid1 = _errs4 === errors2;
                     if (!valid1) {
                       break;
                     }
@@ -94965,42 +96351,42 @@ If omitted, ignore.
                 return false;
               }
             }
-            var valid0 = _errs2 === errors;
+            var valid0 = _errs2 === errors2;
           } else {
             var valid0 = true;
           }
           if (valid0) {
             if (data["detection/development"] !== undefined) {
-              const _errs5 = errors;
+              const _errs5 = errors2;
               if (!validate118(data["detection/development"], { instancePath: instancePath + "/detection~1development", parentData: data, parentDataProperty: "detection/development", rootData, dynamicAnchors })) {
                 vErrors = vErrors === null ? validate118.errors : vErrors.concat(validate118.errors);
-                errors = vErrors.length;
+                errors2 = vErrors.length;
               }
-              var valid0 = _errs5 === errors;
+              var valid0 = _errs5 === errors2;
             } else {
               var valid0 = true;
             }
             if (valid0) {
               if (data.schema_url !== undefined) {
                 let data3 = data.schema_url;
-                const _errs6 = errors;
+                const _errs6 = errors2;
                 if (typeof data3 !== "string" && data3 !== null) {
                   validate115.errors = [{ instancePath: instancePath + "/schema_url", schemaPath: "#/properties/schema_url/type", keyword: "type", params: { type: schema136.properties.schema_url.type }, message: "must be string,null" }];
                   return false;
                 }
-                var valid0 = _errs6 === errors;
+                var valid0 = _errs6 === errors2;
               } else {
                 var valid0 = true;
               }
               if (valid0) {
                 if (data.attributes_list !== undefined) {
                   let data4 = data.attributes_list;
-                  const _errs8 = errors;
+                  const _errs8 = errors2;
                   if (typeof data4 !== "string" && data4 !== null) {
                     validate115.errors = [{ instancePath: instancePath + "/attributes_list", schemaPath: "#/properties/attributes_list/type", keyword: "type", params: { type: schema136.properties.attributes_list.type }, message: "must be string,null" }];
                     return false;
                   }
-                  var valid0 = _errs8 === errors;
+                  var valid0 = _errs8 === errors2;
                 } else {
                   var valid0 = true;
                 }
@@ -95014,7 +96400,7 @@ If omitted, ignore.
       }
     }
     validate115.errors = vErrors;
-    return errors === 0;
+    return errors2 === 0;
   }
   validate115.evaluated = { props: true, dynamicProps: false, dynamicItems: false };
   var schema146 = { type: "object", additionalProperties: false, properties: { general: { $ref: "#/$defs/ExperimentalGeneralInstrumentation", description: `Configure general SemConv options that may apply to multiple languages and instrumentations.
@@ -95114,7 +96500,7 @@ If omitted or null, false is used.
 ` } } };
   function validate125(data, { instancePath = "", parentData, parentDataProperty, rootData = data, dynamicAnchors = {} } = {}) {
     let vErrors = null;
-    let errors = 0;
+    let errors2 = 0;
     const evaluated0 = validate125.evaluated;
     if (evaluated0.dynamicProps) {
       evaluated0.props = undefined;
@@ -95122,9 +96508,9 @@ If omitted or null, false is used.
     if (evaluated0.dynamicItems) {
       evaluated0.items = undefined;
     }
-    if (errors === 0) {
+    if (errors2 === 0) {
       if (data && typeof data == "object" && !Array.isArray(data)) {
-        const _errs1 = errors;
+        const _errs1 = errors2;
         for (const key0 in data) {
           if (!(key0 === "semconv" || key0 === "client" || key0 === "server")) {
             validate125.errors = [{ instancePath, schemaPath: "#/additionalProperties", keyword: "additionalProperties", params: { additionalProperty: key0 }, message: "must NOT have additional properties" }];
@@ -95132,14 +96518,14 @@ If omitted or null, false is used.
             break;
           }
         }
-        if (_errs1 === errors) {
+        if (_errs1 === errors2) {
           if (data.semconv !== undefined) {
             let data0 = data.semconv;
-            const _errs2 = errors;
-            const _errs3 = errors;
-            if (errors === _errs3) {
+            const _errs2 = errors2;
+            const _errs3 = errors2;
+            if (errors2 === _errs3) {
               if (data0 && typeof data0 == "object" && !Array.isArray(data0)) {
-                const _errs5 = errors;
+                const _errs5 = errors2;
                 for (const key1 in data0) {
                   if (!(key1 === "version" || key1 === "experimental" || key1 === "dual_emit")) {
                     validate125.errors = [{ instancePath: instancePath + "/semconv", schemaPath: "#/$defs/ExperimentalSemconvConfig/additionalProperties", keyword: "additionalProperties", params: { additionalProperty: key1 }, message: "must NOT have additional properties" }];
@@ -95147,15 +96533,15 @@ If omitted or null, false is used.
                     break;
                   }
                 }
-                if (_errs5 === errors) {
+                if (_errs5 === errors2) {
                   if (data0.version !== undefined) {
                     let data1 = data0.version;
-                    const _errs6 = errors;
+                    const _errs6 = errors2;
                     if (!(typeof data1 == "number" && (!(data1 % 1) && !isNaN(data1))) && data1 !== null) {
                       validate125.errors = [{ instancePath: instancePath + "/semconv/version", schemaPath: "#/$defs/ExperimentalSemconvConfig/properties/version/type", keyword: "type", params: { type: schema149.properties.version.type }, message: "must be integer,null" }];
                       return false;
                     }
-                    if (errors === _errs6) {
+                    if (errors2 === _errs6) {
                       if (typeof data1 == "number") {
                         if (data1 < 0 || isNaN(data1)) {
                           validate125.errors = [{ instancePath: instancePath + "/semconv/version", schemaPath: "#/$defs/ExperimentalSemconvConfig/properties/version/minimum", keyword: "minimum", params: { comparison: ">=", limit: 0 }, message: "must be >= 0" }];
@@ -95163,31 +96549,31 @@ If omitted or null, false is used.
                         }
                       }
                     }
-                    var valid2 = _errs6 === errors;
+                    var valid2 = _errs6 === errors2;
                   } else {
                     var valid2 = true;
                   }
                   if (valid2) {
                     if (data0.experimental !== undefined) {
                       let data2 = data0.experimental;
-                      const _errs8 = errors;
+                      const _errs8 = errors2;
                       if (typeof data2 !== "boolean" && data2 !== null) {
                         validate125.errors = [{ instancePath: instancePath + "/semconv/experimental", schemaPath: "#/$defs/ExperimentalSemconvConfig/properties/experimental/type", keyword: "type", params: { type: schema149.properties.experimental.type }, message: "must be boolean,null" }];
                         return false;
                       }
-                      var valid2 = _errs8 === errors;
+                      var valid2 = _errs8 === errors2;
                     } else {
                       var valid2 = true;
                     }
                     if (valid2) {
                       if (data0.dual_emit !== undefined) {
                         let data3 = data0.dual_emit;
-                        const _errs10 = errors;
+                        const _errs10 = errors2;
                         if (typeof data3 !== "boolean" && data3 !== null) {
                           validate125.errors = [{ instancePath: instancePath + "/semconv/dual_emit", schemaPath: "#/$defs/ExperimentalSemconvConfig/properties/dual_emit/type", keyword: "type", params: { type: schema149.properties.dual_emit.type }, message: "must be boolean,null" }];
                           return false;
                         }
-                        var valid2 = _errs10 === errors;
+                        var valid2 = _errs10 === errors2;
                       } else {
                         var valid2 = true;
                       }
@@ -95199,18 +96585,18 @@ If omitted or null, false is used.
                 return false;
               }
             }
-            var valid0 = _errs2 === errors;
+            var valid0 = _errs2 === errors2;
           } else {
             var valid0 = true;
           }
           if (valid0) {
             if (data.client !== undefined) {
               let data4 = data.client;
-              const _errs12 = errors;
-              const _errs13 = errors;
-              if (errors === _errs13) {
+              const _errs12 = errors2;
+              const _errs13 = errors2;
+              if (errors2 === _errs13) {
                 if (data4 && typeof data4 == "object" && !Array.isArray(data4)) {
-                  const _errs15 = errors;
+                  const _errs15 = errors2;
                   for (const key2 in data4) {
                     if (!(key2 === "request_captured_headers" || key2 === "response_captured_headers" || key2 === "known_methods")) {
                       validate125.errors = [{ instancePath: instancePath + "/client", schemaPath: "#/$defs/ExperimentalHttpClientInstrumentation/additionalProperties", keyword: "additionalProperties", params: { additionalProperty: key2 }, message: "must NOT have additional properties" }];
@@ -95218,11 +96604,11 @@ If omitted or null, false is used.
                       break;
                     }
                   }
-                  if (_errs15 === errors) {
+                  if (_errs15 === errors2) {
                     if (data4.request_captured_headers !== undefined) {
                       let data5 = data4.request_captured_headers;
-                      const _errs16 = errors;
-                      if (errors === _errs16) {
+                      const _errs16 = errors2;
+                      if (errors2 === _errs16) {
                         if (Array.isArray(data5)) {
                           if (data5.length < 1) {
                             validate125.errors = [{ instancePath: instancePath + "/client/request_captured_headers", schemaPath: "#/$defs/ExperimentalHttpClientInstrumentation/properties/request_captured_headers/minItems", keyword: "minItems", params: { limit: 1 }, message: "must NOT have fewer than 1 items" }];
@@ -95231,12 +96617,12 @@ If omitted or null, false is used.
                             var valid5 = true;
                             const len0 = data5.length;
                             for (let i0 = 0;i0 < len0; i0++) {
-                              const _errs18 = errors;
+                              const _errs18 = errors2;
                               if (typeof data5[i0] !== "string") {
                                 validate125.errors = [{ instancePath: instancePath + "/client/request_captured_headers/" + i0, schemaPath: "#/$defs/ExperimentalHttpClientInstrumentation/properties/request_captured_headers/items/type", keyword: "type", params: { type: "string" }, message: "must be string" }];
                                 return false;
                               }
-                              var valid5 = _errs18 === errors;
+                              var valid5 = _errs18 === errors2;
                               if (!valid5) {
                                 break;
                               }
@@ -95247,15 +96633,15 @@ If omitted or null, false is used.
                           return false;
                         }
                       }
-                      var valid4 = _errs16 === errors;
+                      var valid4 = _errs16 === errors2;
                     } else {
                       var valid4 = true;
                     }
                     if (valid4) {
                       if (data4.response_captured_headers !== undefined) {
                         let data7 = data4.response_captured_headers;
-                        const _errs20 = errors;
-                        if (errors === _errs20) {
+                        const _errs20 = errors2;
+                        if (errors2 === _errs20) {
                           if (Array.isArray(data7)) {
                             if (data7.length < 1) {
                               validate125.errors = [{ instancePath: instancePath + "/client/response_captured_headers", schemaPath: "#/$defs/ExperimentalHttpClientInstrumentation/properties/response_captured_headers/minItems", keyword: "minItems", params: { limit: 1 }, message: "must NOT have fewer than 1 items" }];
@@ -95264,12 +96650,12 @@ If omitted or null, false is used.
                               var valid6 = true;
                               const len1 = data7.length;
                               for (let i1 = 0;i1 < len1; i1++) {
-                                const _errs22 = errors;
+                                const _errs22 = errors2;
                                 if (typeof data7[i1] !== "string") {
                                   validate125.errors = [{ instancePath: instancePath + "/client/response_captured_headers/" + i1, schemaPath: "#/$defs/ExperimentalHttpClientInstrumentation/properties/response_captured_headers/items/type", keyword: "type", params: { type: "string" }, message: "must be string" }];
                                   return false;
                                 }
-                                var valid6 = _errs22 === errors;
+                                var valid6 = _errs22 === errors2;
                                 if (!valid6) {
                                   break;
                                 }
@@ -95280,15 +96666,15 @@ If omitted or null, false is used.
                             return false;
                           }
                         }
-                        var valid4 = _errs20 === errors;
+                        var valid4 = _errs20 === errors2;
                       } else {
                         var valid4 = true;
                       }
                       if (valid4) {
                         if (data4.known_methods !== undefined) {
                           let data9 = data4.known_methods;
-                          const _errs24 = errors;
-                          if (errors === _errs24) {
+                          const _errs24 = errors2;
+                          if (errors2 === _errs24) {
                             if (Array.isArray(data9)) {
                               if (data9.length < 0) {
                                 validate125.errors = [{ instancePath: instancePath + "/client/known_methods", schemaPath: "#/$defs/ExperimentalHttpClientInstrumentation/properties/known_methods/minItems", keyword: "minItems", params: { limit: 0 }, message: "must NOT have fewer than 0 items" }];
@@ -95297,12 +96683,12 @@ If omitted or null, false is used.
                                 var valid7 = true;
                                 const len2 = data9.length;
                                 for (let i22 = 0;i22 < len2; i22++) {
-                                  const _errs26 = errors;
+                                  const _errs26 = errors2;
                                   if (typeof data9[i22] !== "string") {
                                     validate125.errors = [{ instancePath: instancePath + "/client/known_methods/" + i22, schemaPath: "#/$defs/ExperimentalHttpClientInstrumentation/properties/known_methods/items/type", keyword: "type", params: { type: "string" }, message: "must be string" }];
                                     return false;
                                   }
-                                  var valid7 = _errs26 === errors;
+                                  var valid7 = _errs26 === errors2;
                                   if (!valid7) {
                                     break;
                                   }
@@ -95313,7 +96699,7 @@ If omitted or null, false is used.
                               return false;
                             }
                           }
-                          var valid4 = _errs24 === errors;
+                          var valid4 = _errs24 === errors2;
                         } else {
                           var valid4 = true;
                         }
@@ -95325,18 +96711,18 @@ If omitted or null, false is used.
                   return false;
                 }
               }
-              var valid0 = _errs12 === errors;
+              var valid0 = _errs12 === errors2;
             } else {
               var valid0 = true;
             }
             if (valid0) {
               if (data.server !== undefined) {
                 let data11 = data.server;
-                const _errs28 = errors;
-                const _errs29 = errors;
-                if (errors === _errs29) {
+                const _errs28 = errors2;
+                const _errs29 = errors2;
+                if (errors2 === _errs29) {
                   if (data11 && typeof data11 == "object" && !Array.isArray(data11)) {
-                    const _errs31 = errors;
+                    const _errs31 = errors2;
                     for (const key3 in data11) {
                       if (!(key3 === "request_captured_headers" || key3 === "response_captured_headers" || key3 === "known_methods")) {
                         validate125.errors = [{ instancePath: instancePath + "/server", schemaPath: "#/$defs/ExperimentalHttpServerInstrumentation/additionalProperties", keyword: "additionalProperties", params: { additionalProperty: key3 }, message: "must NOT have additional properties" }];
@@ -95344,11 +96730,11 @@ If omitted or null, false is used.
                         break;
                       }
                     }
-                    if (_errs31 === errors) {
+                    if (_errs31 === errors2) {
                       if (data11.request_captured_headers !== undefined) {
                         let data12 = data11.request_captured_headers;
-                        const _errs32 = errors;
-                        if (errors === _errs32) {
+                        const _errs32 = errors2;
+                        if (errors2 === _errs32) {
                           if (Array.isArray(data12)) {
                             if (data12.length < 1) {
                               validate125.errors = [{ instancePath: instancePath + "/server/request_captured_headers", schemaPath: "#/$defs/ExperimentalHttpServerInstrumentation/properties/request_captured_headers/minItems", keyword: "minItems", params: { limit: 1 }, message: "must NOT have fewer than 1 items" }];
@@ -95357,12 +96743,12 @@ If omitted or null, false is used.
                               var valid10 = true;
                               const len3 = data12.length;
                               for (let i3 = 0;i3 < len3; i3++) {
-                                const _errs34 = errors;
+                                const _errs34 = errors2;
                                 if (typeof data12[i3] !== "string") {
                                   validate125.errors = [{ instancePath: instancePath + "/server/request_captured_headers/" + i3, schemaPath: "#/$defs/ExperimentalHttpServerInstrumentation/properties/request_captured_headers/items/type", keyword: "type", params: { type: "string" }, message: "must be string" }];
                                   return false;
                                 }
-                                var valid10 = _errs34 === errors;
+                                var valid10 = _errs34 === errors2;
                                 if (!valid10) {
                                   break;
                                 }
@@ -95373,15 +96759,15 @@ If omitted or null, false is used.
                             return false;
                           }
                         }
-                        var valid9 = _errs32 === errors;
+                        var valid9 = _errs32 === errors2;
                       } else {
                         var valid9 = true;
                       }
                       if (valid9) {
                         if (data11.response_captured_headers !== undefined) {
                           let data14 = data11.response_captured_headers;
-                          const _errs36 = errors;
-                          if (errors === _errs36) {
+                          const _errs36 = errors2;
+                          if (errors2 === _errs36) {
                             if (Array.isArray(data14)) {
                               if (data14.length < 1) {
                                 validate125.errors = [{ instancePath: instancePath + "/server/response_captured_headers", schemaPath: "#/$defs/ExperimentalHttpServerInstrumentation/properties/response_captured_headers/minItems", keyword: "minItems", params: { limit: 1 }, message: "must NOT have fewer than 1 items" }];
@@ -95390,12 +96776,12 @@ If omitted or null, false is used.
                                 var valid11 = true;
                                 const len4 = data14.length;
                                 for (let i4 = 0;i4 < len4; i4++) {
-                                  const _errs38 = errors;
+                                  const _errs38 = errors2;
                                   if (typeof data14[i4] !== "string") {
                                     validate125.errors = [{ instancePath: instancePath + "/server/response_captured_headers/" + i4, schemaPath: "#/$defs/ExperimentalHttpServerInstrumentation/properties/response_captured_headers/items/type", keyword: "type", params: { type: "string" }, message: "must be string" }];
                                     return false;
                                   }
-                                  var valid11 = _errs38 === errors;
+                                  var valid11 = _errs38 === errors2;
                                   if (!valid11) {
                                     break;
                                   }
@@ -95406,15 +96792,15 @@ If omitted or null, false is used.
                               return false;
                             }
                           }
-                          var valid9 = _errs36 === errors;
+                          var valid9 = _errs36 === errors2;
                         } else {
                           var valid9 = true;
                         }
                         if (valid9) {
                           if (data11.known_methods !== undefined) {
                             let data16 = data11.known_methods;
-                            const _errs40 = errors;
-                            if (errors === _errs40) {
+                            const _errs40 = errors2;
+                            if (errors2 === _errs40) {
                               if (Array.isArray(data16)) {
                                 if (data16.length < 0) {
                                   validate125.errors = [{ instancePath: instancePath + "/server/known_methods", schemaPath: "#/$defs/ExperimentalHttpServerInstrumentation/properties/known_methods/minItems", keyword: "minItems", params: { limit: 0 }, message: "must NOT have fewer than 0 items" }];
@@ -95423,12 +96809,12 @@ If omitted or null, false is used.
                                   var valid12 = true;
                                   const len5 = data16.length;
                                   for (let i5 = 0;i5 < len5; i5++) {
-                                    const _errs42 = errors;
+                                    const _errs42 = errors2;
                                     if (typeof data16[i5] !== "string") {
                                       validate125.errors = [{ instancePath: instancePath + "/server/known_methods/" + i5, schemaPath: "#/$defs/ExperimentalHttpServerInstrumentation/properties/known_methods/items/type", keyword: "type", params: { type: "string" }, message: "must be string" }];
                                       return false;
                                     }
-                                    var valid12 = _errs42 === errors;
+                                    var valid12 = _errs42 === errors2;
                                     if (!valid12) {
                                       break;
                                     }
@@ -95439,7 +96825,7 @@ If omitted or null, false is used.
                                 return false;
                               }
                             }
-                            var valid9 = _errs40 === errors;
+                            var valid9 = _errs40 === errors2;
                           } else {
                             var valid9 = true;
                           }
@@ -95451,7 +96837,7 @@ If omitted or null, false is used.
                     return false;
                   }
                 }
-                var valid0 = _errs28 === errors;
+                var valid0 = _errs28 === errors2;
               } else {
                 var valid0 = true;
               }
@@ -95464,12 +96850,12 @@ If omitted or null, false is used.
       }
     }
     validate125.errors = vErrors;
-    return errors === 0;
+    return errors2 === 0;
   }
   validate125.evaluated = { props: true, dynamicProps: false, dynamicItems: false };
   function validate127(data, { instancePath = "", parentData, parentDataProperty, rootData = data, dynamicAnchors = {} } = {}) {
     let vErrors = null;
-    let errors = 0;
+    let errors2 = 0;
     const evaluated0 = validate127.evaluated;
     if (evaluated0.dynamicProps) {
       evaluated0.props = undefined;
@@ -95477,9 +96863,9 @@ If omitted or null, false is used.
     if (evaluated0.dynamicItems) {
       evaluated0.items = undefined;
     }
-    if (errors === 0) {
+    if (errors2 === 0) {
       if (data && typeof data == "object" && !Array.isArray(data)) {
-        const _errs1 = errors;
+        const _errs1 = errors2;
         for (const key0 in data) {
           if (!(key0 === "semconv")) {
             validate127.errors = [{ instancePath, schemaPath: "#/additionalProperties", keyword: "additionalProperties", params: { additionalProperty: key0 }, message: "must NOT have additional properties" }];
@@ -95487,13 +96873,13 @@ If omitted or null, false is used.
             break;
           }
         }
-        if (_errs1 === errors) {
+        if (_errs1 === errors2) {
           if (data.semconv !== undefined) {
             let data0 = data.semconv;
-            const _errs3 = errors;
-            if (errors === _errs3) {
+            const _errs3 = errors2;
+            if (errors2 === _errs3) {
               if (data0 && typeof data0 == "object" && !Array.isArray(data0)) {
-                const _errs5 = errors;
+                const _errs5 = errors2;
                 for (const key1 in data0) {
                   if (!(key1 === "version" || key1 === "experimental" || key1 === "dual_emit")) {
                     validate127.errors = [{ instancePath: instancePath + "/semconv", schemaPath: "#/$defs/ExperimentalSemconvConfig/additionalProperties", keyword: "additionalProperties", params: { additionalProperty: key1 }, message: "must NOT have additional properties" }];
@@ -95501,15 +96887,15 @@ If omitted or null, false is used.
                     break;
                   }
                 }
-                if (_errs5 === errors) {
+                if (_errs5 === errors2) {
                   if (data0.version !== undefined) {
                     let data1 = data0.version;
-                    const _errs6 = errors;
+                    const _errs6 = errors2;
                     if (!(typeof data1 == "number" && (!(data1 % 1) && !isNaN(data1))) && data1 !== null) {
                       validate127.errors = [{ instancePath: instancePath + "/semconv/version", schemaPath: "#/$defs/ExperimentalSemconvConfig/properties/version/type", keyword: "type", params: { type: schema149.properties.version.type }, message: "must be integer,null" }];
                       return false;
                     }
-                    if (errors === _errs6) {
+                    if (errors2 === _errs6) {
                       if (typeof data1 == "number") {
                         if (data1 < 0 || isNaN(data1)) {
                           validate127.errors = [{ instancePath: instancePath + "/semconv/version", schemaPath: "#/$defs/ExperimentalSemconvConfig/properties/version/minimum", keyword: "minimum", params: { comparison: ">=", limit: 0 }, message: "must be >= 0" }];
@@ -95517,31 +96903,31 @@ If omitted or null, false is used.
                         }
                       }
                     }
-                    var valid2 = _errs6 === errors;
+                    var valid2 = _errs6 === errors2;
                   } else {
                     var valid2 = true;
                   }
                   if (valid2) {
                     if (data0.experimental !== undefined) {
                       let data2 = data0.experimental;
-                      const _errs8 = errors;
+                      const _errs8 = errors2;
                       if (typeof data2 !== "boolean" && data2 !== null) {
                         validate127.errors = [{ instancePath: instancePath + "/semconv/experimental", schemaPath: "#/$defs/ExperimentalSemconvConfig/properties/experimental/type", keyword: "type", params: { type: schema149.properties.experimental.type }, message: "must be boolean,null" }];
                         return false;
                       }
-                      var valid2 = _errs8 === errors;
+                      var valid2 = _errs8 === errors2;
                     } else {
                       var valid2 = true;
                     }
                     if (valid2) {
                       if (data0.dual_emit !== undefined) {
                         let data3 = data0.dual_emit;
-                        const _errs10 = errors;
+                        const _errs10 = errors2;
                         if (typeof data3 !== "boolean" && data3 !== null) {
                           validate127.errors = [{ instancePath: instancePath + "/semconv/dual_emit", schemaPath: "#/$defs/ExperimentalSemconvConfig/properties/dual_emit/type", keyword: "type", params: { type: schema149.properties.dual_emit.type }, message: "must be boolean,null" }];
                           return false;
                         }
-                        var valid2 = _errs10 === errors;
+                        var valid2 = _errs10 === errors2;
                       } else {
                         var valid2 = true;
                       }
@@ -95561,12 +96947,12 @@ If omitted or null, false is used.
       }
     }
     validate127.errors = vErrors;
-    return errors === 0;
+    return errors2 === 0;
   }
   validate127.evaluated = { props: true, dynamicProps: false, dynamicItems: false };
   function validate129(data, { instancePath = "", parentData, parentDataProperty, rootData = data, dynamicAnchors = {} } = {}) {
     let vErrors = null;
-    let errors = 0;
+    let errors2 = 0;
     const evaluated0 = validate129.evaluated;
     if (evaluated0.dynamicProps) {
       evaluated0.props = undefined;
@@ -95574,9 +96960,9 @@ If omitted or null, false is used.
     if (evaluated0.dynamicItems) {
       evaluated0.items = undefined;
     }
-    if (errors === 0) {
+    if (errors2 === 0) {
       if (data && typeof data == "object" && !Array.isArray(data)) {
-        const _errs1 = errors;
+        const _errs1 = errors2;
         for (const key0 in data) {
           if (!(key0 === "semconv")) {
             validate129.errors = [{ instancePath, schemaPath: "#/additionalProperties", keyword: "additionalProperties", params: { additionalProperty: key0 }, message: "must NOT have additional properties" }];
@@ -95584,13 +96970,13 @@ If omitted or null, false is used.
             break;
           }
         }
-        if (_errs1 === errors) {
+        if (_errs1 === errors2) {
           if (data.semconv !== undefined) {
             let data0 = data.semconv;
-            const _errs3 = errors;
-            if (errors === _errs3) {
+            const _errs3 = errors2;
+            if (errors2 === _errs3) {
               if (data0 && typeof data0 == "object" && !Array.isArray(data0)) {
-                const _errs5 = errors;
+                const _errs5 = errors2;
                 for (const key1 in data0) {
                   if (!(key1 === "version" || key1 === "experimental" || key1 === "dual_emit")) {
                     validate129.errors = [{ instancePath: instancePath + "/semconv", schemaPath: "#/$defs/ExperimentalSemconvConfig/additionalProperties", keyword: "additionalProperties", params: { additionalProperty: key1 }, message: "must NOT have additional properties" }];
@@ -95598,15 +96984,15 @@ If omitted or null, false is used.
                     break;
                   }
                 }
-                if (_errs5 === errors) {
+                if (_errs5 === errors2) {
                   if (data0.version !== undefined) {
                     let data1 = data0.version;
-                    const _errs6 = errors;
+                    const _errs6 = errors2;
                     if (!(typeof data1 == "number" && (!(data1 % 1) && !isNaN(data1))) && data1 !== null) {
                       validate129.errors = [{ instancePath: instancePath + "/semconv/version", schemaPath: "#/$defs/ExperimentalSemconvConfig/properties/version/type", keyword: "type", params: { type: schema149.properties.version.type }, message: "must be integer,null" }];
                       return false;
                     }
-                    if (errors === _errs6) {
+                    if (errors2 === _errs6) {
                       if (typeof data1 == "number") {
                         if (data1 < 0 || isNaN(data1)) {
                           validate129.errors = [{ instancePath: instancePath + "/semconv/version", schemaPath: "#/$defs/ExperimentalSemconvConfig/properties/version/minimum", keyword: "minimum", params: { comparison: ">=", limit: 0 }, message: "must be >= 0" }];
@@ -95614,31 +97000,31 @@ If omitted or null, false is used.
                         }
                       }
                     }
-                    var valid2 = _errs6 === errors;
+                    var valid2 = _errs6 === errors2;
                   } else {
                     var valid2 = true;
                   }
                   if (valid2) {
                     if (data0.experimental !== undefined) {
                       let data2 = data0.experimental;
-                      const _errs8 = errors;
+                      const _errs8 = errors2;
                       if (typeof data2 !== "boolean" && data2 !== null) {
                         validate129.errors = [{ instancePath: instancePath + "/semconv/experimental", schemaPath: "#/$defs/ExperimentalSemconvConfig/properties/experimental/type", keyword: "type", params: { type: schema149.properties.experimental.type }, message: "must be boolean,null" }];
                         return false;
                       }
-                      var valid2 = _errs8 === errors;
+                      var valid2 = _errs8 === errors2;
                     } else {
                       var valid2 = true;
                     }
                     if (valid2) {
                       if (data0.dual_emit !== undefined) {
                         let data3 = data0.dual_emit;
-                        const _errs10 = errors;
+                        const _errs10 = errors2;
                         if (typeof data3 !== "boolean" && data3 !== null) {
                           validate129.errors = [{ instancePath: instancePath + "/semconv/dual_emit", schemaPath: "#/$defs/ExperimentalSemconvConfig/properties/dual_emit/type", keyword: "type", params: { type: schema149.properties.dual_emit.type }, message: "must be boolean,null" }];
                           return false;
                         }
-                        var valid2 = _errs10 === errors;
+                        var valid2 = _errs10 === errors2;
                       } else {
                         var valid2 = true;
                       }
@@ -95658,12 +97044,12 @@ If omitted or null, false is used.
       }
     }
     validate129.errors = vErrors;
-    return errors === 0;
+    return errors2 === 0;
   }
   validate129.evaluated = { props: true, dynamicProps: false, dynamicItems: false };
   function validate131(data, { instancePath = "", parentData, parentDataProperty, rootData = data, dynamicAnchors = {} } = {}) {
     let vErrors = null;
-    let errors = 0;
+    let errors2 = 0;
     const evaluated0 = validate131.evaluated;
     if (evaluated0.dynamicProps) {
       evaluated0.props = undefined;
@@ -95671,9 +97057,9 @@ If omitted or null, false is used.
     if (evaluated0.dynamicItems) {
       evaluated0.items = undefined;
     }
-    if (errors === 0) {
+    if (errors2 === 0) {
       if (data && typeof data == "object" && !Array.isArray(data)) {
-        const _errs1 = errors;
+        const _errs1 = errors2;
         for (const key0 in data) {
           if (!(key0 === "semconv")) {
             validate131.errors = [{ instancePath, schemaPath: "#/additionalProperties", keyword: "additionalProperties", params: { additionalProperty: key0 }, message: "must NOT have additional properties" }];
@@ -95681,13 +97067,13 @@ If omitted or null, false is used.
             break;
           }
         }
-        if (_errs1 === errors) {
+        if (_errs1 === errors2) {
           if (data.semconv !== undefined) {
             let data0 = data.semconv;
-            const _errs3 = errors;
-            if (errors === _errs3) {
+            const _errs3 = errors2;
+            if (errors2 === _errs3) {
               if (data0 && typeof data0 == "object" && !Array.isArray(data0)) {
-                const _errs5 = errors;
+                const _errs5 = errors2;
                 for (const key1 in data0) {
                   if (!(key1 === "version" || key1 === "experimental" || key1 === "dual_emit")) {
                     validate131.errors = [{ instancePath: instancePath + "/semconv", schemaPath: "#/$defs/ExperimentalSemconvConfig/additionalProperties", keyword: "additionalProperties", params: { additionalProperty: key1 }, message: "must NOT have additional properties" }];
@@ -95695,15 +97081,15 @@ If omitted or null, false is used.
                     break;
                   }
                 }
-                if (_errs5 === errors) {
+                if (_errs5 === errors2) {
                   if (data0.version !== undefined) {
                     let data1 = data0.version;
-                    const _errs6 = errors;
+                    const _errs6 = errors2;
                     if (!(typeof data1 == "number" && (!(data1 % 1) && !isNaN(data1))) && data1 !== null) {
                       validate131.errors = [{ instancePath: instancePath + "/semconv/version", schemaPath: "#/$defs/ExperimentalSemconvConfig/properties/version/type", keyword: "type", params: { type: schema149.properties.version.type }, message: "must be integer,null" }];
                       return false;
                     }
-                    if (errors === _errs6) {
+                    if (errors2 === _errs6) {
                       if (typeof data1 == "number") {
                         if (data1 < 0 || isNaN(data1)) {
                           validate131.errors = [{ instancePath: instancePath + "/semconv/version", schemaPath: "#/$defs/ExperimentalSemconvConfig/properties/version/minimum", keyword: "minimum", params: { comparison: ">=", limit: 0 }, message: "must be >= 0" }];
@@ -95711,31 +97097,31 @@ If omitted or null, false is used.
                         }
                       }
                     }
-                    var valid2 = _errs6 === errors;
+                    var valid2 = _errs6 === errors2;
                   } else {
                     var valid2 = true;
                   }
                   if (valid2) {
                     if (data0.experimental !== undefined) {
                       let data2 = data0.experimental;
-                      const _errs8 = errors;
+                      const _errs8 = errors2;
                       if (typeof data2 !== "boolean" && data2 !== null) {
                         validate131.errors = [{ instancePath: instancePath + "/semconv/experimental", schemaPath: "#/$defs/ExperimentalSemconvConfig/properties/experimental/type", keyword: "type", params: { type: schema149.properties.experimental.type }, message: "must be boolean,null" }];
                         return false;
                       }
-                      var valid2 = _errs8 === errors;
+                      var valid2 = _errs8 === errors2;
                     } else {
                       var valid2 = true;
                     }
                     if (valid2) {
                       if (data0.dual_emit !== undefined) {
                         let data3 = data0.dual_emit;
-                        const _errs10 = errors;
+                        const _errs10 = errors2;
                         if (typeof data3 !== "boolean" && data3 !== null) {
                           validate131.errors = [{ instancePath: instancePath + "/semconv/dual_emit", schemaPath: "#/$defs/ExperimentalSemconvConfig/properties/dual_emit/type", keyword: "type", params: { type: schema149.properties.dual_emit.type }, message: "must be boolean,null" }];
                           return false;
                         }
-                        var valid2 = _errs10 === errors;
+                        var valid2 = _errs10 === errors2;
                       } else {
                         var valid2 = true;
                       }
@@ -95755,12 +97141,12 @@ If omitted or null, false is used.
       }
     }
     validate131.errors = vErrors;
-    return errors === 0;
+    return errors2 === 0;
   }
   validate131.evaluated = { props: true, dynamicProps: false, dynamicItems: false };
   function validate133(data, { instancePath = "", parentData, parentDataProperty, rootData = data, dynamicAnchors = {} } = {}) {
     let vErrors = null;
-    let errors = 0;
+    let errors2 = 0;
     const evaluated0 = validate133.evaluated;
     if (evaluated0.dynamicProps) {
       evaluated0.props = undefined;
@@ -95768,9 +97154,9 @@ If omitted or null, false is used.
     if (evaluated0.dynamicItems) {
       evaluated0.items = undefined;
     }
-    if (errors === 0) {
+    if (errors2 === 0) {
       if (data && typeof data == "object" && !Array.isArray(data)) {
-        const _errs1 = errors;
+        const _errs1 = errors2;
         for (const key0 in data) {
           if (!(key0 === "semconv")) {
             validate133.errors = [{ instancePath, schemaPath: "#/additionalProperties", keyword: "additionalProperties", params: { additionalProperty: key0 }, message: "must NOT have additional properties" }];
@@ -95778,13 +97164,13 @@ If omitted or null, false is used.
             break;
           }
         }
-        if (_errs1 === errors) {
+        if (_errs1 === errors2) {
           if (data.semconv !== undefined) {
             let data0 = data.semconv;
-            const _errs3 = errors;
-            if (errors === _errs3) {
+            const _errs3 = errors2;
+            if (errors2 === _errs3) {
               if (data0 && typeof data0 == "object" && !Array.isArray(data0)) {
-                const _errs5 = errors;
+                const _errs5 = errors2;
                 for (const key1 in data0) {
                   if (!(key1 === "version" || key1 === "experimental" || key1 === "dual_emit")) {
                     validate133.errors = [{ instancePath: instancePath + "/semconv", schemaPath: "#/$defs/ExperimentalSemconvConfig/additionalProperties", keyword: "additionalProperties", params: { additionalProperty: key1 }, message: "must NOT have additional properties" }];
@@ -95792,15 +97178,15 @@ If omitted or null, false is used.
                     break;
                   }
                 }
-                if (_errs5 === errors) {
+                if (_errs5 === errors2) {
                   if (data0.version !== undefined) {
                     let data1 = data0.version;
-                    const _errs6 = errors;
+                    const _errs6 = errors2;
                     if (!(typeof data1 == "number" && (!(data1 % 1) && !isNaN(data1))) && data1 !== null) {
                       validate133.errors = [{ instancePath: instancePath + "/semconv/version", schemaPath: "#/$defs/ExperimentalSemconvConfig/properties/version/type", keyword: "type", params: { type: schema149.properties.version.type }, message: "must be integer,null" }];
                       return false;
                     }
-                    if (errors === _errs6) {
+                    if (errors2 === _errs6) {
                       if (typeof data1 == "number") {
                         if (data1 < 0 || isNaN(data1)) {
                           validate133.errors = [{ instancePath: instancePath + "/semconv/version", schemaPath: "#/$defs/ExperimentalSemconvConfig/properties/version/minimum", keyword: "minimum", params: { comparison: ">=", limit: 0 }, message: "must be >= 0" }];
@@ -95808,31 +97194,31 @@ If omitted or null, false is used.
                         }
                       }
                     }
-                    var valid2 = _errs6 === errors;
+                    var valid2 = _errs6 === errors2;
                   } else {
                     var valid2 = true;
                   }
                   if (valid2) {
                     if (data0.experimental !== undefined) {
                       let data2 = data0.experimental;
-                      const _errs8 = errors;
+                      const _errs8 = errors2;
                       if (typeof data2 !== "boolean" && data2 !== null) {
                         validate133.errors = [{ instancePath: instancePath + "/semconv/experimental", schemaPath: "#/$defs/ExperimentalSemconvConfig/properties/experimental/type", keyword: "type", params: { type: schema149.properties.experimental.type }, message: "must be boolean,null" }];
                         return false;
                       }
-                      var valid2 = _errs8 === errors;
+                      var valid2 = _errs8 === errors2;
                     } else {
                       var valid2 = true;
                     }
                     if (valid2) {
                       if (data0.dual_emit !== undefined) {
                         let data3 = data0.dual_emit;
-                        const _errs10 = errors;
+                        const _errs10 = errors2;
                         if (typeof data3 !== "boolean" && data3 !== null) {
                           validate133.errors = [{ instancePath: instancePath + "/semconv/dual_emit", schemaPath: "#/$defs/ExperimentalSemconvConfig/properties/dual_emit/type", keyword: "type", params: { type: schema149.properties.dual_emit.type }, message: "must be boolean,null" }];
                           return false;
                         }
-                        var valid2 = _errs10 === errors;
+                        var valid2 = _errs10 === errors2;
                       } else {
                         var valid2 = true;
                       }
@@ -95852,12 +97238,12 @@ If omitted or null, false is used.
       }
     }
     validate133.errors = vErrors;
-    return errors === 0;
+    return errors2 === 0;
   }
   validate133.evaluated = { props: true, dynamicProps: false, dynamicItems: false };
   function validate135(data, { instancePath = "", parentData, parentDataProperty, rootData = data, dynamicAnchors = {} } = {}) {
     let vErrors = null;
-    let errors = 0;
+    let errors2 = 0;
     const evaluated0 = validate135.evaluated;
     if (evaluated0.dynamicProps) {
       evaluated0.props = undefined;
@@ -95865,9 +97251,9 @@ If omitted or null, false is used.
     if (evaluated0.dynamicItems) {
       evaluated0.items = undefined;
     }
-    if (errors === 0) {
+    if (errors2 === 0) {
       if (data && typeof data == "object" && !Array.isArray(data)) {
-        const _errs1 = errors;
+        const _errs1 = errors2;
         for (const key0 in data) {
           if (!(key0 === "semconv")) {
             validate135.errors = [{ instancePath, schemaPath: "#/additionalProperties", keyword: "additionalProperties", params: { additionalProperty: key0 }, message: "must NOT have additional properties" }];
@@ -95875,13 +97261,13 @@ If omitted or null, false is used.
             break;
           }
         }
-        if (_errs1 === errors) {
+        if (_errs1 === errors2) {
           if (data.semconv !== undefined) {
             let data0 = data.semconv;
-            const _errs3 = errors;
-            if (errors === _errs3) {
+            const _errs3 = errors2;
+            if (errors2 === _errs3) {
               if (data0 && typeof data0 == "object" && !Array.isArray(data0)) {
-                const _errs5 = errors;
+                const _errs5 = errors2;
                 for (const key1 in data0) {
                   if (!(key1 === "version" || key1 === "experimental" || key1 === "dual_emit")) {
                     validate135.errors = [{ instancePath: instancePath + "/semconv", schemaPath: "#/$defs/ExperimentalSemconvConfig/additionalProperties", keyword: "additionalProperties", params: { additionalProperty: key1 }, message: "must NOT have additional properties" }];
@@ -95889,15 +97275,15 @@ If omitted or null, false is used.
                     break;
                   }
                 }
-                if (_errs5 === errors) {
+                if (_errs5 === errors2) {
                   if (data0.version !== undefined) {
                     let data1 = data0.version;
-                    const _errs6 = errors;
+                    const _errs6 = errors2;
                     if (!(typeof data1 == "number" && (!(data1 % 1) && !isNaN(data1))) && data1 !== null) {
                       validate135.errors = [{ instancePath: instancePath + "/semconv/version", schemaPath: "#/$defs/ExperimentalSemconvConfig/properties/version/type", keyword: "type", params: { type: schema149.properties.version.type }, message: "must be integer,null" }];
                       return false;
                     }
-                    if (errors === _errs6) {
+                    if (errors2 === _errs6) {
                       if (typeof data1 == "number") {
                         if (data1 < 0 || isNaN(data1)) {
                           validate135.errors = [{ instancePath: instancePath + "/semconv/version", schemaPath: "#/$defs/ExperimentalSemconvConfig/properties/version/minimum", keyword: "minimum", params: { comparison: ">=", limit: 0 }, message: "must be >= 0" }];
@@ -95905,31 +97291,31 @@ If omitted or null, false is used.
                         }
                       }
                     }
-                    var valid2 = _errs6 === errors;
+                    var valid2 = _errs6 === errors2;
                   } else {
                     var valid2 = true;
                   }
                   if (valid2) {
                     if (data0.experimental !== undefined) {
                       let data2 = data0.experimental;
-                      const _errs8 = errors;
+                      const _errs8 = errors2;
                       if (typeof data2 !== "boolean" && data2 !== null) {
                         validate135.errors = [{ instancePath: instancePath + "/semconv/experimental", schemaPath: "#/$defs/ExperimentalSemconvConfig/properties/experimental/type", keyword: "type", params: { type: schema149.properties.experimental.type }, message: "must be boolean,null" }];
                         return false;
                       }
-                      var valid2 = _errs8 === errors;
+                      var valid2 = _errs8 === errors2;
                     } else {
                       var valid2 = true;
                     }
                     if (valid2) {
                       if (data0.dual_emit !== undefined) {
                         let data3 = data0.dual_emit;
-                        const _errs10 = errors;
+                        const _errs10 = errors2;
                         if (typeof data3 !== "boolean" && data3 !== null) {
                           validate135.errors = [{ instancePath: instancePath + "/semconv/dual_emit", schemaPath: "#/$defs/ExperimentalSemconvConfig/properties/dual_emit/type", keyword: "type", params: { type: schema149.properties.dual_emit.type }, message: "must be boolean,null" }];
                           return false;
                         }
-                        var valid2 = _errs10 === errors;
+                        var valid2 = _errs10 === errors2;
                       } else {
                         var valid2 = true;
                       }
@@ -95949,12 +97335,12 @@ If omitted or null, false is used.
       }
     }
     validate135.errors = vErrors;
-    return errors === 0;
+    return errors2 === 0;
   }
   validate135.evaluated = { props: true, dynamicProps: false, dynamicItems: false };
   function validate137(data, { instancePath = "", parentData, parentDataProperty, rootData = data, dynamicAnchors = {} } = {}) {
     let vErrors = null;
-    let errors = 0;
+    let errors2 = 0;
     const evaluated0 = validate137.evaluated;
     if (evaluated0.dynamicProps) {
       evaluated0.props = undefined;
@@ -95962,9 +97348,9 @@ If omitted or null, false is used.
     if (evaluated0.dynamicItems) {
       evaluated0.items = undefined;
     }
-    if (errors === 0) {
+    if (errors2 === 0) {
       if (data && typeof data == "object" && !Array.isArray(data)) {
-        const _errs1 = errors;
+        const _errs1 = errors2;
         for (const key0 in data) {
           if (!(key0 === "url")) {
             validate137.errors = [{ instancePath, schemaPath: "#/additionalProperties", keyword: "additionalProperties", params: { additionalProperty: key0 }, message: "must NOT have additional properties" }];
@@ -95972,13 +97358,13 @@ If omitted or null, false is used.
             break;
           }
         }
-        if (_errs1 === errors) {
+        if (_errs1 === errors2) {
           if (data.url !== undefined) {
             let data0 = data.url;
-            const _errs3 = errors;
-            if (errors === _errs3) {
+            const _errs3 = errors2;
+            if (errors2 === _errs3) {
               if (data0 && typeof data0 == "object" && !Array.isArray(data0)) {
-                const _errs5 = errors;
+                const _errs5 = errors2;
                 for (const key1 in data0) {
                   if (!(key1 === "sensitive_query_parameters")) {
                     validate137.errors = [{ instancePath: instancePath + "/url", schemaPath: "#/$defs/ExperimentalUrlSanitization/additionalProperties", keyword: "additionalProperties", params: { additionalProperty: key1 }, message: "must NOT have additional properties" }];
@@ -95986,11 +97372,11 @@ If omitted or null, false is used.
                     break;
                   }
                 }
-                if (_errs5 === errors) {
+                if (_errs5 === errors2) {
                   if (data0.sensitive_query_parameters !== undefined) {
                     let data1 = data0.sensitive_query_parameters;
-                    const _errs6 = errors;
-                    if (errors === _errs6) {
+                    const _errs6 = errors2;
+                    if (errors2 === _errs6) {
                       if (Array.isArray(data1)) {
                         if (data1.length < 0) {
                           validate137.errors = [{ instancePath: instancePath + "/url/sensitive_query_parameters", schemaPath: "#/$defs/ExperimentalUrlSanitization/properties/sensitive_query_parameters/minItems", keyword: "minItems", params: { limit: 0 }, message: "must NOT have fewer than 0 items" }];
@@ -95999,12 +97385,12 @@ If omitted or null, false is used.
                           var valid3 = true;
                           const len0 = data1.length;
                           for (let i0 = 0;i0 < len0; i0++) {
-                            const _errs8 = errors;
+                            const _errs8 = errors2;
                             if (typeof data1[i0] !== "string") {
                               validate137.errors = [{ instancePath: instancePath + "/url/sensitive_query_parameters/" + i0, schemaPath: "#/$defs/ExperimentalUrlSanitization/properties/sensitive_query_parameters/items/type", keyword: "type", params: { type: "string" }, message: "must be string" }];
                               return false;
                             }
-                            var valid3 = _errs8 === errors;
+                            var valid3 = _errs8 === errors2;
                             if (!valid3) {
                               break;
                             }
@@ -96030,12 +97416,12 @@ If omitted or null, false is used.
       }
     }
     validate137.errors = vErrors;
-    return errors === 0;
+    return errors2 === 0;
   }
   validate137.evaluated = { props: true, dynamicProps: false, dynamicItems: false };
   function validate124(data, { instancePath = "", parentData, parentDataProperty, rootData = data, dynamicAnchors = {} } = {}) {
     let vErrors = null;
-    let errors = 0;
+    let errors2 = 0;
     const evaluated0 = validate124.evaluated;
     if (evaluated0.dynamicProps) {
       evaluated0.props = undefined;
@@ -96043,9 +97429,9 @@ If omitted or null, false is used.
     if (evaluated0.dynamicItems) {
       evaluated0.items = undefined;
     }
-    if (errors === 0) {
+    if (errors2 === 0) {
       if (data && typeof data == "object" && !Array.isArray(data)) {
-        const _errs1 = errors;
+        const _errs1 = errors2;
         for (const key0 in data) {
           if (!(key0 === "http" || key0 === "code" || key0 === "db" || key0 === "gen_ai" || key0 === "messaging" || key0 === "rpc" || key0 === "sanitization" || key0 === "stability_opt_in_list")) {
             validate124.errors = [{ instancePath, schemaPath: "#/additionalProperties", keyword: "additionalProperties", params: { additionalProperty: key0 }, message: "must NOT have additional properties" }];
@@ -96053,92 +97439,92 @@ If omitted or null, false is used.
             break;
           }
         }
-        if (_errs1 === errors) {
+        if (_errs1 === errors2) {
           if (data.http !== undefined) {
-            const _errs2 = errors;
+            const _errs2 = errors2;
             if (!validate125(data.http, { instancePath: instancePath + "/http", parentData: data, parentDataProperty: "http", rootData, dynamicAnchors })) {
               vErrors = vErrors === null ? validate125.errors : vErrors.concat(validate125.errors);
-              errors = vErrors.length;
+              errors2 = vErrors.length;
             }
-            var valid0 = _errs2 === errors;
+            var valid0 = _errs2 === errors2;
           } else {
             var valid0 = true;
           }
           if (valid0) {
             if (data.code !== undefined) {
-              const _errs3 = errors;
+              const _errs3 = errors2;
               if (!validate127(data.code, { instancePath: instancePath + "/code", parentData: data, parentDataProperty: "code", rootData, dynamicAnchors })) {
                 vErrors = vErrors === null ? validate127.errors : vErrors.concat(validate127.errors);
-                errors = vErrors.length;
+                errors2 = vErrors.length;
               }
-              var valid0 = _errs3 === errors;
+              var valid0 = _errs3 === errors2;
             } else {
               var valid0 = true;
             }
             if (valid0) {
               if (data.db !== undefined) {
-                const _errs4 = errors;
+                const _errs4 = errors2;
                 if (!validate129(data.db, { instancePath: instancePath + "/db", parentData: data, parentDataProperty: "db", rootData, dynamicAnchors })) {
                   vErrors = vErrors === null ? validate129.errors : vErrors.concat(validate129.errors);
-                  errors = vErrors.length;
+                  errors2 = vErrors.length;
                 }
-                var valid0 = _errs4 === errors;
+                var valid0 = _errs4 === errors2;
               } else {
                 var valid0 = true;
               }
               if (valid0) {
                 if (data.gen_ai !== undefined) {
-                  const _errs5 = errors;
+                  const _errs5 = errors2;
                   if (!validate131(data.gen_ai, { instancePath: instancePath + "/gen_ai", parentData: data, parentDataProperty: "gen_ai", rootData, dynamicAnchors })) {
                     vErrors = vErrors === null ? validate131.errors : vErrors.concat(validate131.errors);
-                    errors = vErrors.length;
+                    errors2 = vErrors.length;
                   }
-                  var valid0 = _errs5 === errors;
+                  var valid0 = _errs5 === errors2;
                 } else {
                   var valid0 = true;
                 }
                 if (valid0) {
                   if (data.messaging !== undefined) {
-                    const _errs6 = errors;
+                    const _errs6 = errors2;
                     if (!validate133(data.messaging, { instancePath: instancePath + "/messaging", parentData: data, parentDataProperty: "messaging", rootData, dynamicAnchors })) {
                       vErrors = vErrors === null ? validate133.errors : vErrors.concat(validate133.errors);
-                      errors = vErrors.length;
+                      errors2 = vErrors.length;
                     }
-                    var valid0 = _errs6 === errors;
+                    var valid0 = _errs6 === errors2;
                   } else {
                     var valid0 = true;
                   }
                   if (valid0) {
                     if (data.rpc !== undefined) {
-                      const _errs7 = errors;
+                      const _errs7 = errors2;
                       if (!validate135(data.rpc, { instancePath: instancePath + "/rpc", parentData: data, parentDataProperty: "rpc", rootData, dynamicAnchors })) {
                         vErrors = vErrors === null ? validate135.errors : vErrors.concat(validate135.errors);
-                        errors = vErrors.length;
+                        errors2 = vErrors.length;
                       }
-                      var valid0 = _errs7 === errors;
+                      var valid0 = _errs7 === errors2;
                     } else {
                       var valid0 = true;
                     }
                     if (valid0) {
                       if (data.sanitization !== undefined) {
-                        const _errs8 = errors;
+                        const _errs8 = errors2;
                         if (!validate137(data.sanitization, { instancePath: instancePath + "/sanitization", parentData: data, parentDataProperty: "sanitization", rootData, dynamicAnchors })) {
                           vErrors = vErrors === null ? validate137.errors : vErrors.concat(validate137.errors);
-                          errors = vErrors.length;
+                          errors2 = vErrors.length;
                         }
-                        var valid0 = _errs8 === errors;
+                        var valid0 = _errs8 === errors2;
                       } else {
                         var valid0 = true;
                       }
                       if (valid0) {
                         if (data.stability_opt_in_list !== undefined) {
                           let data7 = data.stability_opt_in_list;
-                          const _errs9 = errors;
+                          const _errs9 = errors2;
                           if (typeof data7 !== "string" && data7 !== null) {
                             validate124.errors = [{ instancePath: instancePath + "/stability_opt_in_list", schemaPath: "#/properties/stability_opt_in_list/type", keyword: "type", params: { type: schema147.properties.stability_opt_in_list.type }, message: "must be string,null" }];
                             return false;
                           }
-                          var valid0 = _errs9 === errors;
+                          var valid0 = _errs9 === errors2;
                         } else {
                           var valid0 = true;
                         }
@@ -96156,12 +97542,12 @@ If omitted or null, false is used.
       }
     }
     validate124.errors = vErrors;
-    return errors === 0;
+    return errors2 === 0;
   }
   validate124.evaluated = { props: true, dynamicProps: false, dynamicItems: false };
   function validate123(data, { instancePath = "", parentData, parentDataProperty, rootData = data, dynamicAnchors = {} } = {}) {
     let vErrors = null;
-    let errors = 0;
+    let errors2 = 0;
     const evaluated0 = validate123.evaluated;
     if (evaluated0.dynamicProps) {
       evaluated0.props = undefined;
@@ -96169,9 +97555,9 @@ If omitted or null, false is used.
     if (evaluated0.dynamicItems) {
       evaluated0.items = undefined;
     }
-    if (errors === 0) {
+    if (errors2 === 0) {
       if (data && typeof data == "object" && !Array.isArray(data)) {
-        const _errs1 = errors;
+        const _errs1 = errors2;
         for (const key0 in data) {
           if (!func1.call(schema146.properties, key0)) {
             validate123.errors = [{ instancePath, schemaPath: "#/additionalProperties", keyword: "additionalProperties", params: { additionalProperty: key0 }, message: "must NOT have additional properties" }];
@@ -96179,32 +97565,32 @@ If omitted or null, false is used.
             break;
           }
         }
-        if (_errs1 === errors) {
+        if (_errs1 === errors2) {
           if (data.general !== undefined) {
-            const _errs2 = errors;
+            const _errs2 = errors2;
             if (!validate124(data.general, { instancePath: instancePath + "/general", parentData: data, parentDataProperty: "general", rootData, dynamicAnchors })) {
               vErrors = vErrors === null ? validate124.errors : vErrors.concat(validate124.errors);
-              errors = vErrors.length;
+              errors2 = vErrors.length;
             }
-            var valid0 = _errs2 === errors;
+            var valid0 = _errs2 === errors2;
           } else {
             var valid0 = true;
           }
           if (valid0) {
             if (data.cpp !== undefined) {
               let data1 = data.cpp;
-              const _errs3 = errors;
-              const _errs4 = errors;
-              if (errors === _errs4) {
+              const _errs3 = errors2;
+              const _errs4 = errors2;
+              if (errors2 === _errs4) {
                 if (data1 && typeof data1 == "object" && !Array.isArray(data1)) {
                   for (const key1 in data1) {
                     let data2 = data1[key1];
-                    const _errs7 = errors;
+                    const _errs7 = errors2;
                     if (!(data2 && typeof data2 == "object" && !Array.isArray(data2))) {
                       validate123.errors = [{ instancePath: instancePath + "/cpp/" + key1.replace(/~/g, "~0").replace(/\//g, "~1"), schemaPath: "#/$defs/ExperimentalLanguageSpecificInstrumentation/additionalProperties/type", keyword: "type", params: { type: "object" }, message: "must be object" }];
                       return false;
                     }
-                    var valid2 = _errs7 === errors;
+                    var valid2 = _errs7 === errors2;
                     if (!valid2) {
                       break;
                     }
@@ -96214,25 +97600,25 @@ If omitted or null, false is used.
                   return false;
                 }
               }
-              var valid0 = _errs3 === errors;
+              var valid0 = _errs3 === errors2;
             } else {
               var valid0 = true;
             }
             if (valid0) {
               if (data.dotnet !== undefined) {
                 let data3 = data.dotnet;
-                const _errs9 = errors;
-                const _errs10 = errors;
-                if (errors === _errs10) {
+                const _errs9 = errors2;
+                const _errs10 = errors2;
+                if (errors2 === _errs10) {
                   if (data3 && typeof data3 == "object" && !Array.isArray(data3)) {
                     for (const key2 in data3) {
                       let data4 = data3[key2];
-                      const _errs13 = errors;
+                      const _errs13 = errors2;
                       if (!(data4 && typeof data4 == "object" && !Array.isArray(data4))) {
                         validate123.errors = [{ instancePath: instancePath + "/dotnet/" + key2.replace(/~/g, "~0").replace(/\//g, "~1"), schemaPath: "#/$defs/ExperimentalLanguageSpecificInstrumentation/additionalProperties/type", keyword: "type", params: { type: "object" }, message: "must be object" }];
                         return false;
                       }
-                      var valid4 = _errs13 === errors;
+                      var valid4 = _errs13 === errors2;
                       if (!valid4) {
                         break;
                       }
@@ -96242,25 +97628,25 @@ If omitted or null, false is used.
                     return false;
                   }
                 }
-                var valid0 = _errs9 === errors;
+                var valid0 = _errs9 === errors2;
               } else {
                 var valid0 = true;
               }
               if (valid0) {
                 if (data.erlang !== undefined) {
                   let data5 = data.erlang;
-                  const _errs15 = errors;
-                  const _errs16 = errors;
-                  if (errors === _errs16) {
+                  const _errs15 = errors2;
+                  const _errs16 = errors2;
+                  if (errors2 === _errs16) {
                     if (data5 && typeof data5 == "object" && !Array.isArray(data5)) {
                       for (const key3 in data5) {
                         let data6 = data5[key3];
-                        const _errs19 = errors;
+                        const _errs19 = errors2;
                         if (!(data6 && typeof data6 == "object" && !Array.isArray(data6))) {
                           validate123.errors = [{ instancePath: instancePath + "/erlang/" + key3.replace(/~/g, "~0").replace(/\//g, "~1"), schemaPath: "#/$defs/ExperimentalLanguageSpecificInstrumentation/additionalProperties/type", keyword: "type", params: { type: "object" }, message: "must be object" }];
                           return false;
                         }
-                        var valid6 = _errs19 === errors;
+                        var valid6 = _errs19 === errors2;
                         if (!valid6) {
                           break;
                         }
@@ -96270,25 +97656,25 @@ If omitted or null, false is used.
                       return false;
                     }
                   }
-                  var valid0 = _errs15 === errors;
+                  var valid0 = _errs15 === errors2;
                 } else {
                   var valid0 = true;
                 }
                 if (valid0) {
                   if (data.go !== undefined) {
                     let data7 = data.go;
-                    const _errs21 = errors;
-                    const _errs22 = errors;
-                    if (errors === _errs22) {
+                    const _errs21 = errors2;
+                    const _errs22 = errors2;
+                    if (errors2 === _errs22) {
                       if (data7 && typeof data7 == "object" && !Array.isArray(data7)) {
                         for (const key4 in data7) {
                           let data8 = data7[key4];
-                          const _errs25 = errors;
+                          const _errs25 = errors2;
                           if (!(data8 && typeof data8 == "object" && !Array.isArray(data8))) {
                             validate123.errors = [{ instancePath: instancePath + "/go/" + key4.replace(/~/g, "~0").replace(/\//g, "~1"), schemaPath: "#/$defs/ExperimentalLanguageSpecificInstrumentation/additionalProperties/type", keyword: "type", params: { type: "object" }, message: "must be object" }];
                             return false;
                           }
-                          var valid8 = _errs25 === errors;
+                          var valid8 = _errs25 === errors2;
                           if (!valid8) {
                             break;
                           }
@@ -96298,25 +97684,25 @@ If omitted or null, false is used.
                         return false;
                       }
                     }
-                    var valid0 = _errs21 === errors;
+                    var valid0 = _errs21 === errors2;
                   } else {
                     var valid0 = true;
                   }
                   if (valid0) {
                     if (data.java !== undefined) {
                       let data9 = data.java;
-                      const _errs27 = errors;
-                      const _errs28 = errors;
-                      if (errors === _errs28) {
+                      const _errs27 = errors2;
+                      const _errs28 = errors2;
+                      if (errors2 === _errs28) {
                         if (data9 && typeof data9 == "object" && !Array.isArray(data9)) {
                           for (const key5 in data9) {
                             let data10 = data9[key5];
-                            const _errs31 = errors;
+                            const _errs31 = errors2;
                             if (!(data10 && typeof data10 == "object" && !Array.isArray(data10))) {
                               validate123.errors = [{ instancePath: instancePath + "/java/" + key5.replace(/~/g, "~0").replace(/\//g, "~1"), schemaPath: "#/$defs/ExperimentalLanguageSpecificInstrumentation/additionalProperties/type", keyword: "type", params: { type: "object" }, message: "must be object" }];
                               return false;
                             }
-                            var valid10 = _errs31 === errors;
+                            var valid10 = _errs31 === errors2;
                             if (!valid10) {
                               break;
                             }
@@ -96326,25 +97712,25 @@ If omitted or null, false is used.
                           return false;
                         }
                       }
-                      var valid0 = _errs27 === errors;
+                      var valid0 = _errs27 === errors2;
                     } else {
                       var valid0 = true;
                     }
                     if (valid0) {
                       if (data.js !== undefined) {
                         let data11 = data.js;
-                        const _errs33 = errors;
-                        const _errs34 = errors;
-                        if (errors === _errs34) {
+                        const _errs33 = errors2;
+                        const _errs34 = errors2;
+                        if (errors2 === _errs34) {
                           if (data11 && typeof data11 == "object" && !Array.isArray(data11)) {
                             for (const key6 in data11) {
                               let data12 = data11[key6];
-                              const _errs37 = errors;
+                              const _errs37 = errors2;
                               if (!(data12 && typeof data12 == "object" && !Array.isArray(data12))) {
                                 validate123.errors = [{ instancePath: instancePath + "/js/" + key6.replace(/~/g, "~0").replace(/\//g, "~1"), schemaPath: "#/$defs/ExperimentalLanguageSpecificInstrumentation/additionalProperties/type", keyword: "type", params: { type: "object" }, message: "must be object" }];
                                 return false;
                               }
-                              var valid12 = _errs37 === errors;
+                              var valid12 = _errs37 === errors2;
                               if (!valid12) {
                                 break;
                               }
@@ -96354,25 +97740,25 @@ If omitted or null, false is used.
                             return false;
                           }
                         }
-                        var valid0 = _errs33 === errors;
+                        var valid0 = _errs33 === errors2;
                       } else {
                         var valid0 = true;
                       }
                       if (valid0) {
                         if (data.php !== undefined) {
                           let data13 = data.php;
-                          const _errs39 = errors;
-                          const _errs40 = errors;
-                          if (errors === _errs40) {
+                          const _errs39 = errors2;
+                          const _errs40 = errors2;
+                          if (errors2 === _errs40) {
                             if (data13 && typeof data13 == "object" && !Array.isArray(data13)) {
                               for (const key7 in data13) {
                                 let data14 = data13[key7];
-                                const _errs43 = errors;
+                                const _errs43 = errors2;
                                 if (!(data14 && typeof data14 == "object" && !Array.isArray(data14))) {
                                   validate123.errors = [{ instancePath: instancePath + "/php/" + key7.replace(/~/g, "~0").replace(/\//g, "~1"), schemaPath: "#/$defs/ExperimentalLanguageSpecificInstrumentation/additionalProperties/type", keyword: "type", params: { type: "object" }, message: "must be object" }];
                                   return false;
                                 }
-                                var valid14 = _errs43 === errors;
+                                var valid14 = _errs43 === errors2;
                                 if (!valid14) {
                                   break;
                                 }
@@ -96382,25 +97768,25 @@ If omitted or null, false is used.
                               return false;
                             }
                           }
-                          var valid0 = _errs39 === errors;
+                          var valid0 = _errs39 === errors2;
                         } else {
                           var valid0 = true;
                         }
                         if (valid0) {
                           if (data.python !== undefined) {
                             let data15 = data.python;
-                            const _errs45 = errors;
-                            const _errs46 = errors;
-                            if (errors === _errs46) {
+                            const _errs45 = errors2;
+                            const _errs46 = errors2;
+                            if (errors2 === _errs46) {
                               if (data15 && typeof data15 == "object" && !Array.isArray(data15)) {
                                 for (const key8 in data15) {
                                   let data16 = data15[key8];
-                                  const _errs49 = errors;
+                                  const _errs49 = errors2;
                                   if (!(data16 && typeof data16 == "object" && !Array.isArray(data16))) {
                                     validate123.errors = [{ instancePath: instancePath + "/python/" + key8.replace(/~/g, "~0").replace(/\//g, "~1"), schemaPath: "#/$defs/ExperimentalLanguageSpecificInstrumentation/additionalProperties/type", keyword: "type", params: { type: "object" }, message: "must be object" }];
                                     return false;
                                   }
-                                  var valid16 = _errs49 === errors;
+                                  var valid16 = _errs49 === errors2;
                                   if (!valid16) {
                                     break;
                                   }
@@ -96410,25 +97796,25 @@ If omitted or null, false is used.
                                 return false;
                               }
                             }
-                            var valid0 = _errs45 === errors;
+                            var valid0 = _errs45 === errors2;
                           } else {
                             var valid0 = true;
                           }
                           if (valid0) {
                             if (data.ruby !== undefined) {
                               let data17 = data.ruby;
-                              const _errs51 = errors;
-                              const _errs52 = errors;
-                              if (errors === _errs52) {
+                              const _errs51 = errors2;
+                              const _errs52 = errors2;
+                              if (errors2 === _errs52) {
                                 if (data17 && typeof data17 == "object" && !Array.isArray(data17)) {
                                   for (const key9 in data17) {
                                     let data18 = data17[key9];
-                                    const _errs55 = errors;
+                                    const _errs55 = errors2;
                                     if (!(data18 && typeof data18 == "object" && !Array.isArray(data18))) {
                                       validate123.errors = [{ instancePath: instancePath + "/ruby/" + key9.replace(/~/g, "~0").replace(/\//g, "~1"), schemaPath: "#/$defs/ExperimentalLanguageSpecificInstrumentation/additionalProperties/type", keyword: "type", params: { type: "object" }, message: "must be object" }];
                                       return false;
                                     }
-                                    var valid18 = _errs55 === errors;
+                                    var valid18 = _errs55 === errors2;
                                     if (!valid18) {
                                       break;
                                     }
@@ -96438,25 +97824,25 @@ If omitted or null, false is used.
                                   return false;
                                 }
                               }
-                              var valid0 = _errs51 === errors;
+                              var valid0 = _errs51 === errors2;
                             } else {
                               var valid0 = true;
                             }
                             if (valid0) {
                               if (data.rust !== undefined) {
                                 let data19 = data.rust;
-                                const _errs57 = errors;
-                                const _errs58 = errors;
-                                if (errors === _errs58) {
+                                const _errs57 = errors2;
+                                const _errs58 = errors2;
+                                if (errors2 === _errs58) {
                                   if (data19 && typeof data19 == "object" && !Array.isArray(data19)) {
                                     for (const key10 in data19) {
                                       let data20 = data19[key10];
-                                      const _errs61 = errors;
+                                      const _errs61 = errors2;
                                       if (!(data20 && typeof data20 == "object" && !Array.isArray(data20))) {
                                         validate123.errors = [{ instancePath: instancePath + "/rust/" + key10.replace(/~/g, "~0").replace(/\//g, "~1"), schemaPath: "#/$defs/ExperimentalLanguageSpecificInstrumentation/additionalProperties/type", keyword: "type", params: { type: "object" }, message: "must be object" }];
                                         return false;
                                       }
-                                      var valid20 = _errs61 === errors;
+                                      var valid20 = _errs61 === errors2;
                                       if (!valid20) {
                                         break;
                                       }
@@ -96466,25 +97852,25 @@ If omitted or null, false is used.
                                     return false;
                                   }
                                 }
-                                var valid0 = _errs57 === errors;
+                                var valid0 = _errs57 === errors2;
                               } else {
                                 var valid0 = true;
                               }
                               if (valid0) {
                                 if (data.swift !== undefined) {
                                   let data21 = data.swift;
-                                  const _errs63 = errors;
-                                  const _errs64 = errors;
-                                  if (errors === _errs64) {
+                                  const _errs63 = errors2;
+                                  const _errs64 = errors2;
+                                  if (errors2 === _errs64) {
                                     if (data21 && typeof data21 == "object" && !Array.isArray(data21)) {
                                       for (const key11 in data21) {
                                         let data22 = data21[key11];
-                                        const _errs67 = errors;
+                                        const _errs67 = errors2;
                                         if (!(data22 && typeof data22 == "object" && !Array.isArray(data22))) {
                                           validate123.errors = [{ instancePath: instancePath + "/swift/" + key11.replace(/~/g, "~0").replace(/\//g, "~1"), schemaPath: "#/$defs/ExperimentalLanguageSpecificInstrumentation/additionalProperties/type", keyword: "type", params: { type: "object" }, message: "must be object" }];
                                           return false;
                                         }
-                                        var valid22 = _errs67 === errors;
+                                        var valid22 = _errs67 === errors2;
                                         if (!valid22) {
                                           break;
                                         }
@@ -96494,7 +97880,7 @@ If omitted or null, false is used.
                                       return false;
                                     }
                                   }
-                                  var valid0 = _errs63 === errors;
+                                  var valid0 = _errs63 === errors2;
                                 } else {
                                   var valid0 = true;
                                 }
@@ -96516,12 +97902,12 @@ If omitted or null, false is used.
       }
     }
     validate123.errors = vErrors;
-    return errors === 0;
+    return errors2 === 0;
   }
   validate123.evaluated = { props: true, dynamicProps: false, dynamicItems: false };
   function validate20(data, { instancePath = "", parentData, parentDataProperty, rootData = data, dynamicAnchors = {} } = {}) {
     let vErrors = null;
-    let errors = 0;
+    let errors2 = 0;
     const evaluated0 = validate20.evaluated;
     if (evaluated0.dynamicProps) {
       evaluated0.props = undefined;
@@ -96529,7 +97915,7 @@ If omitted or null, false is used.
     if (evaluated0.dynamicItems) {
       evaluated0.items = undefined;
     }
-    if (errors === 0) {
+    if (errors2 === 0) {
       if (data && typeof data == "object" && !Array.isArray(data)) {
         let missing0;
         if (data.file_format === undefined && (missing0 = "file_format")) {
@@ -96537,31 +97923,31 @@ If omitted or null, false is used.
           return false;
         } else {
           if (data.file_format !== undefined) {
-            const _errs2 = errors;
+            const _errs2 = errors2;
             if (typeof data.file_format !== "string") {
               validate20.errors = [{ instancePath: instancePath + "/file_format", schemaPath: "#/properties/file_format/type", keyword: "type", params: { type: "string" }, message: "must be string" }];
               return false;
             }
-            var valid0 = _errs2 === errors;
+            var valid0 = _errs2 === errors2;
           } else {
             var valid0 = true;
           }
           if (valid0) {
             if (data.disabled !== undefined) {
               let data1 = data.disabled;
-              const _errs4 = errors;
+              const _errs4 = errors2;
               if (typeof data1 !== "boolean" && data1 !== null) {
                 validate20.errors = [{ instancePath: instancePath + "/disabled", schemaPath: "#/properties/disabled/type", keyword: "type", params: { type: schema31.properties.disabled.type }, message: "must be boolean,null" }];
                 return false;
               }
-              var valid0 = _errs4 === errors;
+              var valid0 = _errs4 === errors2;
             } else {
               var valid0 = true;
             }
             if (valid0) {
               if (data.log_level !== undefined) {
                 let data2 = data.log_level;
-                const _errs6 = errors;
+                const _errs6 = errors2;
                 if (typeof data2 !== "string" && data2 !== null) {
                   validate20.errors = [{ instancePath: instancePath + "/log_level", schemaPath: "#/$defs/SeverityNumber/type", keyword: "type", params: { type: schema32.type }, message: "must be string,null" }];
                   return false;
@@ -96570,18 +97956,18 @@ If omitted or null, false is used.
                   validate20.errors = [{ instancePath: instancePath + "/log_level", schemaPath: "#/$defs/SeverityNumber/enum", keyword: "enum", params: { allowedValues: schema32.enum }, message: "must be equal to one of the allowed values" }];
                   return false;
                 }
-                var valid0 = _errs6 === errors;
+                var valid0 = _errs6 === errors2;
               } else {
                 var valid0 = true;
               }
               if (valid0) {
                 if (data.attribute_limits !== undefined) {
                   let data3 = data.attribute_limits;
-                  const _errs9 = errors;
-                  const _errs10 = errors;
-                  if (errors === _errs10) {
+                  const _errs9 = errors2;
+                  const _errs10 = errors2;
+                  if (errors2 === _errs10) {
                     if (data3 && typeof data3 == "object" && !Array.isArray(data3)) {
-                      const _errs12 = errors;
+                      const _errs12 = errors2;
                       for (const key0 in data3) {
                         if (!(key0 === "attribute_value_length_limit" || key0 === "attribute_count_limit")) {
                           validate20.errors = [{ instancePath: instancePath + "/attribute_limits", schemaPath: "#/$defs/AttributeLimits/additionalProperties", keyword: "additionalProperties", params: { additionalProperty: key0 }, message: "must NOT have additional properties" }];
@@ -96589,15 +97975,15 @@ If omitted or null, false is used.
                           break;
                         }
                       }
-                      if (_errs12 === errors) {
+                      if (_errs12 === errors2) {
                         if (data3.attribute_value_length_limit !== undefined) {
                           let data4 = data3.attribute_value_length_limit;
-                          const _errs13 = errors;
+                          const _errs13 = errors2;
                           if (!(typeof data4 == "number" && (!(data4 % 1) && !isNaN(data4))) && data4 !== null) {
                             validate20.errors = [{ instancePath: instancePath + "/attribute_limits/attribute_value_length_limit", schemaPath: "#/$defs/AttributeLimits/properties/attribute_value_length_limit/type", keyword: "type", params: { type: schema33.properties.attribute_value_length_limit.type }, message: "must be integer,null" }];
                             return false;
                           }
-                          if (errors === _errs13) {
+                          if (errors2 === _errs13) {
                             if (typeof data4 == "number") {
                               if (data4 < 0 || isNaN(data4)) {
                                 validate20.errors = [{ instancePath: instancePath + "/attribute_limits/attribute_value_length_limit", schemaPath: "#/$defs/AttributeLimits/properties/attribute_value_length_limit/minimum", keyword: "minimum", params: { comparison: ">=", limit: 0 }, message: "must be >= 0" }];
@@ -96605,19 +97991,19 @@ If omitted or null, false is used.
                               }
                             }
                           }
-                          var valid3 = _errs13 === errors;
+                          var valid3 = _errs13 === errors2;
                         } else {
                           var valid3 = true;
                         }
                         if (valid3) {
                           if (data3.attribute_count_limit !== undefined) {
                             let data5 = data3.attribute_count_limit;
-                            const _errs15 = errors;
+                            const _errs15 = errors2;
                             if (!(typeof data5 == "number" && (!(data5 % 1) && !isNaN(data5))) && data5 !== null) {
                               validate20.errors = [{ instancePath: instancePath + "/attribute_limits/attribute_count_limit", schemaPath: "#/$defs/AttributeLimits/properties/attribute_count_limit/type", keyword: "type", params: { type: schema33.properties.attribute_count_limit.type }, message: "must be integer,null" }];
                               return false;
                             }
-                            if (errors === _errs15) {
+                            if (errors2 === _errs15) {
                               if (typeof data5 == "number") {
                                 if (data5 < 0 || isNaN(data5)) {
                                   validate20.errors = [{ instancePath: instancePath + "/attribute_limits/attribute_count_limit", schemaPath: "#/$defs/AttributeLimits/properties/attribute_count_limit/minimum", keyword: "minimum", params: { comparison: ">=", limit: 0 }, message: "must be >= 0" }];
@@ -96625,7 +98011,7 @@ If omitted or null, false is used.
                                 }
                               }
                             }
-                            var valid3 = _errs15 === errors;
+                            var valid3 = _errs15 === errors2;
                           } else {
                             var valid3 = true;
                           }
@@ -96636,82 +98022,82 @@ If omitted or null, false is used.
                       return false;
                     }
                   }
-                  var valid0 = _errs9 === errors;
+                  var valid0 = _errs9 === errors2;
                 } else {
                   var valid0 = true;
                 }
                 if (valid0) {
                   if (data.logger_provider !== undefined) {
-                    const _errs17 = errors;
+                    const _errs17 = errors2;
                     if (!validate21(data.logger_provider, { instancePath: instancePath + "/logger_provider", parentData: data, parentDataProperty: "logger_provider", rootData, dynamicAnchors })) {
                       vErrors = vErrors === null ? validate21.errors : vErrors.concat(validate21.errors);
-                      errors = vErrors.length;
+                      errors2 = vErrors.length;
                     }
-                    var valid0 = _errs17 === errors;
+                    var valid0 = _errs17 === errors2;
                   } else {
                     var valid0 = true;
                   }
                   if (valid0) {
                     if (data.meter_provider !== undefined) {
-                      const _errs18 = errors;
+                      const _errs18 = errors2;
                       if (!validate43(data.meter_provider, { instancePath: instancePath + "/meter_provider", parentData: data, parentDataProperty: "meter_provider", rootData, dynamicAnchors })) {
                         vErrors = vErrors === null ? validate43.errors : vErrors.concat(validate43.errors);
-                        errors = vErrors.length;
+                        errors2 = vErrors.length;
                       }
-                      var valid0 = _errs18 === errors;
+                      var valid0 = _errs18 === errors2;
                     } else {
                       var valid0 = true;
                     }
                     if (valid0) {
                       if (data.propagator !== undefined) {
-                        const _errs19 = errors;
+                        const _errs19 = errors2;
                         if (!validate80(data.propagator, { instancePath: instancePath + "/propagator", parentData: data, parentDataProperty: "propagator", rootData, dynamicAnchors })) {
                           vErrors = vErrors === null ? validate80.errors : vErrors.concat(validate80.errors);
-                          errors = vErrors.length;
+                          errors2 = vErrors.length;
                         }
-                        var valid0 = _errs19 === errors;
+                        var valid0 = _errs19 === errors2;
                       } else {
                         var valid0 = true;
                       }
                       if (valid0) {
                         if (data.tracer_provider !== undefined) {
-                          const _errs20 = errors;
+                          const _errs20 = errors2;
                           if (!validate84(data.tracer_provider, { instancePath: instancePath + "/tracer_provider", parentData: data, parentDataProperty: "tracer_provider", rootData, dynamicAnchors })) {
                             vErrors = vErrors === null ? validate84.errors : vErrors.concat(validate84.errors);
-                            errors = vErrors.length;
+                            errors2 = vErrors.length;
                           }
-                          var valid0 = _errs20 === errors;
+                          var valid0 = _errs20 === errors2;
                         } else {
                           var valid0 = true;
                         }
                         if (valid0) {
                           if (data.resource !== undefined) {
-                            const _errs21 = errors;
+                            const _errs21 = errors2;
                             if (!validate115(data.resource, { instancePath: instancePath + "/resource", parentData: data, parentDataProperty: "resource", rootData, dynamicAnchors })) {
                               vErrors = vErrors === null ? validate115.errors : vErrors.concat(validate115.errors);
-                              errors = vErrors.length;
+                              errors2 = vErrors.length;
                             }
-                            var valid0 = _errs21 === errors;
+                            var valid0 = _errs21 === errors2;
                           } else {
                             var valid0 = true;
                           }
                           if (valid0) {
                             if (data["instrumentation/development"] !== undefined) {
-                              const _errs22 = errors;
+                              const _errs22 = errors2;
                               if (!validate123(data["instrumentation/development"], { instancePath: instancePath + "/instrumentation~1development", parentData: data, parentDataProperty: "instrumentation/development", rootData, dynamicAnchors })) {
                                 vErrors = vErrors === null ? validate123.errors : vErrors.concat(validate123.errors);
-                                errors = vErrors.length;
+                                errors2 = vErrors.length;
                               }
-                              var valid0 = _errs22 === errors;
+                              var valid0 = _errs22 === errors2;
                             } else {
                               var valid0 = true;
                             }
                             if (valid0) {
                               if (data.distribution !== undefined) {
                                 let data12 = data.distribution;
-                                const _errs23 = errors;
-                                const _errs24 = errors;
-                                if (errors === _errs24) {
+                                const _errs23 = errors2;
+                                const _errs24 = errors2;
+                                if (errors2 === _errs24) {
                                   if (data12 && typeof data12 == "object" && !Array.isArray(data12)) {
                                     if (Object.keys(data12).length < 1) {
                                       validate20.errors = [{ instancePath: instancePath + "/distribution", schemaPath: "#/$defs/Distribution/minProperties", keyword: "minProperties", params: { limit: 1 }, message: "must NOT have fewer than 1 properties" }];
@@ -96719,12 +98105,12 @@ If omitted or null, false is used.
                                     } else {
                                       for (const key1 in data12) {
                                         let data13 = data12[key1];
-                                        const _errs27 = errors;
+                                        const _errs27 = errors2;
                                         if (!(data13 && typeof data13 == "object" && !Array.isArray(data13))) {
                                           validate20.errors = [{ instancePath: instancePath + "/distribution/" + key1.replace(/~/g, "~0").replace(/\//g, "~1"), schemaPath: "#/$defs/Distribution/additionalProperties/type", keyword: "type", params: { type: "object" }, message: "must be object" }];
                                           return false;
                                         }
-                                        var valid5 = _errs27 === errors;
+                                        var valid5 = _errs27 === errors2;
                                         if (!valid5) {
                                           break;
                                         }
@@ -96735,7 +98121,7 @@ If omitted or null, false is used.
                                     return false;
                                   }
                                 }
-                                var valid0 = _errs23 === errors;
+                                var valid0 = _errs23 === errors2;
                               } else {
                                 var valid0 = true;
                               }
@@ -96756,7 +98142,7 @@ If omitted or null, false is used.
       }
     }
     validate20.errors = vErrors;
-    return errors === 0;
+    return errors2 === 0;
   }
   validate20.evaluated = { props: true, dynamicProps: false, dynamicItems: false };
 });
@@ -96765,10 +98151,10 @@ If omitted or null, false is used.
 var require_FileConfigFactory = __commonJS((exports) => {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.parseConfigFile = exports.FileConfigFactory = undefined;
-  var core_1 = require_src3();
+  var core_1 = require_src4();
   var fs4 = __require("fs");
   var yaml = require_dist();
-  var utils_1 = require_utils16();
+  var utils_1 = require_utils17();
   var validateConfig = require_validator();
 
   class FileConfigFactory {
@@ -96927,7 +98313,7 @@ var require_FileConfigFactory = __commonJS((exports) => {
 var require_ConfigFactory = __commonJS((exports) => {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.createConfigFactory = undefined;
-  var core_1 = require_src3();
+  var core_1 = require_src4();
   var EnvironmentConfigFactory_1 = require_EnvironmentConfigFactory();
   var FileConfigFactory_1 = require_FileConfigFactory();
   function createConfigFactory() {
@@ -96941,7 +98327,7 @@ var require_ConfigFactory = __commonJS((exports) => {
 });
 
 // node_modules/@opentelemetry/configuration/build/src/index.js
-var require_src33 = __commonJS((exports) => {
+var require_src34 = __commonJS((exports) => {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.createConfigFactory = undefined;
   var ConfigFactory_1 = require_ConfigFactory();
@@ -96951,7 +98337,7 @@ var require_src33 = __commonJS((exports) => {
 });
 
 // node_modules/@opentelemetry/sdk-node/build/src/semconv.js
-var require_semconv8 = __commonJS((exports) => {
+var require_semconv9 = __commonJS((exports) => {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.ATTR_SERVICE_NAMESPACE = exports.ATTR_SERVICE_INSTANCE_ID = exports.ATTR_PROCESS_PID = exports.ATTR_HOST_NAME = undefined;
   exports.ATTR_HOST_NAME = "host.name";
@@ -97018,17 +98404,17 @@ var require_diag2 = __commonJS((exports) => {
 var require_start = __commonJS((exports) => {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.setupResource = exports.startNodeSDK = exports.NOOP_SDK = undefined;
-  var configuration_1 = require_src33();
+  var configuration_1 = require_src34();
   var api_1 = require_src();
-  var utils_1 = require_utils15();
-  var instrumentation_1 = require_src15();
-  var sdk_logs_1 = require_src10();
-  var sdk_metrics_1 = require_src7();
-  var api_logs_1 = require_src5();
-  var resources_1 = require_src6();
-  var context_async_hooks_1 = require_src11();
-  var semconv_1 = require_semconv8();
-  var sdk_trace_base_1 = require_src12();
+  var utils_1 = require_utils16();
+  var instrumentation_1 = require_src16();
+  var sdk_logs_1 = require_src11();
+  var sdk_metrics_1 = require_src8();
+  var api_logs_1 = require_src6();
+  var resources_1 = require_src7();
+  var context_async_hooks_1 = require_src12();
+  var semconv_1 = require_semconv9();
+  var sdk_trace_base_1 = require_src13();
   var diag_1 = require_diag2();
   exports.NOOP_SDK = {
     shutdown: async () => {}
@@ -97151,17 +98537,17 @@ var require_start = __commonJS((exports) => {
 });
 
 // node_modules/@opentelemetry/sdk-node/build/src/index.js
-var require_src34 = __commonJS((exports) => {
+var require_src35 = __commonJS((exports) => {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.startNodeSDK = exports.NodeSDK = exports.tracing = exports.resources = exports.node = exports.metrics = exports.logs = exports.core = exports.contextBase = exports.api = undefined;
   exports.api = require_src();
   exports.contextBase = require_src();
-  exports.core = require_src3();
-  exports.logs = require_src10();
-  exports.metrics = require_src7();
-  exports.node = require_src13();
-  exports.resources = require_src6();
-  exports.tracing = require_src12();
+  exports.core = require_src4();
+  exports.logs = require_src11();
+  exports.metrics = require_src8();
+  exports.node = require_src14();
+  exports.resources = require_src7();
+  exports.tracing = require_src13();
   var sdk_1 = require_sdk();
   Object.defineProperty(exports, "NodeSDK", { enumerable: true, get: function() {
     return sdk_1.NodeSDK;
@@ -97172,7 +98558,7 @@ var require_src34 = __commonJS((exports) => {
   } });
 });
 
-// node_modules/reflect-metadata/Reflect.js
+// src/module/node_modules/reflect-metadata/Reflect.js
 var require_Reflect = __commonJS(() => {
   /*! *****************************************************************************
   Copyright (C) Microsoft. All rights reserved.
@@ -98172,29 +99558,148 @@ var require_Reflect = __commonJS(() => {
 import * as fs4 from "fs";
 import * as path9 from "path";
 
-// src/connection.ts
-var opentelemetry3 = __toESM(require_src(), 1);
+// src/session/dist/index.js
+init_errors();
 
-// src/session/graphql/connect.ts
-init_client();
-async function withGQLClient(connectOpts, cb) {
-  if (process.env["DAGGER_SESSION_PORT"]) {
-    const port = process.env["DAGGER_SESSION_PORT"];
-    if (!process.env["DAGGER_SESSION_TOKEN"]) {
-      throw new Error("DAGGER_SESSION_TOKEN must be set if DAGGER_SESSION_PORT is set");
+// src/session/dist/graphql/compute_query.js
+init_main();
+init_errors();
+function buildArgs(args) {
+  const metadata = args.__metadata || {};
+  const formatValue = (key, value) => {
+    if (metadata[key]?.is_enum) {
+      return JSON.stringify(metadata[key].value_to_name?.(value)).replace(/['"]+/g, "");
     }
-    const token = process.env["DAGGER_SESSION_TOKEN"];
-    return await cb(createGQLClient(Number(port), token));
+    return JSON.stringify(value).replace(/\{"[a-zA-Z]+":|,"[a-zA-Z]+":/gi, (str) => {
+      return str.replace(/"/g, "");
+    });
+  };
+  if (args === undefined || args === null) {
+    return "";
   }
-  try {
-    const provisioning = await Promise.resolve().then(() => (init_provisioning(), exports_provisioning));
-    return await provisioning.withEngineSession(connectOpts, cb);
-  } catch (e2) {
-    throw new Error(`failed to execute function with automatic provisioning: ${e2}`, { cause: e2 });
+  const formattedArgs = Object.entries(args).reduce((acc, [key, value]) => {
+    if (key === "__metadata") {
+      return acc;
+    }
+    if (value !== undefined && value !== null) {
+      acc.push(`${key}: ${formatValue(key, value)}`);
+    }
+    return acc;
+  }, []);
+  if (formattedArgs.length === 0) {
+    return "";
+  }
+  return `(${formattedArgs})`;
+}
+async function computeNestedQuery(query, client) {
+  const isQueryTree = (value) => value["_ctx"] !== undefined;
+  const isArrayQueryTree = (value) => value.every((v) => v instanceof Object && isQueryTree(v));
+  const computeQueryTree = async (value) => {
+    for (const op of value["_ctx"]["_queryTree"]) {
+      await computeNestedQuery([op], client);
+    }
+    return buildQuery([
+      ...value["_ctx"]["_queryTree"],
+      {
+        operation: "id"
+      }
+    ]);
+  };
+  const queryToExec = query.filter((q) => !!q.args);
+  for (const q of queryToExec) {
+    await Promise.all(Object.entries(q.args).map(async ([key, value]) => {
+      if (value instanceof Object && isQueryTree(value)) {
+        const getQueryTree = await computeQueryTree(value);
+        q.args[key] = await compute(getQueryTree, client);
+      }
+      if (Array.isArray(value) && isArrayQueryTree(value)) {
+        const tmp = q.args[key];
+        for (let i = 0;i < value.length; i++) {
+          const getQueryTree = await computeQueryTree(value[i]);
+          tmp[i] = await compute(getQueryTree, client);
+        }
+        q.args[key] = tmp;
+      }
+    }));
   }
 }
+function buildQuery(q) {
+  const query = q.reduce((acc, { operation, args, inlineType }, i) => {
+    const qLen = q.length;
+    const isLast = qLen - 1 === i;
+    acc += ` ${operation} ${args ? `${buildArgs(args)}` : ""}`;
+    if (!isLast) {
+      acc += " {";
+      if (inlineType) {
+        acc += ` ... on ${inlineType} {`;
+      }
+    } else {
+      let closes = "";
+      for (let j = i - 1;j >= 0; j--) {
+        if (q[j].inlineType) {
+          closes += " }";
+        }
+        closes += " }";
+      }
+      acc += closes;
+    }
+    return acc;
+  }, "");
+  return `{${query} }`;
+}
+async function computeQuery(q, client) {
+  await computeNestedQuery(q, client);
+  const query = buildQuery(q);
+  return await compute(query, client);
+}
+function queryFlatten(response) {
+  if (!(response instanceof Object) || Array.isArray(response)) {
+    return response;
+  }
+  const keys = Object.keys(response);
+  if (keys.length != 1) {
+    throw new TooManyNestedObjectsError("Too many nested objects inside graphql response", {
+      response
+    });
+  }
+  const nestedKey = keys[0];
+  return queryFlatten(response[nestedKey]);
+}
+async function compute(query, client) {
+  let computeQuery2;
+  try {
+    computeQuery2 = await client.request(gql`
+      ${query}
+    `);
+  } catch (e) {
+    if (e instanceof ClientError) {
+      const msg = e.response.errors?.[0]?.message ?? `API Error`;
+      const ext = e.response.errors?.[0]?.extensions;
+      if (ext?._type === "EXEC_ERROR") {
+        throw new ExecError(msg, {
+          cmd: ext.cmd ?? [],
+          exitCode: ext.exitCode ?? -1,
+          stdout: ext.stdout ?? "",
+          stderr: ext.stderr ?? "",
+          extensions: ext
+        });
+      }
+      throw new GraphQLRequestError(msg, {
+        error: e,
+        cause: e
+      });
+    }
+    if (e.errno === "ECONNREFUSED") {
+      throw new NotAwaitedRequestError("Encountered an error while requesting data via graphql through a synchronous call. Make sure the function called is awaited.", { cause: e });
+    }
+    throw new UnknownDaggerError("Encountered an unknown error while requesting data via graphql", {
+      cause: e
+    });
+  }
+  return queryFlatten(computeQuery2);
+}
 
-// src/session/shared.ts
+// src/session/dist/shared.js
 var SHARED = Symbol.for("@dagger.io/session.shared");
 function shared(key, create) {
   const slots = globalThis[SHARED] ??= {};
@@ -98204,7 +99709,7 @@ function shared(key, create) {
   return slots[key];
 }
 
-// src/session/graphql/connection.ts
+// src/session/dist/graphql/connection.js
 class Connection {
   _gqlClient;
   constructor(_gqlClient) {
@@ -98235,7 +99740,68 @@ class Connection {
 }
 var globalConnection = shared("connection", () => new Connection);
 
-// src/session/connect.ts
+// src/session/dist/context.js
+class Context {
+  _queryTree;
+  _connection;
+  _serve;
+  constructor(_queryTree = [], _connection = globalConnection, _serve) {
+    this._queryTree = _queryTree;
+    this._connection = _connection;
+    this._serve = _serve;
+  }
+  getGQLClient() {
+    return this._connection.getGQLClient();
+  }
+  copy() {
+    return new Context([], this._connection, this._serve);
+  }
+  select(operation, args) {
+    return new Context([...this._queryTree, { operation, args }], this._connection, this._serve);
+  }
+  selectNode(id, typeName) {
+    return new Context([
+      ...this._queryTree,
+      { operation: "node", args: { id }, inlineType: typeName }
+    ], this._connection, this._serve);
+  }
+  withServe(spec) {
+    return new Context(this._queryTree, this._connection, spec);
+  }
+  execute() {
+    if (!this._serve) {
+      return computeQuery(this._queryTree, this._connection.getGQLClient());
+    }
+    return this._connection.ensureServed(this._serve.key, this._serve.run).then(() => computeQuery(this._queryTree, this._connection.getGQLClient()));
+  }
+}
+
+class BaseClient {
+  _ctx;
+  constructor(_ctx = new Context) {
+    this._ctx = _ctx;
+  }
+}
+// src/session/dist/graphql/connect.js
+init_client();
+async function withGQLClient(connectOpts, cb) {
+  if (process.env["DAGGER_SESSION_PORT"]) {
+    const port = process.env["DAGGER_SESSION_PORT"];
+    if (!process.env["DAGGER_SESSION_TOKEN"]) {
+      throw new Error("DAGGER_SESSION_TOKEN must be set if DAGGER_SESSION_PORT is set");
+    }
+    const token = process.env["DAGGER_SESSION_TOKEN"];
+    return await cb(createGQLClient(Number(port), token));
+  }
+  try {
+    const provisioning = await Promise.resolve().then(() => (init_provisioning(), exports_provisioning));
+    return await provisioning.withEngineSession(connectOpts, cb);
+  } catch (e2) {
+    throw new Error(`failed to execute function with automatic provisioning: ${e2}`, { cause: e2 });
+  }
+}
+
+// src/session/dist/connect.js
 async function withSession(fct, cfg = {}) {
   try {
     await withGQLClient(cfg, async (gqlClient) => {
@@ -98246,18 +99812,17 @@ async function withSession(fct, cfg = {}) {
     globalConnection.resetClient();
   }
 }
-
-// src/telemetry/telemetry.ts
+// src/telemetry/dist/telemetry.js
 var opentelemetry2 = __toESM(require_src(), 1);
 
-// src/telemetry/init.ts
+// src/telemetry/dist/init.js
 var import_core2 = __toESM(require_src3(), 1);
-var import_exporter_trace_otlp_proto = __toESM(require_src9(), 1);
-var import_sdk_node = __toESM(require_src34(), 1);
-var import_sdk_trace_base2 = __toESM(require_src12(), 1);
+var import_exporter_trace_otlp_proto = __toESM(require_src10(), 1);
+var import_sdk_node = __toESM(require_src35(), 1);
+var import_sdk_trace_base2 = __toESM(require_src13(), 1);
 
-// src/telemetry/live_processor.ts
-var import_sdk_trace_base = __toESM(require_src12(), 1);
+// src/telemetry/dist/live_processor.js
+var import_sdk_trace_base = __toESM(require_src13(), 1);
 
 class LiveProcessor extends import_sdk_trace_base.BatchSpanProcessor {
   onStart(_span, _parentContext) {
@@ -98265,7 +99830,7 @@ class LiveProcessor extends import_sdk_trace_base.BatchSpanProcessor {
   }
 }
 
-// src/telemetry/init.ts
+// src/telemetry/dist/init.js
 var SERVICE_NAME = "dagger-typescript-sdk";
 function otelConfigured() {
   return Object.keys(process.env).some((key) => key.startsWith("OTEL_"));
@@ -98324,7 +99889,7 @@ class DaggerOtelConfigurator {
   }
 }
 
-// src/telemetry/telemetry.ts
+// src/telemetry/dist/telemetry.js
 var configurator = new DaggerOtelConfigurator;
 function initialize() {
   configurator.initialize();
@@ -98346,22 +99911,175 @@ function getContext() {
   }
   return ctx;
 }
-
-// src/connection.ts
-async function connection(fct, cfg = {}) {
+// src/telemetry/dist/tracing.js
+var opentelemetry3 = __toESM(require_src(), 1);
+async function withTracing(fct) {
   try {
     initialize();
-    await opentelemetry3.context.with(getContext(), async () => {
-      await withSession(fct, cfg);
-    });
+    await opentelemetry3.context.with(getContext(), fct);
   } finally {
     await close();
   }
 }
+// src/connection.ts
+async function connection(fct, cfg = {}) {
+  await withTracing(() => withSession(fct, cfg));
+}
 
-// src/module/introspector/index.ts
-init_errors();
+// src/session/utils.ts
+var import_node_color_log2 = __toESM(require_node_color_log(), 1);
+var log2 = (stack) => import_node_color_log2.default.bgColor("red").color("black").log(stack);
 
+// src/session/errors/DaggerSDKError.ts
+class DaggerSDKError2 extends Error {
+  cause;
+  constructor(message, options) {
+    super(message);
+    this.cause = options?.cause;
+  }
+  get [Symbol.toStringTag]() {
+    return this.name;
+  }
+  printStackTrace() {
+    log2(this.stack);
+  }
+}
+// src/session/errors/errors-codes.ts
+var ERROR_CODES2 = {
+  GraphQLRequestError: "D100",
+  UnknownDaggerError: "D101",
+  TooManyNestedObjectsError: "D102",
+  EngineSessionConnectParamsParseError: "D103",
+  EngineSessionConnectionTimeoutError: "D104",
+  EngineSessionError: "D105",
+  InitEngineSessionBinaryError: "D106",
+  DockerImageRefValidationError: "D107",
+  NotAwaitedRequestError: "D108",
+  ExecError: "D109",
+  IntrospectionError: "D110"
+};
+var ERROR_NAMES2 = Object.keys(ERROR_CODES2).reduce((obj, item) => ({ ...obj, [item]: item }), {});
+
+// src/session/errors/UnknownDaggerError.ts
+class UnknownDaggerError2 extends DaggerSDKError2 {
+  name = ERROR_NAMES2.UnknownDaggerError;
+  code = ERROR_CODES2.UnknownDaggerError;
+  constructor(message, options) {
+    super(message, options);
+  }
+}
+// src/session/errors/DockerImageRefValidationError.ts
+class DockerImageRefValidationError2 extends DaggerSDKError2 {
+  name = ERROR_NAMES2.DockerImageRefValidationError;
+  code = ERROR_CODES2.DockerImageRefValidationError;
+  ref;
+  constructor(message, options) {
+    super(message, options);
+    this.ref = options?.ref;
+  }
+}
+// src/session/errors/EngineSessionConnectParamsParseError.ts
+class EngineSessionConnectParamsParseError2 extends DaggerSDKError2 {
+  name = ERROR_NAMES2.EngineSessionConnectParamsParseError;
+  code = ERROR_CODES2.EngineSessionConnectParamsParseError;
+  parsedLine;
+  constructor(message, options) {
+    super(message, options);
+    this.parsedLine = options.parsedLine;
+  }
+}
+// src/session/errors/ExecError.ts
+class ExecError2 extends DaggerSDKError2 {
+  name = ERROR_NAMES2.ExecError;
+  code = ERROR_CODES2.ExecError;
+  cmd;
+  exitCode;
+  stdout;
+  stderr;
+  extensions;
+  constructor(message, options) {
+    super(message, options);
+    this.cmd = options.cmd;
+    this.exitCode = options.exitCode;
+    this.stdout = options.stdout;
+    this.stderr = options.stderr;
+    this.extensions = options.extensions;
+  }
+}
+// src/session/errors/GraphQLRequestError.ts
+class GraphQLRequestError2 extends DaggerSDKError2 {
+  name = ERROR_NAMES2.GraphQLRequestError;
+  code = ERROR_CODES2.GraphQLRequestError;
+  requestContext;
+  response;
+  extensions;
+  constructor(message, options) {
+    super(message, options);
+    this.requestContext = options.error.request;
+    this.response = options.error.response;
+    this.extensions = options.error.response.errors?.[0]?.extensions;
+  }
+}
+// src/session/errors/InitEngineSessionBinaryError.ts
+class InitEngineSessionBinaryError2 extends DaggerSDKError2 {
+  name = ERROR_NAMES2.InitEngineSessionBinaryError;
+  code = ERROR_CODES2.InitEngineSessionBinaryError;
+  constructor(message, options) {
+    super(message, options);
+  }
+}
+// src/session/errors/TooManyNestedObjectsError.ts
+class TooManyNestedObjectsError2 extends DaggerSDKError2 {
+  name = ERROR_NAMES2.TooManyNestedObjectsError;
+  code = ERROR_CODES2.TooManyNestedObjectsError;
+  response;
+  constructor(message, options) {
+    super(message, options);
+    this.response = options.response;
+  }
+}
+// src/session/errors/EngineSessionErrorOptions.ts
+class EngineSessionError2 extends DaggerSDKError2 {
+  name = ERROR_NAMES2.EngineSessionError;
+  code = ERROR_CODES2.EngineSessionError;
+  constructor(message, options) {
+    super(message, options);
+  }
+}
+// src/session/errors/EngineSessionConnectionTimeoutError.ts
+class EngineSessionConnectionTimeoutError2 extends DaggerSDKError2 {
+  name = ERROR_NAMES2.EngineSessionConnectionTimeoutError;
+  code = ERROR_CODES2.EngineSessionConnectionTimeoutError;
+  timeOutDuration;
+  constructor(message, options) {
+    super(message, options);
+    this.timeOutDuration = options.timeOutDuration;
+  }
+}
+// src/session/errors/NotAwaitedRequestError.ts
+class NotAwaitedRequestError2 extends DaggerSDKError2 {
+  name = ERROR_NAMES2.NotAwaitedRequestError;
+  code = ERROR_CODES2.NotAwaitedRequestError;
+  constructor(message, options) {
+    super(message, options);
+  }
+}
+// src/session/errors/FunctionNotFound.ts
+class FunctionNotFound2 extends DaggerSDKError2 {
+  name = ERROR_NAMES2.ExecError;
+  code = ERROR_CODES2.ExecError;
+  constructor(message, options) {
+    super(message, options);
+  }
+}
+// src/session/errors/IntrospectionError.ts
+class IntrospectionError2 extends DaggerSDKError2 {
+  name = ERROR_NAMES2.IntrospectionError;
+  code = ERROR_CODES2.IntrospectionError;
+  constructor(message, options) {
+    super(message, options);
+  }
+}
 // src/module/introspector/load.ts
 async function load2(files2) {
   return await Promise.all(files2.map(async (f4) => await import(f4)));
@@ -98378,193 +100096,11 @@ function convertToPascalCase(input) {
 }
 
 // src/module/introspector/dagger_module/argument.ts
-init_errors();
 import ts4 from "typescript";
 
 // src/module/introspector/typescript_module/ast.ts
 import * as path8 from "path";
 import ts3 from "typescript";
-
-// src/session/graphql/compute_query.ts
-init_main();
-init_errors();
-function buildArgs(args) {
-  const metadata = args.__metadata || {};
-  const formatValue = (key, value) => {
-    if (metadata[key]?.is_enum) {
-      return JSON.stringify(metadata[key].value_to_name?.(value)).replace(/['"]+/g, "");
-    }
-    return JSON.stringify(value).replace(/\{"[a-zA-Z]+":|,"[a-zA-Z]+":/gi, (str) => {
-      return str.replace(/"/g, "");
-    });
-  };
-  if (args === undefined || args === null) {
-    return "";
-  }
-  const formattedArgs = Object.entries(args).reduce((acc, [key, value]) => {
-    if (key === "__metadata") {
-      return acc;
-    }
-    if (value !== undefined && value !== null) {
-      acc.push(`${key}: ${formatValue(key, value)}`);
-    }
-    return acc;
-  }, []);
-  if (formattedArgs.length === 0) {
-    return "";
-  }
-  return `(${formattedArgs})`;
-}
-async function computeNestedQuery(query, client) {
-  const isQueryTree = (value) => value["_ctx"] !== undefined;
-  const isArrayQueryTree = (value) => value.every((v2) => v2 instanceof Object && isQueryTree(v2));
-  const computeQueryTree = async (value) => {
-    for (const op of value["_ctx"]["_queryTree"]) {
-      await computeNestedQuery([op], client);
-    }
-    return buildQuery([
-      ...value["_ctx"]["_queryTree"],
-      {
-        operation: "id"
-      }
-    ]);
-  };
-  const queryToExec = query.filter((q2) => !!q2.args);
-  for (const q2 of queryToExec) {
-    await Promise.all(Object.entries(q2.args).map(async ([key, value]) => {
-      if (value instanceof Object && isQueryTree(value)) {
-        const getQueryTree = await computeQueryTree(value);
-        q2.args[key] = await compute(getQueryTree, client);
-      }
-      if (Array.isArray(value) && isArrayQueryTree(value)) {
-        const tmp = q2.args[key];
-        for (let i3 = 0;i3 < value.length; i3++) {
-          const getQueryTree = await computeQueryTree(value[i3]);
-          tmp[i3] = await compute(getQueryTree, client);
-        }
-        q2.args[key] = tmp;
-      }
-    }));
-  }
-}
-function buildQuery(q2) {
-  const query = q2.reduce((acc, { operation, args, inlineType }, i3) => {
-    const qLen = q2.length;
-    const isLast = qLen - 1 === i3;
-    acc += ` ${operation} ${args ? `${buildArgs(args)}` : ""}`;
-    if (!isLast) {
-      acc += " {";
-      if (inlineType) {
-        acc += ` ... on ${inlineType} {`;
-      }
-    } else {
-      let closes = "";
-      for (let j2 = i3 - 1;j2 >= 0; j2--) {
-        if (q2[j2].inlineType) {
-          closes += " }";
-        }
-        closes += " }";
-      }
-      acc += closes;
-    }
-    return acc;
-  }, "");
-  return `{${query} }`;
-}
-async function computeQuery(q2, client) {
-  await computeNestedQuery(q2, client);
-  const query = buildQuery(q2);
-  return await compute(query, client);
-}
-function queryFlatten(response) {
-  if (!(response instanceof Object) || Array.isArray(response)) {
-    return response;
-  }
-  const keys = Object.keys(response);
-  if (keys.length != 1) {
-    throw new TooManyNestedObjectsError("Too many nested objects inside graphql response", {
-      response
-    });
-  }
-  const nestedKey = keys[0];
-  return queryFlatten(response[nestedKey]);
-}
-async function compute(query, client) {
-  let computeQuery2;
-  try {
-    computeQuery2 = await client.request(gql`
-      ${query}
-    `);
-  } catch (e2) {
-    if (e2 instanceof ClientError) {
-      const msg = e2.response.errors?.[0]?.message ?? `API Error`;
-      const ext = e2.response.errors?.[0]?.extensions;
-      if (ext?._type === "EXEC_ERROR") {
-        throw new ExecError(msg, {
-          cmd: ext.cmd ?? [],
-          exitCode: ext.exitCode ?? -1,
-          stdout: ext.stdout ?? "",
-          stderr: ext.stderr ?? "",
-          extensions: ext
-        });
-      }
-      throw new GraphQLRequestError(msg, {
-        error: e2,
-        cause: e2
-      });
-    }
-    if (e2.errno === "ECONNREFUSED") {
-      throw new NotAwaitedRequestError("Encountered an error while requesting data via graphql through a synchronous call. Make sure the function called is awaited.", { cause: e2 });
-    }
-    throw new UnknownDaggerError("Encountered an unknown error while requesting data via graphql", {
-      cause: e2
-    });
-  }
-  return queryFlatten(computeQuery2);
-}
-
-// src/session/context.ts
-class Context {
-  _queryTree;
-  _connection;
-  _serve;
-  constructor(_queryTree = [], _connection = globalConnection, _serve) {
-    this._queryTree = _queryTree;
-    this._connection = _connection;
-    this._serve = _serve;
-  }
-  getGQLClient() {
-    return this._connection.getGQLClient();
-  }
-  copy() {
-    return new Context([], this._connection, this._serve);
-  }
-  select(operation, args) {
-    return new Context([...this._queryTree, { operation, args }], this._connection, this._serve);
-  }
-  selectNode(id, typeName) {
-    return new Context([
-      ...this._queryTree,
-      { operation: "node", args: { id }, inlineType: typeName }
-    ], this._connection, this._serve);
-  }
-  withServe(spec) {
-    return new Context(this._queryTree, this._connection, spec);
-  }
-  execute() {
-    if (!this._serve) {
-      return computeQuery(this._queryTree, this._connection.getGQLClient());
-    }
-    return this._connection.ensureServed(this._serve.key, this._serve.run).then(() => computeQuery(this._queryTree, this._connection.getGQLClient()));
-  }
-}
-
-class BaseClient {
-  _ctx;
-  constructor(_ctx = new Context) {
-    this._ctx = _ctx;
-  }
-}
 
 // src/core/client.gen.ts
 function AgentMessageDeliveryNameToValue(name) {
@@ -105526,9 +107062,6 @@ class WorkspaceSDK extends BaseClient {
 }
 var dag = new Client;
 
-// src/module/introspector/typescript_module/ast.ts
-init_errors();
-
 // src/module/introspector/typescript_module/declarations.ts
 import ts2 from "typescript";
 var isDeclarationOf = {
@@ -105701,14 +107234,14 @@ class AST {
   getSymbolOrThrow(node) {
     const symbol = this.getSymbol(node);
     if (!symbol) {
-      throw new IntrospectionError(`could not find symbol at ${AST.getNodePosition(node)}`);
+      throw new IntrospectionError2(`could not find symbol at ${AST.getNodePosition(node)}`);
     }
     return symbol;
   }
   getSignatureFromFunctionOrThrow(node) {
     const signature = this.checker.getSignatureFromDeclaration(node);
     if (!signature) {
-      throw new IntrospectionError(`could not find signature at ${AST.getNodePosition(node)}`);
+      throw new IntrospectionError2(`could not find signature at ${AST.getNodePosition(node)}`);
     }
     return signature;
   }
@@ -105725,7 +107258,7 @@ class AST {
       return false;
     }
     if (!ts3.isCallExpression(decorator.expression)) {
-      throw new IntrospectionError(`decorator at ${AST.getNodePosition(node)} should be a call expression, please use ${daggerDecorator}() instead.`);
+      throw new IntrospectionError2(`decorator at ${AST.getNodePosition(node)} should be a call expression, please use ${daggerDecorator}() instead.`);
     }
     return true;
   }
@@ -105840,7 +107373,7 @@ class AST {
             return;
           }
           default: {
-            throw new IntrospectionError(`could not resolve type ${type.symbol.getName()} at ${AST.getNodePosition(node)}, dagger does not support generics with argument yet.`);
+            throw new IntrospectionError2(`could not resolve type ${type.symbol.getName()} at ${AST.getNodePosition(node)}, dagger does not support generics with argument yet.`);
           }
         }
       }
@@ -105919,7 +107452,7 @@ class AST {
       case ts3.SyntaxKind.Identifier: {
         const symbol = this.checker.getSymbolAtLocation(expression);
         if (!symbol) {
-          throw new IntrospectionError(`could not resolve default value reference to the variable: '${expression.getText()}' from ${AST.getNodePosition(expression)}. Is it exported by the module?`);
+          throw new IntrospectionError2(`could not resolve default value reference to the variable: '${expression.getText()}' from ${AST.getNodePosition(expression)}. Is it exported by the module?`);
         }
         const decl = symbol.valueDeclaration ?? symbol.declarations?.[0];
         if (!decl) {
@@ -105982,7 +107515,6 @@ class AST {
   }
 }
 // src/module/introspector/typescript_module/typedef_utils.ts
-init_errors();
 function isTypeDefResolved(typeDef) {
   if (typeDef.kind !== "LIST_KIND" /* ListKind */) {
     return true;
@@ -106005,10 +107537,9 @@ function resolveTypeDef(typeDef, reference) {
     listTypeDef.typeDef = resolveTypeDef(listTypeDef.typeDef, reference);
     return listTypeDef;
   }
-  throw new IntrospectionError(`type ${JSON.stringify(typeDef)} has already been resolved, it should not be overwritten ; reference: ${JSON.stringify(reference)}`);
+  throw new IntrospectionError2(`type ${JSON.stringify(typeDef)} has already been resolved, it should not be overwritten ; reference: ${JSON.stringify(reference)}`);
 }
 // src/module/registry.ts
-init_errors();
 var import_reflect_metadata = __toESM(require_Reflect(), 1);
 class Registry {
   collection = () => this.object();
@@ -106146,7 +107677,7 @@ class DaggerArgument extends Locatable {
     this.isNullable = this.getIsNullable();
     this.isOptional = this.isVariadic || this.defaultValue === undefined && this.node.initializer !== undefined || this.isNullable || this.node.questionToken !== undefined;
     if (this.deprecated !== undefined && !this.isOptional) {
-      throw new IntrospectionError(`argument ${this.name} is required and cannot be deprecated at ${AST.getNodePosition(this.node)}.`);
+      throw new IntrospectionError2(`argument ${this.name} is required and cannot be deprecated at ${AST.getNodePosition(this.node)}.`);
     }
     const decoratorArguments = this.ast.getDecoratorArgument(this.node, ARGUMENT_DECORATOR, "object");
     if (decoratorArguments) {
@@ -106202,7 +107733,7 @@ class DaggerArgument extends Locatable {
     }
     const typeDef = references[this._typeRef];
     if (!typeDef) {
-      throw new IntrospectionError(`could not find type reference for ${this._typeRef} at ${AST.getNodePosition(this.node)}.`);
+      throw new IntrospectionError2(`could not find type reference for ${this._typeRef} at ${AST.getNodePosition(this.node)}.`);
     }
     this.type = resolveTypeDef(this.type, typeDef);
   }
@@ -106262,7 +107793,6 @@ class DaggerConstructor {
   }
 }
 // src/module/introspector/dagger_module/enum.ts
-init_errors();
 class DaggerEnumValue extends Locatable {
   node;
   ast;
@@ -106282,7 +107812,7 @@ class DaggerEnumValue extends Locatable {
     this.deprecated = deprecated;
     const initializer = this.node.initializer;
     if (!initializer) {
-      throw new IntrospectionError(`enum ${this.name} at ${AST.getNodePosition(this.node)} has no value set to its member.`);
+      throw new IntrospectionError2(`enum ${this.name} at ${AST.getNodePosition(this.node)} has no value set to its member.`);
     }
     this.value = this.ast.resolveParameterDefaultValue(initializer);
   }
@@ -106325,7 +107855,6 @@ class DaggerEnum extends Locatable {
   }
 }
 // src/module/introspector/dagger_module/enumClass.ts
-init_errors();
 import ts5 from "typescript";
 class DaggerEnumClassValue extends Locatable {
   node;
@@ -106372,7 +107901,7 @@ class DaggerEnumClass extends Locatable {
     this.node = node;
     this.ast = ast2;
     if (!this.node.name) {
-      throw new IntrospectionError(`could not resolve name of enum at ${AST.getNodePosition(node)}.`);
+      throw new IntrospectionError2(`could not resolve name of enum at ${AST.getNodePosition(node)}.`);
     }
     this.name = this.node.name.getText();
     this.symbol = this.ast.getSymbolOrThrow(this.node.name);
@@ -106394,7 +107923,6 @@ class DaggerEnumClass extends Locatable {
   }
 }
 // src/module/introspector/dagger_module/function.ts
-init_errors();
 class DaggerFunction extends Locatable {
   node;
   ast;
@@ -106486,7 +108014,7 @@ class DaggerFunction extends Locatable {
     }
     const typeDef = references[this._returnTypeRef];
     if (!typeDef) {
-      throw new IntrospectionError(`could not find type reference for ${this._returnTypeRef} at ${AST.getNodePosition(this.node)}.`);
+      throw new IntrospectionError2(`could not find type reference for ${this._returnTypeRef} at ${AST.getNodePosition(this.node)}.`);
     }
     this.returnType = resolveTypeDef(this.returnType, typeDef);
   }
@@ -106503,14 +108031,11 @@ class DaggerFunction extends Locatable {
 }
 // src/module/introspector/dagger_module/module.ts
 import ts10 from "typescript";
-init_errors();
 
 // src/module/introspector/dagger_module/interface.ts
-init_errors();
 import ts7 from "typescript";
 
 // src/module/introspector/dagger_module/interfaceFunction.ts
-init_errors();
 import ts6 from "typescript";
 class DaggerInterfaceFunction extends Locatable {
   node;
@@ -106530,7 +108055,7 @@ class DaggerInterfaceFunction extends Locatable {
     this.node = node;
     this.ast = ast2;
     if (!this.node.name) {
-      throw new IntrospectionError(`could not resolve name of interface function at ${AST.getNodePosition(node)}`);
+      throw new IntrospectionError2(`could not resolve name of interface function at ${AST.getNodePosition(node)}`);
     }
     this.name = this.node.name.getText();
     this.symbol = this.ast.getSymbolOrThrow(this.node.name);
@@ -106574,7 +108099,7 @@ class DaggerInterfaceFunction extends Locatable {
     }
     const typeDef = references[this._returnTypeRef];
     if (!typeDef) {
-      throw new IntrospectionError(`could not find type reference for ${this._returnTypeRef} at ${AST.getNodePosition(this.node)}.`);
+      throw new IntrospectionError2(`could not find type reference for ${this._returnTypeRef} at ${AST.getNodePosition(this.node)}.`);
     }
     this.returnType = resolveTypeDef(this.returnType, typeDef);
   }
@@ -106602,7 +108127,7 @@ class DaggerInterface extends Locatable {
     this.node = node;
     this.ast = ast2;
     if (!this.node.name) {
-      throw new IntrospectionError(`could not resolve name of interface at ${AST.getNodePosition(node)}`);
+      throw new IntrospectionError2(`could not resolve name of interface at ${AST.getNodePosition(node)}`);
     }
     this.name = this.node.name.getText();
     this.symbol = this.ast.getSymbolOrThrow(this.node.name);
@@ -106641,10 +108166,8 @@ class DaggerInterface extends Locatable {
 
 // src/module/introspector/dagger_module/object.ts
 import ts8 from "typescript";
-init_errors();
 
 // src/module/introspector/dagger_module/property.ts
-init_errors();
 class DaggerProperty extends Locatable {
   node;
   ast;
@@ -106663,7 +108186,7 @@ class DaggerProperty extends Locatable {
     this.node = node;
     this.ast = ast2;
     if (!this.node.name) {
-      throw new IntrospectionError(`could not resolve name of class at ${AST.getNodePosition(node)}.`);
+      throw new IntrospectionError2(`could not resolve name of class at ${AST.getNodePosition(node)}.`);
     }
     this.symbol = this.ast.getSymbolOrThrow(this.node.name);
     this.name = this.node.name.getText();
@@ -106709,7 +108232,7 @@ class DaggerProperty extends Locatable {
     }
     const typeDef = references[this._typeRef];
     if (!typeDef) {
-      throw new IntrospectionError(`could not find type reference for ${this._typeRef} at ${AST.getNodePosition(this.node)}.`);
+      throw new IntrospectionError2(`could not find type reference for ${this._typeRef} at ${AST.getNodePosition(this.node)}.`);
     }
     this.type = resolveTypeDef(this.type, typeDef);
   }
@@ -106747,12 +108270,12 @@ class DaggerObject extends Locatable {
     this.node = node;
     this.ast = ast2;
     if (!this.node.name) {
-      throw new IntrospectionError(`could not resolve name of class at ${AST.getNodePosition(node)}.`);
+      throw new IntrospectionError2(`could not resolve name of class at ${AST.getNodePosition(node)}.`);
     }
     this.name = this.node.name.getText();
     this.isCollection = this.ast.isNodeDecoratedWith(node, COLLECTION_DECORATOR);
     if (!this.isCollection && !this.ast.isNodeDecoratedWith(node, OBJECT_DECORATOR)) {
-      throw new IntrospectionError(`class ${this.name} at ${AST.getNodePosition(node)} is used by the module but not exposed with a dagger decorator.`);
+      throw new IntrospectionError2(`class ${this.name} at ${AST.getNodePosition(node)} is used by the module but not exposed with a dagger decorator.`);
     }
     const modifiers = ts8.getCombinedModifierFlags(this.node);
     this.isExported = (modifiers & ts8.ModifierFlags.Export) !== 0;
@@ -106788,27 +108311,27 @@ class DaggerObject extends Locatable {
     const position = AST.getNodePosition(this.node);
     const keys2 = Object.values(this.properties).filter((p2) => p2.isCollectionKeys);
     if (keys2.length === 0) {
-      throw new IntrospectionError(`collection ${this.name} at ${position} requires a field decorated with ${KEYS_DECORATOR}().`);
+      throw new IntrospectionError2(`collection ${this.name} at ${position} requires a field decorated with ${KEYS_DECORATOR}().`);
     }
     if (keys2.length > 1) {
-      throw new IntrospectionError(`collection ${this.name} at ${position} has multiple ${KEYS_DECORATOR}() fields: ${keys2.map((k2) => k2.name).join(", ")}.`);
+      throw new IntrospectionError2(`collection ${this.name} at ${position} has multiple ${KEYS_DECORATOR}() fields: ${keys2.map((k2) => k2.name).join(", ")}.`);
     }
     if (keys2[0].type && keys2[0].type.kind !== "LIST_KIND" /* ListKind */) {
-      throw new IntrospectionError(`${KEYS_DECORATOR}() field ${keys2[0].name} at ${position} must be a list.`);
+      throw new IntrospectionError2(`${KEYS_DECORATOR}() field ${keys2[0].name} at ${position} must be a list.`);
     }
     const getters = Object.values(this.methods).filter((m3) => m3.isCollectionGet);
     if (getters.length === 0) {
-      throw new IntrospectionError(`collection ${this.name} at ${position} requires a method decorated with ${GET_DECORATOR}().`);
+      throw new IntrospectionError2(`collection ${this.name} at ${position} requires a method decorated with ${GET_DECORATOR}().`);
     }
     if (getters.length > 1) {
-      throw new IntrospectionError(`collection ${this.name} at ${position} has multiple ${GET_DECORATOR}() methods: ${getters.map((g2) => g2.name).join(", ")}.`);
+      throw new IntrospectionError2(`collection ${this.name} at ${position} has multiple ${GET_DECORATOR}() methods: ${getters.map((g2) => g2.name).join(", ")}.`);
     }
     if (Object.keys(getters[0].arguments).length !== 1) {
-      throw new IntrospectionError(`${GET_DECORATOR}() method ${getters[0].name} at ${position} must take exactly one argument.`);
+      throw new IntrospectionError2(`${GET_DECORATOR}() method ${getters[0].name} at ${position} must take exactly one argument.`);
     }
     const deltas = Object.values(this.properties).filter((p2) => p2.isCollectionDelta);
     if (deltas.length > 1) {
-      throw new IntrospectionError(`collection ${this.name} at ${position} has multiple ${DELTA_DECORATOR}() fields: ${deltas.map((d) => d.name).join(", ")}.`);
+      throw new IntrospectionError2(`collection ${this.name} at ${position} has multiple ${DELTA_DECORATOR}() fields: ${deltas.map((d) => d.name).join(", ")}.`);
     }
   }
   getLocation() {
@@ -106854,11 +108377,9 @@ class DaggerObject extends Locatable {
 }
 
 // src/module/introspector/dagger_module/typeObject.ts
-init_errors();
 import ts9 from "typescript";
 
 // src/module/introspector/dagger_module/typeObjectProperty.ts
-init_errors();
 class DaggerObjectTypeProperty extends Locatable {
   node;
   symbol;
@@ -106900,7 +108421,7 @@ class DaggerObjectTypeProperty extends Locatable {
     }
     const typeDef = references[this._typeRef];
     if (!typeDef) {
-      throw new IntrospectionError(`could not find type reference for ${this._typeRef}.`);
+      throw new IntrospectionError2(`could not find type reference for ${this._typeRef}.`);
     }
     this.type = resolveTypeDef(this.type, typeDef);
   }
@@ -106935,7 +108456,7 @@ class DaggerTypeObject extends Locatable {
     this.node = node;
     this.ast = ast2;
     if (!this.node.name) {
-      throw new IntrospectionError(`could not resolve name of enum at ${AST.getNodePosition(node)}.`);
+      throw new IntrospectionError2(`could not resolve name of enum at ${AST.getNodePosition(node)}.`);
     }
     this.name = this.node.name.getText();
     this.symbol = this.ast.getSymbolOrThrow(this.node.name);
@@ -107047,7 +108568,7 @@ class DaggerModule {
           };
           continue;
         }
-        throw new IntrospectionError(`class ${reference} in ${AST.getNodePosition(classRef.node)} is used by the module but not exposed with a dagger decorator.`);
+        throw new IntrospectionError2(`class ${reference} in ${AST.getNodePosition(classRef.node)} is used by the module but not exposed with a dagger decorator.`);
       }
       const enumRef = this.ast.findResolvedNodeByName(reference, ts10.SyntaxKind.EnumDeclaration);
       if (enumRef) {
@@ -107083,15 +108604,15 @@ class DaggerModule {
         continue;
       }
       if (reference === "String") {
-        throw new IntrospectionError(`Use of primitive 'String' type detected, please use 'string' instead.`);
+        throw new IntrospectionError2(`Use of primitive 'String' type detected, please use 'string' instead.`);
       }
       if (reference === "Boolean") {
-        throw new IntrospectionError(`Use of primitive 'Boolean' type detected, please use 'boolean' instead.`);
+        throw new IntrospectionError2(`Use of primitive 'Boolean' type detected, please use 'boolean' instead.`);
       }
       if (reference === "Number") {
-        throw new IntrospectionError(`Use of primitive 'Number' type detected, please use 'number' instead.`);
+        throw new IntrospectionError2(`Use of primitive 'Number' type detected, please use 'number' instead.`);
       }
-      throw new IntrospectionError(`could not resolve type reference for ${reference}.`);
+      throw new IntrospectionError2(`could not resolve type reference for ${reference}.`);
     }
   }
   resolveTypeAlias(reference, typeAlias) {
@@ -107136,7 +108657,7 @@ class DaggerModule {
       this.resolveReferences(daggerObject.getReferences());
       return;
     }
-    throw new IntrospectionError(`could not resolve type reference for ${reference} at ${AST.getNodePosition(typeAlias.node)}`);
+    throw new IntrospectionError2(`could not resolve type reference for ${reference} at ${AST.getNodePosition(typeAlias.node)}`);
   }
   findClasses() {
     const allClassDeclarations = this.ast.findAllDeclarations(ts10.SyntaxKind.ClassDeclaration);
@@ -107184,7 +108705,7 @@ class DaggerModule {
 // src/module/introspector/index.ts
 async function scan(files2, moduleName = "", loadModule = true, generatedClientFiles = []) {
   if (files2.length === 0) {
-    throw new IntrospectionError("no files to introspect found");
+    throw new IntrospectionError2("no files to introspect found");
   }
   const formattedModuleName = convertToPascalCase(moduleName);
   let userModule2 = [];
