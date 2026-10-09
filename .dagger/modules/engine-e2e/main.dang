@@ -11,6 +11,12 @@ type EngineE2e {
   every generator run rewrote the lock with a newer commit and the
   generated-file check went red again as soon as anyone merged upstream. Bump it
   with `dagger module update engine-dev`, deliberately.
+
+  It is pinned at a release tag's commit, not an arbitrary main revision, and
+  the release has to be `typescriptSdk.targetEngineVersion`: the suite this
+  engine runs includes `packager:library-bindings/stale`, which regenerates the
+  library's bindings from this engine's core schema and compares them with the
+  committed file. Moving one without the other turns that check red.
   """
   let engineCommit(ws: Workspace!): String! {
     let dependency = ws.moduleSource("/.dagger/modules/engine-e2e").dependencies.{{moduleName, pin}}
