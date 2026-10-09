@@ -25,10 +25,15 @@ const (
 	// LoaderGenFile is the entrypoint object loader. "loader" is a reserved
 	// module name: a module kebab-cased to it would claim the same file.
 	LoaderGenFile = "loader.gen.ts"
-	// ModuleClientsDir is where a module scope puts the per-module client files
-	// and the loader — beside the library, not inside it. The library (sdk/)
-	// stays core-only so it can become an npm package; the clients that depend
-	// on it live here and reach it through the @dagger.io/dagger specifier.
+	// CompatGenFile puts each module client's root fields back on the core
+	// Client, deprecated, so pre-1.0 `dag.<module>()` source keeps working.
+	// "compat" is reserved like "loader", and for the same reason.
+	CompatGenFile = "compat.gen.ts"
+	// ModuleClientsDir is where a module scope puts the per-module client files,
+	// the loader and the compat shim — beside the library, not inside it. The
+	// library (sdk/) stays core-only so it can become an npm package; the
+	// clients that depend on it live here and reach it through the
+	// @dagger.io/dagger specifier.
 	ModuleClientsDir = "clients"
 )
 
@@ -97,6 +102,7 @@ func generate(config generator.Config, target string, schema *introspection.Sche
 	reserved := map[string]bool{}
 	if emitLoader {
 		reserved[strings.TrimSuffix(LoaderGenFile, ".gen.ts")] = true
+		reserved[strings.TrimSuffix(CompatGenFile, ".gen.ts")] = true
 	}
 	if !nest {
 		reserved[strings.TrimSuffix(filepath.Base(target), ".gen.ts")] = true
@@ -181,6 +187,22 @@ func generate(config generator.Config, target string, schema *introspection.Sche
 			Types:         schema.Types,
 		}); err != nil {
 			return nil, fmt.Errorf("render loader: %w", err)
+		}
+
+		// The compat shim rides with the loader, which is what imports it: it
+		// re-attaches every module client's root fields to the core Client for
+		// pre-1.0 `dag.<module>()` source. A scope with no module client has
+		// nothing to re-attach, and a standalone client has no loader to
+		// evaluate the shim, so neither gets one.
+		if len(splitModules) > 0 {
+			compatTarget := filepath.Join(moduleDir, CompatGenFile)
+			if err := renderTemplate(mfs, tmpl, "compat", compatTarget, depFileData{
+				Schema:        schema,
+				SchemaVersion: schemaVersion,
+				Types:         schema.Types,
+			}); err != nil {
+				return nil, fmt.Errorf("render compat shim: %w", err)
+			}
 		}
 	}
 

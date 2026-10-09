@@ -977,8 +977,10 @@ type TypescriptSdk {
 
   """
   Generate a module's own bindings: client.gen.ts holding core types, one
-  <module>.gen.ts client per manifest dependency and per recorded target, and
-  the loader.gen.ts the entrypoints load ID-carrying values through.
+  <module>.gen.ts client per manifest dependency and per recorded target, the
+  loader.gen.ts the entrypoints load ID-carrying values through, and the
+  compat.gen.ts that puts each client's root fields back on the core `dag` for
+  pre-1.0 source.
 
   Each module's file is a self-contained client — its own root Client, its own
   dag, its own entrypoint functions — reached from the module's source through
@@ -1143,8 +1145,9 @@ type TypescriptSdk {
 
   """
   The embedded [runtime] layout's sdk/: the library plus every generated client
-  file and the loader, flat beside client.gen.ts. sdk/ is the one directory the
-  builtin runtime mounts into node_modules, so the clients must live inside it —
+  file, the loader and the compat shim, flat beside client.gen.ts. sdk/ is the
+  one directory the builtin runtime mounts into node_modules, so the clients
+  must live inside it —
   the runtime cannot be told to mount anything else, which is what confines the
   packaged clients/ layout to entrypoint modules.
   """
@@ -1157,8 +1160,9 @@ type TypescriptSdk {
   """
   The per-module clients an entrypoint module scope generates, apart from the
   library: one client package per dependency and per recorded target, plus the
-  loader the entrypoints resolve ID-carrying values through. Codegen already
-  nests them under clients/, so this is just that subdirectory.
+  two generated files that are not packages — the loader the entrypoints
+  resolve ID-carrying values through, and the compat shim it imports. Codegen
+  already nests them under clients/, so this is just that subdirectory.
   """
   let moduleClientsDirectory(bindings: Directory!): Directory! {
     bindings.directory("clients")
@@ -1219,7 +1223,9 @@ type TypescriptSdk {
         acc.withFile(name + ".gen.ts", clients.file(name + "/" + name + ".gen.ts"))
       }
     } else {
-      # The embedded sdk/ already carries the client files flat.
+      # The embedded sdk/ already carries the client files flat — the compat
+      # shim among them, which is what lets a `dag.<module>()` call in the
+      # user's source resolve during the scan as well as at run time.
       sdk
     }
 
@@ -1397,10 +1403,11 @@ type TypescriptSdk {
   }
 
   """
-  The names each generated module client is aliased under, with the loader —
-  which is not a module — left out. Packaged clients are the directories under
-  clients/ holding a <name>.gen.ts; the embedded layout's are the flat files
-  beside client.gen.ts in the bindings root.
+  The names each generated module client is aliased under, with the files that
+  are not modules — the loader and the compat shim — left out. Packaged clients
+  are the directories under clients/ holding a <name>.gen.ts; the embedded
+  layout's are the flat files beside client.gen.ts in the bindings root, which
+  is why that branch has names to exclude at all.
   """
   let bindingAliasModules(bindings: Directory!): [String!]! {
     if (legacyRuntime == false) {
@@ -1409,13 +1416,15 @@ type TypescriptSdk {
       bindings.entries
         .filter { entry => entry.trimSuffix(".gen.ts") != entry }
         .map { entry => entry.trimSuffix(".gen.ts") }
-        .filter { name => name != "loader" and name != "client" }
+        .filter { name => name != "loader" and name != "client" and name != "compat" }
     }
   }
 
   """
   The package names in a directory of packaged clients: one per <name>/ holding
-  its <name>.gen.ts, the loader and any stray file left out.
+  its <name>.gen.ts. The generated files that are not packages — the loader,
+  the compat shim — sit flat beside those directories, so globbing one level
+  down leaves them out.
   """
   let packagedClientNames(clients: Directory!): [String!]! {
     clients.glob("*/*.gen.ts")

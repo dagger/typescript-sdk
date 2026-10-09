@@ -6,7 +6,8 @@ no single namespace to look a class up in, and searching the files in order
 would resolve a name two modules both export by accident of ordering — so the
 map is explicit: codegen knows each type's owning file from the schema split
 and bakes it here. Only the entrypoints import this file; client files never
-import it, so the dependency direction stays entrypoint -> loader -> clients.
+import it, so the dependency direction stays entrypoint -> loader -> compat ->
+clients.
 */ -}}
 {{ define "loader" -}}
 /**
@@ -14,6 +15,13 @@ import it, so the dependency direction stays entrypoint -> loader -> clients.
  * Do not make direct changes to the file.
  */
 import { Context } from "@dagger.io/dagger"
+{{- if CompatClients }}
+{{- /* Side-effect only: the shim installs the pre-1.0 `dag.<module>()` methods
+on the core Client when it is evaluated, and the loader is what guarantees that
+happens before any dispatch. It also reaches every module client, including one
+that owns no object type and so has no entry below. */}}
+import "./{{ CompatFile }}"
+{{- end }}
 {{- range $f := LoaderFiles }}
 import * as {{ $f.Alias }} from "{{ $f.From }}"
 {{- end }}

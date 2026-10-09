@@ -33,8 +33,9 @@ func New(
 	templateDeps := []string{
 		topLevelTemplate, "header", "objects", "object", "interface", "method", "method_solve", "call_args", "method_comment", "types", "args", "default",
 		// Module-splitting templates: the per-module client file, the
-		// entrypoint object loader, and the shared method bodies.
-		"_client", "_loader", "_method_body", "_method_solve_body",
+		// entrypoint object loader, the pre-1.0 `dag.<module>()` compat shim,
+		// and the shared method bodies.
+		"_client", "_loader", "_compat", "_method_body", "_method_solve_body",
 	}
 
 	fileNames := make([]string, 0, len(templateDeps))

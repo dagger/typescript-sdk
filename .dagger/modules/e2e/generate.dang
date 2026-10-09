@@ -1021,6 +1021,186 @@ type GenerateChecks {
   }
 
   """
+  A module with clients should get the compat shim that keeps pre-1.0
+  `dag.<module>()` source working.
+
+  Unified clients moved every module's root fields off the core Client onto a
+  client of its own, so a module migrated from 0.21.x compiles — a
+  type-stripping loader checks nothing — and then fails at dispatch with
+  "dag.gendep is not a function". The shim puts those fields back as deprecated
+  delegating methods.
+
+  A file of its own because core may not reference a module client: that
+  direction is an ESM cycle and would stop sdk/ being a publishable core-only
+  library. So the assertions here are as much about what the shim does *not*
+  touch — the core bindings stay core-only — as about what it restores.
+  """
+  generateCompatShimCheck(ws: Workspace!): Void @check {
+    let path = fixtures.depAppModule
+    let staged = Gen.withDependency(ws)
+    let changes = Gen.module(staged, path, "generate-deps-app")
+    let tree = staged.withChanges(changes).directory("/" + path)
+
+    Asserts.generated(changes, path + "/sdk/compat.gen.ts")
+
+    let compat = tree.file("sdk/compat.gen.ts").contents
+    Asserts.stringContains(
+      compat,
+      "__install(\"gendep\"",
+      "the shim should restore the dependency's root field on the core client",
+    )
+    Asserts.stringContains(
+      compat,
+      "import { dag as __dagGendep } from \"@dagger.io/gendep\"",
+      "it should delegate through the dependency's own dag, so the client's serve-on-use hook still runs",
+    )
+    Asserts.stringContains(
+      compat,
+      "@deprecated",
+      "every restored field should say what to use instead",
+    )
+    Asserts.stringContains(
+      compat,
+      "declare module \"@dagger.io/dagger\"",
+      "the type side should reach the Client the module's own source imports",
+    )
+
+    # The loader is what evaluates the shim, and the entrypoint imports the
+    # loader for its side effect as well as for __loadObject — a module with no
+    # object-typed signature never calls the latter, and a type-stripping loader
+    # drops an unused named import outright.
+    Asserts.stringContains(
+      tree.file("sdk/loader.gen.ts").contents,
+      "import \"./compat.gen.js\"",
+      "the loader should import the shim so it is installed before any dispatch",
+    )
+    Asserts.stringContains(
+      tree.file("__dagger.entrypoint.ts").contents,
+      "import \"./sdk/loader.gen.js\"",
+      "the entrypoint should load the loader for its side effect, not only for __loadObject",
+    )
+
+    # The invariant the separate file exists to keep.
+    Asserts.assert(
+      tree.file("sdk/client.gen.ts").contents.contains("compat.gen.js") == false,
+      "the core bindings must not reference the compat shim",
+    )
+
+    null
+  }
+
+  """
+  A scope with no module client should get no compat shim, and should lose one
+  left behind.
+
+  Asserted on an entrypoint module because that is the layout where "no
+  clients" is reachable: its self client is opt-in, so a module with no
+  dependency and no recorded target renders none at all. The embedded
+  `[runtime]` layout always generates its own self client, so it always has at
+  least one module client to restore.
+
+  The planted file is the pruning half. clients/ is fully generated under an
+  entrypoint, so anything in it this run does not render is stale — the same
+  mechanism that takes a departed dependency's bindings, which the shim has to
+  be subject to or a module that drops its last client keeps a shim importing
+  a client that is gone.
+  """
+  generateCompatShimPrunedCheck(ws: Workspace!): Void @check {
+    let scope = Fixtures.out + "/compat-none"
+    let stale = scope + "/clients/compat.gen.ts"
+
+    let dirty = ws.withNewFile("/" + stale, "export {}\n")
+    let changes = Gen.scope(dirty, scope, "compat-none", template: "empty", legacyRuntime: false)
+
+    Asserts.notGenerated(
+      changes,
+      stale,
+      "a scope with no module client has nothing to restore on the core client",
+    )
+    Asserts.assert(
+      Asserts.contains(changes.removedPaths, stale),
+      "regeneration should remove a compat shim the scope no longer renders, got removed [" +
+        changes.removedPaths.join(", ") + "]",
+    )
+
+    null
+  }
+
+  """
+  The restored `dag.<dep>()` should type-check, through the module's own
+  tsconfig.
+
+  The runtime half is covered by `runtimes:dag-dependency-runs`, which loads a
+  module that really calls one. This is the other half, and the one the issue
+  is about: the call used to be invisible to every tool a user runs — `generate`
+  and `check` passed, and the module failed only when dispatched. With the shim
+  the type is declared, so a plain `tsc --noEmit` accepts the call.
+
+  Run through the module's own tsconfig, unnarrowed, because that is what makes
+  the declaration merge apply at all: an augmentation only takes effect when the
+  augmenting file is in the program, and the generated tsconfig carries no
+  `include`, so a user's `tsc` compiles the whole module — sdk/compat.gen.ts
+  with it. Narrowing `include` to the probe is what a first draft of this check
+  did, and it failed exactly as a user would if the shim were never imported.
+
+  Both directions, because the compile passing says nothing on its own: the same
+  source is rejected once the shim is taken away. tsc prints nothing for
+  @deprecated — an editor shows the strike-through — so a clean compile is the
+  whole assertion.
+  """
+  generateCompatShimTypeChecksCheck(ws: Workspace!): Void @check {
+    let path = fixtures.depAppModule
+    let staged = Gen.withDependency(ws)
+    let tree = staged.withChanges(Gen.module(staged, path, "generate-deps-app")).directory("/" + path)
+
+    Asserts.stringContains(
+      tree.file("tsconfig.json").contents,
+      "\"@dagger.io/gendep\"",
+      "the module's tsconfig should alias the dependency's client, which the probe resolves through",
+    )
+
+    Asserts.assert(
+      compatProbe(tree) == "compiled",
+      "a pre-1.0 dag.gendep() call should type-check against the generated tree",
+    )
+    Asserts.assert(
+      compatProbe(tree.withoutFile("sdk/compat.gen.ts")) == "rejected",
+      "without the shim the same call should not type-check — otherwise this check proves nothing",
+    )
+
+    null
+  }
+
+  """
+  Type-check a pre-1.0 `dag.gendep()` call against a generated module tree:
+  "compiled" or "rejected".
+  """
+  let compatProbe(tree: Directory!): String! {
+    let probe = "import { dag } from \"@dagger.io/dagger\"\n" +
+      "export async function viaDag(): Promise<string> {\n" +
+      "  return await dag.gendep().value()\n" +
+      "}\n"
+
+    {
+      let out = container
+        .from("node:22-alpine")
+        .withMountedCache("/root/.npm", cacheVolume("npm-cache"))
+        .withDirectory("/app", tree)
+        .withWorkdir("/app")
+        .withNewFile("/app/compat-probe.ts", probe)
+        # @types/node because the whole module is in the program, and the
+        # generated entrypoint reads `process` — a module's own dependency, not
+        # something the probe is testing.
+        .withExec(["npm", "install", "--no-audit", "--no-fund", "typescript@5.9.3", "@types/node@22.10.2"])
+        .withExec(["npx", "--no-install", "tsc", "--noEmit", "-p", "tsconfig.json"])
+        .stdout
+      "compiled"
+    } rescue {
+      err: Error => "rejected"
+    }
+  }
+
+  """
   A module generated on a Git workspace should come out the same as on a local
   checkout.
 

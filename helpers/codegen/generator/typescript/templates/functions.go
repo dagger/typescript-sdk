@@ -151,6 +151,12 @@ func (funcs typescriptTemplateFuncs) FuncMap() template.FuncMap {
 		"LoaderFiles":         funcs.loaderFiles,
 		"RootClientType":      funcs.rootClientType,
 		"IsExtendableType":    funcs.isExtendableType,
+		// Backward compatibility: the shim that puts each module's root fields
+		// back on the core `dag` for pre-1.0 source.
+		"CompatClients":  funcs.compatClients,
+		"CompatImports":  funcs.compatImports,
+		"CompatOptsName": funcs.compatOptsName,
+		"CompatFile":     funcs.compatFile,
 		// Serve-on-use: a module client serves its own module before its first
 		// query, so a client used outside the dispatcher still resolves. The
 		// address it serves from comes off BoundModule itself.
@@ -1056,6 +1062,21 @@ type LoaderEntry struct {
 	ClassName string
 }
 
+// clientFileSpec is where a generated file sitting beside the module clients —
+// the loader, the compat shim — imports one of them from.
+//
+// Packaged clients are reached by relative path, not by package name: both
+// readers must resolve every client at dispatch time, and a client package the
+// module has not installed (the default self client) has no node_modules entry
+// to resolve a bare specifier through. A flat client is reached through its own
+// @dagger.io/<module> specifier, resolved by the tsconfig/import-map alias.
+func (funcs typescriptTemplateFuncs) clientFileSpec(owner string) string {
+	if funcs.cfg.ModuleConfig != nil && funcs.cfg.ModuleConfig.PackagedClients {
+		return "./" + funcs.depFileName(owner) + "/" + funcs.depFileName(owner) + ".gen.js"
+	}
+	return funcs.siblingImportSpec(owner)
+}
+
 // loaderFiles enumerates, per generated client file, the object classes the
 // entrypoint loader can instantiate from an ID: every exportable object type
 // with fields, keyed by its schema type name. The map is explicit rather than
@@ -1103,20 +1124,190 @@ func (funcs typescriptTemplateFuncs) loaderFiles() []LoaderFile {
 		}
 		// "__core" is reserved for the library, so a module named "core"
 		// ("__modCore") cannot collide with it.
-		//
-		// Packaged clients are imported by relative path, not by package name:
-		// the loader must resolve every client at dispatch time, and a client
-		// package the module has not installed (the default self client) has no
-		// node_modules entry to resolve a bare specifier through.
-		from := funcs.siblingImportSpec(owner)
-		if funcs.cfg.ModuleConfig != nil && funcs.cfg.ModuleConfig.PackagedClients {
-			from = "./" + funcs.depFileName(owner) + "/" + funcs.depFileName(owner) + ".gen.js"
-		}
 		out = append(out, LoaderFile{
 			Alias:   "__mod" + strcase.ToCamel(funcs.depFileName(owner)),
-			From:    from,
+			From:    funcs.clientFileSpec(owner),
 			Entries: entries,
 		})
+	}
+	return out
+}
+
+// CompatClient is one module client the compat shim puts back on the core
+// `dag`, so pre-1.0 source written as `dag.<module>()` keeps resolving.
+type CompatClient struct {
+	// Module is the module's name as the schema records it.
+	Module string
+	// Package is the specifier a 1.0 caller imports instead, named in the
+	// deprecation note. Always the bare @dagger.io/<module> name the user would
+	// write — not From, which is how the shim itself reaches the file.
+	Package string
+	// From is where the shim imports this client's dag from.
+	From string
+	// DagAlias is the local name that dag is bound to, one per module.
+	DagAlias string
+	// Fields are the client's root fields that get a core `dag` method: every
+	// one it contributes to Query, minus the skips (see compatClients).
+	Fields []*introspection.Field
+}
+
+// compatClients enumerates the module clients the compat shim re-attaches to
+// the core Client, with the root fields each contributes.
+//
+// Two kinds of field are skipped, and both are reachable through the module's
+// own client either way:
+//
+//   - a name that is a TS keyword, matching what _client.ts.gtpl already does
+//     for its top-level functions — a keyword cannot be a member name here
+//     either;
+//   - a name a core Query field already has, because the shim would otherwise
+//     replace a core method on Client.prototype with a module's.
+//
+// A module left with no installable field is dropped entirely: there is nothing
+// to attach, so its dag is not imported either.
+func (funcs typescriptTemplateFuncs) compatClients() []CompatClient {
+	if funcs.fullSchema == nil {
+		return nil
+	}
+
+	coreFields := funcs.coreRootFieldNames()
+
+	var out []CompatClient
+	for _, module := range funcs.dependencyNames() {
+		root := funcs.rootClientType(funcs.fullSchema.Include(module).Types)
+		if root == nil {
+			continue
+		}
+		var fields []*introspection.Field
+		for _, field := range root.Fields {
+			if funcs.isKeyword(field.Name) {
+				continue
+			}
+			if _, core := coreFields[field.Name]; core {
+				continue
+			}
+			fields = append(fields, field)
+		}
+		if len(fields) == 0 {
+			continue
+		}
+		out = append(out, CompatClient{
+			Module:   module,
+			Package:  "@dagger.io/" + funcs.depFileName(module),
+			From:     funcs.clientFileSpec(module),
+			DagAlias: "__dag" + strcase.ToCamel(funcs.depFileName(module)),
+			Fields:   fields,
+		})
+	}
+	return out
+}
+
+// coreRootFieldNames returns the root fields core declares itself — the ones
+// already on the core Client, which a module's field may not shadow.
+func (funcs typescriptTemplateFuncs) coreRootFieldNames() map[string]struct{} {
+	names := map[string]struct{}{}
+	for _, t := range funcs.fullSchema.Types {
+		if !funcs.isExtendableType(t) {
+			continue
+		}
+		for _, field := range t.Fields {
+			if sm := field.Directives.SourceMap(); sm != nil && sm.Module != "" {
+				continue
+			}
+			names[field.Name] = struct{}{}
+		}
+	}
+	return names
+}
+
+// compatFile is the compat shim's filename as its one importer, the loader,
+// spells it: the two are generated into the same directory in both layouts.
+func (funcs typescriptTemplateFuncs) compatFile() string {
+	return "compat.gen.js"
+}
+
+// compatOptsName is the options type a root field's optional arguments render
+// as, declared beside the field's own Client in the module's client file.
+func (funcs typescriptTemplateFuncs) compatOptsName(field *introspection.Field) string {
+	return generator.QueryStructClientName + funcs.pascalCase(field.Name) + "Opts"
+}
+
+// compatImports plans the compat shim's type imports: everything the re-attached
+// signatures name, resolved to the file that declares it.
+//
+// All type-only. The shim's own statements construct nothing — it declares the
+// signatures and installs delegating methods — so every name here appears in a
+// type position, and a type-only import cannot add a runtime edge to a client
+// the shim is already importing a value from.
+func (funcs typescriptTemplateFuncs) compatImports() []ClientImport {
+	clients := funcs.compatClients()
+	if len(clients) == 0 {
+		return nil
+	}
+
+	coreSpec := funcs.coreImportSpec()
+	groups := map[string]map[string]struct{}{}
+	add := func(spec, name string) {
+		if groups[spec] == nil {
+			groups[spec] = map[string]struct{}{}
+		}
+		groups[spec][name] = struct{}{}
+	}
+
+	for _, client := range clients {
+		// A field's optional arguments are named by its Client<Field>Opts type
+		// rather than one by one, so that is what the signature references —
+		// and only the field's own client file declares it, a synthesized type
+		// no schema walk reaches. Its members' types are that file's import
+		// problem, which is why the walk below sees required arguments only.
+		signatures := make([]*introspection.Field, 0, len(client.Fields))
+		for _, field := range client.Fields {
+			if len(funcs.getOptionalArgs(field.Args)) > 0 {
+				add(client.From, funcs.compatOptsName(field))
+			}
+			trimmed := *field
+			trimmed.Args = funcs.getRequiredArgs(field.Args)
+			signatures = append(signatures, &trimmed)
+		}
+
+		// Wrapping them in a throwaway type reuses the same walk the client
+		// files plan their imports with, so the shim cannot disagree with them
+		// about what a signature references.
+		holder := []*introspection.Type{{Kind: introspection.TypeKindObject, Fields: signatures}}
+		referenced := funcs.collectReferencedNames(holder)
+		funcs.addLegacyIDRefs(holder, referenced)
+		for name := range referenced {
+			if introspection.Scalar(name) == introspection.ScalarFloat {
+				add(coreSpec, "float")
+				continue
+			}
+			t := funcs.fullSchema.Types.Get(name)
+			if t == nil || !funcs.isExportableType(t) {
+				continue
+			}
+			owner := typeOwner(t)
+			if owner == "" {
+				add(coreSpec, funcs.exportedTypeName(t))
+				continue
+			}
+			add(funcs.clientFileSpec(owner), funcs.exportedTypeName(t))
+		}
+	}
+
+	specs := make([]string, 0, len(groups))
+	for spec := range groups {
+		specs = append(specs, spec)
+	}
+	sort.Slice(specs, func(i, j int) bool {
+		if (specs[i] == coreSpec) != (specs[j] == coreSpec) {
+			return specs[i] == coreSpec
+		}
+		return specs[i] < specs[j]
+	})
+
+	out := make([]ClientImport, 0, len(specs))
+	for _, spec := range specs {
+		out = append(out, ClientImport{From: spec, Types: sortedNames(groups[spec])})
 	}
 	return out
 }
