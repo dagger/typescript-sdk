@@ -26,27 +26,43 @@ committed `bundle/`, and the Go generator all move together or not at all.
 
 ## The target release has moved ahead of the tag
 
-`typescript-sdk.dang`'s `targetEngineVersion` is `1.0.0-beta.15`, and the tag
+`typescript-sdk.dang`'s `targetEngineVersion` is `1.0.0-beta.16`, and the tag
 above is still beta.11. That is a deliberate separation of two facts the rule
 above had treated as one: where the sources were copied *from*, and which engine
 release the bundle is paired *with*.
 
-The pairing moved because a module now generates an `[entrypoint]` by default
-and beta.15 is the first release that reads one (dagger/dagger#14038). The
-sources did not, because nothing required them to:
+The pairing first moved to beta.15, because a module now generates an
+`[entrypoint]` by default and beta.15 is the first release that reads one
+(dagger/dagger#14038). It then moved on to beta.16 with the engine the nested
+check suite runs in — `engine-e2e`'s `engine-dev` pin — which went to the
+oldest release carrying `dagger check --parallel` (dagger/dagger#14459), the
+only way to stop ~70 nested checks starting at once. Those two are not free to
+move apart: `packager:library-bindings/stale` regenerates
+`src/core/client.gen.ts` from the *running* engine's core schema, so the pinned
+engine is what decides whether the committed bindings are current.
+
+The sources did not move either time, because nothing required them to:
 
 - `src/core/client.gen.ts` is regenerated here, not vendored, and
-  `packager:library-bindings/stale` is green inside a beta.15 engine — so the
-  bindings half of the pairing is already beta.15's.
+  `packager:library-bindings/stale` is green inside a beta.16 engine — so the
+  bindings half of the pairing is already beta.16's.
 - `runtimes:{node,bun,deno}-runs-check` load and run modules built from the
   committed `bundle/` in that same engine.
 
-So this is vendoring lag, not a broken pairing: upstream's beta.12–beta.15
+So this is vendoring lag, not a broken pairing: upstream's beta.12–beta.16
 changes to the runtime sources (introspector, decorators, registry,
 `compute_query`, `provisioning/default.ts`'s `CLI_VERSION`) are improvements
 this repo has not taken, and several of those files carry local work that a
 re-vendor has to merge against rather than overwrite. Taking them is its own
 change, and it is what moves the tag.
+
+The beta.15 → beta.16 step added almost nothing to that lag. Upstream's
+`sdk/typescript` changed four files between the two tags, and three of them are
+outside what is vendored: `runtime/dagger.json` became
+`runtime/dagger-module.toml` (the Go runtime module stays upstream),
+`src/api/client.gen.ts` is regenerated here rather than copied, and
+`src/api/test/api.spec.ts` is test tooling. The fourth is the one generated line
+in `src/provisioning/default.ts` that records `CLI_VERSION`.
 
 ## What was left behind
 
