@@ -100451,10 +100451,12 @@ class Container extends BaseClient {
 class CurrentModule extends BaseClient {
   _id = undefined;
   _name = undefined;
-  constructor(ctx, _id, _name) {
+  _sourceSubpath = undefined;
+  constructor(ctx, _id, _name, _sourceSubpath) {
     super(ctx);
     this._id = _id;
     this._name = _name;
+    this._sourceSubpath = _sourceSubpath;
   }
   id = async () => {
     if (this._id) {
@@ -100463,6 +100465,10 @@ class CurrentModule extends BaseClient {
     const ctx = this._ctx.select("id");
     const response = await ctx.execute();
     return response;
+  };
+  contextDirectory = () => {
+    const ctx = this._ctx.select("contextDirectory");
+    return new Directory(ctx);
   };
   dependencies = async () => {
     const ctx = this._ctx.select("dependencies").select("id");
@@ -100484,6 +100490,14 @@ class CurrentModule extends BaseClient {
   source = () => {
     const ctx = this._ctx.select("source");
     return new Directory(ctx);
+  };
+  sourceSubpath = async () => {
+    if (this._sourceSubpath) {
+      return this._sourceSubpath;
+    }
+    const ctx = this._ctx.select("sourceSubpath");
+    const response = await ctx.execute();
+    return response;
   };
   workdir = (path8, opts) => {
     const ctx = this._ctx.select("workdir", { path: path8, ...opts });
