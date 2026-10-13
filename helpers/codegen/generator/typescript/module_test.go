@@ -32,13 +32,13 @@ func moduleSchema(t *testing.T) *introspection.Schema {
 			{
 				Kind:       introspection.TypeKindObject,
 				Name:       "App",
-				Directives: introspection.Directives{newSourceMapFileDirective("app", "src/index.ts", 12)},
+				Directives: introspection.Directives{newSourceMapFileDirective("app", "ci/app/src/index.ts", 12)},
 				Fields:     []*introspection.Field{strField("name")},
 			},
 			{
 				Kind:       introspection.TypeKindObject,
 				Name:       "Gendep",
-				Directives: introspection.Directives{newSourceMapDirective("gendep")},
+				Directives: introspection.Directives{newSourceMapFileDirective("gendep", "ci/dep/src/index.ts", 6)},
 				Fields:     []*introspection.Field{strField("value")},
 			},
 		},
@@ -94,19 +94,42 @@ func TestGenerateModule_Layout(t *testing.T) {
 	require.Contains(t, loader, `"App": __modApp.App,`)
 }
 
-// TestGenerateModule_SourceMapPathIsRelativeToSDKDir pins the source-map
-// breadcrumb rendered next to generated declarations. The link is recorded
-// relative to the module root, while the file quoting it lives one level down
-// in sdk/, so it needs one hop up to stay clickable.
-func TestGenerateModule_SourceMapPathIsRelativeToSDKDir(t *testing.T) {
-	gen := &TypeScriptGenerator{Config: generator.Config{
-		ModuleConfig: &generator.ModuleGeneratorConfig{ModuleName: "app"},
+// TestGenerateModule_SourceMapPathEscapesToWorkspaceRoot pins the source-map
+// breadcrumb rendered next to generated declarations. The engine records a
+// declaration's filename relative to the workspace root — for a dependency as
+// much as for the module being generated for — so the link has to climb out of
+// the directory the client was written into to resolve.
+func TestGenerateModule_SourceMapPathEscapesToWorkspaceRoot(t *testing.T) {
+	// The packaged layout: ci/app/clients/<module>/<module>.gen.ts, four hops
+	// below the root the filenames are recorded against.
+	packaged := &TypeScriptGenerator{Config: generator.Config{
+		ModuleConfig: &generator.ModuleGeneratorConfig{
+			ModuleName:      "app",
+			ClientsDir:      "ci/app/clients",
+			PackagedClients: true,
+		},
 	}}
 
-	state, err := gen.GenerateModule(context.Background(), moduleSchema(t), "v0.21.0")
+	state, err := packaged.GenerateModule(context.Background(), moduleSchema(t), "v0.21.0")
 	require.NoError(t, err)
 
-	require.Contains(t, readOverlay(t, state, "clients/app.gen.ts"), "// app (../src/index.ts:12:0)")
+	require.Contains(t, readOverlay(t, state, "clients/app/app.gen.ts"), "// app (../../../../ci/app/src/index.ts:12:0)")
+	require.Contains(t, readOverlay(t, state, "clients/gendep/gendep.gen.ts"), "// gendep (../../../../ci/dep/src/index.ts:6:0)")
+
+	// The embedded layout writes the clients flat into the module's sdk/, one
+	// level less deep.
+	flat := &TypeScriptGenerator{Config: generator.Config{
+		ModuleConfig: &generator.ModuleGeneratorConfig{
+			ModuleName:  "app",
+			ClientsDir:  "ci/app/sdk",
+			FlatClients: true,
+		},
+	}}
+
+	state, err = flat.GenerateModule(context.Background(), moduleSchema(t), "v0.21.0")
+	require.NoError(t, err)
+
+	require.Contains(t, readOverlay(t, state, "gendep.gen.ts"), "// gendep (../../../ci/dep/src/index.ts:6:0)")
 }
 
 // TestGenerateLibrary_ImportsRuntimeFromSource covers the third import arm: the

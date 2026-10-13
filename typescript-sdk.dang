@@ -322,7 +322,7 @@ type TypescriptSdk {
       let complete = moduleFiles(
         served,
         source,
-        withSelfBindings(staged, scope, name, firstPass, withSelf, selfTargets, rt, existingModuleConfig(served, source)),
+        withSelfBindings(staged, scope, source, name, firstPass, withSelf, selfTargets, rt, existingModuleConfig(served, source)),
         # An embedded module's second pass runs whenever the staged module
         # loads, so an empty self set there means it did not — and a run that
         # could not read the module's client set has no business pruning
@@ -1081,7 +1081,7 @@ type TypescriptSdk {
 
   Engine-free: the schemas arrive as data, so this is a plain container exec.
   """
-  let generateModuleBindings(schemaJSON: String!, moduleName: String!, targets: [ClientTarget!]!, repoURL: String!): Directory! {
+  let generateModuleBindings(schemaJSON: String!, moduleName: String!, targets: [ClientTarget!]!, repoURL: String!, sourcePath: String!): Directory! {
     let base = codegenBuilder.withNewFile("/schema.json", schemaJSON)
     let withTargets = if (targets.length == 0) { base } else { stageTargets(base, targets) }
 
@@ -1094,6 +1094,10 @@ type TypescriptSdk {
     # loader imports it relatively; the embedded [runtime] layout keeps the flat
     # clients/<m>.gen.ts files its tsconfig aliases point at.
     let layoutArgs = if (legacyRuntime == false) { ["--packaged-clients"] } else { ["--flat-clients"] }
+    # Where those files end up in the workspace, which is what the source-map
+    # breadcrumbs in them are rebased against: the engine records a declaration's
+    # filename relative to the workspace root.
+    let clientsDir = if (legacyRuntime == false) { moduleClientsPath(sourcePath) } else { moduleSdkPath(sourcePath) }
 
     withTargets
       .withExec([
@@ -1102,6 +1106,7 @@ type TypescriptSdk {
         "--module-name", moduleName,
         "--output", "/out",
         "--workspace-repo-url", repoURL,
+        "--clients-dir", clientsDir,
       ] + clientMetaArgs + layoutArgs)
       .directory("/out")
   }
@@ -1444,7 +1449,7 @@ type TypescriptSdk {
     targets: [ClientTarget!]!,
     repoURL: String!,
   ): Directory! {
-    let bindings = generateModuleBindings(schemaJSON, moduleName, targets, repoURL)
+    let bindings = generateModuleBindings(schemaJSON, moduleName, targets, repoURL, sourcePath)
     # The embedded layout's sdk/ carries the client files and the loader flat
     # beside client.gen.ts: sdk/ is the one directory the builtin runtime mounts
     # into node_modules, and it cannot be told to mount anything else.
@@ -1946,7 +1951,7 @@ type TypescriptSdk {
   client file in the changeset on every run that touches the module's source,
   long after the files themselves stopped changing.
   """
-  let withSelfBindings(staged: Workspace!, scope: String!, name: String!, generated: Directory!, targets: [ClientTarget!]!, selfTargets: [ClientTarget!]!, rt: Runtime!, existing: Directory!): Directory! {
+  let withSelfBindings(staged: Workspace!, scope: String!, sourcePath: String!, name: String!, generated: Directory!, targets: [ClientTarget!]!, selfTargets: [ClientTarget!]!, rt: Runtime!, existing: Directory!): Directory! {
     if (selfTargets.length == 0) {
       # No self client recorded, so the first pass's clients are the whole set.
       generated
@@ -1956,6 +1961,7 @@ type TypescriptSdk {
         name,
         targets,
         workspaceRepoURL(staged, scope),
+        sourcePath,
       )
       let clientNames = bindingAliasModules(bindings)
       let aliasModules = clientNames.filter { m => m != name } + [name]
@@ -2124,7 +2130,7 @@ type TypescriptSdk {
   loader. Each target contributes its client-facing schema (core plus that one
   module); codegen merges them so the core API is emitted once.
   """
-  let generateClientBindings(targets: [ClientTarget!]!, repoURL: String!): Directory! {
+  let generateClientBindings(targets: [ClientTarget!]!, repoURL: String!, clientsDir: String!): Directory! {
     stageTargets(codegenBuilder, targets)
       .withExec([
         "codegen", "client",
@@ -2132,6 +2138,7 @@ type TypescriptSdk {
         "--packaged-clients",
         "--output", "/out",
         "--workspace-repo-url", repoURL,
+        "--clients-dir", clientsDir,
       ])
       .directory("/out")
   }
@@ -2224,7 +2231,7 @@ type TypescriptSdk {
       let cleared = prunedOwnedFiles(ws, dir, directory)
       withScopeClientLinks(withoutLegacyScopeClients(prunedClientPackages(cleared, base, []), base), base, rt, [])
     } else {
-      let generated = clientDirectory(generateClientBindings(targets, scopeRepoURL(ws, base, targets)))
+      let generated = clientDirectory(generateClientBindings(targets, scopeRepoURL(ws, base, targets), dir))
       let modules = packagedClientNames(generated)
       # What earlier layouts left behind moves under clients/ with the
       # regeneration: packages directly in the scope (the marker scan) and the

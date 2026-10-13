@@ -294,6 +294,7 @@ func runModule(args []string) error {
 		packaged          = fs.Bool("packaged-clients", false, "nest each client in its own clients/<module>/<module>.gen.ts package directory; the loader imports them relatively")
 		flat              = fs.Bool("flat-clients", false, "write the client files and the loader beside client.gen.ts in the output root, for the embedded [runtime] layout that ships them inside sdk/")
 		repoURL           = fs.String("workspace-repo-url", "", "Git repository the workspace was loaded from; source-map URLs into it are dropped for the module-relative filename")
+		clientsDir        = fs.String("clients-dir", "", "workspace-relative directory the generated client files land in; source-map filenames are rebased against it")
 	)
 	if err := fs.Parse(args); err != nil {
 		return err
@@ -340,6 +341,7 @@ func runModule(args []string) error {
 			EmitLoader:      true,
 			PackagedClients: *packaged,
 			FlatClients:     *flat,
+			ClientsDir:      *clientsDir,
 		},
 	}}
 
@@ -419,6 +421,7 @@ func runClient(args []string) error {
 		outputDir      = fs.String("output", ".", "output directory for the generated client")
 		packaged       = fs.Bool("packaged-clients", false, "nest each client in its own <module>/<module>.gen.ts package directory")
 		repoURL        = fs.String("workspace-repo-url", "", "Git repository the workspace was loaded from; source-map URLs into it are dropped for the module-relative filename")
+		clientsDir     = fs.String("clients-dir", "", "workspace-relative directory the generated client files land in; source-map filenames are rebased against it")
 	)
 	if err := fs.Parse(args); err != nil {
 		return err
@@ -466,6 +469,7 @@ func runClient(args []string) error {
 			FlatClients:     true,
 			EmitLoader:      false,
 			PackagedClients: *packaged,
+			ClientsDir:      *clientsDir,
 		},
 	}}
 

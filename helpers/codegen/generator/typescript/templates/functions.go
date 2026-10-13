@@ -645,20 +645,39 @@ func (funcs typescriptTemplateFuncs) toSingleType(value string) string {
 	return value[:len(value)-2]
 }
 
-// moduleRelPath rewrites a source-map filelink — which is relative to its
-// module's root — to be relative to the generated file that mentions it, so the
-// trailing `// <module> (<file>)` comment stays clickable. Module bindings live
-// one level down in sdk/; a standalone client's live at its own root.
+// moduleRelPath rewrites a source-map filelink to be relative to the generated
+// file that mentions it, so the trailing `// <module> (<file>)` comment stays
+// clickable.
+//
+// The engine stamps a filename relative to the workspace root — the context the
+// module was loaded from — for every module in the workspace, its dependencies
+// and the one being generated for alike. So the breadcrumb has to climb back out
+// to that root: once per segment of the directory the clients are written into,
+// plus one more for the per-client package directory the packaged layout nests
+// each of them in. A single hop, which is what this did before, only ever
+// resolved for a module sitting at the workspace root.
 func (funcs typescriptTemplateFuncs) moduleRelPath(path string) string {
 	if strings.HasPrefix(path, "http://") || strings.HasPrefix(path, "https://") {
 		return path
 	}
 
-	if funcs.cfg.ModuleConfig == nil {
+	cfg := funcs.cfg.ModuleConfig
+	if cfg == nil {
 		return path
 	}
 
-	return filepath.Join("..", path)
+	hops := 0
+	if dir := filepath.Clean(cfg.ClientsDir); dir != "." && dir != "/" {
+		hops = strings.Count(strings.Trim(dir, "/"), "/") + 1
+	}
+	if cfg.PackagedClients {
+		hops++
+	}
+	if hops == 0 {
+		return path
+	}
+
+	return filepath.Join(strings.Repeat("../", hops), path)
 }
 
 func (funcs typescriptTemplateFuncs) formatProtected(s string) string {
