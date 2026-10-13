@@ -227,6 +227,23 @@ ${jsonResult}
       }
     })
 
+    it("Should throw an error if two files declare the same object", async function () {
+      this.timeout(60000)
+
+      try {
+        const files = await listFiles(`${rootDirectory}/duplicateObjects`)
+
+        await scan(files, "duplicateObjects")
+        assert.fail("Should throw an error")
+      } catch (e: any) {
+        assert.match(e.message, /class DuplicateObjects is declared twice/)
+        // Both declarations: the one the scan reached first is not the one the
+        // author is more likely to be missing.
+        assert.match(e.message, /index\.ts:\d+:\d+/)
+        assert.match(e.message, /other\.ts:\d+:\d+/)
+      }
+    })
+
     it("Should throw an error if a primitive type is used", async function () {
       this.timeout(60000)
 

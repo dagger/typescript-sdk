@@ -344,12 +344,56 @@ export class DaggerModule {
   }
 
   /**
+   * A decorated class name must be unique across the module's files.
+   *
+   * Every declaration is keyed by its name from here to the engine, so a second
+   * class with the same name does not collide: it replaces the first. Nothing
+   * fails, the module generates, and the functions of the class that lost are
+   * simply missing at call time — reported as an unknown command, pointing
+   * nowhere near the two declarations.
+   *
+   * Checked before the main class lookup below, which returns the first match
+   * and would hide the second declaration from this loop entirely.
+   */
+  private validateUniqueClassNames(
+    declarations: ResolvedNodeWithSymbol<ts.SyntaxKind.ClassDeclaration>[],
+  ): void {
+    const seen = new Map<string, ts.ClassDeclaration>()
+
+    for (const { node } of declarations) {
+      if (
+        !this.ast.isNodeDecoratedWith(node, OBJECT_DECORATOR) &&
+        !this.ast.isNodeDecoratedWith(node, COLLECTION_DECORATOR) &&
+        !this.ast.isNodeDecoratedWith(node, ENUM_DECORATOR)
+      ) {
+        continue
+      }
+
+      const name = node.name?.getText()
+      if (!name) {
+        continue
+      }
+
+      const previous = seen.get(name)
+      if (previous) {
+        throw new IntrospectionError(
+          `class ${name} is declared twice, at ${AST.getNodePosition(previous)} and at ${AST.getNodePosition(node)}: dagger declarations are keyed by name, so one would silently replace the other. Rename one of them.`,
+        )
+      }
+
+      seen.set(name, node)
+    }
+  }
+
+  /**
    * Find the classes in the AST. Returns only our main class if it exists
    */
   private findClasses(): ResolvedNodeWithSymbol<ts.SyntaxKind.ClassDeclaration>[] {
     const allClassDeclarations = this.ast.findAllDeclarations(
       ts.SyntaxKind.ClassDeclaration,
     )
+
+    this.validateUniqueClassNames(allClassDeclarations)
 
     const allClasses: ResolvedNodeWithSymbol<ts.SyntaxKind.ClassDeclaration>[] =
       []
