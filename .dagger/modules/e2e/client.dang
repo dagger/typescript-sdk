@@ -404,6 +404,62 @@ type ClientChecks {
   }
 
   """
+  Dropping an embedded module's client should take the `[[dependencies]]` entry
+  that serves it, and everything generated from that entry with it.
+
+  A client inside a `[runtime]` module is callable because it is recorded as a
+  manifest dependency — the manifest is what a module's session serves. Left
+  behind, it keeps the target in the module's schema, so the bindings, the
+  tsconfig alias and the compat shim's `dag.<target>()` all regenerate from it
+  and the call goes on working with nothing in the workspace config to say it
+  should (issue #92). The entry is identified as a departed client rather than
+  assumed: a hand-written dependency survives the same generation, which
+  `generate:generate-dependency-bindings` asserts.
+
+  Two generations of the same scope, which is what `dagger module client rm`
+  does: record a client, then regenerate with the complete desired set no longer
+  holding it.
+  """
+  removeModuleClientPrunesDependencyCheck(ws: Workspace!): Void @check {
+    let scope = fixtures.depLibModule
+    let added = ws.withChanges(
+      Gen.scope(ws, scope, "gendep", clients: [ws.moduleSource("/" + fixtures.clientModule)]),
+    )
+
+    Asserts.stringContains(
+      added.file("/" + scope + "/dagger-module.toml").contents,
+      "name = \"client-app\"",
+      "recording a client should make it a manifest dependency, or this check proves nothing",
+    )
+
+    let removed = Gen.scope(added, scope, "gendep")
+    let tree = added.withChanges(removed).directory("/" + scope)
+    let got = "removed [" + removed.removedPaths.join(", ") + "]"
+
+    Asserts.stringNotContains(
+      tree.file("dagger-module.toml").contents,
+      "client-app",
+      "dropping a client should take the dependency that serves it",
+    )
+    Asserts.assert(
+      Asserts.contains(removed.removedPaths, scope + "/sdk/client-app.gen.ts"),
+      "dropping a client should take its bindings: " + got,
+    )
+    Asserts.stringNotContains(
+      tree.file("tsconfig.json").contents,
+      "@dagger.io/client-app",
+      "dropping a client should take the alias its source resolved through",
+    )
+    Asserts.stringNotContains(
+      tree.file("sdk/compat.gen.ts").contents,
+      "client-app",
+      "dropping a client should take the dag.<target>() the compat shim restores",
+    )
+
+    null
+  }
+
+  """
   A client scope vendors the whole @dagger.io/dagger library as a package, so
   it resolves offline with no remote dependency — the point of vendoring it.
   """
