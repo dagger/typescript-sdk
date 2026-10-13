@@ -1,0 +1,5 @@
+name = "runtime-secondary"
+engineVersion = "v1.0.0-beta.16"
+
+[runtime]
+  source = "typescript"

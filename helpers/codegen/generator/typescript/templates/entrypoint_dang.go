@@ -248,8 +248,12 @@ func (c *dangFuncCtx) dangObjectEntry(obj *TypedefObject) string {
 	// The engine identifies an entrypoint module's main object by its
 	// constructor typedef alone — no name fallback, and none of the default
 	// synthesis runtime modules get. The main object therefore always carries
-	// one, defaulted to no-arg, or the module never surfaces in the workspace.
-	if obj.Constructor != nil || c.isMainObject(obj) {
+	// one, defaulted to no-arg, or the module never surfaces in the workspace;
+	// and no other object may, or the engine rejects the whole module with
+	// "multiple object constructors are not supported". A secondary class's own
+	// TypeScript constructor is still called — by the module's own code, which
+	// the dispatcher's `case ""` covers whatever the typedef says.
+	if c.isMainObject(obj) {
 		calls = append(calls, c.dangWrappedCall("withConstructor", c.dangConstructorExpr(obj)))
 	}
 	return dangChain("typeDef", calls, dangTypeIndent)

@@ -88,6 +88,47 @@ type Runtimes {
   }
 
   """
+  A secondary @object with a TypeScript constructor of its own should not stop
+  an entrypoint module from loading, and should still round-trip.
+
+  The engine identifies an entrypoint module's main object by its constructor
+  typedef, so a second one anywhere in types() makes it reject the whole module
+  with "multiple object constructors are not supported" — a normal shape (a
+  value object the main object constructs) that no generated-file check can
+  catch, because the file is written correctly as far as the SDK's own schema
+  goes. Reading the module's objects is what trips it.
+
+  The fixture's check hangs off RuntimeSecondary.note, so passing it also
+  requires the constructor the typedef no longer declares: the engine calls
+  note(), the dispatcher constructs RuntimeNote and serializes it, and the
+  check reads the field back off the value the engine handed down.
+  """
+  secondaryConstructorRunsCheck(ws: Workspace!): Void @check {
+    let path = fixtures + "/secondary"
+    let staged = typescriptSdk(legacyRuntime: false, skipGenerateFilename: "")
+      .generateScope(ws.withWorkdir(path), isModule: true, name: "runtime-secondary", clients: [])
+      .withWorkdir(".")
+
+    assertLoads(staged, path, "RuntimeSecondary", "the module with a secondary constructor")
+
+    let checks = staged.withModule(path, name: "runtime-secondary")
+      .artifacts(include: ["runtime-secondary:note/reads-back"]).asChecks
+      .{{ pass }}
+
+    if (checks.length != 1) {
+      raise "expected the one check behind RuntimeSecondary.note, got " + toString(checks.length)
+    }
+    # On `pass` rather than on `error.message`: reading the message of a check
+    # that passed raises an evaluation error of its own. What it threw is in the
+    # trace beside this failure either way.
+    if (checks.filter { c => c.pass }.length != 1) {
+      raise "the secondary object did not survive the round trip"
+    }
+
+    null
+  }
+
+  """
   Generate a fixture, stage the result, and load the module from it.
 
   Generating into a Workspace rather than writing to disk keeps the generated
