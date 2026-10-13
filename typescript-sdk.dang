@@ -1547,8 +1547,15 @@ type TypescriptSdk {
       # package directory (the trailing slash selects that form).
       let denoCore = if (legacyRuntime == false) { "./clients/dagger" } else { "" }
       let denoClientsDir = if (legacyRuntime == false) { "clients/" } else { "sdk" }
+      # Under an entrypoint the aliases are what was rendered, nothing more: the
+      # self client exists only when it was asked for, and an import map entry
+      # for a file that is not there is one a user's own import resolves to and
+      # fails on. The embedded layout keeps the speculative self entry — its
+      # sdk/<module>.gen.ts is generated either way, which is what makes a
+      # module that imports its own client loadable in the first pass.
+      let denoAliases = if (legacyRuntime == false) { clientNames } else { aliasModules }
       configUpdater
-        .withExec(["config-updater", "deno-config", "/existing/deno.json", "/out/deno.json", denoCore, denoClientsDir] + aliasModules)
+        .withExec(["config-updater", "deno-config", "/existing/deno.json", "/out/deno.json", denoCore, denoClientsDir] + denoAliases)
         .directory("/out")
     } else if (legacyRuntime == false) {
       # package.json is the link: node/bun resolve every @dagger.io/* package

@@ -507,6 +507,40 @@ type GenerateChecks {
   }
 
   """
+  A Deno entrypoint module's import map should alias the clients it has.
+
+  Deno resolves through the map rather than node_modules, so an alias is the only
+  thing standing between a user's `@dagger.io/<module>` import and a file. Under
+  an entrypoint the module's own client exists only when it was asked for, so
+  writing its alias unconditionally — which the embedded layout does on purpose,
+  where the file is always generated — leaves the map pointing at a path nothing
+  renders. Deno resolves lazily, so the module still loads and only the import
+  fails.
+  """
+  generateDenoEntrypointAliasesCheck(ws: Workspace!): Void @check {
+    let path = fixtures.denoModule
+    let name = "generate-deno-app"
+    let tree = Gen.scope(ws, path, name, legacyRuntime: false).after.directory(path)
+    let denoConfig = tree.file("deno.json").contents
+    let selfAlias = "\"@dagger.io/" + name + "\""
+
+    # The core package is always rendered, so its alias is always right.
+    Asserts.stringContains(
+      denoConfig,
+      "\"@dagger.io/dagger\": \"./clients/dagger/index.ts\"",
+      "a Deno entrypoint scope should resolve the core package through its import map",
+    )
+    Asserts.assert(
+      denoConfig.contains(selfAlias) == tree.exists("clients/" + name),
+      "the import map should alias the module's own client exactly when it is rendered: alias " +
+        (if (denoConfig.contains(selfAlias)) { "present" } else { "absent" }) +
+        ", clients/ holds [" + tree.directory("clients").entries.join(", ") + "]",
+    )
+
+    null
+  }
+
+  """
   Generating a module with a local dependency must resolve that dependency and
   emit its typed bindings alongside the module's own — otherwise the module's
   source cannot import it and the generated tree does not type-check.
