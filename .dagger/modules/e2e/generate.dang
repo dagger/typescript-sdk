@@ -985,6 +985,40 @@ type GenerateChecks {
   }
 
   """
+  Deleting a generated config file and regenerating should give it back byte for
+  byte.
+
+  Generated output is a function of its inputs, not of the file already on disk.
+  package.json broke that: the dependency keys came out in insertion order, so
+  the manifest `module init` seeds with the typescript pin got the core package
+  linked after it, while the same scope wired from nothing got the two the other
+  way round. Nothing about the scope changed between the two — only whether the
+  file was there — so a wipe-and-regenerate reported a diff on every module.
+  """
+  generateConfigIsReproducibleCheck(ws: Workspace!): Void @check {
+    let path = fixtures.out + "/reproducible-config"
+    let name = "reproducible-config"
+    let pkg = "/" + path + "/package.json"
+
+    # Seeded and settled: the first run lays down the starter and wires it, the
+    # second is the fixed point every later run lands on.
+    let seeded = ws.withChanges(Gen.scope(ws, path, name, template: "empty", legacyRuntime: false))
+    let settled = seeded.withChanges(Gen.scope(seeded, path, name, legacyRuntime: false))
+    let before = settled.file(pkg).contents
+
+    let wiped = settled.withoutFile(pkg)
+    let after = wiped.withChanges(Gen.scope(wiped, path, name, legacyRuntime: false)).file(pkg).contents
+
+    Asserts.assert(
+      after == before,
+      "regenerating a deleted package.json should reproduce it byte for byte, got:\n" +
+        after + "\nwant:\n" + before,
+    )
+
+    null
+  }
+
+  """
   Editing a module's source should write only the files that edit reaches.
 
   Generation re-renders every file whether or not the edit changed it, and most

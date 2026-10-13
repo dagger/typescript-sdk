@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
+	"github.com/tidwall/gjson"
 )
 
 func TestUpdatePackageJSON(t *testing.T) {
@@ -735,6 +736,47 @@ func TestUpdateSharedDeps(t *testing.T) {
 			require.JSONEq(t, tc.expected, res)
 		})
 	}
+}
+
+// TestUpdateSharedDeps_DependencyOrderIsIndependentOfInput pins the
+// determinism committed generated output needs: a manifest `module init` seeded
+// with the typescript pin and one wired from nothing have to come out the same
+// way round, or deleting a generated package.json and regenerating it produces
+// a diff.
+func TestUpdateSharedDeps_DependencyOrderIsIndependentOfInput(t *testing.T) {
+	seeded, err := updatePackageJSON(`{}`)
+	require.NoError(t, err)
+
+	wired, err := updateSharedDeps(seeded, "./clients/dagger", []string{"b=./clients/b"})
+	require.NoError(t, err)
+	scratch, err := updateSharedDeps(`{}`, "./clients/dagger", []string{"b=./clients/b"})
+	require.NoError(t, err)
+
+	require.Equal(t, scratch, wired)
+	require.Equal(t,
+		[]string{"@dagger.io/b", "@dagger.io/dagger", "typescript"},
+		dependencyKeys(wired),
+	)
+
+	// A dependency of the user's own is sorted in with the rest rather than kept
+	// wherever it happened to sit.
+	withUserDep, err := updateSharedDeps(`{"dependencies":{"lodash":"^4"}}`, "./clients/dagger", nil)
+	require.NoError(t, err)
+	require.Equal(t,
+		[]string{"@dagger.io/dagger", "lodash", "typescript"},
+		dependencyKeys(withUserDep),
+	)
+}
+
+// dependencyKeys reads the dependency names in the order the document holds
+// them, which is what require.JSONEq cannot see.
+func dependencyKeys(packageJSON string) []string {
+	var keys []string
+	gjson.Get(packageJSON, "dependencies").ForEach(func(key, _ gjson.Result) bool {
+		keys = append(keys, key.String())
+		return true
+	})
+	return keys
 }
 
 func TestUpdateSharedDeps_RejectsMalformedClientSpec(t *testing.T) {
