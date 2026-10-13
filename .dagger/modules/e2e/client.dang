@@ -453,6 +453,86 @@ type ClientChecks {
   }
 
   """
+  Dropping an embedded module's client should take the `[[dependencies]]` entry
+  that serves it, and everything generated from that entry with it.
+
+  A client inside a `[runtime]` module is callable because it is recorded as a
+  manifest dependency — the manifest is what a module's session serves. Left
+  behind, it keeps the target in the module's schema, so the bindings, the
+  tsconfig alias and the compat shim's `dag.<target>()` all regenerate from it
+  and the call goes on working with nothing in the workspace config to say it
+  should (issue #92). The entry is identified as a departed client rather than
+  assumed: a hand-written dependency survives the same generation, which
+  `generate:generate-dependency-bindings` asserts.
+
+  Two generations of the same scope, which is what `dagger module client rm`
+  does: record two clients, then regenerate with the complete desired set no
+  longer holding one of them. Two rather than one because the set that comes back
+  has to still have a member — an empty `clients` prunes nothing, for the reason
+  withClientDependencies gives, so dropping a module's only client is the case
+  this deliberately does not cover. The second half asserts that boundary, so
+  the limit is recorded rather than merely absent.
+  """
+  removeModuleClientPrunesDependencyCheck(ws: Workspace!): Void @check {
+    let scope = fixtures.depLibModule
+    let departing = ws.moduleSource("/" + fixtures.clientModule)
+    let staying = ws.moduleSource("/" + fixtures.generateModule)
+    let added = ws.withChanges(
+      Gen.scope(ws, scope, "gendep", clients: [departing, staying]),
+    )
+
+    ["client-app", "generate-app"].each { name =>
+      Asserts.stringContains(
+        added.file("/" + scope + "/dagger-module.toml").contents,
+        "name = \"" + name + "\"",
+        "recording a client should make it a manifest dependency, or this check proves nothing",
+      )
+    }
+
+    let removed = Gen.scope(added, scope, "gendep", clients: [staying])
+    let tree = added.withChanges(removed).directory("/" + scope)
+    let got = "removed [" + removed.removedPaths.join(", ") + "]"
+
+    Asserts.stringNotContains(
+      tree.file("dagger-module.toml").contents,
+      "client-app",
+      "dropping a client should take the dependency that serves it",
+    )
+    Asserts.assert(
+      Asserts.contains(removed.removedPaths, scope + "/sdk/client-app.gen.ts"),
+      "dropping a client should take its bindings: " + got,
+    )
+    Asserts.stringNotContains(
+      tree.file("tsconfig.json").contents,
+      "@dagger.io/client-app",
+      "dropping a client should take the alias its source resolved through",
+    )
+    Asserts.stringNotContains(
+      tree.file("sdk/compat.gen.ts").contents,
+      "client-app",
+      "dropping a client should take the dag.<target>() the compat shim restores",
+    )
+
+    # The client that stayed is untouched by its sibling's removal.
+    Asserts.stringContains(
+      tree.file("dagger-module.toml").contents,
+      "name = \"generate-app\"",
+      "pruning one client should leave the rest of the set alone",
+    )
+
+    # The boundary: handed no clients, the generation prunes nothing, because it
+    # cannot tell a removal from a run that was not asked about clients.
+    let none = Gen.scope(added, scope, "gendep")
+    Asserts.stringContains(
+      added.withChanges(none).directory("/" + scope).file("dagger-module.toml").contents,
+      "name = \"client-app\"",
+      "an empty client set should prune nothing, not everything",
+    )
+
+    null
+  }
+
+  """
   A client scope vendors the whole @dagger.io/dagger library as a package, so
   it resolves offline with no remote dependency — the point of vendoring it.
   """

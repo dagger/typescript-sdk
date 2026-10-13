@@ -842,11 +842,17 @@ Two consequences worth keeping in view:
 - It runs **before** the module's schema is read, not only when the manifest is
   created. The schema is what the bindings are generated from, and a target that
   is not a dependency yet is not in it.
-- Dependencies are upserted, never pruned. A manifest may carry entries written
-  by hand or migrated from a pre-1.0 `dagger.json`, indistinguishable from ours,
-  so removing what is missing from the client set would take those with it.
-  `client rm` therefore leaves the dependency behind, serving a module whose
-  bindings are gone. A marker in the manifest would let this prune safely.
+- Dependencies are upserted, and pruned only where a departed client can be told
+  from an entry written by hand or migrated from a pre-1.0 `dagger.json`.
+  "Missing from the client set" does not separate the two, and `client rm` used
+  to leave the dependency behind for that reason — serving the target, and
+  keeping it in the schema, so the bindings and the alias regenerated and the
+  call went on working with nothing in `dagger.toml` to say it should
+  ([#92](https://github.com/dagger/typescript-sdk/issues/92)). The marker this
+  wanted in the manifest turned out to be already on disk: codegen renders a
+  serve hook into a client it is handed as a target and never into one for a
+  manifest dependency, so a `sdk/<name>.gen.ts` carrying one is the last run's
+  record of a client (`departedClients`).
 
 ## 9. What was verified
 
