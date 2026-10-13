@@ -13,7 +13,27 @@
         "column": 14
       },
       "methods": {},
-      "properties": {}
+      "properties": {},
+      "constructor": {
+        "name": "",
+        "arguments": [
+          {
+            "name": "text",
+            "description": "",
+            "isNullable": false,
+            "isOptional": false,
+            "isVariadic": false,
+            "location": {
+              "filepath": "src/index.ts",
+              "line": 9,
+              "column": 15
+            },
+            "type": {
+              "kind": "STRING_KIND"
+            }
+          }
+        ]
+      }
     },
     "Test": {
       "name": "Test",

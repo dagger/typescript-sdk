@@ -41,11 +41,19 @@ func TestGenerateDangEntrypoint(t *testing.T) {
 	require.Equal(t, string(want), got)
 }
 
-// TestGenerateDangEntrypointDefaultConstructor covers a main class that
-// declares no constructor, like the empty template's. The engine identifies an
-// entrypoint module's main object by its constructor typedef alone — there is
+// TestGenerateDangEntrypointDefaultConstructor covers the two halves of the
+// constructor rule, from the fixture that holds both: a main class declaring no
+// constructor, like the empty template's, beside a secondary class that does.
+//
+// The main object gets one whether or not it declared it. The engine identifies
+// an entrypoint module's main object by its constructor typedef alone — there is
 // no name fallback and no engine-side default as for runtime modules — so
 // without one here the module loads cleanly and still shows nowhere.
+//
+// The secondary object gets none, however it was written: a second constructor
+// in types() makes the engine reject the whole module with "multiple object
+// constructors are not supported" (#89). Nothing is lost — a secondary class is
+// constructed by the module's own code, never by the engine.
 func TestGenerateDangEntrypointDefaultConstructor(t *testing.T) {
 	gen := &TypeScriptGenerator{Config: generator.Config{
 		DangEntrypointConfig: &generator.DangEntrypointGeneratorConfig{
@@ -66,6 +74,15 @@ func TestGenerateDangEntrypointDefaultConstructor(t *testing.T) {
 		`          function("", typeDef.withObject("Test")),`,
 		`        )`,
 	}, "\n"))
+
+	// The secondary class declares `constructor(text: string)`; its entry ends
+	// at withObject, so its argument never reaches types() either.
+	require.Contains(t, got, strings.Join([]string{
+		`      typeDef`,
+		`        .withObject("Helper", sourceMap: sourceMap("src/index.ts", 7, 14)),`,
+	}, "\n"))
+	require.NotContains(t, got, `typeDef.withObject("Helper"))`)
+
 	// Only the main object may carry one: the engine rejects a types() list
 	// holding two constructors.
 	require.Equal(t, 1, strings.Count(got, ".withConstructor("))
