@@ -184,6 +184,10 @@ type DangEntrypointGeneratorConfig struct {
 	// image ships.
 	PackageManagerVersion string
 
+	// BaseImage overrides the image the recipe builds on, as the module's
+	// `dagger.baseImage` records it. Empty keeps the pin for Runtime.
+	BaseImage string
+
 	// DispatchFile is the dispatcher call() execs, relative to the module
 	// directory. Defaults to "__dagger.dispatch.ts".
 	DispatchFile string

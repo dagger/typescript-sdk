@@ -304,4 +304,40 @@ type Runtimes {
 
     assertPlainInterfaceMessage(messages.join(""))
   }
+
+  """
+  A module whose config pins a base image should run on that image.
+
+  Under a `[runtime]` the engine reads `dagger.baseImage` and builds on it.
+  Under an entrypoint the recipe is ours, and a recipe that kept the SDK's own
+  pin ran the module on an image its config did not name, with nothing to say so
+  (#91) — a tool the user installed in their image is simply missing.
+
+  The fixture pins a node one major behind the SDK's default and checks the
+  interpreter it ends up running on, so this fails if the configured image is
+  dropped *and* if an unrelated image is picked up. Its own error names the
+  version it saw.
+  """
+  entrypointBaseImageCheck(ws: Workspace!): Void @check {
+    let path = fixtures + "/base-image"
+    let installed = typescriptSdk(legacyRuntime: false, skipGenerateFilename: "")
+      .generateScope(ws.withWorkdir(path), isModule: true, name: "runtime-base-image", clients: [])
+      .withWorkdir(".")
+      .withModule(path, name: "runtime-base-image")
+
+    # Only `pass` is selected: on a check that passed, reading `error.message`
+    # raises instead of answering null.
+    let passes = installed.artifacts(include: ["runtime-base-image:node-major-check"]).asChecks
+      .{{ pass }}
+      .map { c => c.pass }
+
+    if (passes.length != 1) {
+      raise "expected the fixture's one check, got " + toString(passes.length)
+    }
+    if (passes.filter { p => p }.length != 1) {
+      raise "the module ran on an image other than the one its package.json pins"
+    }
+
+    null
+  }
 }

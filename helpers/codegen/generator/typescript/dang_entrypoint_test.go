@@ -146,6 +146,32 @@ func TestGenerateDangEntrypointRuntimes(t *testing.T) {
 	}
 }
 
+// TestGenerateDangEntrypointBaseImage covers the module's `dagger.baseImage`:
+// under a [runtime] the engine reads it and builds on it, so an entrypoint
+// recipe that kept this SDK's pin would silently run the module on a different
+// image than the one its config names (#91).
+func TestGenerateDangEntrypointBaseImage(t *testing.T) {
+	for _, runtime := range []string{"node", "bun", "deno"} {
+		t.Run(runtime, func(t *testing.T) {
+			gen := &TypeScriptGenerator{Config: generator.Config{
+				DangEntrypointConfig: &generator.DangEntrypointGeneratorConfig{
+					TypedefJSONPath: "testdata/typedef_smoke.json",
+					Runtime:         runtime,
+					ModulePath:      ".",
+					BaseImage:       "node:22-alpine",
+				},
+			}}
+
+			state, err := gen.GenerateDangEntrypoint(context.Background())
+			require.NoError(t, err)
+			got := readOverlay(t, state, DefaultDangEntrypointFile)
+
+			require.Contains(t, got, `from("node:22-alpine")`)
+			require.NotContains(t, got, "@sha256:")
+		})
+	}
+}
+
 // TestGenerateDangEntrypointNestedModule covers a module that is not the
 // workspace root. call() receives the *caller's* workspace, so the module's own
 // path has to be baked at generation rather than read from workspace.cwd —
