@@ -91,6 +91,24 @@ async say(): Promise<any> {
 
 
 
+// An interface value crosses the boundary as the engine ID of the object
+// implementing it, so the only values that can be returned are ones carrying
+// such an ID: an object from a generated client, or an interface value received
+// as an argument. A plain object implementing the interface structurally has no
+// engine identity, and nothing here can give it one — so it fails saying that,
+// rather than inside the dispatcher on a .id() that is not there.
+async function __interfaceID(value: any, ifaceName: string): Promise<string | null> {
+  if (value === null || value === undefined) {
+    return null
+  }
+  if (typeof value.id !== "function") {
+    throw new Error(
+      `cannot return a plain object as interface ${ifaceName}: an interface value is the engine ID of the object implementing it, so it has to come from a generated client or arrive as an argument`,
+    )
+  }
+  return await value.id()
+}
+
 function rebuildIfaces(state: any): Ifaces {
   const __obj = Object.assign(Object.create(Ifaces.prototype), state ?? {})
   if (state) {
@@ -159,7 +177,7 @@ async function invoke(
           const __parent = rebuildIfaces(parentJson)
           const __arg_greeter = args["greeter"] === undefined || args["greeter"] === null ? args["greeter"] : __Iface_Greeter.fromID(args["greeter"])
           const __result = await __parent.greeter(__arg_greeter)
-          return await (__result).id()
+          return await __interfaceID(__result, "Greeter")
         }
         default:
           throw new Error(`unknown function ${fnName} on Ifaces`)

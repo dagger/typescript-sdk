@@ -208,4 +208,100 @@ type Runtimes {
 
     assertLoads(staged, appPath, "RuntimeDagDep", "the module calling dag.runtimeDep()")
   }
+
+  """
+  Fail unless a plain object serialized as an interface was refused by name.
+  """
+  let assertPlainInterfaceMessage(message: String!): Void {
+    if (message.contains("as interface Outputter") == false) {
+      raise "a plain object serialized as an interface should fail naming the interface, got: " + message
+    }
+    if (message.contains("is not a function")) {
+      raise "a plain object serialized as an interface should not crash inside the dispatcher, got: " + message
+    }
+
+    null
+  }
+
+  """
+  A function returning an interface should return the engine identity of the
+  object implementing it, and say what is missing when there is none.
+
+  An interface value crosses the boundary as the engine ID of the object
+  implementing it, so a value from a client carries one and a plain object
+  implementing the interface structurally cannot. The dispatcher used to call
+  .id() on whatever came back, which crashed the second case with
+  "__result.id is not a function" before the function's value was ever
+  returned (#90).
+
+  Two scopes, generated in order: the dependency declares the interface and
+  returns it, the dependent calls it — a call that stays inside a module never
+  reaches the dispatcher, so the dispatcher under test is the dependency's.
+  Both outcomes are read off the dependent's own checks, for the reason
+  entrypointErrorTextCheck gives.
+
+  Both modules are `[runtime]` ones, which is as far as a staged workspace
+  reaches: a module generated into one is only reachable from another through a
+  manifest [[dependencies]], an entrypoint manifest has no such table, and an
+  entrypoint module reached that way looks its own generated tree up by a path
+  it resolves against the caller's workspace — where these fixtures are
+  deliberately ungenerated. interfaceFieldEntrypointCheck covers the same
+  serialization under an entrypoint.
+  """
+  interfaceReturnsCheck(ws: Workspace!): Void @check {
+    let depPath = fixtures + "/iface-dep"
+    let appPath = fixtures + "/iface"
+
+    let installed = generated(generated(ws, depPath, "runtime-iface-dep"), appPath, "runtime-iface")
+      .withModule(appPath, name: "runtime-iface")
+
+    let outcomes = installed.artifacts(include: [
+      "runtime-iface:from-client-check",
+      "runtime-iface:plain-check",
+    ]).asChecks.{{ pass, error.{{ message }} }}
+    if (outcomes.length != 2) {
+      raise "expected the fixture's two checks, got " + toString(outcomes.length)
+    }
+
+    # Selected on `pass`, not on the error: a check that passed carries an error
+    # with no message in it, and reading that one raises instead of yielding
+    # null.
+    let messages = outcomes.filter { c => c.pass == false }.map { c => c.error.message }
+    if (messages.length != 1) {
+      raise "expected only the plain-object check to fail, got " + toString(messages.length) +
+        " failures: " + messages.join(" | ")
+    }
+
+    assertPlainInterfaceMessage(messages.join(""))
+  }
+
+  """
+  The same serialization under an entrypoint, where a module reached from
+  another is out of a staged workspace's reach.
+
+  What is left is what the engine calls on its own: it dispatches an object's
+  constructor before any call on it, so a module whose state carries an
+  interface value serializes one without a caller. The fixture's state is a
+  plain object, so this is the failing half of interfaceReturnsCheck, running
+  through the entrypoint dispatcher and its stdout protocol rather than the
+  runtime's.
+  """
+  interfaceFieldEntrypointCheck(ws: Workspace!): Void @check {
+    let path = fixtures + "/iface-field"
+    let installed = typescriptSdk(legacyRuntime: false, skipGenerateFilename: "")
+      .generateScope(ws.withWorkdir(path), isModule: true, name: "runtime-iface-field", clients: [])
+      .withWorkdir(".")
+      .withModule(path, name: "runtime-iface-field")
+
+    let messages = installed.artifacts(include: ["runtime-iface-field:field-check"]).asChecks
+      .{{ pass, error.{{ message }} }}
+      .filter { c => c.pass == false }
+      .map { c => c.error.message }
+
+    if (messages.length != 1) {
+      raise "expected the fixture's one failing check, got " + toString(messages.length)
+    }
+
+    assertPlainInterfaceMessage(messages.join(""))
+  }
 }

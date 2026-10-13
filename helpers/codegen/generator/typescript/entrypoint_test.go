@@ -79,6 +79,55 @@ func TestGenerateEntrypointIfaceReturns(t *testing.T) {
 	require.Equal(t, string(want), got)
 }
 
+// TestGenerateEntrypointInterfaceReturnGuard pins what an interface-typed
+// result is turned into, in both layouts.
+//
+// The engine identifies an interface value by the ID of the object implementing
+// it, so the dispatcher has to hand it one. It used to call .id() on whatever
+// the function returned, which is right for the only two values that can carry
+// an ID — an object from a generated client, and an interface value received as
+// an argument — and crashed on anything else with "__result.id is not a
+// function", inside generated code and before the user's value was returned.
+// The golden encoded that call, which is why it took a real call to find (#90).
+func TestGenerateEntrypointInterfaceReturnGuard(t *testing.T) {
+	for _, tc := range []struct {
+		name     string
+		dispatch bool
+		file     string
+	}{
+		{"entrypoint", false, DefaultEntrypointFile},
+		{"dispatch", true, DefaultDispatchFile},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			gen := &TypeScriptGenerator{Config: generator.Config{
+				EntrypointConfig: &generator.EntrypointGeneratorConfig{
+					TypedefJSONPath: "testdata/typedef_iface_returns.json",
+					ModuleRoot:      "/work",
+					SDKImportPath:   "@dagger.io/dagger",
+					SourceDir:       "src",
+					DispatchMode:    tc.dispatch,
+				},
+			}}
+
+			state, err := gen.GenerateEntrypoint(context.Background())
+			require.NoError(t, err)
+			got := readOverlay(t, state, tc.file)
+
+			require.Contains(t, got, `return await __interfaceID(__result, "Greeter")`)
+			require.NotContains(t, got, "await (__result).id()")
+
+			// The guard itself: the ID when there is one, a message naming the
+			// interface when there is not. Both layouts need it, so it is emitted
+			// with the state helpers rather than beside formatError, which the
+			// dispatcher has no use for.
+			require.Contains(t, got, "async function __interfaceID(")
+			require.Contains(t, got, `if (typeof value.id !== "function") {`)
+			require.Contains(t, got, "cannot return a plain object as interface ${ifaceName}")
+			require.Contains(t, got, "return await value.id()")
+		})
+	}
+}
+
 // TestGenerateEntrypointDispatch pins the manifest-v2 dispatcher, generated
 // beside the legacy entrypoint rather than in place of it.
 //
