@@ -4953,14 +4953,21 @@ declare class Container extends BaseClient {
 declare class CurrentModule extends BaseClient {
     private readonly _id?;
     private readonly _name?;
+    private readonly _sourceSubpath?;
     /**
      * Constructor is used for internal usage only, do not create object from it.
      */
-    constructor(ctx?: Context, _id?: ID, _name?: string);
+    constructor(ctx?: Context, _id?: ID, _name?: string, _sourceSubpath?: string);
     /**
      * A unique identifier for this CurrentModule.
      */
     id: () => Promise<ID>;
+    /**
+     * The module's context directory loaded into the engine (plus any generated code that may have been created).
+     *
+     * It holds the module's source code and every other file the engine loaded for the module, at their paths relative to the context root. Use sourceSubpath to locate the source code in it.
+     */
+    contextDirectory: () => Directory;
     /**
      * The dependencies of the module.
      */
@@ -4977,6 +4984,10 @@ declare class CurrentModule extends BaseClient {
      * The directory containing the module's source code loaded into the engine (plus any generated code that may have been created).
      */
     source: () => Directory;
+    /**
+     * The path to the directory containing the module's source code, relative to the context directory.
+     */
+    sourceSubpath: () => Promise<string>;
     /**
      * Load a directory from the module's scratch working directory, including any changes that may have been made to it during module function execution.
      * @param path Location of the directory to access (e.g., ".").
