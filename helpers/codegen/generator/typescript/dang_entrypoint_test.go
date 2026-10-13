@@ -172,85 +172,114 @@ func TestGenerateDangEntrypointBaseImage(t *testing.T) {
 	}
 }
 
-// TestGenerateDangEntrypointNestedModule covers a module that is not the
-// workspace root. call() receives the *caller's* workspace, so the module's own
-// path has to be baked at generation rather than read from workspace.cwd —
-// otherwise a call from a subdirectory runs the dispatcher in the wrong place.
-func TestGenerateDangEntrypointNestedModule(t *testing.T) {
+// renderDangEntrypoint is the recipe for one module path and include list.
+func renderDangEntrypoint(t *testing.T, modulePath string, include ...string) string {
+	t.Helper()
 	gen := &TypeScriptGenerator{Config: generator.Config{
 		DangEntrypointConfig: &generator.DangEntrypointGeneratorConfig{
 			TypedefJSONPath: "testdata/typedef_smoke.json",
 			Runtime:         "node",
-			ModulePath:      "./.dagger/modules/smoke",
+			ModulePath:      modulePath,
+			Include:         include,
 		},
 	}}
-
 	state, err := gen.GenerateDangEntrypoint(context.Background())
 	require.NoError(t, err)
-	got := readOverlay(t, state, DefaultDangEntrypointFile)
-
-	require.Contains(t, got, `withWorkdir("/workspace/.dagger/modules/smoke")`)
-	// The install reads the module's own manifest and clients/, not the
-	// workspace root's, and installs at the module's own path so a relative
-	// symlink resolves the same way under the runtime mount.
-	require.Contains(t, got, `workspace.directory("/.dagger/modules/smoke", include: [`)
-	require.Contains(t, got, `withWorkdir("/deps/.dagger/modules/smoke")`)
-	require.Contains(t, got, `directory("/deps/.dagger/modules/smoke/node_modules")`)
+	return readOverlay(t, state, DefaultDangEntrypointFile)
 }
 
-// TestGenerateDangEntrypointMountsOnlyTheModule pins what a call can see. call()
-// receives the caller's whole workspace, and mounting it would put every
-// unrelated file in the repository inside the module's container — .git, build
-// output, a root .env — and key the container on all of them, so any edit
-// anywhere in the repo would rebuild it.
-func TestGenerateDangEntrypointMountsOnlyTheModule(t *testing.T) {
-	render := func(t *testing.T, modulePath string, include ...string) string {
-		t.Helper()
-		gen := &TypeScriptGenerator{Config: generator.Config{
-			DangEntrypointConfig: &generator.DangEntrypointGeneratorConfig{
-				TypedefJSONPath: "testdata/typedef_smoke.json",
-				Runtime:         "node",
-				ModulePath:      modulePath,
-				Include:         include,
-			},
-		}}
-		state, err := gen.GenerateDangEntrypoint(context.Background())
-		require.NoError(t, err)
-		return readOverlay(t, state, DefaultDangEntrypointFile)
+// TestGenerateDangEntrypointMountsTheModuleContext pins what a call can see.
+//
+// The recipe used to mount `workspace.directory("/")` — the caller's whole
+// workspace — which put every unrelated file in the repository inside the
+// module's container (.git, build output, a root .env) and keyed the container
+// on all of them. It now mounts the module context the engine assembled: the
+// module directory, the manifest and whatever `resources` lists, and nothing
+// else. The caller's workspace is not read at all, which is also what lets a
+// module loaded from anywhere but the caller's checkout run.
+func TestGenerateDangEntrypointMountsTheModuleContext(t *testing.T) {
+	for _, tc := range []struct {
+		name    string
+		mod     string
+		include []string
+	}{
+		{name: "root", mod: "."},
+		{name: "nested", mod: "apps/web"},
+		{name: "with resources", mod: "apps/web", include: []string{"apps/shared"}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			got := renderDangEntrypoint(t, tc.mod, tc.include...)
+
+			// One mount, whatever the module's path and whatever it declares:
+			// the engine decides what the context holds, and sourceSubpath
+			// locates the module in it — which, unlike a baked path, is right
+			// for a module whose context root is not the workspace root.
+			require.Contains(t, got,
+				`withMountedDirectory("/workspace", currentModule.contextDirectory.filter(exclude: ["**/node_modules"]))`)
+			require.Contains(t, got, `withWorkdir("/workspace/" + currentModule.sourceSubpath)`)
+
+			// Nothing reads the workspace any more, in any of the three
+			// helpers the recipe is built from.
+			require.NotContains(t, got, "workspace.directory(")
+			require.NotContains(t, got, "workspace.cwd")
+			require.Contains(t, got, "let dir = currentModule.source")
+		})
 	}
+}
 
-	nested := render(t, "apps/web")
-	require.Contains(t, nested,
-		`withMountedDirectory("/workspace/apps/web", workspace.directory("/apps/web", exclude: ["**/node_modules"]))`)
-	require.NotContains(t, nested, `withMountedDirectory("/workspace", workspace.directory("/"`)
+// TestGenerateDangEntrypointResources pins the member the engine reads while it
+// loads the module source. The engine adds its patterns to the module context
+// and to the module digest, which is what makes a call key follow a change to a
+// listed file — the whole reason the list is declared rather than read.
+func TestGenerateDangEntrypointResources(t *testing.T) {
+	// The SDK resolves what the user wrote against the workspace root; the
+	// engine resolves `resources` against the module directory. So the member
+	// carries the module-relative form back.
+	got := renderDangEntrypoint(t, "apps/web",
+		"apps/shared", "!apps/shared/testdata", "apps/shared/*.ts", "apps/version.txt")
+	require.Contains(t, got, strings.Join([]string{
+		`  pub resources: [String!]! {`,
+		`    ["../shared", "!../shared/testdata", "../shared/*.ts", "../version.txt"]`,
+		`  }`,
+	}, "\n"))
 
-	// A module at the workspace root is the workspace, so the two reads are the
-	// same one and the recipe is unchanged.
-	root := render(t, ".")
-	require.Contains(t, root,
-		`withMountedDirectory("/workspace", workspace.directory("/", exclude: ["**/node_modules"]))`)
+	// A deeper module, to catch a rebase that only works one level up.
+	require.Contains(t,
+		renderDangEntrypoint(t, ".dagger/modules/web", ".dagger/shared"),
+		`["../../shared"]`)
 
-	// Declared paths mount under the module, at their workspace-relative
-	// position, with .gitignore applied: they are directories the module does
-	// not own, so what the repository ignores there is build output.
-	withInclude := render(t, "apps/web", "apps/shared", "apps/shared/**", "!apps/shared/testdata")
-	require.Contains(t, withInclude,
-		`withMountedDirectory("/workspace", workspace.directory("/", `+
-			`include: ["apps/shared", "apps/shared/**"], `+
-			`exclude: ["apps/shared/testdata", "**/node_modules"], gitignore: true))`)
-	// Still mounted over the top, and still the module's own directory.
-	require.Contains(t, withInclude,
-		`withMountedDirectory("/workspace/apps/web", workspace.directory("/apps/web", exclude: ["**/node_modules"]))`)
+	// Declared nothing, so the member is absent entirely and the engine loads
+	// the module as it did before it existed.
+	for _, mod := range []string{".", "apps/web"} {
+		require.NotContains(t, renderDangEntrypoint(t, mod), "resources")
+	}
+}
 
-	// The install context needs them too, or a file: dependency outside the
-	// module directory has nothing to resolve to.
-	require.Contains(t, withInclude, `withDirectory("/deps", workspace.directory("/", include: ["apps/shared"`)
-	require.Contains(t, withInclude, `withWorkdir("/deps/apps/web")`)
-	require.Contains(t, withInclude, `directory("/deps/apps/web/node_modules")`)
+// TestGenerateDangEntrypointResourcesInstall pins the install context. A file:
+// dependency pointing outside the module directory has nothing to resolve to
+// without the context, and the symlink npm leaves for it is relative — so the
+// module has to sit at its own subpath here, as it does under the runtime mount.
+func TestGenerateDangEntrypointResourcesInstall(t *testing.T) {
+	got := renderDangEntrypoint(t, "apps/web", "apps/shared")
 
-	// Nothing is read from the workspace root without a declaration.
-	require.NotContains(t, nested, "gitignore: true")
-	require.NotContains(t, root, "gitignore: true")
+	require.Contains(t, got, `let installDir = "/deps/" + currentModule.sourceSubpath`)
+	require.Contains(t, got,
+		`withDirectory("/deps", currentModule.contextDirectory.filter(exclude: [currentModule.sourceSubpath + "/**"]))`)
+	// The module's own tree is dropped from that context and its manifest read
+	// back in, so the install stays keyed on the manifests and the resources
+	// rather than on the module's source.
+	require.Contains(t, got,
+		`withDirectory(installDir, currentModule.source, include: ["package.json", "package-lock.json", ".npmrc", "clients/**"])`)
+	require.Contains(t, got, `directory(installDir + "/node_modules")`)
+
+	// Without resources the install reads the module directory alone, and needs
+	// no subpath at all.
+	plain := renderDangEntrypoint(t, "apps/web")
+	require.Contains(t, plain, `withWorkdir("/deps")`)
+	require.Contains(t, plain,
+		`withDirectory("/deps", currentModule.source, include: ["package.json", "package-lock.json", ".npmrc", "clients/**"])`)
+	require.NotContains(t, plain, "installDir")
+	require.NotContains(t, plain, `withDirectory("/deps", currentModule.contextDirectory`)
 }
 
 // TestGenerateDangEntrypointInstallsDependencies pins the install step. Under a
@@ -330,7 +359,7 @@ func TestGenerateDangEntrypointInstallsDependencies(t *testing.T) {
 			// as the module's node_modules.
 			require.Contains(t, got, `withWorkdir("/deps")`)
 			require.Contains(t, got, `directory("/deps/node_modules")`)
-			require.Contains(t, got, `withMountedDirectory("node_modules", dependencies(workspace))`)
+			require.Contains(t, got, `withMountedDirectory("node_modules", dependencies)`)
 		})
 	}
 }
@@ -443,8 +472,8 @@ func TestGenerateDangEntrypointGuardsGeneratedFiles(t *testing.T) {
 			// Called from call(), never from types(): a module whose generated
 			// tree is missing still lists its functions, then fails on the first
 			// real call with something that names the file and the fix.
-			require.Contains(t, got, "let checked = requireGenerated(workspace)")
-			require.Contains(t, got, `workspace.directory("/.dagger/modules/smoke")`)
+			require.Contains(t, got, "let checked = requireGenerated")
+			require.Contains(t, got, "let dir = currentModule.source")
 
 			// Every file the recipe mounts or execs.
 			for _, f := range append([]string{

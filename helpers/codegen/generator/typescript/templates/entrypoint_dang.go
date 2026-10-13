@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"path"
+	"path/filepath"
 	"strings"
 	"text/template"
 )
@@ -22,8 +23,11 @@ type DangEntrypointOptions struct {
 	// Runtime selects the container recipe: "node", "bun" or "deno".
 	Runtime string
 
-	// ModulePath is the module directory relative to the workspace root, used
-	// as the container workdir. "." when the module is the workspace root.
+	// ModulePath is the module directory relative to the workspace root, which
+	// is what Include is rebased against. The container workdir comes from
+	// currentModule.sourceSubpath instead — the module's path inside its
+	// context, which is not the same thing when the context root is not the
+	// workspace root.
 	ModulePath string
 
 	// PackageManager installs the module's dependencies: "npm", "yarn" or
@@ -55,8 +59,9 @@ type DangEntrypointOptions struct {
 
 	// Include lists paths outside the module directory the module builds and
 	// runs with, workspace-relative and already resolved from `dagger.include`.
-	// A "!"-prefixed entry excludes. Empty is the usual case: the recipe then
-	// reads the module directory and nothing else.
+	// A "!"-prefixed entry excludes. Rendered as the `resources` member, rebased
+	// to the module-relative form the engine resolves. Empty leaves the member
+	// out, and the engine then loads the module as it did before it existed.
 	Include []string
 }
 
@@ -82,12 +87,12 @@ const (
 	// @dagger.io/dagger package for node and bun.
 	dangSDKDir = "sdk"
 
-	// Where dependencies are installed, and where the workspace is mounted. The
-	// install has to land outside the workspace mount or the mount would hide
+	// Where dependencies are installed, and where the module context is mounted.
+	// The install has to land outside the context mount or the mount would hide
 	// it, and outside "/" because npm refuses to install at the filesystem root
 	// ("Tracker \"idealTree\" already exists").
-	dangInstallDir   = "/deps"
-	dangWorkspaceDir = "/workspace"
+	dangInstallDir = "/deps"
+	dangContextDir = "/workspace"
 )
 
 // DefaultDispatchFile is the filename of the generated dispatcher the Dang
@@ -117,6 +122,7 @@ func DangEntrypointTemplateFuncs(module *TypedefModule, opts DangEntrypointOptio
 		"dangRuntimeChain":         c.dangRuntimeChain,
 		"dangDispatchExec":         c.dangDispatchExec,
 		"dangRequireGeneratedBody": c.dangRequireGeneratedBody,
+		"dangResourcesMember":      c.dangResourcesMember,
 	}
 }
 
@@ -521,58 +527,64 @@ func (c *dangFuncCtx) modulePath() string {
 	return path.Clean(p)
 }
 
-// workdir is where the module tree lands inside the container. The module's path
-// is baked here rather than read from workspace.cwd: cwd is the caller's, and a
-// module has to run from its own directory whoever called it.
-func (c *dangFuncCtx) workdir() string {
-	if p := c.modulePath(); p != "." {
-		return dangWorkspaceDir + "/" + p
-	}
-	return dangWorkspaceDir
-}
-
-// moduleDir is the module directory as a workspace-absolute path, which is how
-// workspace.directory() addresses it.
-func (c *dangFuncCtx) moduleDir() string {
-	if p := c.modulePath(); p != "." {
-		return "/" + p
-	}
-	return "/"
-}
-
-// installModuleDir is where the install runs inside dangInstallDir: the module's
-// own path under it, so a file: dependency outside the module directory leaves
-// npm a relative symlink that resolves to the same place under the runtime's
-// workspace mount as it does here.
-func (c *dangFuncCtx) installModuleDir() string {
-	if p := c.modulePath(); p != "." {
-		return dangInstallDir + "/" + p
-	}
-	return dangInstallDir
-}
-
-// dangIncludeRead renders the workspace read that brings the declared paths in,
-// or "" when nothing is declared.
+// dangResourcesMember renders the `resources` member, or "" when the module
+// declares nothing — in which case the member is left out entirely and the
+// engine loads the module as it did before it existed.
 //
-// .gitignore applies here and not to the module's own directory: these are
-// directories the module does not own, so what the repository ignores in them is
-// build output with no business in the container — while a module may well
-// gitignore its own generated sdk/ or clients/, which it cannot run without.
-func (c *dangFuncCtx) dangIncludeRead() string {
-	var include, exclude []string
-	for _, p := range c.opts.Include {
-		if rest, negated := strings.CutPrefix(p, "!"); negated {
-			exclude = append(exclude, dangString(rest))
-		} else {
-			include = append(include, dangString(p))
-		}
-	}
-	if len(include) == 0 {
+// The engine reads this member while it loads the module source, with no API
+// access, so it has to be a literal list. It is a function rather than a value
+// field because the engine refuses the latter, and a function with no arguments
+// is also the only shape the dang driver's zero-argument constructor rule
+// allows on this type.
+func (c *dangFuncCtx) dangResourcesMember() string {
+	patterns := c.dangResourcePatterns()
+	if len(patterns) == 0 {
 		return ""
 	}
-	exclude = append(exclude, dangString("**/node_modules"))
-	return fmt.Sprintf(`workspace.directory("/", include: [%s], exclude: [%s], gitignore: true)`,
-		strings.Join(include, ", "), strings.Join(exclude, ", "))
+	quoted := make([]string, len(patterns))
+	for i, p := range patterns {
+		quoted[i] = dangString(p)
+	}
+	return fmt.Sprintf(`  """
+  Paths outside the module directory this module builds and runs with.
+
+  Declared as `+"`dagger.include`"+` in the module's package.json or deno.json and
+  resolved at generation. The engine adds them to the module context and to the
+  module digest, so they reach contextDirectory below and a change to one of
+  them gives a call a new cache key.
+  """
+  pub resources: [String!]! {
+    [%s]
+  }
+
+`, strings.Join(quoted, ", "))
+}
+
+// dangResourcePatterns rebases the SDK's workspace-relative include list back to
+// the module-relative patterns the `resources` member declares.
+//
+// The SDK resolves what the user wrote against the workspace root, because that
+// is the form its own generation-time reads need. The engine resolves `resources`
+// against the module directory, so the rebase here is the inverse of that
+// resolution and gives back what the user wrote.
+func (c *dangFuncCtx) dangResourcePatterns() []string {
+	mod := c.modulePath()
+	patterns := make([]string, 0, len(c.opts.Include))
+	for _, p := range c.opts.Include {
+		pattern, negated := strings.CutPrefix(p, "!")
+		rel, err := filepath.Rel(mod, pattern)
+		if err != nil {
+			// Only possible for a pattern the SDK never emits; keep it verbatim
+			// rather than dropping a path the module needs.
+			rel = pattern
+		}
+		rel = filepath.ToSlash(rel)
+		if negated {
+			rel = "!" + rel
+		}
+		patterns = append(patterns, rel)
+	}
+	return patterns
 }
 
 // packageManager is the manager the install step runs. The SDK detects it the
@@ -648,13 +660,11 @@ func (c *dangFuncCtx) dangRequiredFiles() []string {
 // generation and an if/else-if chain is easier to read as flat output than as
 // nested template actions.
 func (c *dangFuncCtx) dangRequireGeneratedBody() string {
-	dir := "/"
-	if p := c.modulePath(); p != "." {
-		dir = "/" + p
-	}
-
 	var b strings.Builder
-	fmt.Fprintf(&b, "let dir = workspace.directory(%s)\n", dangString(dir))
+	// The module's own source, not the caller's workspace: a module loaded from
+	// anywhere but the caller's checkout has generated files all the same, and
+	// this check is about whether they were committed.
+	b.WriteString("let dir = currentModule.source\n")
 	b.WriteString("    ")
 
 	for _, file := range c.dangRequiredFiles() {
@@ -805,26 +815,42 @@ func (c *dangFuncCtx) dangDependenciesChain() string {
 	// nothing.
 	includes = append(includes, dangString("clients/**"))
 
-	installDir := c.installModuleDir()
-	calls := []string{fmt.Sprintf("withWorkdir(%s)", dangString(installDir))}
-	// A file: dependency pointing outside the module directory resolves against
-	// the workspace, so the declared paths have to be in the install context for
-	// the specifier to resolve at all — and the symlink npm leaves behind is
-	// relative, so the module has to sit at its workspace path here too.
-	if read := c.dangIncludeRead(); read != "" {
-		calls = append(calls, fmt.Sprintf("withDirectory(%s, %s)", dangString(dangInstallDir), read))
+	if len(c.opts.Include) == 0 {
+		calls := []string{
+			fmt.Sprintf("withWorkdir(%s)", dangString(dangInstallDir)),
+			fmt.Sprintf("withDirectory(%s, currentModule.source, include: [%s])",
+				dangString(dangInstallDir), strings.Join(includes, ", ")),
+			// Seeded because a module that declares no dependency at all leaves
+			// npm creating nothing, and the read below would then name a missing
+			// path.
+			fmt.Sprintf("withDirectory(%s, directory)", dangString(dangInstallDir+"/node_modules")),
+		}
+		calls = append(calls, c.dangInstallExecs()...)
+		calls = append(calls, fmt.Sprintf("directory(%s)", dangString(dangInstallDir+"/node_modules")))
+		return dangChain("base", calls, "      ")
 	}
-	calls = append(calls,
-		fmt.Sprintf("withDirectory(%s, workspace.directory(%s, include: [%s]))",
-			dangString(installDir), dangString(c.moduleDir()), strings.Join(includes, ", ")),
-		// Seeded because a module that declares no dependency at all leaves npm
-		// creating nothing, and the read below would then name a missing path.
-		fmt.Sprintf("withDirectory(%s, directory)", dangString(installDir+"/node_modules")),
-	)
-	calls = append(calls, c.dangInstallExecs()...)
-	calls = append(calls, fmt.Sprintf("directory(%s)", dangString(installDir+"/node_modules")))
 
-	return dangChain("base", calls, "      ")
+	// With resources the install needs the context: a file: dependency outside
+	// the module directory has nothing to resolve to otherwise, and the symlink
+	// npm leaves for it is relative — so the module has to sit at its own
+	// subpath here, as it does under the runtime mount.
+	//
+	// The module's own tree is dropped from that context and its manifest read
+	// back in, which keeps the install keyed on the manifests and the resources
+	// rather than on the module's source.
+	calls := []string{
+		fmt.Sprintf(`withDirectory(%s, currentModule.contextDirectory.filter(exclude: [currentModule.sourceSubpath + "/**"]))`,
+			dangString(dangInstallDir)),
+		fmt.Sprintf("withDirectory(installDir, currentModule.source, include: [%s])",
+			strings.Join(includes, ", ")),
+		"withWorkdir(installDir)",
+		`withDirectory(installDir + "/node_modules", directory)`,
+	}
+	calls = append(calls, c.dangInstallExecs()...)
+	calls = append(calls, `directory(installDir + "/node_modules")`)
+
+	return fmt.Sprintf("let installDir = %s + currentModule.sourceSubpath\n    %s",
+		dangString(dangInstallDir+"/"), dangChain("base", calls, "      "))
 }
 
 // dangRuntimeChain renders the body of the private runtime() helper: everything
@@ -842,29 +868,21 @@ func (c *dangFuncCtx) dangRuntimeChain() string {
 			fmt.Sprintf(`withExec(["npm", "install", "-g", %s])`, dangString("tsx@"+dangTsxVersion)))
 	}
 
-	// Declared includes land under the workspace mount first, at their
-	// workspace-relative paths, and the module directory mounts over them — so a
-	// relative import or a file read reaching outside the module resolves to the
-	// same path it did when the module was scanned.
-	if read := c.dangIncludeRead(); read != "" {
-		calls = append(calls, fmt.Sprintf("withMountedDirectory(%s, %s)",
-			dangString(dangWorkspaceDir), read))
-	}
-
-	// The module's own directory, and nothing else of the caller's workspace:
-	// call() receives the whole thing, and mounting it would put every unrelated
-	// file in the repository — .git, build output, a root .env — inside the
-	// module's container, and key the container on all of it. A module that
-	// needs more says so with `dagger.include`.
+	// The module context, not the caller's workspace: it holds the module
+	// directory, the manifest and whatever `resources` lists, at their paths
+	// from the context root — and nothing else of the repository. The engine
+	// assembles it while it loads the module source, so it is also what the
+	// module digest covers, which is what makes a call key follow a change to a
+	// listed file.
 	//
 	// node_modules is excluded rather than mounted: it is a host build artifact
 	// that can dwarf the source, and the one the call actually runs against is
-	// mounted from dependencies() just below.
+	// mounted from dependencies just below.
 	calls = append(calls,
-		fmt.Sprintf(`withMountedDirectory(%s, workspace.directory(%s, exclude: ["**/node_modules"]))`,
-			dangString(c.workdir()), dangString(c.moduleDir())),
-		fmt.Sprintf("withWorkdir(%s)", dangString(c.workdir())),
-		`withMountedDirectory("node_modules", dependencies(workspace))`,
+		fmt.Sprintf(`withMountedDirectory(%s, currentModule.contextDirectory.filter(exclude: ["**/node_modules"]))`,
+			dangString(dangContextDir)),
+		fmt.Sprintf("withWorkdir(%s + currentModule.sourceSubpath)", dangString(dangContextDir+"/")),
+		`withMountedDirectory("node_modules", dependencies)`,
 	)
 
 	return dangChain("base", calls, "      ")

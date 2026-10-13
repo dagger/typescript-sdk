@@ -38,19 +38,21 @@ func setBaseImage(input, value string) (string, error) {
 	return sjson.Set(input, "dagger.baseImage", value)
 }
 
-// globChars make an include entry a pattern rather than a plain path.
-const globChars = "*?["
-
 // resolveInclude reads "dagger.include" and resolves every entry against the
 // module directory, returning workspace-relative patterns in declaration order.
 // A leading "!" marks an exclude and survives on the resolved pattern.
 //
-// What a user writes is relative to the module directory; the workspace root is
-// the boundary. Three refusals, because each would otherwise silently do
-// nothing: an absolute path, a path that climbs past the workspace root (the
-// entrypoint reads these files from the Workspace and can reach nothing above
-// it), and a path that stays inside the module directory (already part of the
-// module source).
+// A user writes a path relative to the module directory, which is also what the
+// generated `resources` member carries and what the engine resolves. The
+// workspace-relative form exists for generation's own reads: the scan assembles
+// the module's tree from the workspace, because the `resources` member it would
+// otherwise read is the one it is about to write.
+//
+// Three refusals, because each would otherwise silently do nothing: an absolute
+// path, a path that climbs past the workspace root (generation cannot read
+// above it), and a path that stays inside the module directory (already part of
+// the module source). The engine applies its own rules when it loads the
+// module, against the context root rather than the workspace root.
 func resolveInclude(input, modulePath string) ([]string, error) {
 	field := gjson.Get(input, "dagger.include")
 	if !field.Exists() {
@@ -88,42 +90,34 @@ func resolveInclude(input, modulePath string) ([]string, error) {
 		if err != nil {
 			return nil, err
 		}
-		out = append(out, resolved...)
+		out = append(out, resolved)
 	}
 	return out, nil
 }
 
-// resolveIncludeEntry resolves one entry to the patterns that select it from the
+// resolveIncludeEntry resolves one entry to the pattern that selects it from the
 // workspace root.
-func resolveIncludeEntry(entry, mod string) ([]string, error) {
+func resolveIncludeEntry(entry, mod string) (string, error) {
 	rel, negated := strings.CutPrefix(entry, "!")
 	switch {
 	case rel == "":
-		return nil, fmt.Errorf("dagger.include: %q names no path", entry)
+		return "", fmt.Errorf("dagger.include: %q names no path", entry)
 	case strings.HasPrefix(rel, "/"):
-		return nil, fmt.Errorf("dagger.include: %q must be relative to the module directory", entry)
+		return "", fmt.Errorf("dagger.include: %q must be relative to the module directory", entry)
 	}
 
 	resolved := path.Join(mod, rel)
 	switch {
 	case resolved == ".." || strings.HasPrefix(resolved, "../"):
-		return nil, fmt.Errorf("dagger.include: %q leaves the workspace root", entry)
+		return "", fmt.Errorf("dagger.include: %q leaves the workspace root", entry)
 	case resolved == mod || strings.HasPrefix(resolved, mod+"/"):
-		return nil, fmt.Errorf("dagger.include: %q is inside the module directory, which the module already builds with", entry)
+		return "", fmt.Errorf("dagger.include: %q is inside the module directory, which the module already builds with", entry)
 	}
 
-	patterns := []string{resolved}
-	// A plain path may name a file or a directory and the engine's filter
-	// matches it literally, so name the entry and everything under it.
-	if !strings.ContainsAny(rel, globChars) {
-		patterns = append(patterns, resolved+"/**")
-	}
 	if negated {
-		for i, p := range patterns {
-			patterns[i] = "!" + p
-		}
+		resolved = "!" + resolved
 	}
-	return patterns, nil
+	return resolved, nil
 }
 
 // unsetBaseImage removes "dagger.baseImage" and prunes the "dagger" object

@@ -171,8 +171,8 @@ type DangEntrypointGeneratorConfig struct {
 	Runtime string
 
 	// ModulePath is the module directory relative to the workspace root. The
-	// recipe uses it as the container workdir, so it is baked at generation
-	// rather than read from workspace.cwd, which is the caller's.
+	// container workdir comes from currentModule.sourceSubpath instead, so this
+	// is only what Include is rebased against.
 	ModulePath string
 
 	// PackageManager installs the module's dependencies: "npm", "yarn" or
@@ -198,7 +198,8 @@ type DangEntrypointGeneratorConfig struct {
 
 	// Include lists paths outside the module directory the module builds and
 	// runs with, workspace-relative and already resolved by the SDK from
-	// `dagger.include`. A "!"-prefixed entry excludes. Empty is the usual case:
-	// the recipe then reads the module directory and nothing else.
+	// `dagger.include`. A "!"-prefixed entry excludes. They are rebased to
+	// module-relative for the generated `resources` member, which is what the
+	// engine resolves. Empty leaves the member out entirely.
 	Include []string
 }

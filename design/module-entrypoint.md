@@ -241,23 +241,27 @@ generator has three `runtime()` templates and emits one:
 | cache | `/root/.cache/yarn` · `/root/.npm` · `/root/.local/share/pnpm/store` | `/root/.bun/install/cache` | `/deno-dir` (upstream mounts `/root/.deno/cache`, which that image caches nothing in, under a volume it misnames `mod-bun-cache-…`, `runtime_deno.go:25,29`) |
 | dispatcher exec | `tsx --no-deprecation --tsconfig <tsconfig> __dagger.dispatch.ts engine-call` | `bun run __dagger.dispatch.ts engine-call` | `deno run -q -A __dagger.dispatch.ts engine-call` |
 
-Mounts, identical across the three: the module tree (excluding `node_modules`),
+Mounts, identical across the three: the module context (excluding
+`node_modules`), with the workdir at `currentModule.sourceSubpath` inside it,
 plus the installed `node_modules`. Mounted, not copied.
 
-The install is its own chain (`dependencies()`), not a step in `runtime()`. Two
+The install is its own chain (`dependencies`), not a step in `runtime`. Two
 constraints force that, and together they fix the layout:
 
-- Every exec after the workspace is mounted is keyed on the whole workspace, so
-  an install inside `runtime()` would re-run on any source edit. `dependencies()`
+- Every exec after the module is mounted is keyed on everything mounted, so
+  an install inside `runtime` would re-run on any source edit. `dependencies`
   reads the manifest and lockfile and nothing else, so it is keyed on the files
-  that actually decide it.
+  that actually decide it — and when the module declares resources, the context
+  minus the module's own tree, so those too.
 - Whatever an install writes *under* the mount point is then hidden by the
   mount. Installing above it does not work either — the one directory node's
   resolution would walk up to is `/`, and npm refuses to install there
   (`Tracker "idealTree" already exists`).
 
-So `dependencies()` installs in `/deps`, returns `/deps/node_modules`, and
-`runtime()` mounts that at the module's `node_modules`. `sdk/` is folded into
+So `dependencies` installs in `/deps` — at `/deps/<sourceSubpath>` when the
+module declares resources, so a relative `file:` symlink resolves the same way
+under both mounts — returns that `node_modules`, and `runtime` mounts it at the
+module's `node_modules`. `sdk/` is folded into
 that directory rather than mounted separately, which keeps it one mount with
 nothing nested inside it. Both chains share a `base()` holding the image, the
 runtime prefix and the package manager's cache volume.
@@ -520,13 +524,21 @@ the module context (`core/sdk/dang/shared/shared.go:53`) — but this is exactly
 the thing the embedded-runtime design forbade, so **verify it first**: it decides
 whether the recipe mounts the workspace, the module source, or both.
 
-*Settled, and the gain was a hazard.* The recipe mounted `workspace.directory("/")`,
-so a call carried every unrelated file in the repository — `.git`, build output,
-a root `.env` — and keyed its container on all of them. The recipe now mounts the
-module's own directory, and a module that needs more declares it with
-`dagger.include` (`docs/include.md`), which also reaches the scan and the install
-context. Reachability is opt-in rather than incidental; remote modules are still
-unresolved.
+*Settled: the recipe uses `currentModule`, not the workspace.* The recipe mounted
+`workspace.directory("/")`, so a call carried every unrelated file in the
+repository — `.git`, build output, a root `.env` — and keyed its container on all
+of them. It now mounts `currentModule.contextDirectory` and works from
+`currentModule.sourceSubpath`, so the engine decides what a call can see: the
+module directory, the manifest, and whatever the generated `resources` member
+lists. A module declares that list with `dagger.include` (`docs/include.md`).
+
+This also answers the second half of the question. The context comes from the
+module's own source — a local checkout, a workspace, or a Git commit — not from
+the caller's workspace, so the recipe no longer depends on being called from the
+module's own checkout. And because the engine adds the listed paths to the module
+*digest* before anything reads it (dagger/dagger#14639), a change to one of them
+gives a call a new key rather than a stale result, which reading the workspace
+could never do.
 
 **10.4 — Two moving contracts at once.** The SDK-module interface is being
 replaced by #13992 (`findClientRoot` / `generateScope`) at the same time as the

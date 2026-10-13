@@ -47,7 +47,7 @@ func TestRunGetIncludePrintsLines(t *testing.T) {
 	out := captureStdout(t, func() {
 		require.NoError(t, run([]string{"get-include", p, "apps/web"}))
 	})
-	require.Equal(t, "apps/lib\napps/lib/**\n", out)
+	require.Equal(t, "apps/lib\n", out)
 
 	p = writeTemp(t, samplePackageJSON)
 	out = captureStdout(t, func() {

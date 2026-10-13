@@ -48,16 +48,16 @@ func TestResolveInclude(t *testing.T) {
   }
 }`
 
+	// One pattern per entry, in declaration order: a directory pattern covers
+	// the whole directory in the include grammar both the engine's `resources`
+	// and Directory.include use, so nothing is expanded here.
 	patterns, err := resolveInclude(withInclude, "apps/web")
 	require.NoError(t, err)
 	require.Equal(t, []string{
-		// A plain path names itself and everything under it, since the filter
-		// cannot tell a file from a directory.
-		"apps/lib/greet", "apps/lib/greet/**",
-		"!apps/lib/greet/testdata", "!apps/lib/greet/testdata/**",
-		// A glob is left alone.
+		"apps/lib/greet",
+		"!apps/lib/greet/testdata",
 		"apps/shared/*.ts",
-		"apps/version.txt", "apps/version.txt/**",
+		"apps/version.txt",
 	}, patterns)
 
 	// Absent, empty and non-TypeScript configs all mean "no includes".

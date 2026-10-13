@@ -129,25 +129,42 @@ type Runtimes {
   }
 
   """
-  A module declaring `dagger.include` should reach those files when it runs.
+  A module declaring `dagger.include` should reach those files when it runs, and
+  when it is scanned.
 
   Everything else about includes is checked against what generation writes. This
-  is the one that runs it: a call mounts the module's own directory and the
-  declared paths beside it, so the fixture both imports from the sibling
-  directory — which a missing mount turns into a module-resolution failure while
-  the dispatcher is still importing the user's source — and reads a file there by
-  a path relative to its own directory, which only holds if the layout under the
-  mount matches the workspace.
+  is the one that runs it, and the fixture exercises both halves of the feature
+  at once:
+
+  - `src/index.ts` imports a function from the sibling directory and calls it. A
+    module context without those files turns that into a module-resolution
+    failure while the dispatcher is still importing the user's source.
+  - It reads a file there by a path relative to its own directory, which only
+    holds if the module sits at its context subpath under the mount.
+  - A @func takes its argument type from that directory, so the scan had to read
+    it too — generation resolves the paths from the workspace itself, since the
+    `resources` member it would otherwise read is the one it is about to write.
 
   Read back through a check for the reason entrypointErrorTextCheck gives: a
   check's result is the one thing a caller can read without a typed client.
   """
   includeRunsCheck(ws: Workspace!): Void @check {
     let path = fixtures + "/include/app"
-    let installed = typescriptSdk(legacyRuntime: false, skipGenerateFilename: "")
+    let generated = typescriptSdk(legacyRuntime: false, skipGenerateFilename: "")
       .generateScope(ws.withWorkdir(path), isModule: true, name: "runtime-include", clients: [])
       .withWorkdir(".")
-      .withModule(path, name: "runtime-include")
+
+    # The scan resolved `Volume` through the included file: unresolved, the
+    # argument would not come out as a plain string.
+    let recipe = generated.directory("/" + path).file("entrypoint/main.dang").contents
+    if (recipe.contains("withArg(\"prefix\", typeDef.withKind(TypeDefKind.STRING_KIND)") == false) {
+      raise "the scan should resolve a @func argument type imported from an included path"
+    }
+    if (recipe.contains("pub resources: [String!]! {\n    [\"../shared\"]\n  }") == false) {
+      raise "the generated entrypoint should declare the module's resources"
+    }
+
+    let installed = generated.withModule(path, name: "runtime-include")
 
     # `pass` rather than the error message entrypointErrorTextCheck reads: that
     # one's fixture always throws, so its error is never null, and reading
@@ -164,6 +181,57 @@ type Runtimes {
     }
 
     null
+  }
+
+  """
+  A call should not be served a result built from an older version of an
+  included file.
+
+  This is what the engine's `resources` member buys over reading the caller's
+  workspace: the engine adds the listed files to the module context *before*
+  anything reads the module digest, so they reach the cache key of every
+  function call. Read from the workspace instead, as an earlier revision of this
+  SDK did, the files are outside everything the key covers — and a function with
+  the default cache policy keeps returning its first answer however the files
+  change.
+
+  Two loads of the same fixture, with the included file rewritten in between.
+  Both calls are in one session, which is the stricter case: a changed digest is
+  the only thing that can tell them apart.
+  """
+  includeCacheKeyCheck(ws: Workspace!): Void @check {
+    let path = fixtures + "/include/app"
+    let shared = fixtures + "/include/shared/greeting.txt"
+
+    let generated = typescriptSdk(legacyRuntime: false, skipGenerateFilename: "")
+      .generateScope(ws.withWorkdir(path), isModule: true, name: "runtime-include", clients: [])
+      .withWorkdir(".")
+
+    # The fixture's check asserts the file's committed contents, so it passes on
+    # the first load and has to fail on the second.
+    let first = includeCheckPasses(generated, path)
+    let second = includeCheckPasses(generated.withNewFile("/" + shared, "changed\n"), path)
+
+    if (first == false) {
+      raise "the fixture's check should pass against the committed included file"
+    }
+    if (second) {
+      raise "a changed included file should give the call a new cache key; the check passed against stale content"
+    }
+
+    null
+  }
+
+  """
+  Whether the include fixture's check passes for a workspace, loaded fresh.
+  """
+  let includeCheckPasses(ws: Workspace!, path: String!): Boolean! {
+    ws.withModule(path, name: "runtime-include")
+      .artifacts(include: ["runtime-include:include-check"]).asChecks
+      .{{ pass }}
+      .map { c => c.pass }
+      .filter { ok => ok == false }
+      .length == 0
   }
 
   """
