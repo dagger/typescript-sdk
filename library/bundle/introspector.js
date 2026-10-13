@@ -107246,12 +107246,15 @@ class DaggerModule {
       this.references[reference] = { kind: "VOID_KIND" /* VoidKind */ };
       return;
     }
-    if (type.flags & ts10.TypeFlags.Intersection || type.flags & ts10.TypeFlags.Union) {
+    if (type.flags & ts10.TypeFlags.Intersection) {
       this.references[reference] = {
         kind: "SCALAR_KIND" /* ScalarKind */,
         name: reference
       };
       return;
+    }
+    if (type.flags & ts10.TypeFlags.Union) {
+      throw new IntrospectionError(`Unsupported union type alias '${reference}' in ${typeAlias.file.fileName}. ` + `Declare an enum for a set of allowed values, or use a supported type.`);
     }
     if (type.flags & ts10.TypeFlags.Object) {
       if (this.ast.isGeneratedClientFile(typeAlias.file.fileName)) {

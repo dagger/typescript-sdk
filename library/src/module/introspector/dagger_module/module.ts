@@ -304,16 +304,25 @@ export class DaggerModule {
     }
 
     // Scalar are defined with string intersection such as `type MyScalar = string & { __MyScalar: never }`
-    if (
-      type.flags & ts.TypeFlags.Intersection ||
-      type.flags & ts.TypeFlags.Union
-    ) {
+    if (type.flags & ts.TypeFlags.Intersection) {
       this.references[reference] = {
         kind: TypeDefKind.ScalarKind,
         name: reference,
       }
 
       return
+    }
+
+    // A union used to land in the branch above and be registered as a scalar of
+    // its own name, which nothing defines: the module then failed to load with
+    // `find mod type for ... type: "<name>!"`, or — when the name happened to
+    // match a core type — resolved to that type instead and failed at call time
+    // with an error about a value the function never took.
+    if (type.flags & ts.TypeFlags.Union) {
+      throw new IntrospectionError(
+        `Unsupported union type alias '${reference}' in ${typeAlias.file.fileName}. ` +
+          `Declare an enum for a set of allowed values, or use a supported type.`,
+      )
     }
 
     if (type.flags & ts.TypeFlags.Object) {
