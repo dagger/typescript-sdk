@@ -125,6 +125,12 @@ type TypescriptSdk {
   let dangEntrypointDir: String! = "entrypoint"
 
   """
+  The one file that directory holds: the generated Dang program the engine
+  loads. Named because pruning has to know what it owns in there.
+  """
+  let dangEntrypointFile: String! = "main.dang"
+
+  """
   The dispatcher the engine's builtin TypeScript runtime loads.
 
   Only written for a module that still declares a `[runtime]`: under an
@@ -426,14 +432,15 @@ type TypescriptSdk {
   """
   Take the workspace-level .dagger/core an earlier layout shared across scopes:
   every scope carries its own clients/dagger now. A no-op once it is gone.
+
+  The vendored package it wrote, and only that — same ownership rule as a
+  scope's own clients/, so a file of the user's under .dagger/core stays and
+  keeps the directory with it. Removing it whole took the user's file, and on
+  an engine before v1.0.0-beta.17 the .dagger/ around it, modules included
+  (issue #87).
   """
   let withoutLegacyWorkspaceCore(ws: Workspace!, cfg: String!): Workspace! {
-    let old = scopeFile(cfg, ".dagger/core")
-    if (existingDir(ws, old).entries.length == 0) {
-      ws
-    } else {
-      ws.withoutDirectory("/" + old)
-    }
+    prunedOwnedFiles(ws, scopeFile(cfg, ".dagger/core"), directory)
   }
 
   """
@@ -1047,7 +1054,7 @@ type TypescriptSdk {
   The bundle files that make up the library half of every @dagger.io/dagger
   package this SDK writes — a module's sdk/, a scope's clients/dagger. Named
   once because two things have to agree on the set: what a package is
-  assembled from, and what ownedClientFiles may take back out of a tree.
+  assembled from, and what ownedFiles may take back out of a tree.
   """
   let coreBundleFiles: [String!]! = ["core.js", "core.d.ts", "index.ts", "telemetry.ts"]
 
@@ -1457,7 +1464,7 @@ type TypescriptSdk {
         .withDirectory("clients/dagger", corePackage(bindings))
         .withFile(dispatchFile, generateModuleDispatcher(typedef))
         .withFile(
-          dangEntrypointDir + "/main.dang",
+          dangEntrypointDir + "/" + dangEntrypointFile,
           generateDangEntrypoint(typedef, moduleName, sourcePath, runtime, packageManager),
         )
     } else {
@@ -1704,7 +1711,7 @@ type TypescriptSdk {
   }
 
   """
-  The files in a clients/ directory this SDK owns, as paths relative to it.
+  The files in a generated directory this SDK owns, as paths relative to it.
 
   Decided by shape rather than by remembering what a previous run wrote,
   because nothing remembers: no record of a generation survives in the
@@ -1713,10 +1720,12 @@ type TypescriptSdk {
   is not what this one renders. Shape is the one thing every layout shares.
   Every *.gen.ts is generated, whatever it is named; a package.json is ours
   beside the <name>.gen.ts that names its package and nowhere else; the bundle
-  files are ours beside the client.gen.ts that makes dagger/ the vendored
-  library. Everything else is the user's, however it got there — a notes.txt
-  dropped into a package, a README beside the packages — and clients/ is not
-  the SDK's to wipe (SDK Main-Engine Test Run 2026-10-07, issue #29).
+  files are ours beside a client.gen.ts, which is what makes a directory the
+  vendored library — a scope's clients/dagger, the embedded sdk/, the
+  workspace-level .dagger/core/typescript an earlier layout shared. Everything
+  else is the user's, however it got there — a notes.txt dropped into a
+  package, a README beside the packages — and none of those directories is the
+  SDK's to wipe (SDK Main-Engine Test Run 2026-10-07, issue #29; issue #87).
 
   Not enumerated by client name on purpose: the names a run renders are one
   set and the names an earlier layout wrote are another, and a file this SDK
@@ -1725,7 +1734,7 @@ type TypescriptSdk {
   node_modules is a user's install, not rendered content, and is not looked
   into.
   """
-  let ownedClientFiles(dir: Directory!): [String!]! {
+  let ownedFiles(dir: Directory!): [String!]! {
     let files = filesOutsideNodeModules(dir)
     let rendered = files.filter { path => path.trimSuffix(".gen.ts") != path }
     let manifests = files
@@ -1734,11 +1743,12 @@ type TypescriptSdk {
         let name = path.trimSuffix("/package.json")
         rendered.filter { gen => gen == name + "/" + name + ".gen.ts" }.length > 0
       }
-    let bundle = if (rendered.filter { gen => gen == "dagger/client.gen.ts" }.length == 0) {
-      []
-    } else {
-      let library = ["package.json"] + coreBundleFiles
-      files.filter { path => library.filter { name => "dagger/" + name == path }.length > 0 }
+    let libraries = rendered
+      .filter { path => path == "client.gen.ts" or path.trimSuffix("/client.gen.ts") != path }
+      .map { path => path.trimSuffix("client.gen.ts") }
+    let library = ["package.json"] + coreBundleFiles
+    let bundle = files.filter { path =>
+      libraries.filter { prefix => library.filter { name => prefix + name == path }.length > 0 }.length > 0
     }
 
     rendered + manifests + bundle
@@ -1754,9 +1764,9 @@ type TypescriptSdk {
   }
 
   """
-  Take what this SDK owns in a clients/ directory and does not render this run,
-  and nothing else: the stale files, and a directory once that leaves nothing
-  in it.
+  Take what this SDK owns in a generated directory and does not render this
+  run, and nothing else: the stale files, and a directory once that leaves
+  nothing in it.
 
   Writing file by file can only add, so removals are explicit — and they stop
   at ownership. Pruning everything the run did not render, as this once did,
@@ -1772,14 +1782,31 @@ type TypescriptSdk {
   into.
   """
   let prunedOwnedFiles(ws: Workspace!, dir: String!, generated: Directory!): Workspace! {
-    let existing = existingDir(ws, dir)
     let rendered = filePaths(generated)
-    let stale = ownedClientFiles(existing).filter { path => rendered.filter { name => name == path }.length == 0 }
+    prunedFiles(
+      ws,
+      dir,
+      ownedFiles(existingDir(ws, dir)).filter { path => rendered.filter { name => name == path }.length == 0 },
+    )
+  }
+
+  """
+  Take named generated files out of a workspace directory, and nothing else:
+  the ones really there, and the directory once that leaves nothing in it.
+
+  The removal half of the rule above, for the directories whose owned set is
+  known by name rather than by shape — a module's entrypoint/, which holds the
+  generated Dang program and nothing else.
+  """
+  let prunedFiles(ws: Workspace!, dir: String!, owned: [String!]!): Workspace! {
+    let existing = existingDir(ws, dir)
+    let present = filesOutsideNodeModules(existing)
+    let stale = owned.filter { path => present.filter { name => name == path }.length > 0 }
 
     if (stale.length == 0) {
       ws
     } else {
-      let remaining = filesOutsideNodeModules(existing).filter { path => stale.filter { name => name == path }.length == 0 }
+      let remaining = present.filter { path => stale.filter { name => name == path }.length == 0 }
       if (remaining.length == 0) {
         ws.withoutDirectory("/" + dir)
       } else {
@@ -1810,8 +1837,10 @@ type TypescriptSdk {
   the same reason stale bindings are: what is no longer generated is not removed
   by not generating it.
 
-  entrypoint/ goes wholesale: the directory exists to hold the generated Dang
-  program, and nothing in it is the user's.
+  entrypoint/ holds the generated Dang program and nothing else, so the
+  directory goes with it — but by emptying it, not wholesale: a file the user
+  put in there is still theirs, and taking the directory whole took it along
+  (issue #87).
   """
   let prunedInactiveDispatch(ws: Workspace!, sourcePath: String!): Workspace! {
     let existing = existingDir(ws, sourcePath)
@@ -1829,11 +1858,7 @@ type TypescriptSdk {
       } else {
         ws
       }
-      if (existing.exists(dangEntrypointDir)) {
-        withoutDispatcher.withoutDirectory(prefix + dangEntrypointDir)
-      } else {
-        withoutDispatcher
-      }
+      prunedFiles(withoutDispatcher, scopeFile(sourcePath, dangEntrypointDir), [dangEntrypointFile])
     }
   }
 
@@ -2000,17 +2025,17 @@ type TypescriptSdk {
   }
 
   """
-  Take a module's embedded sdk/ with the switch to the shared core: the library
-  lives at .dagger/core/typescript now, and the copy under the module is the
-  duplication this layout removes. A no-op when there is none.
+  Take a module's embedded sdk/ with the move onto an entrypoint: its library
+  and clients live in clients/ now, and the copy under sdk/ is the duplication
+  this layout removes. A no-op when there is none.
+
+  What that generation wrote, and only that — the bundle files and every
+  *.gen.ts, with the directory following once nothing is left in it. It used to
+  go whole, which deleted a user's file inside it (issue #87) and, on an engine
+  before v1.0.0-beta.17, the module directory around it.
   """
   let prunedEmbeddedSdk(ws: Workspace!, sourcePath: String!): Workspace! {
-    let sdkPath = moduleSdkPath(sourcePath)
-    if (existingDir(ws, sdkPath).entries.length == 0) {
-      ws
-    } else {
-      ws.withoutDirectory("/" + sdkPath)
-    }
+    prunedOwnedFiles(ws, moduleSdkPath(sourcePath), directory)
   }
 
   """

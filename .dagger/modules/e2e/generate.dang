@@ -291,6 +291,56 @@ type GenerateChecks {
   }
 
   """
+  The flip back onto a `[runtime]` takes the entrypoint layout's directories,
+  and takes only what it generated into them.
+
+  clients/ and entrypoint/ go with the move — an embedded module keeps its
+  clients inside sdk/ and loads through __dagger.entrypoint.ts — but a file of
+  the user's in either is not the SDK's to take, and both went with the
+  directory, exit 0 and nothing printed (issue #87). The directory follows its
+  contents: emptied it goes, holding a user's file it stays.
+  """
+  generateFlipsBackKeepsUserFilesCheck(ws: Workspace!): Void @check {
+    let path = fixtures.out + "/flip-back-keep"
+    let name = "flip-back-keep"
+    let entrypoint = ws
+      .withChanges(Gen.scope(ws, path, name, template: "empty", legacyRuntime: false))
+      .withNewFile("/" + path + "/clients/my-helper.ts", "export const helper = true\n")
+      .withNewFile("/" + path + "/entrypoint/MY-NOTES.md", "user notes\n")
+
+    let changes = Gen.scope(entrypoint, path, name, legacyRuntime: true)
+    let files = entrypoint.withChanges(changes).directory("/" + path).glob("**")
+    let kept = ", kept [" + files.join(", ") + "]"
+
+    Asserts.assert(
+      Asserts.contains(files, "clients/my-helper.ts"),
+      "a user's file in a module's clients/ must survive the flip" + kept,
+    )
+    Asserts.assert(
+      Asserts.contains(files, "entrypoint/MY-NOTES.md"),
+      "a user's file in a module's entrypoint/ must survive the flip" + kept,
+    )
+    Asserts.assert(
+      Asserts.contains(files, "entrypoint/main.dang") == false,
+      "the generated Dang program should go with the flip" + kept,
+    )
+    Asserts.assert(
+      Asserts.contains(files, "clients/loader.gen.ts") == false,
+      "the packaged clients should go with the flip" + kept,
+    )
+    Asserts.assert(
+      Asserts.contains(files, "clients/dagger/") == false,
+      "the emptied library package should not be left behind as a husk" + kept,
+    )
+    Asserts.assert(
+      Asserts.contains(files, "sdk/client.gen.ts"),
+      "the flip should write the embedded library the runtime mounts" + kept,
+    )
+
+    null
+  }
+
+  """
   An entrypoint module's call recipe should install the module's own
   dependencies, with the package manager the module actually uses.
 
@@ -1316,6 +1366,114 @@ type GenerateChecks {
     Asserts.assert(
       Asserts.contains(dirty.withChanges(changes).directory("/" + path + "/clients").entries, "notes.txt"),
       "a user's file in a module's clients/ must survive regeneration",
+    )
+
+    null
+  }
+
+  """
+  Moving a module onto an entrypoint takes its embedded sdk/, and takes only
+  what it generated there.
+
+  sdk/ held the vendored library and the module's clients flat beside it; an
+  entrypoint module has both in clients/, so the directory goes. It went
+  wholesale, which took a file of the user's inside it — and on an engine
+  before v1.0.0-beta.17 the module directory around it, src/ and the manifest
+  with it, exit 0 and nothing printed (issue #87). Ownership is by shape, the
+  same rule clients/ gets: the bundle files and every *.gen.ts, with the
+  directory following once nothing is left in it.
+
+  Both halves are asserted, because the intent is real: a user's file holds
+  sdk/ open, and an sdk/ holding nothing but generated files still has to go
+  rather than linger as a husk of the layout the module left.
+  """
+  generateKeepsUserFilesInSdkDirCheck(ws: Workspace!): Void @check {
+    let path = fixtures.depLibModule
+    let embedded = ws.withChanges(Gen.module(ws, path, "gendep"))
+    Asserts.assert(
+      embedded.directory("/" + path).exists("sdk/client.gen.ts"),
+      "the module must start on the embedded layout for the move to mean anything",
+    )
+
+    let dirty = embedded.withNewFile("/" + path + "/sdk/notes.txt", "user notes\n")
+    let changes = Gen.scope(dirty, path, "gendep", legacyRuntime: false)
+    let files = dirty.withChanges(changes).directory("/" + path).glob("**")
+    let kept = ", kept [" + files.join(", ") + "]"
+
+    Asserts.assert(
+      Asserts.contains(files, "sdk/notes.txt"),
+      "a user's file in a module's sdk/ must survive the move onto an entrypoint" + kept,
+    )
+    Asserts.assert(
+      Asserts.contains(files, "src/index.ts"),
+      "the module's own source must survive the move onto an entrypoint" + kept,
+    )
+    Asserts.assert(
+      Asserts.contains(files, "dagger-module.toml") and Asserts.contains(files, "package.json"),
+      "the module's config must survive the move onto an entrypoint" + kept,
+    )
+    Asserts.assert(
+      Asserts.contains(files, "sdk/client.gen.ts") == false,
+      "the embedded library should go with the move onto an entrypoint" + kept,
+    )
+    Asserts.assert(
+      Asserts.contains(changes.removedPaths, path + "/sdk/notes.txt") == false,
+      "the move removed a user's file from a module's sdk/, got removed [" +
+        changes.removedPaths.join(", ") + "]",
+    )
+
+    # Nothing of the user's in there: the emptied directory goes whole.
+    let moved = embedded.withChanges(Gen.scope(embedded, path, "gendep", legacyRuntime: false)).directory("/" + path)
+    Asserts.assert(
+      moved.exists("sdk") == false,
+      "an sdk/ holding nothing but generated files should go whole, kept [" +
+        moved.entries.join(", ") + "]",
+    )
+
+    null
+  }
+
+  """
+  The workspace-level .dagger/core an earlier layout shared is pruned by the
+  first scope that generates, and nothing around it is.
+
+  That layout vendored one @dagger.io/dagger per workspace and pointed every
+  package's file: dep at it; each scope carries its own clients/dagger now, so
+  the old copy goes. It went by deleting the directory — which took a file of
+  the user's under it, and on an engine before v1.0.0-beta.17 the whole of
+  .dagger/, every module in the workspace with it (issue #87). Same ownership
+  rule as a scope's clients/dagger: the vendored package is the bundle files
+  and the manifest beside a client.gen.ts.
+  """
+  generatePrunesLegacyWorkspaceCoreCheck(ws: Workspace!): Void @check {
+    let core = ".dagger/core"
+    let dirty = ws
+      .withNewFile("/" + core + "/typescript/client.gen.ts", "export const core = true\n")
+      .withNewFile("/" + core + "/typescript/index.ts", "export * from \"./client.gen.ts\"\n")
+      .withNewFile("/" + core + "/typescript/package.json", "{ \"name\": \"@dagger.io/dagger\" }\n")
+      .withNewFile("/" + core + "/notes.txt", "user notes\n")
+    let changes = Gen.module(dirty, fixtures.depLibModule, "gendep")
+    let after = dirty.withChanges(changes)
+    let removed = ", got removed [" + changes.removedPaths.join(", ") + "]"
+
+    Asserts.assert(
+      Asserts.contains(changes.removedPaths, core + "/") == false,
+      "generation took .dagger/core whole, with a user's file in it" + removed,
+    )
+    Asserts.assert(
+      Asserts.contains(changes.removedPaths, core + "/typescript/"),
+      "generation should take the core an earlier layout vendored for the workspace" + removed,
+    )
+    Asserts.assert(
+      Asserts.contains(after.directory("/" + core).entries, "notes.txt"),
+      "a user's file under .dagger/core must survive, kept [" +
+        after.directory("/" + core).entries.join(", ") + "]",
+    )
+    Asserts.assert(
+      Asserts.contains(after.directory("/.dagger/modules").entries, "e2e/") and
+        after.directory("/" + fixtures.depLibModule).exists("src/index.ts"),
+      "pruning the vendored core must not reach .dagger/modules, kept [" +
+        after.directory("/.dagger/modules").entries.join(", ") + "]",
     )
 
     null
