@@ -230,6 +230,25 @@ type TypescriptSdk {
       # Nothing to write, and nothing to say: an unchanged workspace is an empty
       # changeset, which is what a generated-file check needs to stay green.
       ws
+    } else if (isModule and legacyRuntime == false and isLegacyOnly(ws, scope)) {
+      # A pre-1.0 module is not this SDK's to generate. The engine's builtin
+      # TypeScript runtime loads it and does its codegen at call time, which is
+      # why the workspace config records only dagger-module.toml modules as
+      # scopes — so there is nothing to write here, and writing anything is
+      # worse than nothing: an entrypoint manifest has no field for the
+      # `[[dependencies]]`, `include`, `toolchains` or `blueprint` a dagger.json
+      # may declare, and generating one deleted the file along with everything
+      # it said (#88).
+      #
+      # Turning a dagger.json into a dagger-module.toml is `dagger module
+      # migrate`, which carries its contents across and records its dependencies
+      # as workspace clients. Until that has run the module keeps working as it
+      # always did, untouched.
+      #
+      # Only on the entrypoint path. Under `legacyRuntime` the manifest this SDK
+      # writes is a `[runtime]` one, which has a field for all of it, so
+      # migrating onto it loses nothing and still happens below.
+      ws
     } else if (isModule) {
       # One path serves init, migration and every later generation, and which
       # config the scope arrived with is what separates them: a manifest means
@@ -713,6 +732,17 @@ type TypescriptSdk {
     existing.withName(name: name)
       .generate(ws.withWorkdir(scope), lock: lock, legacyJson: false)
       .withWorkdir(".")
+  }
+
+  """
+  Whether a scope's only module config is a pre-1.0 dagger.json.
+
+  Read rather than inferred from the manifest the builder would load: the
+  question is what the user has on disk before this SDK writes anything.
+  """
+  let isLegacyOnly(ws: Workspace!, scope: String!): Boolean! {
+    hasScopeFile(ws, scope, "dagger.json") and
+      hasScopeFile(ws, scope, "dagger-module.toml") == false
   }
 
   """
