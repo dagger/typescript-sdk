@@ -1,6 +1,24 @@
 {{- define "entrypoint_state_helpers" -}}
 {{- $module := . -}}
-{{- range $name := sortedKeysObjects $module.Objects -}}
+// An interface value crosses the boundary as the engine ID of the object
+// implementing it, so the only values that can be returned are ones carrying
+// such an ID: an object from a generated client, or an interface value received
+// as an argument. A plain object implementing the interface structurally has no
+// engine identity, and nothing here can give it one — so it fails saying that,
+// rather than inside the dispatcher on a .id() that is not there.
+async function __interfaceID(value: any, ifaceName: string): Promise<string | null> {
+  if (value === null || value === undefined) {
+    return null
+  }
+  if (typeof value.id !== "function") {
+    throw new Error(
+      `cannot return a plain object as interface ${ifaceName}: an interface value is the engine ID of the object implementing it, so it has to come from a generated client or arrive as an argument`,
+    )
+  }
+  return await value.id()
+}
+
+{{ range $name := sortedKeysObjects $module.Objects -}}
 {{- $obj := index $module.Objects $name }}
 {{- if and (eq $obj.Kind "class") (not $obj.IsExported) }}
 const __cls_{{ $obj.Name }}: any = (() => { const c = getRegisteredClass({{ jsString $obj.Name }}); if (!c) throw new Error("class {{ $obj.Name }} is not registered (missing @object() decorator?)"); return c })()

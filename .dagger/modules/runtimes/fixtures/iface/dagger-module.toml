@@ -1,0 +1,9 @@
+name = "runtime-iface"
+engineVersion = "v1.0.0-beta.17"
+
+[runtime]
+  source = "typescript"
+
+[[dependencies]]
+  name = "runtime-iface-dep"
+  source = "../iface-dep"

@@ -99,6 +99,7 @@ var entrypointReservedBindings = map[string]bool{
 	"telemetry":           true,
 	// entrypoint-internal declarations
 	"__loadCoreObject": true,
+	"__interfaceID":    true,
 	"formatError":      true,
 	"invoke":           true,
 	"dispatch":         true,
@@ -192,7 +193,7 @@ func (c *entrypointFuncCtx) serializeExpr(expr string, t *TypedefType) string {
 		}
 		return fmt.Sprintf("({ %s } as Record<string, string>)[%s] ?? %s", strings.Join(entries, ", "), expr, expr)
 	case KindInterface:
-		return fmt.Sprintf("await (%s).id()", expr)
+		return fmt.Sprintf("await __interfaceID(%s, %s)", expr, jsString(t.Name))
 	default:
 		return expr
 	}
