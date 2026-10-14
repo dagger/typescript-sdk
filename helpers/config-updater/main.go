@@ -284,7 +284,46 @@ func updateSharedDeps(packageJSON, coreRel string, clientPairs []string) (string
 		}
 	}
 
-	return pinTypeScript(packageJSON)
+	packageJSON, err = pinTypeScript(packageJSON)
+	if err != nil {
+		return "", err
+	}
+
+	return sortDependencies(packageJSON)
+}
+
+// sortDependencies rewrites the dependencies object with its keys in order.
+//
+// sjson appends a key it adds, so without this the result depends on what the
+// file already held rather than only on the inputs: `module init` seeds the
+// manifest with the typescript pin and this then links the core package after
+// it, while wiring a scope whose package.json was deleted writes the two the
+// other way round. Same scope, same inputs, two outputs — so deleting a
+// generated manifest and regenerating it produced a diff. Sorting is also what
+// every package manager rewrites the section to on install.
+func sortDependencies(packageJSON string) (string, error) {
+	deps := gjson.Get(packageJSON, "dependencies")
+	if !deps.IsObject() {
+		return packageJSON, nil
+	}
+
+	entries := deps.Map()
+	names := make([]string, 0, len(entries))
+	for name := range entries {
+		names = append(names, name)
+	}
+	sort.Strings(names)
+
+	sorted := "{}"
+	for _, name := range names {
+		var err error
+		sorted, err = sjson.SetRaw(sorted, gjson.Escape(name), entries[name].Raw)
+		if err != nil {
+			return "", fmt.Errorf("sort %s dependency: %w", name, err)
+		}
+	}
+
+	return sjson.SetRaw(packageJSON, "dependencies", sorted)
 }
 
 // normalizeFileRef strips the spelling differences npm introduces in a file:

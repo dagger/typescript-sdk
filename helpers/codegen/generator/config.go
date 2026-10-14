@@ -50,6 +50,14 @@ type ModuleGeneratorConfig struct {
 	// its src/, entrypoint and sdk/.
 	FlatClients bool
 
+	// ClientsDir is the directory the per-module client files are written into,
+	// relative to the workspace root: "<module>/clients" under an entrypoint,
+	// "<module>/sdk" for the embedded layout. The engine stamps source-map
+	// filenames relative to the workspace root, so this is what a breadcrumb in
+	// a generated client is rebased against. Empty says the clients sit at the
+	// workspace root and the filenames need no rebasing.
+	ClientsDir string
+
 	// PackagedClients nests each client file in its own directory —
 	// <dir>/<module>/<module>.gen.ts — so the SDK can complete each into a
 	// self-contained npm package beside the library's own (dagger/). The loader

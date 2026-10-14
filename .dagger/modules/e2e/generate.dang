@@ -507,6 +507,40 @@ type GenerateChecks {
   }
 
   """
+  A Deno entrypoint module's import map should alias the clients it has.
+
+  Deno resolves through the map rather than node_modules, so an alias is the only
+  thing standing between a user's `@dagger.io/<module>` import and a file. Under
+  an entrypoint the module's own client exists only when it was asked for, so
+  writing its alias unconditionally — which the embedded layout does on purpose,
+  where the file is always generated — leaves the map pointing at a path nothing
+  renders. Deno resolves lazily, so the module still loads and only the import
+  fails.
+  """
+  generateDenoEntrypointAliasesCheck(ws: Workspace!): Void @check {
+    let path = fixtures.denoModule
+    let name = "generate-deno-app"
+    let tree = Gen.scope(ws, path, name, legacyRuntime: false).after.directory(path)
+    let denoConfig = tree.file("deno.json").contents
+    let selfAlias = "\"@dagger.io/" + name + "\""
+
+    # The core package is always rendered, so its alias is always right.
+    Asserts.stringContains(
+      denoConfig,
+      "\"@dagger.io/dagger\": \"./clients/dagger/index.ts\"",
+      "a Deno entrypoint scope should resolve the core package through its import map",
+    )
+    Asserts.assert(
+      denoConfig.contains(selfAlias) == tree.exists("clients/" + name),
+      "the import map should alias the module's own client exactly when it is rendered: alias " +
+        (if (denoConfig.contains(selfAlias)) { "present" } else { "absent" }) +
+        ", clients/ holds [" + tree.directory("clients").entries.join(", ") + "]",
+    )
+
+    null
+  }
+
+  """
   Generating a module with a local dependency must resolve that dependency and
   emit its typed bindings alongside the module's own — otherwise the module's
   source cannot import it and the generated tree does not type-check.
@@ -951,6 +985,40 @@ type GenerateChecks {
   }
 
   """
+  Deleting a generated config file and regenerating should give it back byte for
+  byte.
+
+  Generated output is a function of its inputs, not of the file already on disk.
+  package.json broke that: the dependency keys came out in insertion order, so
+  the manifest `module init` seeds with the typescript pin got the core package
+  linked after it, while the same scope wired from nothing got the two the other
+  way round. Nothing about the scope changed between the two — only whether the
+  file was there — so a wipe-and-regenerate reported a diff on every module.
+  """
+  generateConfigIsReproducibleCheck(ws: Workspace!): Void @check {
+    let path = fixtures.out + "/reproducible-config"
+    let name = "reproducible-config"
+    let pkg = "/" + path + "/package.json"
+
+    # Seeded and settled: the first run lays down the starter and wires it, the
+    # second is the fixed point every later run lands on.
+    let seeded = ws.withChanges(Gen.scope(ws, path, name, template: "empty", legacyRuntime: false))
+    let settled = seeded.withChanges(Gen.scope(seeded, path, name, legacyRuntime: false))
+    let before = settled.file(pkg).contents
+
+    let wiped = settled.withoutFile(pkg)
+    let after = wiped.withChanges(Gen.scope(wiped, path, name, legacyRuntime: false)).file(pkg).contents
+
+    Asserts.assert(
+      after == before,
+      "regenerating a deleted package.json should reproduce it byte for byte, got:\n" +
+        after + "\nwant:\n" + before,
+    )
+
+    null
+  }
+
+  """
   Editing a module's source should write only the files that edit reaches.
 
   Generation re-renders every file whether or not the edit changed it, and most
@@ -1065,6 +1133,53 @@ type GenerateChecks {
       changes,
       fixtures.depLibModule + "/sdk/index.ts",
       "generating a dependent should not also write its dependency's files",
+    )
+
+    null
+  }
+
+  """
+  The source-map breadcrumb beside a generated declaration should name a file
+  that is really there.
+
+  The engine records a declaration's filename relative to the workspace root, so
+  a client written several directories down has to climb back out to it — and a
+  dependency's client has to climb all the way to the dependency's own source,
+  which is nowhere near the module quoting it. Rendering the filename with one
+  `..` in front of it, as this did, produced a comment pointing at a path that
+  does not exist.
+
+  Asserted as the resolved path, counted from where the client actually sits,
+  rather than as the presence of a comment: the breadcrumb was there before, it
+  just led nowhere.
+  """
+  generateSourceMapResolvesCheck(ws: Workspace!): Void @check {
+    let path = fixtures.depAppModule
+    let depSource = fixtures.depLibModule + "/src/index.ts"
+    let ownSource = path + "/src/index.ts"
+    let staged = Gen.withDependency(ws)
+    let tree = staged.withChanges(Gen.module(staged, path, "generate-deps-app")).directory("/" + path)
+
+    # The embedded layout's clients live in the module's sdk/, so that is how far
+    # down the workspace a breadcrumb in one has to climb from.
+    let ups = (path + "/sdk").split("/").map { segment => "../" }.join("")
+
+    [depSource, ownSource].each { source =>
+      Asserts.assert(
+        staged.directory("/").exists(source),
+        "the fixture should carry the source a breadcrumb names: " + source,
+      )
+    }
+
+    Asserts.stringContains(
+      tree.file("sdk/gendep.gen.ts").contents,
+      "// gendep (" + ups + depSource + ":",
+      "a dependency client's breadcrumb should resolve to the dependency's own source",
+    )
+    Asserts.stringContains(
+      tree.file("sdk/generate-deps-app.gen.ts").contents,
+      "// generate-deps-app (" + ups + ownSource + ":",
+      "a module's own client should resolve to the module's own source",
     )
 
     null

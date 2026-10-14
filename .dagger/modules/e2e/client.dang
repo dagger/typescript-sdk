@@ -80,6 +80,16 @@ type ClientChecks {
     Asserts.stringContains(client, "from \"@dagger.io/dagger\"", "a client should import the library as a package")
     servesLocalModule(client, fixtures.clientModule, "a client should serve its own module on use")
 
+    # The packaged layout nests each client one directory deeper than a module's
+    # clients/, which is one more hop for a source-map breadcrumb to climb: the
+    # engine records the filename relative to the workspace root.
+    let ups = (path + "/client-app").split("/").map { segment => "../" }.join("")
+    Asserts.stringContains(
+      client,
+      "// client-app (" + ups + fixtures.clientModule + "/src/index.ts:",
+      "a client's source-map breadcrumb should resolve to its target's own source",
+    )
+
     let clientPkg = tree.file("client-app/package.json").contents
     Asserts.stringContains(clientPkg, "\"name\": \"@dagger.io/client-app\"", "a client package is named for its module")
     Asserts.stringContains(clientPkg, "\"@dagger.io/dagger\": \"file:../dagger\"", "a client package links the library beside it")
