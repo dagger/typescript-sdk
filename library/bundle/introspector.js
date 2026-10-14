@@ -107272,8 +107272,26 @@ class DaggerModule {
     }
     throw new IntrospectionError(`could not resolve type reference for ${reference} at ${AST.getNodePosition(typeAlias.node)}`);
   }
+  validateUniqueClassNames(declarations) {
+    const seen = new Map;
+    for (const { node } of declarations) {
+      if (!this.ast.isNodeDecoratedWith(node, OBJECT_DECORATOR) && !this.ast.isNodeDecoratedWith(node, COLLECTION_DECORATOR) && !this.ast.isNodeDecoratedWith(node, ENUM_DECORATOR)) {
+        continue;
+      }
+      const name = node.name?.getText();
+      if (!name) {
+        continue;
+      }
+      const previous = seen.get(name);
+      if (previous) {
+        throw new IntrospectionError(`class ${name} is declared twice, at ${AST.getNodePosition(previous)} and at ${AST.getNodePosition(node)}: dagger declarations are keyed by name, so one would silently replace the other. Rename one of them.`);
+      }
+      seen.set(name, node);
+    }
+  }
   findClasses() {
     const allClassDeclarations = this.ast.findAllDeclarations(ts10.SyntaxKind.ClassDeclaration);
+    this.validateUniqueClassNames(allClassDeclarations);
     const allClasses = [];
     for (const classDecl of allClassDeclarations) {
       const convertedDecl = classDecl;

@@ -1595,4 +1595,32 @@ type GenerateChecks {
 
     null
   }
+
+  """
+  Two files declaring the same @object class is refused, naming both of them.
+
+  Everything downstream of the scan keys a declaration by its name, so the
+  second one replaced the first and generation reported nothing: the module
+  built, and the lost class's functions were simply absent at call time —
+  `unknown command`, pointing nowhere near either declaration. The plausible
+  way in is the multi-file layout, where the second file is the one the author
+  has open and the first is the one they forgot. See dagger/typescript-sdk#93.
+  """
+  generateRefusesDuplicateObjectCheck(ws: Workspace!): Void @check {
+    # The refusal comes out of the scan, which runs as a container exec, and a
+    # failed exec reaches Dang as `exit code: 1` with its stderr only in the
+    # trace. So this covers the committed bundle refusing the module at all —
+    # which is what used to generate one missing half its functions. What the
+    # refusal *says*, both files and the class, is asserted where the message is
+    # reachable: library/src/module/introspector/test/scan.spec.ts.
+    let failure = Gen.failure(Gen.module(ws, fixtures.duplicateNamesModule, "duplicate-names-app"))
+
+    Asserts.stringContains(
+      failure,
+      "exit code",
+      "generating a module declaring the same @object class in two files should fail, got: " + failure,
+    )
+
+    null
+  }
 }

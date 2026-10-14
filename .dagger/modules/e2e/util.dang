@@ -257,6 +257,10 @@ type Fixtures {
   let managedTomlLegacyPinModule: String! = root + "/managed-toml/legacy-pin"
   let managedTomlBetaPinModule: String! = root + "/managed-toml/beta-pin"
 
+  # A module declaring the same @object class in two of its files: the shape
+  # generation has to refuse rather than keep one of them.
+  let duplicateNamesModule: String! = root + "/duplicate-names/app"
+
   # Pre-1.0 configs that cannot be migrated: two declaring fields
   # dagger-module.toml has no table for, one belonging to another SDK.
   let migrateToolchainsModule: String! = root + "/migrate/toolchains"
@@ -362,6 +366,7 @@ type Fixtures {
     depAppModule,
     depLibModule,
     denoModule,
+    duplicateNamesModule,
     parentSourceModule,
     splitDenoModule,
   ] + runtimeFixtures
