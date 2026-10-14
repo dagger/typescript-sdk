@@ -99,6 +99,18 @@ function configuredTargets(moduleRoot) {
       });
     }
   }
+  const denoPath = path2.join(moduleRoot, "deno.json");
+  const imports = readJSON(denoPath)?.imports;
+  if (typeof imports === "object" && imports !== null) {
+    for (const [alias, target] of Object.entries(imports)) {
+      if (typeof target === "string" && target.startsWith(".")) {
+        out.push({
+          target: path2.resolve(moduleRoot, withoutGlob(target)),
+          origin: `${denoPath} (imports.${alias})`
+        });
+      }
+    }
+  }
   const paths = tsconfig?.compilerOptions?.paths;
   if (typeof paths === "object" && paths !== null) {
     for (const [alias, targets] of Object.entries(paths)) {

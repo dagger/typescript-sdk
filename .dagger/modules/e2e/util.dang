@@ -329,6 +329,12 @@ type Fixtures {
   let runtimeInclude: String! = ".dagger/modules/runtimes/fixtures/include/app"
 
   """
+  The Deno half of the same, behind `runtimes:include-deno-runs`: its import map
+  is the only thing pointing outside the module.
+  """
+  let runtimeIncludeDeno: String! = ".dagger/modules/runtimes/fixtures/include-deno/app"
+
+  """
   Every fixture the runtimes checks load, recorded scope or not.
   """
   let runtimeFixtures: [String!]! = [
@@ -339,6 +345,7 @@ type Fixtures {
     runtimeDagDepLib,
     runtimeBaseImage,
     runtimeInclude,
+    runtimeIncludeDeno,
   ]
 
   let configBareModule: String! = root + "/config/bare"

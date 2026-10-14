@@ -30,6 +30,8 @@ export type DerivedResource = {
  *   names no path of its own, so it is not resolvable here.
  * - A tsconfig `paths` target outside the module directory, or an `extends`
  *   pointing at one.
+ * - A deno.json `imports` entry naming a path outside it, which is a Deno
+ *   module's only alias mechanism.
  *
  * A bare specifier with no such declaration is left alone: it resolves inside
  * `node_modules`, and in a monorepo that directory sits at the repository root,
@@ -164,6 +166,24 @@ function configuredTargets(
         target: path.resolve(moduleRoot, target),
         origin: `${tsconfigPath} (extends)`,
       })
+    }
+  }
+
+  // Deno's import map, which is a module's only alias mechanism — it has no
+  // package.json and no tsconfig. An entry is a path like a tsconfig `paths`
+  // target, and the same glob truncation applies.
+  const denoPath = path.join(moduleRoot, "deno.json")
+  const imports = readJSON(denoPath)?.imports
+  if (typeof imports === "object" && imports !== null) {
+    for (const [alias, target] of Object.entries(imports)) {
+      // A bare target is a registry specifier (`npm:`, `jsr:`, `https:`), not a
+      // path. Only a relative one can reach outside the module.
+      if (typeof target === "string" && target.startsWith(".")) {
+        out.push({
+          target: path.resolve(moduleRoot, withoutGlob(target)),
+          origin: `${denoPath} (imports.${alias})`,
+        })
+      }
     }
   }
 

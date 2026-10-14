@@ -20,11 +20,13 @@ data file sitting beside the imported code comes along with it:
 readFileSync("../shared/version.txt", "utf8")   // works: ../shared is included
 ```
 
-Three things are read, all of them the user's own code or config:
+What is read, all of it the user's own code or config:
 
 - a relative specifier that resolves outside the module directory,
 - a `file:` or `link:` dependency in `package.json`,
-- a `paths` target in `tsconfig.json` that points outside.
+- a `paths` target in `tsconfig.json` that points outside,
+- an `imports` entry in `deno.json` that points outside — a Deno module has no
+  package.json and no tsconfig, so its import map is the only alias it has.
 
 A bare specifier with none of those is left alone: it resolves inside
 `node_modules`, which in a monorepo sits at the repository root — outside the
@@ -67,8 +69,8 @@ lives in. Declared paths are added to the derived ones.
 
 Nothing in this repository needs it any more: every case it was written for is
 either derived, or better expressed with a `Workspace` argument. It is kept for
-a build-time path static analysis cannot see — a Deno import map, a
-`workspace:` dependency, a path computed at run time.
+a build-time path static analysis cannot see — a `workspace:` dependency, a
+`package.json` `imports` subpath, a path computed at run time.
 
 ```json
 {
@@ -125,6 +127,14 @@ Two more cases have no `dagger.include`:
   workspace.
 - **A `[runtime]` module.** Its files come from the module source the engine
   loads; `include` in its `dagger-module.toml` is the field for this.
+
+## Granularity
+
+An import contributes the **directory** holding its target. A config entry
+contributes exactly what it names: `"@shared/greet": "../shared/greet.ts"` in a
+Deno import map derives the file, `"@shared/": "../shared/"` derives the
+directory, and a `paths` target is truncated at its first glob so a nested
+`@alias/deep/thing` still resolves.
 
 ## Requirements
 

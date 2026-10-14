@@ -1,0 +1,17 @@
+{
+  "imports": {
+    "@dagger.io/dagger": "./clients/dagger/index.ts",
+    "@dagger.io/dagger/telemetry": "./clients/dagger/telemetry.ts",
+    "@shared/greet": "../shared/greet.ts"
+  },
+  "nodeModulesDir": "auto",
+  "unstable": [
+    "bare-node-builtins",
+    "sloppy-imports",
+    "node-globals",
+    "byonm"
+  ],
+  "compilerOptions": {
+    "experimentalDecorators": true
+  }
+}
