@@ -511,6 +511,54 @@ type GenerateChecks {
   }
 
   """
+  A module's resources should be derived from what its source imports, with no
+  `dagger.include` at all.
+
+  The field asks a user to keep a list in step with their own imports. Their
+  imports already say what the module needs, so this derives the set from them:
+  a relative specifier that climbs out of the module directory, a `file:`
+  dependency, a tsconfig `paths` target outside it.
+
+  The fixture is the runtimes one, whose package.json declares nothing — its
+  `src/index.ts` imports from a sibling directory, and that is the whole input.
+  `runtimes:include-runs` then calls it for real.
+
+  Directory granularity, not per file: a specifier names `./greet.js` where the
+  file is `greet.ts`, so the resolved path often does not exist as written — and
+  the directory covers whatever that file reads from beside it, which is how the
+  fixture's `readFileSync("../shared/greeting.txt")` resolves without anything
+  importing it.
+  """
+  entrypointDerivedResourcesCheck(ws: Workspace!): Void @check {
+    let scope = Fixtures.runtimeInclude
+    let recipe = entrypointRecipe(ws, scope, "runtime-include")
+
+    Asserts.stringNotContains(
+      ws.directory("/" + scope).file("package.json").contents,
+      "dagger",
+      "the fixture must declare nothing for this check to mean anything",
+    )
+    Asserts.stringContains(
+      recipe,
+      "pub resources: [String!]! {\n    [\"../shared\"]\n  }",
+      "the import should reach the resources member with nothing declared",
+    )
+    # The import is what was found, not the file it names.
+    Asserts.stringNotContains(
+      recipe, "greet.js",
+      "a derived resource should name the directory, not the specifier",
+    )
+    # Nothing resolving inside the module becomes a resource — least of all the
+    # SDK's own generated `file:` dependency on clients/dagger.
+    Asserts.stringNotContains(
+      recipe, "\"../clients",
+      "the module's own generated clients should not be derived as a resource",
+    )
+
+    null
+  }
+
+  """
   `dagger.include` should refuse what would silently do nothing.
 
   Each of these resolves to a path the module already builds with, or to one the

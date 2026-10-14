@@ -1335,7 +1335,55 @@ type TypescriptSdk {
       .withMountedCache("/root/.bun/install/cache", cacheVolume("bun-install"))
       .withWorkdir("/introspector")
       .withFile("/introspector/introspector.js", tsBundle.file("introspector.js"))
+      .withFile("/introspector/imports.js", tsBundle.file("imports.js"))
       .withExec(["bun", "add", "--no-save", "typescript@" + tsVersion])
+  }
+
+  """
+  The paths a module needs from outside its own directory, derived from what its
+  source imports.
+
+  A relative specifier that climbs out of the module directory, a `file:`
+  dependency in package.json, a tsconfig `paths` target outside it: each is the
+  user's own code or config saying it needs something, so nothing here has to be
+  written for Dagger's benefit or kept in step by hand.
+
+  Workspace-relative, the same form `dagger.include` resolves to, so the two
+  sets concatenate and codegen rebases both to module-relative for the member
+  itself. A derived path that climbs past the workspace root fails here, naming
+  the import behind it: the SDK cannot read above that root to scan the module,
+  so no resource would make the build work.
+
+  Only the module's own directory is mounted, so this sees exactly what the scan
+  would see with no resources at all — which is the point: it runs first, to
+  work out what the scan's tree has to hold.
+  """
+  let importedResources(source: Directory!, existing: Directory!, sourcePath: String!): [String!]! {
+    let printed = introspector
+      .withDirectory("/scan", existing)
+      .withDirectory("/scan/src", source)
+      .withExec(["bun", "/introspector/imports.js", "/scan", "src", sourcePath])
+      .stdout
+      .trimSuffix("\n")
+
+    if (printed == "") { [] } else { printed.split("\n") }
+  }
+
+  """
+  A list with each value kept once, in first-seen order.
+
+  Hand-rolled because Dang has no such builtin, and the two resource sets really
+  can overlap: a path a user declared in `dagger.include` before this existed is
+  very likely one their source also imports.
+  """
+  let dedupe(values: [String!]!): [String!]! {
+    values.reduce([]) { acc, value =>
+      if (acc.filter { seen => seen == value }.length > 0) {
+        acc
+      } else {
+        acc + [value]
+      }
+    }
   }
 
   """
@@ -1681,21 +1729,33 @@ type TypescriptSdk {
     # bakes nothing from it, but one that declares it is making a mistake worth
     # one exec to catch.
     let image = if (legacyRuntime == false) { effectiveBaseImage(ws, sourcePath, rt) } else { "" }
-    let includes = ModConfig(sourcePath: sourcePath, ws: ws).include
+    let declared = ModConfig(sourcePath: sourcePath, ws: ws).include
 
-    if (legacyRuntime and includes.length > 0) {
-      # A `[runtime]` module's files come from the module source the engine
-      # loads, which this SDK does not assemble — its manifest has an `include`
-      # field for exactly this, and honouring the package.json one would mean
-      # generating against files the module would not have at run time.
+    let source = ws.directory("/" + sourcePrefix + "src")
+    let existing = existingModuleConfig(ws, sourcePath)
+
+    # Derived first, declared second: the order only decides how the generated
+    # member reads, and what the code needs is the more interesting half.
+    #
+    # Only for an entrypoint. A `[runtime]` module's files come from the module
+    # source the engine loads, which this SDK does not assemble, so deriving
+    # anything for it would widen the scan's tree past what the module would
+    # really have at run time.
+    let derived = if (legacyRuntime) { [] } else { importedResources(source, existing, sourcePath) }
+    let includes = dedupe(derived + declared)
+
+    if (legacyRuntime and declared.length > 0) {
+      # Its manifest has an `include` field for exactly this, and honouring the
+      # package.json one would mean generating against files the module would
+      # not have at run time.
       raise "dagger.include is only read for a module entrypoint; a [runtime] module declares files outside its directory with `include` in dagger-module.toml"
     } else {
       moduleDirectory(
         ws.moduleSource("/" + scope).introspectionSchemaJSON.contents,
         name,
         sourcePath,
-        ws.directory("/" + sourcePrefix + "src"),
-        existingModuleConfig(ws, sourcePath),
+        source,
+        existing,
         rt,
         pkgManager,
         image,

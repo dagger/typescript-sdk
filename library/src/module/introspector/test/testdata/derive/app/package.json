@@ -1,0 +1,8 @@
+{
+  "type": "module",
+  "dependencies": {
+    "@dagger.io/dagger": "file:./clients/dagger",
+    "@acme/lib": "file:../lib",
+    "typescript": "5.9.3"
+  }
+}

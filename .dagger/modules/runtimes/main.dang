@@ -129,8 +129,8 @@ type Runtimes {
   }
 
   """
-  A module declaring `dagger.include` should reach those files when it runs, and
-  when it is scanned.
+  A module should reach the files its source imports when it runs, and when it
+  is scanned — with nothing declared.
 
   Everything else about includes is checked against what generation writes. This
   is the one that runs it, and the fixture exercises both halves of the feature
@@ -144,6 +144,10 @@ type Runtimes {
   - A @func takes its argument type from that directory, so the scan had to read
     it too — generation resolves the paths from the workspace itself, since the
     `sources` member it would otherwise read is the one it is about to write.
+
+  The fixture's package.json declares no `dagger.include`: the one import in
+  `src/index.ts` is the whole input, and the directory it names is what carries
+  `greeting.txt` along with it.
 
   Read back through a check for the reason entrypointErrorTextCheck gives: a
   check's result is the one thing a caller can read without a typed client.
@@ -186,6 +190,9 @@ type Runtimes {
   """
   A call should not be served a result built from an older version of an
   included file.
+
+  Derived from the fixture's import rather than declared, so this also pins that
+  a derived path keys a call exactly as a declared one does.
 
   This is what the engine's `sources` member buys over reading the caller's
   workspace: the engine adds the listed files to the module context *before*

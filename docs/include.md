@@ -1,11 +1,46 @@
 # Files outside the module directory
 
-A module builds and runs with its own directory. Nothing else of the repository
-reaches it: not the root, not a sibling package, not `.git`.
+A module builds and runs with its own directory, plus whatever its source
+imports from outside it. Nothing else of the repository reaches it: not the
+root, not an unrelated sibling, not `.git`.
 
-To build with more, list it in `dagger.include`, in the module's `package.json`
-— or its `deno.json` under the Deno runtime, the same nested `dagger` object
-`baseImage` lives in.
+## Imports are enough, usually
+
+An import that climbs out of the module directory is picked up at generation and
+written into the module's `resources`, so this needs no configuration at all:
+
+```typescript
+import { greeting } from "../shared/greet.js"
+```
+
+The directory the import names is what gets included — not just the file — so a
+data file sitting beside the imported code comes along with it:
+
+```typescript
+readFileSync("../shared/version.txt", "utf8")   // works: ../shared is included
+```
+
+Three things are read, all of them the user's own code or config:
+
+- a relative specifier that resolves outside the module directory,
+- a `file:` or `link:` dependency in `package.json`,
+- a `paths` target in `tsconfig.json` that points outside.
+
+A bare specifier with none of those is left alone: it resolves inside
+`node_modules`, which in a monorepo sits at the repository root — outside the
+module and gitignored, so naming it would name a path the engine drops anyway.
+
+## When you still have to say it
+
+Static analysis cannot see a path that nothing imports:
+
+```typescript
+readFileSync("../data/extra.txt", "utf8")   // fails: nothing imports ../data
+```
+
+For that, list it in `dagger.include`, in the module's `package.json` — or its
+`deno.json` under the Deno runtime, the same nested `dagger` object `baseImage`
+lives in. Declared paths are added to the derived ones.
 
 ```json
 {
@@ -19,13 +54,9 @@ To build with more, list it in `dagger.include`, in the module's `package.json`
 Each entry is a path relative to the module directory. A leading `!` excludes. A
 directory entry covers the whole directory. Globs work (`../shared/*.ts`).
 
-The paths are read at generation and written into the module's generated
-entrypoint's `sources` member, so **re-run `dagger generate` after changing the
-field**.
-
-```typescript
-import { greeting } from "../shared/greet.js"
-```
+Both sets are read at generation and written into the module's generated
+entrypoint's `sources` member, so **re-run `dagger generate` after changing an
+import or the field**.
 
 ## What that gets you
 
