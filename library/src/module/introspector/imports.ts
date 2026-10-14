@@ -28,7 +28,8 @@ export type DerivedResource = {
  *   specifier legitimately points outside — the package manager resolves it
  *   through a symlink that static analysis cannot see. A `workspace:` dependency
  *   names no path of its own, so it is not resolvable here.
- * - A tsconfig `paths` target outside the module directory.
+ * - A tsconfig `paths` target outside the module directory, or an `extends`
+ *   pointing at one.
  *
  * A bare specifier with no such declaration is left alone: it resolves inside
  * `node_modules`, and in a monorepo that directory sits at the repository root,
@@ -41,12 +42,13 @@ export async function deriveResources(
 ): Promise<DerivedResource[]> {
   const found = new Map<string, string>()
 
-  // Directories, not files: a specifier names `./greet.js` where the file on
-  // disk is `greet.ts`, so the resolved path often does not exist as written.
-  // The directory covers both spellings, and whatever that file imports from
-  // beside it — which a per-file pattern would need another pass to find.
-  const add = (dir: string, origin: string) => {
-    const pattern = outsidePattern(moduleRoot, dir)
+  // Granularity is the caller's: an import contributes the directory holding
+  // its target, because a specifier names `./greet.js` where the file on disk is
+  // `greet.ts` — the directory covers both spellings, and whatever that file
+  // reads from beside it. A config target that names an exact file contributes
+  // the file, since its directory can be the whole repository root.
+  const add = (target: string, origin: string) => {
+    const pattern = outsidePattern(moduleRoot, target)
     if (pattern !== undefined && !found.has(pattern)) {
       found.set(pattern, origin)
     }
@@ -82,16 +84,19 @@ export async function deriveResources(
  */
 function importedFiles(file: string): string[] {
   const text = fs.readFileSync(file, "utf8")
+  const info = ts.preProcessFile(text, true, true)
 
-  return ts.preProcessFile(text, true, true).importedFiles.map((f) => f.fileName)
+  // referencedFiles too: a `/// <reference path="../x.d.ts" />` is a build-time
+  // path like any import, and the same scan already hands it back.
+  return [...info.importedFiles, ...info.referencedFiles].map((f) => f.fileName)
 }
 
 /**
- * `dir` as a module-relative pattern, or undefined when it is inside the module
- * directory and so already part of its source.
+ * `target` as a module-relative pattern, or undefined when it is inside the
+ * module directory and so already part of its source.
  */
-function outsidePattern(moduleRoot: string, dir: string): string | undefined {
-  const rel = path.relative(path.resolve(moduleRoot), dir)
+function outsidePattern(moduleRoot: string, target: string): string | undefined {
+  const rel = path.relative(path.resolve(moduleRoot), target)
   if (rel === "" || !rel.startsWith("..")) {
     return undefined
   }
@@ -139,6 +144,29 @@ function configuredTargets(
 
   const tsconfigPath = path.join(moduleRoot, "tsconfig.json")
   const tsconfig = readJSON(tsconfigPath)
+
+  // The file itself, not its directory: `../tsconfig.base.json` sits in the
+  // module's parent, and including that whole directory would pull in the
+  // repository. An extends target is an exact path, so there is nothing to
+  // widen for — unlike an import, whose extension gets rewritten.
+  //
+  // Missing it is not a quiet loss: tsx reads the chain at call time and dies
+  // with `File '../tsconfig.base.json' not found.`
+  const extendsField = tsconfig?.extends
+  const extendsList = Array.isArray(extendsField)
+    ? extendsField
+    : typeof extendsField === "string"
+      ? [extendsField]
+      : []
+  for (const target of extendsList) {
+    if (target.startsWith(".")) {
+      out.push({
+        target: path.resolve(moduleRoot, target),
+        origin: `${tsconfigPath} (extends)`,
+      })
+    }
+  }
+
   const paths = tsconfig?.compilerOptions?.paths
   if (typeof paths === "object" && paths !== null) {
     for (const [alias, targets] of Object.entries(paths)) {

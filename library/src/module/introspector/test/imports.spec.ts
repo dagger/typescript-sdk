@@ -20,6 +20,10 @@ describe("Resources derived from imports", () => {
       "../other",
       // a plain relative import
       "../shared",
+      // tsconfig `extends`: the file, not its directory, which would be the
+      // whole parent of the module. tsx reads the chain at call time and dies
+      // on a missing one.
+      "../tsconfig.base.json",
     ])
   })
 
@@ -51,6 +55,7 @@ describe("Resources derived from imports", () => {
     assert.match(byPattern.get("../shared") ?? "", /src\/index\.ts$/)
     assert.match(byPattern.get("../lib") ?? "", /package\.json \(dependencies\.@acme\/lib\)$/)
     assert.match(byPattern.get("../aliased") ?? "", /tsconfig\.json \(paths\.@aliased\/\*\)$/)
+    assert.match(byPattern.get("../tsconfig.base.json") ?? "", /tsconfig\.json \(extends\)$/)
   })
 
   it("cannot see a file read with no import", async () => {

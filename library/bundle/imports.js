@@ -32,8 +32,8 @@ async function listFiles(dir = ".") {
 // src/module/introspector/imports.ts
 async function deriveResources(moduleRoot, sourceDir) {
   const found = new Map;
-  const add = (dir, origin) => {
-    const pattern = outsidePattern(moduleRoot, dir);
+  const add = (target, origin) => {
+    const pattern = outsidePattern(moduleRoot, target);
     if (pattern !== undefined && !found.has(pattern)) {
       found.set(pattern, origin);
     }
@@ -53,10 +53,11 @@ async function deriveResources(moduleRoot, sourceDir) {
 }
 function importedFiles(file) {
   const text = fs2.readFileSync(file, "utf8");
-  return ts.preProcessFile(text, true, true).importedFiles.map((f) => f.fileName);
+  const info = ts.preProcessFile(text, true, true);
+  return [...info.importedFiles, ...info.referencedFiles].map((f) => f.fileName);
 }
-function outsidePattern(moduleRoot, dir) {
-  const rel = path2.relative(path2.resolve(moduleRoot), dir);
+function outsidePattern(moduleRoot, target) {
+  const rel = path2.relative(path2.resolve(moduleRoot), target);
   if (rel === "" || !rel.startsWith("..")) {
     return;
   }
@@ -88,6 +89,16 @@ function configuredTargets(moduleRoot) {
   }
   const tsconfigPath = path2.join(moduleRoot, "tsconfig.json");
   const tsconfig = readJSON(tsconfigPath);
+  const extendsField = tsconfig?.extends;
+  const extendsList = Array.isArray(extendsField) ? extendsField : typeof extendsField === "string" ? [extendsField] : [];
+  for (const target of extendsList) {
+    if (target.startsWith(".")) {
+      out.push({
+        target: path2.resolve(moduleRoot, target),
+        origin: `${tsconfigPath} (extends)`
+      });
+    }
+  }
   const paths = tsconfig?.compilerOptions?.paths;
   if (typeof paths === "object" && paths !== null) {
     for (const [alias, targets] of Object.entries(paths)) {

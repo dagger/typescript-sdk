@@ -30,17 +30,45 @@ A bare specifier with none of those is left alone: it resolves inside
 `node_modules`, which in a monorepo sits at the repository root — outside the
 module and gitignored, so naming it would name a path the engine drops anyway.
 
-## When you still have to say it
+Also read, because each is a path the build needs and nothing else would
+supply:
 
-Static analysis cannot see a path that nothing imports:
+- a `tsconfig.json` `extends` pointing outside the module — tsx reads the chain
+  at call time and dies with `File '../tsconfig.base.json' not found.`
+- a `/// <reference path="../x.d.ts" />`.
+
+## Reading a file is a different question
+
+Resources make the module *build*. To *read* a file, take a `Workspace`
+argument — the caller passes one, and it reaches anything in the workspace with
+no resource involved:
 
 ```typescript
-readFileSync("../data/extra.txt", "utf8")   // fails: nothing imports ../data
+@func()
+async extra(ws: Workspace): Promise<string> {
+  return await ws.directory("/").file("data/extra.txt").contents()
+}
 ```
 
-For that, list it in `dagger.include`, in the module's `package.json` — or its
+That is the supported way, and it is why `readFileSync` on a path outside the
+module is usually the wrong shape — it only works where derivation happened to
+include the directory anyway:
+
+```typescript
+readFileSync("../shared/version.txt", "utf8")   // works: ../shared is imported
+readFileSync("../data/extra.txt", "utf8")       // fails: nothing imports ../data
+```
+
+## The escape hatch
+
+`dagger.include` still exists, in the module's `package.json` — or its
 `deno.json` under the Deno runtime, the same nested `dagger` object `baseImage`
 lives in. Declared paths are added to the derived ones.
+
+Nothing in this repository needs it any more: every case it was written for is
+either derived, or better expressed with a `Workspace` argument. It is kept for
+a build-time path static analysis cannot see — a Deno import map, a
+`workspace:` dependency, a path computed at run time.
 
 ```json
 {
