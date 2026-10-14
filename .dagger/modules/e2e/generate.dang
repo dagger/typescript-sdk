@@ -928,6 +928,18 @@ type GenerateChecks {
       "migrating an existing module should not scaffold over its source",
     )
 
+    # The same config under the default settings, where migrating is not this
+    # SDK's to do: a pre-1.0 module is loaded by the engine's builtin runtime,
+    # and `dagger module migrate` is what turns its config into a manifest. So
+    # the scope is left exactly as it arrived — asserted in full by
+    # generateLeavesLegacyConfigCheck, and here only for this fixture, which is
+    # the one the [runtime] path above really does migrate.
+    let onEntrypoint = Gen.scope(ws, path, "generate-app", legacyRuntime: false)
+    Asserts.untouched(
+      onEntrypoint, path + "/dagger.json",
+      "generating a pre-1.0 module on the default path should leave its dagger.json",
+    )
+
     null
   }
 
@@ -1944,6 +1956,71 @@ type GenerateChecks {
       failure,
       "exit code",
       "generating a module declaring the same @object class in two files should fail, got: " + failure,
+    )
+
+    null
+  }
+
+  """
+  Generating a scope whose only module config is a pre-1.0 dagger.json should
+  leave it alone.
+
+  A dagger.json module is not this SDK's to generate: the engine's builtin
+  TypeScript runtime loads it and does its codegen at call time, which is why
+  the workspace config records only dagger-module.toml modules as scopes. So
+  there is nothing to write — and writing anything was worse than nothing, since
+  generating an entrypoint manifest deleted the dagger.json along with the
+  `[[dependencies]]`, `include`, `toolchains` or `blueprint` it declared, and
+  said nothing about it (#88).
+
+  Turning one into a dagger-module.toml is `dagger module migrate`'s job, which
+  carries the contents across. Until that has run the module keeps working as it
+  always did.
+
+  The `legacyRuntime` escape still migrates, and the second half asserts it: the
+  manifest that path writes is a `[runtime]` one, which has a field for all of
+  it, so nothing is lost.
+  """
+  generateLeavesLegacyConfigCheck(ws: Workspace!): Void @check {
+    let path = fixtures.legacyDepAppModule
+    let untouched = Gen.scope(ws, path, "legacy-deps-app", legacyRuntime: false)
+
+    Asserts.assert(
+      untouched.addedPaths.length == 0 and untouched.modifiedPaths.length == 0 and
+        untouched.removedPaths.length == 0,
+      "generating a dagger.json module should write nothing, got added [" +
+        untouched.addedPaths.join(", ") + "] modified [" +
+        untouched.modifiedPaths.join(", ") + "] removed [" +
+        untouched.removedPaths.join(", ") + "]",
+    )
+
+    # The file itself above all: it is the module's only config, and the engine
+    # needs it to load the module at all.
+    Asserts.untouched(
+      untouched, path + "/dagger.json",
+      "a module's dagger.json should survive a generate that does not migrate it",
+    )
+
+    # Another SDK's module in a scope this one was pointed at: same answer, and
+    # for the same reason rather than a special case.
+    Asserts.assert(
+      Gen.scope(ws, fixtures.migrateNonTsModule, "migrate-not-ts", legacyRuntime: false)
+        .addedPaths.length == 0,
+      "generating another SDK's dagger.json should write nothing either",
+    )
+
+    # legacyRuntime migrates it, and keeps what it declared.
+    let staged = Gen.withLegacyDependency(ws)
+    let migrated = Gen.module(staged, path, "legacy-deps-app")
+    let manifest = migrated.after.directory(path).file("dagger-module.toml").contents
+
+    Asserts.stringContains(
+      manifest, "[[dependencies]]",
+      "the legacyRuntime path should migrate the module and keep its dependencies",
+    )
+    Asserts.stringContains(
+      manifest, "legacydep",
+      "the migrated manifest should name the dependency the dagger.json declared",
     )
 
     null
