@@ -73,7 +73,13 @@ type TypescriptSdk {
 
   """
   Base container image modules build on. Empty keeps the SDK default. Written to
-  deno.json for the Deno runtime, package.json otherwise.
+  deno.json for the Deno runtime, package.json otherwise, and read back from
+  there on every later generation — so a module keeps the image its own config
+  names whether or not this setting is still being passed.
+
+  Only the image changes: the node recipe still installs ca-certificates with
+  apk, so an image without it fails the same way it does under the engine's
+  builtin runtime.
   """
   baseImage: String! = ""
 
@@ -833,6 +839,27 @@ type TypescriptSdk {
   }
 
   """
+  The image a scope's entrypoint recipe builds on, as `dagger.baseImage` records
+  it — empty for the image this SDK pins.
+
+  Only an entrypoint module needs this, for the reason effectivePackageManager
+  gives: under a `[runtime]` the engine reads the field itself, under an
+  entrypoint the recipe is ours, so the answer is baked into it at generation.
+  Without it the setting lands in package.json and changes nothing (#91).
+
+  The setting wins where it is set, again as for `packageManager`: a caller
+  passing it to an existing module never reaches the seeding that would record
+  it.
+  """
+  let effectiveBaseImage(ws: Workspace!, scope: String!, rt: Runtime!): String! {
+    if (baseImage != "") {
+      baseImage
+    } else {
+      ModConfig(sourcePath: scope, ws: ws).baseImageFor(rt)
+    }
+  }
+
+  """
   Lay down the files a brand-new module needs: the rendered starter and the
   config files its runtime is detected from. The manifest that makes it a
   module is withModuleManifest's, written right after this.
@@ -1387,7 +1414,8 @@ type TypescriptSdk {
   is wherever the caller happened to be. `pkgManager` is baked the same way, and
   for the same reason the engine's builtin runtime detects one: the module's
   dependencies have to be installed before a call can run, and nothing else
-  installs them under an entrypoint.
+  installs them under an entrypoint. `image` likewise: empty keeps the pin the
+  generator ships for `rt`.
   """
   let generateDangEntrypoint(
     typedef: String!,
@@ -1395,6 +1423,7 @@ type TypescriptSdk {
     sourcePath: String!,
     rt: Runtime!,
     pkgManager: String!,
+    image: String!,
   ): File! {
     entrypointCodegen(typedef)
       .withExec([
@@ -1405,6 +1434,7 @@ type TypescriptSdk {
         "--runtime", runtimeName(rt),
         "--module-path", sourcePath,
         "--package-manager", pkgManager,
+        "--base-image", image,
       ])
       .file("/out/entrypoint/main.dang")
   }
@@ -1446,6 +1476,7 @@ type TypescriptSdk {
     existing: Directory!,
     runtime: Runtime!,
     packageManager: String!,
+    image: String!,
     targets: [ClientTarget!]!,
     repoURL: String!,
   ): Directory! {
@@ -1470,7 +1501,7 @@ type TypescriptSdk {
         .withFile(dispatchFile, generateModuleDispatcher(typedef))
         .withFile(
           dangEntrypointDir + "/" + dangEntrypointFile,
-          generateDangEntrypoint(typedef, moduleName, sourcePath, runtime, packageManager),
+          generateDangEntrypoint(typedef, moduleName, sourcePath, runtime, packageManager, image),
         )
     } else {
       directory
@@ -1606,10 +1637,12 @@ type TypescriptSdk {
   """
   let moduleGenerated(ws: Workspace!, scope: String!, sourcePath: String!, name: String!, rt: Runtime!, targets: [ClientTarget!]!): Directory! {
     let sourcePrefix = if (sourcePath == ".") { "" } else { sourcePath + "/" }
-    # Only the entrypoint recipe installs anything, and detection reads
-    # package.json through a container — so a `[runtime]` module does not pay
-    # for an answer nothing would bake.
+    # Only the entrypoint recipe installs anything or names an image, and both
+    # answers are read out of package.json through a container — so a
+    # `[runtime]` module, whose engine reads the same fields itself, does not
+    # pay for an answer nothing would bake.
     let pkgManager = if (legacyRuntime == false) { effectivePackageManager(ws, sourcePath, rt) } else { "" }
+    let image = if (legacyRuntime == false) { effectiveBaseImage(ws, sourcePath, rt) } else { "" }
 
     moduleDirectory(
       ws.moduleSource("/" + scope).introspectionSchemaJSON.contents,
@@ -1619,6 +1652,7 @@ type TypescriptSdk {
       existingModuleConfig(ws, sourcePath),
       rt,
       pkgManager,
+      image,
       targets,
       workspaceRepoURL(ws, scope),
     )

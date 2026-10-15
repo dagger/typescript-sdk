@@ -36,6 +36,15 @@ type DangEntrypointOptions struct {
 	// uses whatever the base image ships.
 	PackageManagerVersion string
 
+	// BaseImage replaces the image the recipe builds on, as the module's
+	// `dagger.baseImage` records it. Empty keeps the pin for Runtime.
+	//
+	// Nothing else in the recipe moves with it: the node recipe still installs
+	// ca-certificates with apk and the package manager with npm, so an image
+	// that ships neither fails exactly where the engine's builtin runtime fails
+	// on the same image.
+	BaseImage string
+
 	// DispatchFile is the generated dispatcher call() execs, relative to the
 	// module directory.
 	DispatchFile string
@@ -628,12 +637,12 @@ func (c *dangFuncCtx) dangBaseChain() string {
 
 	switch c.opts.Runtime {
 	case "bun":
-		calls = append(calls, fmt.Sprintf("from(%s)", dangString(dangBunImageRef)))
+		calls = append(calls, fmt.Sprintf("from(%s)", dangString(c.baseImage(dangBunImageRef))))
 	case "deno":
-		calls = append(calls, fmt.Sprintf("from(%s)", dangString(dangDenoImageRef)))
+		calls = append(calls, fmt.Sprintf("from(%s)", dangString(c.baseImage(dangDenoImageRef))))
 	default:
 		calls = append(calls,
-			fmt.Sprintf("from(%s)", dangString(dangNodeImageRef)),
+			fmt.Sprintf("from(%s)", dangString(c.baseImage(dangNodeImageRef))),
 			`withExec(["apk", "add", "--no-cache", "ca-certificates"])`,
 			`withEnvVariable("NODE_OPTIONS", "--use-openssl-ca")`,
 		)
@@ -644,6 +653,15 @@ func (c *dangFuncCtx) dangBaseChain() string {
 		dangString(cachePath), dangString(cacheName)))
 
 	return dangChain("container", calls, "      ")
+}
+
+// baseImage is the image the recipe builds on: the module's configured
+// `dagger.baseImage` when it has one, otherwise this SDK's pin for the runtime.
+func (c *dangFuncCtx) baseImage(pinned string) string {
+	if c.opts.BaseImage != "" {
+		return c.opts.BaseImage
+	}
+	return pinned
 }
 
 // dangPackageCache is where the package manager keeps its downloads, and the

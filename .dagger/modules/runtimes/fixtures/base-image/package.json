@@ -1,0 +1,6 @@
+{
+  "type": "module",
+  "dagger": {
+    "baseImage": "node:22-alpine"
+  }
+}

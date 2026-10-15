@@ -167,6 +167,7 @@ func runDangEntrypoint(args []string) error {
 		runtime      = fs.String("runtime", "node", "JS runtime the call() recipe targets: node, bun or deno")
 		modulePath   = fs.String("module-path", ".", "module directory relative to the workspace root, used as the container workdir")
 		packageMgr   = fs.String("package-manager", "", "package manager the call() recipe installs with, as name[@version] (npm, yarn, pnpm, bun, deno)")
+		baseImage    = fs.String("base-image", "", "image the call() recipe builds on; empty keeps the pin for --runtime")
 		dispatchFile = fs.String("dispatch-file", typescriptgenerator.DefaultDispatchFile, "dispatcher call() execs, relative to the module directory")
 		tsconfigPath = fs.String("tsconfig", "tsconfig.json", "tsconfig tsx loads, relative to the module directory (node only)")
 	)
@@ -197,6 +198,7 @@ func runDangEntrypoint(args []string) error {
 			ModulePath:            *modulePath,
 			PackageManager:        pkgMgr,
 			PackageManagerVersion: pkgMgrVersion,
+			BaseImage:             *baseImage,
 			DispatchFile:          *dispatchFile,
 			TSConfigPath:          *tsconfigPath,
 		},

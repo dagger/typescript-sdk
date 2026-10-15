@@ -62,6 +62,26 @@ type ModConfig {
     }
   }
 
+  """
+  The `dagger.baseImage` field the engine's builtin runtime builds on, read from
+  deno.json under Deno and package.json otherwise — the same split
+  `--base-image` writes to. Empty when unset, or when the module has no such
+  file.
+
+  `rt` is passed in rather than read from `runtime` for the reason
+  packageManagerFor takes it: the SDK's own setting can move a scope onto a
+  runtime its files do not yet imply, and the two runtimes keep the field in
+  different files.
+  """
+  baseImageFor(rt: Runtime!): String! {
+    let file = if (rt == Runtime.DENO) { denoJsonPath } else { packageJsonPath }
+    if (hasFile(file)) {
+      tool(file).withExec(["module-config", "get-base-image", toolPath]).stdout
+    } else {
+      ""
+    }
+  }
+
   let packageJsonPath: String! { sourceFile("package.json") }
   let denoJsonPath: String! { sourceFile("deno.json") }
   let bunLockPath: String! { sourceFile("bun.lock") }

@@ -427,10 +427,68 @@ type GenerateChecks {
   }
 
   """
+  An entrypoint module's call recipe should build on the image the module's
+  config names.
+
+  `--base-image` writes `dagger.baseImage` into package.json (deno.json under
+  Deno) and the engine's builtin runtime builds on it from there. Under an
+  entrypoint the recipe is ours, so nothing honours the field unless generation
+  bakes it in — and until it did, a module with a pinned image quietly ran on the
+  SDK's own and said nothing about it (#91).
+
+  Both ways a module arrives with one: the setting a caller passes now, and the
+  field an earlier `--base-image` left in its config — which is all a user has
+  once init is behind them.
+  """
+  entrypointBaseImageCheck(ws: Workspace!): Void @check {
+    let settingScope = Fixtures.out + "/entrypoint-image-setting"
+    let configScope = Fixtures.out + "/entrypoint-image-config"
+    let defaultScope = Fixtures.out + "/entrypoint-image-default"
+
+    Asserts.stringContains(
+      entrypointRecipe(ws, settingScope, "entrypoint-image-setting", baseImage: "node:22-alpine"),
+      "from(\"node:22-alpine\")",
+      "the baseImage setting should reach the recipe",
+    )
+
+    Asserts.stringContains(
+      entrypointRecipe(
+        ws.withNewFile(
+          "/" + configScope + "/package.json",
+          "{\"dagger\": {\"baseImage\": \"node:23.2.0-alpine\"}}\n",
+        ),
+        configScope,
+        "entrypoint-image-config",
+      ),
+      "from(\"node:23.2.0-alpine\")",
+      "a module's own dagger.baseImage should reach the recipe",
+    )
+
+    # Unset leaves the SDK's pinned-by-digest image. The exact pin is asserted
+    # where it is declared (dang_entrypoint_test.go); here it only has to be
+    # pinned, and not one of the images above.
+    let default = entrypointRecipe(ws, defaultScope, "entrypoint-image-default")
+    Asserts.stringContains(
+      default, "from(\"node:",
+      "a module with no configured image should keep the SDK's default",
+    )
+    Asserts.stringContains(
+      default, "-alpine@sha256:",
+      "the SDK's default image should stay pinned by digest",
+    )
+    Asserts.stringNotContains(
+      default, "node:22-alpine",
+      "an unset baseImage should not pick up another scope's image",
+    )
+
+    null
+  }
+
+  """
   The Dang program a generated entrypoint scope comes out with.
   """
-  let entrypointRecipe(ws: Workspace!, scope: String!, name: String!): String! {
-    typescriptSdk(legacyRuntime: false, template: "empty", skipGenerateFilename: "")
+  let entrypointRecipe(ws: Workspace!, scope: String!, name: String!, baseImage: String! = ""): String! {
+    typescriptSdk(legacyRuntime: false, template: "empty", skipGenerateFilename: "", baseImage: baseImage)
       .generateScope(ws.withWorkdir(scope), isModule: true, name: name, clients: [])
       .file("entrypoint/main.dang")
       .contents
