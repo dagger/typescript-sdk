@@ -207,8 +207,8 @@ type Runtimes {
       .withWorkdir(".")
 
     let recipe = generated.directory("/" + path).file("entrypoint/main.dang").contents
-    if (recipe.contains("pub resources: [String!]! {\n    [\"../shared/greet.ts\"]\n  }") == false) {
-      raise "the import map target should reach the resources member"
+    if (recipe.contains("workspace.directory(\"..\", include: [\"shared/greet.ts\"]") == false) {
+      raise "the import map target should reach the sources member"
     }
 
     let outcomes = generated.withModule(path, name: "runtime-include-deno")

@@ -511,7 +511,7 @@ type GenerateChecks {
   }
 
   """
-  A module's resources should be derived from what its source imports, with no
+  A module's sources should be derived from what its source imports, with no
   `dagger.include` at all.
 
   The field asks a user to keep a list in step with their own imports. Their
@@ -540,8 +540,8 @@ type GenerateChecks {
     )
     Asserts.stringContains(
       recipe,
-      "pub resources: [String!]! {\n    [\"../shared\"]\n  }",
-      "the import should reach the resources member with nothing declared",
+      "withDirectory(workspace.cwd + \"/..\", workspace.directory(\"..\", include: [\"shared\"]",
+      "the import should reach the sources member with nothing declared",
     )
     # The import is what was found, not the file it names.
     Asserts.stringNotContains(

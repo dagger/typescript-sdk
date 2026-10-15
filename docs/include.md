@@ -7,7 +7,7 @@ root, not an unrelated sibling, not `.git`.
 ## Imports are enough, usually
 
 An import that climbs out of the module directory is picked up at generation and
-written into the module's `resources`, so this needs no configuration at all:
+returned by the module's `sources` member, so this needs no configuration at all:
 
 ```typescript
 import { greeting } from "../shared/greet.js"

@@ -1355,7 +1355,7 @@ type TypescriptSdk {
   so no resource would make the build work.
 
   Only the module's own directory is mounted, so this sees exactly what the scan
-  would see with no resources at all — which is the point: it runs first, to
+  would see with nothing added at all — which is the point: it runs first, to
   work out what the scan's tree has to hold.
   """
   let importedResources(source: Directory!, existing: Directory!, sourcePath: String!): [String!]! {
@@ -1771,15 +1771,15 @@ type TypescriptSdk {
   The paths `dagger.include` declares, read from the workspace for the scan.
 
   Only the scan reads these. A call gets them from the engine instead: the
-  generated `resources` member names them, and the engine puts them in the
+  generated `sources` member returns them, and the engine merges them into the
   module context before anything reads the module digest. Generation cannot use
   that — the member it would read is the one it is about to write — so it
   assembles the same tree itself, from the workspace, with the filters the
   engine's own local module context applies: `.gitignore`, and node_modules on
   top of it, since these are directories the module does not own.
 
-  An empty result is refused. The engine is laxer — a `resources` pattern that
-  matches nothing is not an error there — but a scan built from nothing silently
+  An empty result is refused. The engine is laxer — `sources` returning less
+  than expected is not an error there — but a scan built from nothing silently
   produces typedefs for source whose imports did not resolve, which is the
   failure this whole field exists to prevent.
 
