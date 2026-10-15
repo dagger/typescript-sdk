@@ -1,9 +1,1940 @@
-import * as graphql_request from 'graphql-request';
-import { GraphQLClient, ClientError } from 'graphql-request';
-export { GraphQLClient } from 'graphql-request';
-import * as opentelemetry from '@opentelemetry/api';
-import { GraphQLErrorExtensions } from 'graphql';
 import { Writable } from 'node:stream';
+
+/**
+ * Conveniently represents flow's "Maybe" type https://flow.org/en/docs/types/maybe/
+ *
+ * @internal
+ */
+declare type Maybe<T> = null | undefined | T;
+
+/** @category Source */
+interface Location$1 {
+  line: number;
+  column: number;
+}
+/**
+ * A representation of source input to GraphQL. The `name` and `locationOffset` parameters are
+ * optional, but they are useful for clients who store GraphQL documents in source files.
+ * For example, if the GraphQL input starts at line 40 in a file named `Foo.graphql`, it might
+ * be useful for `name` to be `"Foo.graphql"` and location to be `{ line: 40, column: 1 }`.
+ * The `line` and `column` properties in `locationOffset` are 1-indexed.
+ */
+declare class Source {
+  /** The GraphQL source text. */
+  body: string;
+  /** Name used in diagnostics for this source, such as a file path or request name. */
+  name: string;
+  /** One-indexed line and column where this source begins. */
+  locationOffset: Location$1;
+  /**
+   * Creates a Source instance.
+   * @param body - The GraphQL source text.
+   * @param name - Name used in diagnostics for this source.
+   * @param locationOffset - One-indexed line and column where this source begins.
+   * @example
+   * ```ts
+   * import { Source } from 'graphql/language';
+   *
+   * const source = new Source(
+   *   'type Query { greeting: String }',
+   *   'schema.graphql',
+   *   { line: 10, column: 1 },
+   * );
+   *
+   * source.body; // => 'type Query { greeting: String }'
+   * source.name; // => 'schema.graphql'
+   * source.locationOffset; // => { line: 10, column: 1 }
+   * ```
+   */
+  constructor(body: string, name?: string, locationOffset?: Location$1);
+  /**
+   * Returns the value used by `Object.prototype.toString`.
+   * @returns The built-in string tag for this object.
+   */
+  get [Symbol.toStringTag](): string;
+}
+
+/** @category Kinds */
+/** The set of allowed kind values for AST nodes. */
+declare enum Kind {
+  /** AST kind for name nodes. */
+  NAME = 'Name',
+  /** AST kind for document nodes. */
+  DOCUMENT = 'Document',
+  /** AST kind for operation definition nodes. */
+  OPERATION_DEFINITION = 'OperationDefinition',
+  /** AST kind for variable definition nodes. */
+  VARIABLE_DEFINITION = 'VariableDefinition',
+  /** AST kind for selection set nodes. */
+  SELECTION_SET = 'SelectionSet',
+  /** AST kind for field selection nodes. */
+  FIELD = 'Field',
+  /** AST kind for argument nodes. */
+  ARGUMENT = 'Argument',
+  /** AST kind for fragment spread nodes. */
+  FRAGMENT_SPREAD = 'FragmentSpread',
+  /** AST kind for inline fragment nodes. */
+  INLINE_FRAGMENT = 'InlineFragment',
+  /** AST kind for fragment definition nodes. */
+  FRAGMENT_DEFINITION = 'FragmentDefinition',
+  /** AST kind for variable reference nodes. */
+  VARIABLE = 'Variable',
+  /** AST kind for integer value nodes. */
+  INT = 'IntValue',
+  /** AST kind for floating-point value nodes. */
+  FLOAT = 'FloatValue',
+  /** AST kind for string value nodes. */
+  STRING = 'StringValue',
+  /** AST kind for boolean value nodes. */
+  BOOLEAN = 'BooleanValue',
+  /** AST kind for null value nodes. */
+  NULL = 'NullValue',
+  /** AST kind for enum value nodes. */
+  ENUM = 'EnumValue',
+  /** AST kind for list value nodes. */
+  LIST = 'ListValue',
+  /** AST kind for object value nodes. */
+  OBJECT = 'ObjectValue',
+  /** AST kind for object field nodes. */
+  OBJECT_FIELD = 'ObjectField',
+  /** AST kind for directive nodes. */
+  DIRECTIVE = 'Directive',
+  /** AST kind for named type reference nodes. */
+  NAMED_TYPE = 'NamedType',
+  /** AST kind for list type reference nodes. */
+  LIST_TYPE = 'ListType',
+  /** AST kind for non-null type reference nodes. */
+  NON_NULL_TYPE = 'NonNullType',
+  /** AST kind for schema definition nodes. */
+  SCHEMA_DEFINITION = 'SchemaDefinition',
+  /** AST kind for operation type definition nodes. */
+  OPERATION_TYPE_DEFINITION = 'OperationTypeDefinition',
+  /** AST kind for scalar type definition nodes. */
+  SCALAR_TYPE_DEFINITION = 'ScalarTypeDefinition',
+  /** AST kind for object type definition nodes. */
+  OBJECT_TYPE_DEFINITION = 'ObjectTypeDefinition',
+  /** AST kind for field definition nodes. */
+  FIELD_DEFINITION = 'FieldDefinition',
+  /** AST kind for input value definition nodes. */
+  INPUT_VALUE_DEFINITION = 'InputValueDefinition',
+  /** AST kind for interface type definition nodes. */
+  INTERFACE_TYPE_DEFINITION = 'InterfaceTypeDefinition',
+  /** AST kind for union type definition nodes. */
+  UNION_TYPE_DEFINITION = 'UnionTypeDefinition',
+  /** AST kind for enum type definition nodes. */
+  ENUM_TYPE_DEFINITION = 'EnumTypeDefinition',
+  /** AST kind for enum value definition nodes. */
+  ENUM_VALUE_DEFINITION = 'EnumValueDefinition',
+  /** AST kind for input object type definition nodes. */
+  INPUT_OBJECT_TYPE_DEFINITION = 'InputObjectTypeDefinition',
+  /** AST kind for directive definition nodes. */
+  DIRECTIVE_DEFINITION = 'DirectiveDefinition',
+  /** AST kind for schema extension nodes. */
+  SCHEMA_EXTENSION = 'SchemaExtension',
+  /** AST kind for directive extension nodes. */
+  DIRECTIVE_EXTENSION = 'DirectiveExtension',
+  /** AST kind for scalar type extension nodes. */
+  SCALAR_TYPE_EXTENSION = 'ScalarTypeExtension',
+  /** AST kind for object type extension nodes. */
+  OBJECT_TYPE_EXTENSION = 'ObjectTypeExtension',
+  /** AST kind for interface type extension nodes. */
+  INTERFACE_TYPE_EXTENSION = 'InterfaceTypeExtension',
+  /** AST kind for union type extension nodes. */
+  UNION_TYPE_EXTENSION = 'UnionTypeExtension',
+  /** AST kind for enum type extension nodes. */
+  ENUM_TYPE_EXTENSION = 'EnumTypeExtension',
+  /** AST kind for input object type extension nodes. */
+  INPUT_OBJECT_TYPE_EXTENSION = 'InputObjectTypeExtension',
+  /** AST kind for type coordinate nodes. */
+  TYPE_COORDINATE = 'TypeCoordinate',
+  /** AST kind for member coordinate nodes. */
+  MEMBER_COORDINATE = 'MemberCoordinate',
+  /** AST kind for argument coordinate nodes. */
+  ARGUMENT_COORDINATE = 'ArgumentCoordinate',
+  /** AST kind for directive coordinate nodes. */
+  DIRECTIVE_COORDINATE = 'DirectiveCoordinate',
+  /** AST kind for directive argument coordinate nodes. */
+  DIRECTIVE_ARGUMENT_COORDINATE = 'DirectiveArgumentCoordinate',
+}
+
+/** @category Lexing */
+/**
+ * An exported enum describing the different kinds of tokens that the
+ * lexer emits.
+ */
+declare enum TokenKind {
+  /** Start-of-file token. */
+  SOF = '<SOF>',
+  /** End-of-file token. */
+  EOF = '<EOF>',
+  /** The `!` punctuation token. */
+  BANG = '!',
+  /** The `$` punctuation token. */
+  DOLLAR = '$',
+  /** The `&` punctuation token. */
+  AMP = '&',
+  /** The `(` punctuation token. */
+  PAREN_L = '(',
+  /** The `)` punctuation token. */
+  PAREN_R = ')',
+  /** The `.` punctuation token. */
+  DOT = '.',
+  /** The `...` spread punctuation token. */
+  SPREAD = '...',
+  /** The `:` punctuation token. */
+  COLON = ':',
+  /** The `=` punctuation token. */
+  EQUALS = '=',
+  /** The `@` punctuation token. */
+  AT = '@',
+  /** The `[` punctuation token. */
+  BRACKET_L = '[',
+  /** The `]` punctuation token. */
+  BRACKET_R = ']',
+  /** The `{` punctuation token. */
+  BRACE_L = '{',
+  /** The `|` punctuation token. */
+  PIPE = '|',
+  /** The `}` punctuation token. */
+  BRACE_R = '}',
+  /** A GraphQL name token or name AST node. */
+  NAME = 'Name',
+  /** An integer value token or AST node. */
+  INT = 'Int',
+  /** A floating-point value token or AST node. */
+  FLOAT = 'Float',
+  /** A string value token or AST node. */
+  STRING = 'String',
+  /** A block string value token. */
+  BLOCK_STRING = 'BlockString',
+  /** A comment token. */
+  COMMENT = 'Comment',
+}
+
+/** @category AST */
+
+/**
+ * Contains a range of UTF-8 character offsets and token references that
+ * identify the region of the source from which the AST derived.
+ */
+declare class Location {
+  /** The character offset at which this Node begins. */
+  readonly start: number;
+  /** The character offset at which this Node ends. */
+  readonly end: number;
+  /** The Token at which this Node begins. */
+  readonly startToken: Token;
+  /** The Token at which this Node ends. */
+  readonly endToken: Token;
+  /** The Source document the AST represents. */
+  readonly source: Source;
+  /**
+   * Creates a Location instance.
+   * @param startToken - The start token.
+   * @param endToken - The end token.
+   * @param source - Source document used to derive error locations.
+   * @example
+   * ```ts
+   * import { Location, Source, Token, TokenKind } from 'graphql/language';
+   *
+   * const source = new Source('{ hello }');
+   * const startToken = new Token(TokenKind.BRACE_L, 0, 1, 1, 1);
+   * const endToken = new Token(TokenKind.BRACE_R, 8, 9, 1, 9);
+   * const location = new Location(startToken, endToken, source);
+   *
+   * location.start; // => 0
+   * location.end; // => 9
+   * location.source.body; // => '{ hello }'
+   * ```
+   */
+  constructor(startToken: Token, endToken: Token, source: Source);
+  /**
+   * Returns the value used by `Object.prototype.toString`.
+   * @returns The built-in string tag for this object.
+   */
+  get [Symbol.toStringTag](): string;
+  /**
+   * Returns a JSON representation of this location.
+   * @returns The JSON-serializable representation.
+   * @example
+   * ```ts
+   * import { parse } from 'graphql/language';
+   *
+   * const document = parse('{ hello }');
+   * const location = document.loc?.toJSON();
+   *
+   * location; // => { start: 0, end: 9 }
+   * ```
+   */
+  toJSON(): {
+    start: number;
+    end: number;
+  };
+}
+/**
+ * Represents a range of characters represented by a lexical token
+ * within a Source.
+ */
+declare class Token {
+  /** The kind of Token. */
+  readonly kind: TokenKind;
+  /** The character offset at which this Node begins. */
+  readonly start: number;
+  /** The character offset at which this Node ends. */
+  readonly end: number;
+  /** The 1-indexed line number on which this Token appears. */
+  readonly line: number;
+  /** The 1-indexed column number at which this Token begins. */
+  readonly column: number;
+  /**
+   * For non-punctuation tokens, represents the interpreted value of the token.
+   *
+   * Note: is undefined for punctuation tokens, but typed as string for
+   * convenience in the parser.
+   */
+  readonly value: string;
+  /**
+   * Tokens exist as nodes in a double-linked-list amongst all tokens
+   * including ignored tokens. <SOF> is always the first node and <EOF>
+   * the last.
+   */
+  readonly prev: Token | null;
+  /** Next token in the token stream, including ignored tokens. */
+  readonly next: Token | null;
+  /**
+   * Creates a Token instance.
+   * @param kind - Token kind produced by lexical analysis.
+   * @param start - Character offset where this token begins.
+   * @param end - Character offset where this token ends.
+   * @param line - One-indexed line number where this token begins.
+   * @param column - One-indexed column number where this token begins.
+   * @param value - Interpreted value for non-punctuation tokens.
+   * @example
+   * ```ts
+   * import { Token, TokenKind } from 'graphql/language';
+   *
+   * const token = new Token(TokenKind.NAME, 2, 7, 1, 3, 'hello');
+   *
+   * token.kind; // => TokenKind.NAME
+   * token.value; // => 'hello'
+   * token.toJSON(); // => { kind: 'Name', value: 'hello', line: 1, column: 3 }
+   * ```
+   */
+  constructor(
+    kind: TokenKind,
+    start: number,
+    end: number,
+    line: number,
+    column: number,
+    value?: string,
+  );
+  /**
+   * Returns the value used by `Object.prototype.toString`.
+   * @returns The built-in string tag for this object.
+   */
+  get [Symbol.toStringTag](): string;
+  /**
+   * Returns a JSON representation of this token.
+   * @returns The JSON-serializable representation.
+   * @example
+   * ```ts
+   * import { Lexer, Source } from 'graphql/language';
+   *
+   * const lexer = new Lexer(new Source('{ hello }'));
+   * const token = lexer.advance().toJSON();
+   *
+   * token; // => { kind: '{', value: undefined, line: 1, column: 1 }
+   * ```
+   */
+  toJSON(): {
+    kind: TokenKind;
+    value?: string;
+    line: number;
+    column: number;
+  };
+}
+/** The list of all possible AST node types. */
+declare type ASTNode =
+  | NameNode
+  | DocumentNode
+  | OperationDefinitionNode
+  | VariableDefinitionNode
+  | VariableNode
+  | SelectionSetNode
+  | FieldNode
+  | ArgumentNode
+  | FragmentSpreadNode
+  | InlineFragmentNode
+  | FragmentDefinitionNode
+  | IntValueNode
+  | FloatValueNode
+  | StringValueNode
+  | BooleanValueNode
+  | NullValueNode
+  | EnumValueNode
+  | ListValueNode
+  | ObjectValueNode
+  | ObjectFieldNode
+  | DirectiveNode
+  | NamedTypeNode
+  | ListTypeNode
+  | NonNullTypeNode
+  | SchemaDefinitionNode
+  | OperationTypeDefinitionNode
+  | ScalarTypeDefinitionNode
+  | ObjectTypeDefinitionNode
+  | FieldDefinitionNode
+  | InputValueDefinitionNode
+  | InterfaceTypeDefinitionNode
+  | UnionTypeDefinitionNode
+  | EnumTypeDefinitionNode
+  | EnumValueDefinitionNode
+  | InputObjectTypeDefinitionNode
+  | DirectiveDefinitionNode
+  | SchemaExtensionNode
+  | ScalarTypeExtensionNode
+  | ObjectTypeExtensionNode
+  | InterfaceTypeExtensionNode
+  | UnionTypeExtensionNode
+  | EnumTypeExtensionNode
+  | InputObjectTypeExtensionNode
+  | DirectiveExtensionNode
+  | TypeCoordinateNode
+  | MemberCoordinateNode
+  | ArgumentCoordinateNode
+  | DirectiveCoordinateNode
+  | DirectiveArgumentCoordinateNode;
+/** An identifier in a GraphQL document. */
+interface NameNode {
+  /** The discriminator identifying the concrete AST or introspection kind. */
+  readonly kind: Kind.NAME;
+  /** The source location for this AST node, if location tracking was enabled. */
+  readonly loc?: Location;
+  /** Parsed value represented by this node. */
+  readonly value: string;
+}
+/** The root AST node for a parsed GraphQL document. */
+interface DocumentNode {
+  /** The discriminator identifying the concrete AST or introspection kind. */
+  readonly kind: Kind.DOCUMENT;
+  /** The source location for this AST node, if location tracking was enabled. */
+  readonly loc?: Location;
+  /** Top-level executable and type-system definitions in this document. */
+  readonly definitions: ReadonlyArray<DefinitionNode>;
+  /** The number of lexical tokens parsed for this document, if token counting was enabled. */
+  readonly tokenCount?: number | undefined;
+}
+/** Any top-level definition that may appear in a GraphQL document. */
+declare type DefinitionNode =
+  | ExecutableDefinitionNode
+  | TypeSystemDefinitionNode
+  | TypeSystemExtensionNode;
+/** Any executable definition that may appear in an operation document. */
+declare type ExecutableDefinitionNode =
+  | OperationDefinitionNode
+  | FragmentDefinitionNode;
+/** A query, mutation, or subscription operation definition. */
+interface OperationDefinitionNode {
+  /** The discriminator identifying the concrete AST or introspection kind. */
+  readonly kind: Kind.OPERATION_DEFINITION;
+  /** The optional GraphQL description associated with this definition. */
+  readonly description?: StringValueNode;
+  /** The source location for this AST node, if location tracking was enabled. */
+  readonly loc?: Location;
+  /** The operation selected for execution. */
+  readonly operation: OperationTypeNode;
+  /** Name node identifying this AST node. */
+  readonly name?: NameNode;
+  /** Variable definitions declared by this operation or fragment. */
+  readonly variableDefinitions?: ReadonlyArray<VariableDefinitionNode>;
+  /** Directives available in this schema or applied to this AST node. */
+  readonly directives?: ReadonlyArray<DirectiveNode>;
+  /** Selections made by this operation, field, or fragment. */
+  readonly selectionSet: SelectionSetNode;
+}
+/**
+ * The operation types supported by GraphQL executable definitions.
+ * @category Kinds
+ */
+declare enum OperationTypeNode {
+  /** A query operation. */
+  QUERY = 'query',
+  /** A mutation operation. */
+  MUTATION = 'mutation',
+  /** A subscription operation. */
+  SUBSCRIPTION = 'subscription',
+}
+
+/** A variable declaration in an operation or legacy fragment definition. */
+interface VariableDefinitionNode {
+  /** The discriminator identifying the concrete AST or introspection kind. */
+  readonly kind: Kind.VARIABLE_DEFINITION;
+  /** The optional GraphQL description associated with this definition. */
+  readonly description?: StringValueNode;
+  /** The source location for this AST node, if location tracking was enabled. */
+  readonly loc?: Location;
+  /** The variable being defined or referenced. */
+  readonly variable: VariableNode;
+  /** The GraphQL type reference or runtime type for this element. */
+  readonly type: TypeNode;
+  /** Default value used when no explicit value is supplied. */
+  readonly defaultValue?: ConstValueNode;
+  /** Directives available in this schema or applied to this AST node. */
+  readonly directives?: ReadonlyArray<ConstDirectiveNode>;
+}
+/** A variable reference, such as `$id`. */
+interface VariableNode {
+  /** The discriminator identifying the concrete AST or introspection kind. */
+  readonly kind: Kind.VARIABLE;
+  /** The source location for this AST node, if location tracking was enabled. */
+  readonly loc?: Location;
+  /** Name node identifying this AST node. */
+  readonly name: NameNode;
+}
+/** A set of fields and fragments selected from an object, interface, or union. */
+interface SelectionSetNode {
+  /** The discriminator identifying the concrete AST or introspection kind. */
+  kind: Kind.SELECTION_SET;
+  /** The source location for this AST node, if location tracking was enabled. */
+  loc?: Location;
+  /** Fields and fragments contained in this selection set. */
+  selections: ReadonlyArray<SelectionNode>;
+}
+/** Any selection that may appear inside a selection set. */
+declare type SelectionNode =
+  | FieldNode
+  | FragmentSpreadNode
+  | InlineFragmentNode;
+/** A field selected in an executable GraphQL document. */
+interface FieldNode {
+  /** The discriminator identifying the concrete AST or introspection kind. */
+  readonly kind: Kind.FIELD;
+  /** The source location for this AST node, if location tracking was enabled. */
+  readonly loc?: Location;
+  /** The response-key alias for this field, if one was supplied. */
+  readonly alias?: NameNode;
+  /** Name node identifying this AST node. */
+  readonly name: NameNode;
+  /** Arguments supplied to this field, directive, or coordinate. */
+  readonly arguments?: ReadonlyArray<ArgumentNode>;
+  /** Directives available in this schema or applied to this AST node. */
+  readonly directives?: ReadonlyArray<DirectiveNode>;
+  /** Selections made by this operation, field, or fragment. */
+  readonly selectionSet?: SelectionSetNode;
+}
+/** An argument supplied to a field or directive. */
+interface ArgumentNode {
+  /** The discriminator identifying the concrete AST or introspection kind. */
+  readonly kind: Kind.ARGUMENT;
+  /** The source location for this AST node, if location tracking was enabled. */
+  readonly loc?: Location;
+  /** Name node identifying this AST node. */
+  readonly name: NameNode;
+  /** Parsed value represented by this node. */
+  readonly value: ValueNode;
+}
+/** An argument node whose value is guaranteed to be constant. */
+interface ConstArgumentNode {
+  /** The discriminator identifying the concrete AST or introspection kind. */
+  readonly kind: Kind.ARGUMENT;
+  /** The source location for this AST node, if location tracking was enabled. */
+  readonly loc?: Location;
+  /** Name node identifying this AST node. */
+  readonly name: NameNode;
+  /** Parsed value represented by this node. */
+  readonly value: ConstValueNode;
+}
+/** A named fragment spread, such as `...userFields`. */
+interface FragmentSpreadNode {
+  /** The discriminator identifying the concrete AST or introspection kind. */
+  readonly kind: Kind.FRAGMENT_SPREAD;
+  /** The source location for this AST node, if location tracking was enabled. */
+  readonly loc?: Location;
+  /** Name node identifying this AST node. */
+  readonly name: NameNode;
+  /** Directives available in this schema or applied to this AST node. */
+  readonly directives?: ReadonlyArray<DirectiveNode>;
+}
+/** An inline fragment spread with an optional type condition. */
+interface InlineFragmentNode {
+  /** The discriminator identifying the concrete AST or introspection kind. */
+  readonly kind: Kind.INLINE_FRAGMENT;
+  /** The source location for this AST node, if location tracking was enabled. */
+  readonly loc?: Location;
+  /** The type condition that limits where this fragment applies. */
+  readonly typeCondition?: NamedTypeNode;
+  /** Directives available in this schema or applied to this AST node. */
+  readonly directives?: ReadonlyArray<DirectiveNode>;
+  /** Selections made by this operation, field, or fragment. */
+  readonly selectionSet: SelectionSetNode;
+}
+/** A reusable fragment definition declared in an executable document. */
+interface FragmentDefinitionNode {
+  /** The discriminator identifying the concrete AST or introspection kind. */
+  readonly kind: Kind.FRAGMENT_DEFINITION;
+  /** The optional GraphQL description associated with this definition. */
+  readonly description?: StringValueNode;
+  /** The source location for this AST node, if location tracking was enabled. */
+  readonly loc?: Location;
+  /** Name node identifying this AST node. */
+  readonly name: NameNode;
+  /**
+   * Deprecated variable definitions declared by this legacy fragment
+   * definition. This legacy fragment variable syntax will be removed in v17.
+   * Move variable definitions to operations for spec-compliant documents; if
+   * you need variables or arguments scoped to fragments, v17 has a more
+   * complete experimental fragment-arguments feature.
+   * @deprecated variableDefinitions will be removed in v17.0.0
+   */
+  readonly variableDefinitions?: ReadonlyArray<VariableDefinitionNode>;
+  /** The type condition that limits where this fragment applies. */
+  readonly typeCondition: NamedTypeNode;
+  /** Directives available in this schema or applied to this AST node. */
+  readonly directives?: ReadonlyArray<DirectiveNode>;
+  /** Selections made by this operation, field, or fragment. */
+  readonly selectionSet: SelectionSetNode;
+}
+/** Any value literal that may appear in an executable GraphQL document. */
+declare type ValueNode =
+  | VariableNode
+  | IntValueNode
+  | FloatValueNode
+  | StringValueNode
+  | BooleanValueNode
+  | NullValueNode
+  | EnumValueNode
+  | ListValueNode
+  | ObjectValueNode;
+/** Any value literal that is guaranteed not to contain a variable reference. */
+declare type ConstValueNode =
+  | IntValueNode
+  | FloatValueNode
+  | StringValueNode
+  | BooleanValueNode
+  | NullValueNode
+  | EnumValueNode
+  | ConstListValueNode
+  | ConstObjectValueNode;
+/** An integer value literal. */
+interface IntValueNode {
+  /** The discriminator identifying the concrete AST or introspection kind. */
+  readonly kind: Kind.INT;
+  /** The source location for this AST node, if location tracking was enabled. */
+  readonly loc?: Location;
+  /** Parsed value represented by this node. */
+  readonly value: string;
+}
+/** A floating-point value literal. */
+interface FloatValueNode {
+  /** The discriminator identifying the concrete AST or introspection kind. */
+  readonly kind: Kind.FLOAT;
+  /** The source location for this AST node, if location tracking was enabled. */
+  readonly loc?: Location;
+  /** Parsed value represented by this node. */
+  readonly value: string;
+}
+/** A string value literal. */
+interface StringValueNode {
+  /** The discriminator identifying the concrete AST or introspection kind. */
+  readonly kind: Kind.STRING;
+  /** The source location for this AST node, if location tracking was enabled. */
+  readonly loc?: Location;
+  /** Parsed value represented by this node. */
+  readonly value: string;
+  /** Whether this string was parsed from block string syntax. */
+  readonly block?: boolean;
+}
+/** A boolean value literal. */
+interface BooleanValueNode {
+  /** The discriminator identifying the concrete AST or introspection kind. */
+  readonly kind: Kind.BOOLEAN;
+  /** The source location for this AST node, if location tracking was enabled. */
+  readonly loc?: Location;
+  /** Parsed value represented by this node. */
+  readonly value: boolean;
+}
+/** A null value literal. */
+interface NullValueNode {
+  /** The discriminator identifying the concrete AST or introspection kind. */
+  readonly kind: Kind.NULL;
+  /** The source location for this AST node, if location tracking was enabled. */
+  readonly loc?: Location;
+}
+/** An enum value literal. */
+interface EnumValueNode {
+  /** The discriminator identifying the concrete AST or introspection kind. */
+  readonly kind: Kind.ENUM;
+  /** The source location for this AST node, if location tracking was enabled. */
+  readonly loc?: Location;
+  /** Parsed value represented by this node. */
+  readonly value: string;
+}
+/** A list value literal. */
+interface ListValueNode {
+  /** The discriminator identifying the concrete AST or introspection kind. */
+  readonly kind: Kind.LIST;
+  /** The source location for this AST node, if location tracking was enabled. */
+  readonly loc?: Location;
+  /** Values contained in this enum, list, or input-object definition. */
+  readonly values: ReadonlyArray<ValueNode>;
+}
+/** A list value literal whose elements are all constant values. */
+interface ConstListValueNode {
+  /** The discriminator identifying the concrete AST or introspection kind. */
+  readonly kind: Kind.LIST;
+  /** The source location for this AST node, if location tracking was enabled. */
+  readonly loc?: Location;
+  /** Values contained in this enum, list, or input-object definition. */
+  readonly values: ReadonlyArray<ConstValueNode>;
+}
+/** An input object value literal. */
+interface ObjectValueNode {
+  /** The discriminator identifying the concrete AST or introspection kind. */
+  readonly kind: Kind.OBJECT;
+  /** The source location for this AST node, if location tracking was enabled. */
+  readonly loc?: Location;
+  /** Fields declared by this object, interface, input object, or literal. */
+  readonly fields: ReadonlyArray<ObjectFieldNode>;
+}
+/** An input object value literal whose fields are all constant values. */
+interface ConstObjectValueNode {
+  /** The discriminator identifying the concrete AST or introspection kind. */
+  readonly kind: Kind.OBJECT;
+  /** The source location for this AST node, if location tracking was enabled. */
+  readonly loc?: Location;
+  /** Fields declared by this object, interface, input object, or literal. */
+  readonly fields: ReadonlyArray<ConstObjectFieldNode>;
+}
+/** A field inside an input object value literal. */
+interface ObjectFieldNode {
+  /** The discriminator identifying the concrete AST or introspection kind. */
+  readonly kind: Kind.OBJECT_FIELD;
+  /** The source location for this AST node, if location tracking was enabled. */
+  readonly loc?: Location;
+  /** Name node identifying this AST node. */
+  readonly name: NameNode;
+  /** Parsed value represented by this node. */
+  readonly value: ValueNode;
+}
+/** A field inside a constant input object value literal. */
+interface ConstObjectFieldNode {
+  /** The discriminator identifying the concrete AST or introspection kind. */
+  readonly kind: Kind.OBJECT_FIELD;
+  /** The source location for this AST node, if location tracking was enabled. */
+  readonly loc?: Location;
+  /** Name node identifying this AST node. */
+  readonly name: NameNode;
+  /** Parsed value represented by this node. */
+  readonly value: ConstValueNode;
+}
+/** A directive applied to an executable or type-system location. */
+interface DirectiveNode {
+  /** The discriminator identifying the concrete AST or introspection kind. */
+  readonly kind: Kind.DIRECTIVE;
+  /** The source location for this AST node, if location tracking was enabled. */
+  readonly loc?: Location;
+  /** Name node identifying this AST node. */
+  readonly name: NameNode;
+  /** Arguments supplied to this field, directive, or coordinate. */
+  readonly arguments?: ReadonlyArray<ArgumentNode>;
+}
+/** A directive whose arguments are all constant values. */
+interface ConstDirectiveNode {
+  /** The discriminator identifying the concrete AST or introspection kind. */
+  readonly kind: Kind.DIRECTIVE;
+  /** The source location for this AST node, if location tracking was enabled. */
+  readonly loc?: Location;
+  /** Name node identifying this AST node. */
+  readonly name: NameNode;
+  /** Arguments supplied to this field, directive, or coordinate. */
+  readonly arguments?: ReadonlyArray<ConstArgumentNode>;
+}
+/** Any GraphQL type reference AST node. */
+declare type TypeNode = NamedTypeNode | ListTypeNode | NonNullTypeNode;
+/** A named type reference. */
+interface NamedTypeNode {
+  /** The discriminator identifying the concrete AST or introspection kind. */
+  readonly kind: Kind.NAMED_TYPE;
+  /** The source location for this AST node, if location tracking was enabled. */
+  readonly loc?: Location;
+  /** Name node identifying this AST node. */
+  readonly name: NameNode;
+}
+/** A list type reference. */
+interface ListTypeNode {
+  /** The discriminator identifying the concrete AST or introspection kind. */
+  readonly kind: Kind.LIST_TYPE;
+  /** The source location for this AST node, if location tracking was enabled. */
+  readonly loc?: Location;
+  /** The GraphQL type reference or runtime type for this element. */
+  readonly type: TypeNode;
+}
+/** A non-null type reference. */
+interface NonNullTypeNode {
+  /** The discriminator identifying the concrete AST or introspection kind. */
+  readonly kind: Kind.NON_NULL_TYPE;
+  /** The source location for this AST node, if location tracking was enabled. */
+  readonly loc?: Location;
+  /** The GraphQL type reference or runtime type for this element. */
+  readonly type: NamedTypeNode | ListTypeNode;
+}
+/** Any type-system definition that may appear in a schema document. */
+declare type TypeSystemDefinitionNode =
+  | SchemaDefinitionNode
+  | TypeDefinitionNode
+  | DirectiveDefinitionNode;
+/** A schema definition in a type-system document. */
+interface SchemaDefinitionNode {
+  /** The discriminator identifying the concrete AST or introspection kind. */
+  readonly kind: Kind.SCHEMA_DEFINITION;
+  /** The source location for this AST node, if location tracking was enabled. */
+  readonly loc?: Location;
+  /** The optional GraphQL description associated with this definition. */
+  readonly description?: StringValueNode;
+  /** Directives available in this schema or applied to this AST node. */
+  readonly directives?: ReadonlyArray<ConstDirectiveNode>;
+  /** Root operation types declared by this schema definition or extension. */
+  readonly operationTypes: ReadonlyArray<OperationTypeDefinitionNode>;
+}
+/** A root operation type declaration inside a schema definition or extension. */
+interface OperationTypeDefinitionNode {
+  /** The discriminator identifying the concrete AST or introspection kind. */
+  readonly kind: Kind.OPERATION_TYPE_DEFINITION;
+  /** The source location for this AST node, if location tracking was enabled. */
+  readonly loc?: Location;
+  /** The operation selected for execution. */
+  readonly operation: OperationTypeNode;
+  /** The GraphQL type reference or runtime type for this element. */
+  readonly type: NamedTypeNode;
+}
+/** Any named type definition that may appear in a schema document. */
+declare type TypeDefinitionNode =
+  | ScalarTypeDefinitionNode
+  | ObjectTypeDefinitionNode
+  | InterfaceTypeDefinitionNode
+  | UnionTypeDefinitionNode
+  | EnumTypeDefinitionNode
+  | InputObjectTypeDefinitionNode;
+/** A scalar type definition in a type-system document. */
+interface ScalarTypeDefinitionNode {
+  /** The discriminator identifying the concrete AST or introspection kind. */
+  readonly kind: Kind.SCALAR_TYPE_DEFINITION;
+  /** The source location for this AST node, if location tracking was enabled. */
+  readonly loc?: Location;
+  /** The optional GraphQL description associated with this definition. */
+  readonly description?: StringValueNode;
+  /** Name node identifying this AST node. */
+  readonly name: NameNode;
+  /** Directives available in this schema or applied to this AST node. */
+  readonly directives?: ReadonlyArray<ConstDirectiveNode>;
+}
+/** An object type definition in a type-system document. */
+interface ObjectTypeDefinitionNode {
+  /** The discriminator identifying the concrete AST or introspection kind. */
+  readonly kind: Kind.OBJECT_TYPE_DEFINITION;
+  /** The source location for this AST node, if location tracking was enabled. */
+  readonly loc?: Location;
+  /** The optional GraphQL description associated with this definition. */
+  readonly description?: StringValueNode;
+  /** Name node identifying this AST node. */
+  readonly name: NameNode;
+  /** Interfaces implemented by this object or interface type. */
+  readonly interfaces?: ReadonlyArray<NamedTypeNode>;
+  /** Directives available in this schema or applied to this AST node. */
+  readonly directives?: ReadonlyArray<ConstDirectiveNode>;
+  /** Fields declared by this object, interface, input object, or literal. */
+  readonly fields?: ReadonlyArray<FieldDefinitionNode>;
+}
+/** A field definition declared by an object or interface type. */
+interface FieldDefinitionNode {
+  /** The discriminator identifying the concrete AST or introspection kind. */
+  readonly kind: Kind.FIELD_DEFINITION;
+  /** The source location for this AST node, if location tracking was enabled. */
+  readonly loc?: Location;
+  /** The optional GraphQL description associated with this definition. */
+  readonly description?: StringValueNode;
+  /** Name node identifying this AST node. */
+  readonly name: NameNode;
+  /** Arguments supplied to this field, directive, or coordinate. */
+  readonly arguments?: ReadonlyArray<InputValueDefinitionNode>;
+  /** The GraphQL type reference or runtime type for this element. */
+  readonly type: TypeNode;
+  /** Directives available in this schema or applied to this AST node. */
+  readonly directives?: ReadonlyArray<ConstDirectiveNode>;
+}
+/** An argument or input-field definition. */
+interface InputValueDefinitionNode {
+  /** The discriminator identifying the concrete AST or introspection kind. */
+  readonly kind: Kind.INPUT_VALUE_DEFINITION;
+  /** The source location for this AST node, if location tracking was enabled. */
+  readonly loc?: Location;
+  /** The optional GraphQL description associated with this definition. */
+  readonly description?: StringValueNode;
+  /** Name node identifying this AST node. */
+  readonly name: NameNode;
+  /** The GraphQL type reference or runtime type for this element. */
+  readonly type: TypeNode;
+  /** Default value used when no explicit value is supplied. */
+  readonly defaultValue?: ConstValueNode;
+  /** Directives available in this schema or applied to this AST node. */
+  readonly directives?: ReadonlyArray<ConstDirectiveNode>;
+}
+/** An interface type definition in a type-system document. */
+interface InterfaceTypeDefinitionNode {
+  /** The discriminator identifying the concrete AST or introspection kind. */
+  readonly kind: Kind.INTERFACE_TYPE_DEFINITION;
+  /** The source location for this AST node, if location tracking was enabled. */
+  readonly loc?: Location;
+  /** The optional GraphQL description associated with this definition. */
+  readonly description?: StringValueNode;
+  /** Name node identifying this AST node. */
+  readonly name: NameNode;
+  /** Interfaces implemented by this object or interface type. */
+  readonly interfaces?: ReadonlyArray<NamedTypeNode>;
+  /** Directives available in this schema or applied to this AST node. */
+  readonly directives?: ReadonlyArray<ConstDirectiveNode>;
+  /** Fields declared by this object, interface, input object, or literal. */
+  readonly fields?: ReadonlyArray<FieldDefinitionNode>;
+}
+/** A union type definition in a type-system document. */
+interface UnionTypeDefinitionNode {
+  /** The discriminator identifying the concrete AST or introspection kind. */
+  readonly kind: Kind.UNION_TYPE_DEFINITION;
+  /** The source location for this AST node, if location tracking was enabled. */
+  readonly loc?: Location;
+  /** The optional GraphQL description associated with this definition. */
+  readonly description?: StringValueNode;
+  /** Name node identifying this AST node. */
+  readonly name: NameNode;
+  /** Directives available in this schema or applied to this AST node. */
+  readonly directives?: ReadonlyArray<ConstDirectiveNode>;
+  /** Object types that belong to this union type. */
+  readonly types?: ReadonlyArray<NamedTypeNode>;
+}
+/** An enum type definition in a type-system document. */
+interface EnumTypeDefinitionNode {
+  /** The discriminator identifying the concrete AST or introspection kind. */
+  readonly kind: Kind.ENUM_TYPE_DEFINITION;
+  /** The source location for this AST node, if location tracking was enabled. */
+  readonly loc?: Location;
+  /** The optional GraphQL description associated with this definition. */
+  readonly description?: StringValueNode;
+  /** Name node identifying this AST node. */
+  readonly name: NameNode;
+  /** Directives available in this schema or applied to this AST node. */
+  readonly directives?: ReadonlyArray<ConstDirectiveNode>;
+  /** Values contained in this enum, list, or input-object definition. */
+  readonly values?: ReadonlyArray<EnumValueDefinitionNode>;
+}
+/** An enum value definition. */
+interface EnumValueDefinitionNode {
+  /** The discriminator identifying the concrete AST or introspection kind. */
+  readonly kind: Kind.ENUM_VALUE_DEFINITION;
+  /** The source location for this AST node, if location tracking was enabled. */
+  readonly loc?: Location;
+  /** The optional GraphQL description associated with this definition. */
+  readonly description?: StringValueNode;
+  /** Name node identifying this AST node. */
+  readonly name: NameNode;
+  /** Directives available in this schema or applied to this AST node. */
+  readonly directives?: ReadonlyArray<ConstDirectiveNode>;
+}
+/** An input object type definition in a type-system document. */
+interface InputObjectTypeDefinitionNode {
+  /** The discriminator identifying the concrete AST or introspection kind. */
+  readonly kind: Kind.INPUT_OBJECT_TYPE_DEFINITION;
+  /** The source location for this AST node, if location tracking was enabled. */
+  readonly loc?: Location;
+  /** The optional GraphQL description associated with this definition. */
+  readonly description?: StringValueNode;
+  /** Name node identifying this AST node. */
+  readonly name: NameNode;
+  /** Directives available in this schema or applied to this AST node. */
+  readonly directives?: ReadonlyArray<ConstDirectiveNode>;
+  /** Fields declared by this object, interface, input object, or literal. */
+  readonly fields?: ReadonlyArray<InputValueDefinitionNode>;
+}
+/** A directive definition in a type-system document. */
+interface DirectiveDefinitionNode {
+  /** The discriminator identifying the concrete AST or introspection kind. */
+  readonly kind: Kind.DIRECTIVE_DEFINITION;
+  /** The source location for this AST node, if location tracking was enabled. */
+  readonly loc?: Location;
+  /** The optional GraphQL description associated with this definition. */
+  readonly description?: StringValueNode;
+  /** Name node identifying this AST node. */
+  readonly name: NameNode;
+  /** Arguments supplied to this field, directive, or coordinate. */
+  readonly arguments?: ReadonlyArray<InputValueDefinitionNode>;
+  /** Directives available in this schema or applied to this AST node. */
+  readonly directives?: ReadonlyArray<ConstDirectiveNode>;
+  /** Whether this directive may appear more than once at the same location. */
+  readonly repeatable: boolean;
+  /** Locations where this directive may be applied. */
+  readonly locations: ReadonlyArray<NameNode>;
+}
+/** Any type-system extension that may appear in a schema extension document. */
+declare type TypeSystemExtensionNode =
+  | SchemaExtensionNode
+  | TypeExtensionNode
+  | DirectiveExtensionNode;
+/** A schema extension in a type-system document. */
+interface SchemaExtensionNode {
+  /** The discriminator identifying the concrete AST or introspection kind. */
+  readonly kind: Kind.SCHEMA_EXTENSION;
+  /** The source location for this AST node, if location tracking was enabled. */
+  readonly loc?: Location;
+  /** Directives available in this schema or applied to this AST node. */
+  readonly directives?: ReadonlyArray<ConstDirectiveNode>;
+  /** Root operation types declared by this schema definition or extension. */
+  readonly operationTypes?: ReadonlyArray<OperationTypeDefinitionNode>;
+}
+/** Any named type extension that may appear in a schema extension document. */
+declare type TypeExtensionNode =
+  | ScalarTypeExtensionNode
+  | ObjectTypeExtensionNode
+  | InterfaceTypeExtensionNode
+  | UnionTypeExtensionNode
+  | EnumTypeExtensionNode
+  | InputObjectTypeExtensionNode;
+/** A scalar type extension. */
+interface ScalarTypeExtensionNode {
+  /** The discriminator identifying the concrete AST or introspection kind. */
+  readonly kind: Kind.SCALAR_TYPE_EXTENSION;
+  /** The source location for this AST node, if location tracking was enabled. */
+  readonly loc?: Location;
+  /** Name node identifying this AST node. */
+  readonly name: NameNode;
+  /** Directives available in this schema or applied to this AST node. */
+  readonly directives?: ReadonlyArray<ConstDirectiveNode>;
+}
+/** An object type extension. */
+interface ObjectTypeExtensionNode {
+  /** The discriminator identifying the concrete AST or introspection kind. */
+  readonly kind: Kind.OBJECT_TYPE_EXTENSION;
+  /** The source location for this AST node, if location tracking was enabled. */
+  readonly loc?: Location;
+  /** Name node identifying this AST node. */
+  readonly name: NameNode;
+  /** Interfaces implemented by this object or interface type. */
+  readonly interfaces?: ReadonlyArray<NamedTypeNode>;
+  /** Directives available in this schema or applied to this AST node. */
+  readonly directives?: ReadonlyArray<ConstDirectiveNode>;
+  /** Fields declared by this object, interface, input object, or literal. */
+  readonly fields?: ReadonlyArray<FieldDefinitionNode>;
+}
+/** An interface type extension. */
+interface InterfaceTypeExtensionNode {
+  /** The discriminator identifying the concrete AST or introspection kind. */
+  readonly kind: Kind.INTERFACE_TYPE_EXTENSION;
+  /** The source location for this AST node, if location tracking was enabled. */
+  readonly loc?: Location;
+  /** Name node identifying this AST node. */
+  readonly name: NameNode;
+  /** Interfaces implemented by this object or interface type. */
+  readonly interfaces?: ReadonlyArray<NamedTypeNode>;
+  /** Directives available in this schema or applied to this AST node. */
+  readonly directives?: ReadonlyArray<ConstDirectiveNode>;
+  /** Fields declared by this object, interface, input object, or literal. */
+  readonly fields?: ReadonlyArray<FieldDefinitionNode>;
+}
+/** A union type extension. */
+interface UnionTypeExtensionNode {
+  /** The discriminator identifying the concrete AST or introspection kind. */
+  readonly kind: Kind.UNION_TYPE_EXTENSION;
+  /** The source location for this AST node, if location tracking was enabled. */
+  readonly loc?: Location;
+  /** Name node identifying this AST node. */
+  readonly name: NameNode;
+  /** Directives available in this schema or applied to this AST node. */
+  readonly directives?: ReadonlyArray<ConstDirectiveNode>;
+  /** Object types that belong to this union type. */
+  readonly types?: ReadonlyArray<NamedTypeNode>;
+}
+/** An enum type extension. */
+interface EnumTypeExtensionNode {
+  /** The discriminator identifying the concrete AST or introspection kind. */
+  readonly kind: Kind.ENUM_TYPE_EXTENSION;
+  /** The source location for this AST node, if location tracking was enabled. */
+  readonly loc?: Location;
+  /** Name node identifying this AST node. */
+  readonly name: NameNode;
+  /** Directives available in this schema or applied to this AST node. */
+  readonly directives?: ReadonlyArray<ConstDirectiveNode>;
+  /** Values contained in this enum, list, or input-object definition. */
+  readonly values?: ReadonlyArray<EnumValueDefinitionNode>;
+}
+/** An input object type extension. */
+interface InputObjectTypeExtensionNode {
+  /** The discriminator identifying the concrete AST or introspection kind. */
+  readonly kind: Kind.INPUT_OBJECT_TYPE_EXTENSION;
+  /** The source location for this AST node, if location tracking was enabled. */
+  readonly loc?: Location;
+  /** Name node identifying this AST node. */
+  readonly name: NameNode;
+  /** Directives available in this schema or applied to this AST node. */
+  readonly directives?: ReadonlyArray<ConstDirectiveNode>;
+  /** Fields declared by this object, interface, input object, or literal. */
+  readonly fields?: ReadonlyArray<InputValueDefinitionNode>;
+}
+/** A directive extension. */
+interface DirectiveExtensionNode {
+  /** The discriminator identifying the concrete AST or introspection kind. */
+  readonly kind: Kind.DIRECTIVE_EXTENSION;
+  /** The source location for this AST node, if location tracking was enabled. */
+  readonly loc?: Location;
+  /** Name node identifying this AST node. */
+  readonly name: NameNode;
+  /** Directives available in this schema or applied to this AST node. */
+  readonly directives?: ReadonlyArray<ConstDirectiveNode>;
+}
+/** A schema coordinate that refers to a named type. */
+interface TypeCoordinateNode {
+  /** The discriminator identifying the concrete AST or introspection kind. */
+  readonly kind: Kind.TYPE_COORDINATE;
+  /** The source location for this AST node, if location tracking was enabled. */
+  readonly loc?: Location;
+  /** Name node identifying this AST node. */
+  readonly name: NameNode;
+}
+/** A schema coordinate that refers to a member of a named type. */
+interface MemberCoordinateNode {
+  /** The discriminator identifying the concrete AST or introspection kind. */
+  readonly kind: Kind.MEMBER_COORDINATE;
+  /** The source location for this AST node, if location tracking was enabled. */
+  readonly loc?: Location;
+  /** Name node identifying this AST node. */
+  readonly name: NameNode;
+  /** The member name referenced by this schema coordinate. */
+  readonly memberName: NameNode;
+}
+/** A schema coordinate that refers to a field or directive argument. */
+interface ArgumentCoordinateNode {
+  /** The discriminator identifying the concrete AST or introspection kind. */
+  readonly kind: Kind.ARGUMENT_COORDINATE;
+  /** The source location for this AST node, if location tracking was enabled. */
+  readonly loc?: Location;
+  /** Name node identifying this AST node. */
+  readonly name: NameNode;
+  /** The field name referenced by this schema coordinate. */
+  readonly fieldName: NameNode;
+  /** The argument name referenced by this schema coordinate. */
+  readonly argumentName: NameNode;
+}
+/** A schema coordinate that refers to a directive. */
+interface DirectiveCoordinateNode {
+  /** The discriminator identifying the concrete AST or introspection kind. */
+  readonly kind: Kind.DIRECTIVE_COORDINATE;
+  /** The source location for this AST node, if location tracking was enabled. */
+  readonly loc?: Location;
+  /** Name node identifying this AST node. */
+  readonly name: NameNode;
+}
+/** A schema coordinate that refers to a directive argument. */
+interface DirectiveArgumentCoordinateNode {
+  /** The discriminator identifying the concrete AST or introspection kind. */
+  readonly kind: Kind.DIRECTIVE_ARGUMENT_COORDINATE;
+  /** The source location for this AST node, if location tracking was enabled. */
+  readonly loc?: Location;
+  /** Name node identifying this AST node. */
+  readonly name: NameNode;
+  /** The argument name referenced by this schema coordinate. */
+  readonly argumentName: NameNode;
+}
+
+/** @category Source */
+
+/** Represents a location in a Source. */
+interface SourceLocation {
+  /** One-indexed line number in the source document. */
+  readonly line: number;
+  /** One-indexed column number in the source document. */
+  readonly column: number;
+}
+
+/** @category Errors */
+
+/**
+ * Custom extensions
+ * @remarks
+ * Use a unique identifier name for your extension, for example the name of
+ * your library or project. Do not use a shortened identifier as this increases
+ * the risk of conflicts. We recommend you add at most one extension field,
+ * an object which can contain all the values you need.
+ */
+interface GraphQLErrorExtensions {
+  [attributeName: string]: unknown;
+}
+/**
+ * Custom formatted extensions
+ * @remarks
+ * Use a unique identifier name for your extension, for example the name of
+ * your library or project. Do not use a shortened identifier as this increases
+ * the risk of conflicts. We recommend you add at most one extension field,
+ * an object which can contain all the values you need.
+ */
+interface GraphQLFormattedErrorExtensions {
+  [attributeName: string]: unknown;
+}
+/** Options used to construct a GraphQLError. */
+interface GraphQLErrorOptions {
+  /** AST node or nodes associated with this error. */
+  nodes?: ReadonlyArray<ASTNode> | ASTNode | null;
+  /** Source document used to derive error locations. */
+  source?: Maybe<Source>;
+  /** Character offsets in the source document associated with this error. */
+  positions?: Maybe<ReadonlyArray<number>>;
+  /** Response path where this error occurred during execution. */
+  path?: Maybe<ReadonlyArray<string | number>>;
+  /** Original error that caused this GraphQLError, if one exists. */
+  originalError?: Maybe<
+    Error & {
+      /** Extension fields associated with this value. */
+      readonly extensions?: unknown;
+    }
+  >;
+  /** Extension fields to include in the formatted result. */
+  extensions?: Maybe<GraphQLErrorExtensions>;
+}
+/**
+ * A GraphQLError describes an Error found during the parse, validate, or
+ * execute phases of performing a GraphQL operation. In addition to a message
+ * and stack trace, it also includes information about the locations in a
+ * GraphQL document and/or execution result that correspond to the Error.
+ */
+declare class GraphQLError extends Error {
+  /**
+   * An array of `{ line, column }` locations within the source GraphQL document
+   * which correspond to this error.
+   *
+   * Errors during validation often contain multiple locations, for example to
+   * point out two things with the same name. Errors during execution include a
+   * single location, the field which produced the error.
+   *
+   * Enumerable, and appears in the result of JSON.stringify().
+   */
+  readonly locations: ReadonlyArray<SourceLocation> | undefined;
+  /**
+   * An array describing the JSON-path into the execution response which
+   * corresponds to this error. Only included for errors during execution.
+   *
+   * Enumerable, and appears in the result of JSON.stringify().
+   */
+  readonly path: ReadonlyArray<string | number> | undefined;
+  /** An array of GraphQL AST Nodes corresponding to this error. */
+  readonly nodes: ReadonlyArray<ASTNode> | undefined;
+  /**
+   * The source GraphQL document for the first location of this error.
+   *
+   * Note that if this Error represents more than one node, the source may not
+   * represent nodes after the first node.
+   */
+  readonly source: Source | undefined;
+  /**
+   * An array of character offsets within the source GraphQL document
+   * which correspond to this error.
+   */
+  readonly positions: ReadonlyArray<number> | undefined;
+  /** Original error that caused this GraphQLError, if one exists. */
+  readonly originalError: Error | undefined;
+  /** Extension fields to add to the formatted error. */
+  readonly extensions: GraphQLErrorExtensions;
+  /**
+   * Creates a GraphQLError instance.
+   * @param message - Human-readable error message.
+   * @param options - Error metadata such as source locations, response path, original error, and extensions.
+   * This positional-arguments constructor overload is deprecated. Use the
+   * `GraphQLError(message, options)` overload instead.
+   * @example
+   * ```ts
+   * // Create an error from AST nodes and response metadata.
+   * import { parse } from 'graphql/language';
+   * import { GraphQLError } from 'graphql/error';
+   *
+   * const document = parse('{ greeting }');
+   * const fieldNode = document.definitions[0].selectionSet.selections[0];
+   * const error = new GraphQLError('Cannot query this field.', {
+   *   nodes: fieldNode,
+   *   path: ['greeting'],
+   *   extensions: { code: 'FORBIDDEN' },
+   * });
+   *
+   * error.message; // => 'Cannot query this field.'
+   * error.locations; // => [{ line: 1, column: 3 }]
+   * error.path; // => ['greeting']
+   * error.extensions; // => { code: 'FORBIDDEN' }
+   * ```
+   * @example
+   * ```ts
+   * // This variant derives locations from source positions and preserves the original error.
+   * import { Source } from 'graphql/language';
+   * import { GraphQLError } from 'graphql/error';
+   *
+   * const source = new Source('{ greeting }');
+   * const originalError = new Error('Database unavailable.');
+   * const error = new GraphQLError('Resolver failed.', {
+   *   source,
+   *   positions: [2],
+   *   path: ['greeting'],
+   *   originalError,
+   * });
+   *
+   * error.locations; // => [{ line: 1, column: 3 }]
+   * error.path; // => ['greeting']
+   * error.originalError; // => originalError
+   * ```
+   */
+  constructor(message: string, options?: GraphQLErrorOptions);
+  /**
+   * Creates a GraphQLError instance using the legacy positional constructor.
+   * This deprecated overload will be removed in v17. Prefer the
+   * `GraphQLErrorOptions` object overload, which keeps optional error metadata
+   * in a single options bag.
+   * @param message - Human-readable error message.
+   * @param nodes - AST node or nodes associated with this error.
+   * @param source - Source document used to derive error locations.
+   * @param positions - Character offsets in the source document associated with
+   * this error.
+   * @param path - Response path where this error occurred during execution.
+   * @param originalError - Original error that caused this GraphQLError, if one
+   * exists.
+   * @param extensions - Extension fields to include in the formatted error.
+   * @example
+   * ```ts
+   * import { Source } from 'graphql/language';
+   * import { GraphQLError } from 'graphql/error';
+   *
+   * const source = new Source('{ greeting }');
+   * const originalError = new Error('Database unavailable.');
+   * const error = new GraphQLError(
+   *   'Resolver failed.',
+   *   undefined,
+   *   source,
+   *   [2],
+   *   ['greeting'],
+   *   originalError,
+   *   { code: 'INTERNAL' },
+   * );
+   *
+   * error.locations; // => [{ line: 1, column: 3 }]
+   * error.path; // => ['greeting']
+   * error.originalError; // => originalError
+   * error.extensions; // => { code: 'INTERNAL' }
+   * ```
+   * @deprecated Please use the `GraphQLErrorOptions` constructor overload instead.
+   */
+  constructor(
+    message: string,
+    nodes?: ReadonlyArray<ASTNode> | ASTNode | null,
+    source?: Maybe<Source>,
+    positions?: Maybe<ReadonlyArray<number>>,
+    path?: Maybe<ReadonlyArray<string | number>>,
+    originalError?: Maybe<
+      Error & {
+        readonly extensions?: unknown;
+      }
+    >,
+    extensions?: Maybe<GraphQLErrorExtensions>,
+  );
+  /**
+   * Returns the value used by `Object.prototype.toString`.
+   * @returns The built-in string tag for this object.
+   */
+  get [Symbol.toStringTag](): string;
+  /**
+   * Returns this error as a human-readable message with source locations.
+   * @returns The formatted error string.
+   * @example
+   * ```ts
+   * import { Source } from 'graphql/language';
+   * import { GraphQLError } from 'graphql/error';
+   *
+   * const error = new GraphQLError('Cannot query field "name".', {
+   *   source: new Source('{ name }'),
+   *   positions: [2],
+   * });
+   *
+   * error.toString(); // => 'Cannot query field "name".\n\nGraphQL request:1:3\n1 | { name }\n  |   ^'
+   * ```
+   */
+  toString(): string;
+  /**
+   * Returns the JSON representation used when this object is serialized.
+   * @returns The JSON-serializable representation.
+   * @example
+   * ```ts
+   * import { GraphQLError } from 'graphql/error';
+   *
+   * const error = new GraphQLError('Resolver failed.', {
+   *   path: ['viewer', 'name'],
+   *   extensions: { code: 'INTERNAL' },
+   * });
+   *
+   * error.toJSON(); // => { message: 'Resolver failed.', path: ['viewer', 'name'], extensions: { code: 'INTERNAL' } }
+   * ```
+   */
+  toJSON(): GraphQLFormattedError;
+}
+/** See: https://spec.graphql.org/draft/#sec-Errors */
+interface GraphQLFormattedError {
+  /**
+   * A short, human-readable summary of the problem that **SHOULD NOT** change
+   * from occurrence to occurrence of the problem, except for purposes of
+   * localization.
+   */
+  readonly message: string;
+  /**
+   * If an error can be associated to a particular point in the requested
+   * GraphQL document, it should contain a list of locations.
+   */
+  readonly locations?: ReadonlyArray<SourceLocation>;
+  /**
+   * If an error can be associated to a particular field in the GraphQL result,
+   * it _must_ contain an entry with the key `path` that details the path of
+   * the response field which experienced the error. This allows clients to
+   * identify whether a null result is intentional or caused by a runtime error.
+   */
+  readonly path?: ReadonlyArray<string | number>;
+  /**
+   * Reserved for implementors to extend the protocol however they see fit,
+   * and hence there are no additional restrictions on its contents.
+   */
+  readonly extensions?: GraphQLFormattedErrorExtensions;
+}
+
+interface DocumentTypeDecoration<TResult, TVariables> {
+    /**
+     * This type is used to ensure that the variables you pass in to the query are assignable to Variables
+     * and that the Result is assignable to whatever you pass your result to. The method is never actually
+     * implemented, but the type is valid because we list it as optional
+     */
+    __apiType?: (variables: TVariables) => TResult;
+}
+interface TypedDocumentNode<TResult = {
+    [key: string]: any;
+}, TVariables = {
+    [key: string]: any;
+}> extends DocumentNode, DocumentTypeDecoration<TResult, TVariables> {
+}
+
+type RemoveIndex<T> = {
+    [K in keyof T as string extends K ? never : number extends K ? never : K]: T[K];
+};
+type MaybeLazy<T> = T | (() => T);
+type MaybePromise<T> = T | Promise<T>;
+
+type Fetch = typeof fetch;
+/**
+ * 'None' will throw whenever the response contains errors
+ *
+ * 'Ignore' will ignore incoming errors and resolve like no errors occurred
+ *
+ * 'All' will return both the errors and data
+ */
+type ErrorPolicy = 'none' | 'ignore' | 'all';
+interface JsonSerializer {
+    stringify: (obj: any) => string;
+    parse: (obj: string) => unknown;
+}
+interface AdditionalRequestOptions {
+    jsonSerializer?: JsonSerializer;
+    /**
+     * Decide how to handle GraphQLErrors in response
+     */
+    errorPolicy?: ErrorPolicy;
+}
+type Variables = object;
+interface GraphQLResponse<T = unknown> {
+    data?: T;
+    errors?: GraphQLError[];
+    extensions?: unknown;
+    status: number;
+    headers: Headers;
+    /**
+     * The response body text. Useful for debugging non-GraphQL responses
+     * (e.g., 401/403 errors that return plain JSON instead of GraphQL).
+     */
+    body: string;
+    [key: string]: unknown;
+}
+interface GraphQLRequestContext<V extends Variables = Variables> {
+    query: string | string[];
+    variables?: V;
+}
+type RequestDocument = string | String | DocumentNode;
+/**
+ * TypedDocumentString is generated by \@graphql-codegen with `documentMode: 'string'`.
+ * It's a boxed String with type metadata for result and variables types.
+ * @see https://github.com/graffle-js/graffle/issues/1467
+ */
+type TypedDocumentString<$Result, $Variables> = String & DocumentTypeDecoration<$Result, $Variables>;
+interface GraphQLClientResponse<Data> {
+    status: number;
+    headers: Headers;
+    /**
+     * The response body text. Useful for debugging non-GraphQL responses
+     * (e.g., 401/403 errors that return plain JSON instead of GraphQL).
+     */
+    body: string;
+    data: Data;
+    extensions?: unknown;
+    errors?: GraphQLError[];
+}
+type HTTPMethodInput = 'GET' | 'POST' | 'get' | 'post';
+interface RequestConfig extends Omit<RequestInit, 'headers' | 'method'>, AdditionalRequestOptions {
+    fetch?: Fetch;
+    method?: HTTPMethodInput;
+    headers?: MaybeLazy<HeadersInit>;
+    requestMiddleware?: RequestMiddleware;
+    responseMiddleware?: ResponseMiddleware;
+    jsonSerializer?: JsonSerializer;
+    excludeOperationName?: boolean;
+}
+type RawRequestOptions<V extends Variables = Variables> = {
+    query: string;
+    requestHeaders?: HeadersInit;
+    signal?: RequestInit['signal'];
+} & (V extends Record<any, never> ? {
+    variables?: V;
+} : keyof RemoveIndex<V> extends never ? {
+    variables?: V;
+} : {
+    variables: V;
+});
+type RequestOptions<V extends Variables = Variables, T = unknown> = {
+    document: RequestDocument | TypedDocumentNode<T, V> | TypedDocumentString<T, V>;
+    requestHeaders?: HeadersInit;
+    signal?: RequestInit['signal'];
+} & (V extends Record<any, never> ? {
+    variables?: V;
+} : keyof RemoveIndex<V> extends never ? {
+    variables?: V;
+} : {
+    variables: V;
+});
+type ResponseMiddleware = (response: GraphQLClientResponse<unknown> | ClientError | Error, request: RequestInitExtended) => MaybePromise<void>;
+type RequestMiddleware<V extends Variables = Variables> = (request: RequestInitExtended<V>) => RequestInitExtended | Promise<RequestInitExtended>;
+type RequestInitExtended<V extends Variables = Variables> = RequestInit & {
+    url: string;
+    operationName?: string;
+    variables?: V;
+};
+type VariablesAndRequestHeadersArgs<V extends Variables> = V extends Record<any, never> ? [variables?: V, requestHeaders?: HeadersInit] : keyof RemoveIndex<V> extends never ? [variables?: V, requestHeaders?: HeadersInit] : [variables: V, requestHeaders?: HeadersInit];
+
+declare class ClientError extends Error {
+    response: GraphQLResponse;
+    request: GraphQLRequestContext;
+    constructor(response: GraphQLResponse, request: GraphQLRequestContext);
+    private static extractMessage;
+}
+
+type BatchRequestDocument<V extends Variables = Variables> = {
+    document: RequestDocument;
+    variables?: V;
+};
+interface BatchRequestsOptions<V extends Variables = Variables> {
+    documents: BatchRequestDocument<V>[];
+    requestHeaders?: HeadersInit;
+    signal?: RequestInit['signal'];
+}
+type BatchResult = [Result, ...Result[]];
+interface Result<Data extends object = object> {
+    data: Data;
+}
+
+/**
+ * GraphQL Client.
+ */
+declare class GraphQLClient {
+    private url;
+    readonly requestConfig: RequestConfig;
+    constructor(url: string, requestConfig?: RequestConfig);
+    /**
+     * Send a GraphQL query to the server.
+     */
+    rawRequest: RawRequestMethod;
+    /**
+     * Send a GraphQL document to the server.
+     */
+    request<T = any, V extends Variables = Variables>(document: RequestDocument | TypedDocumentNode<T, V> | TypedDocumentString<T, V>, ...variablesAndRequestHeaders: VariablesAndRequestHeadersArgs<V>): Promise<T>;
+    request<T = any, V extends Variables = Variables>(options: RequestOptions<V, T>): Promise<T>;
+    /**
+     * Send GraphQL documents in batch to the server.
+     */
+    batchRequests<$BatchResult extends BatchResult, $Variables extends Variables = Variables>(documents: BatchRequestDocument<$Variables>[], requestHeaders?: HeadersInit): Promise<$BatchResult>;
+    batchRequests<$BatchResult extends BatchResult, $Variables extends Variables = Variables>(options: BatchRequestsOptions<$Variables>): Promise<$BatchResult>;
+    setHeaders(headers: HeadersInit): this;
+    /**
+     * Attach a header to the client. All subsequent requests will have this header.
+     */
+    setHeader(key: string, value: string): this;
+    /**
+     * Change the client endpoint. All subsequent requests will send to this endpoint.
+     */
+    setEndpoint(value: string): this;
+}
+interface RawRequestMethod {
+    <T = any, V extends Variables = Variables>(query: string, variables?: V, requestHeaders?: HeadersInit): Promise<GraphQLClientResponse<T>>;
+    <T, V extends Variables = Variables>(options: RawRequestOptions<V>): Promise<GraphQLClientResponse<T>>;
+}
+
+interface ExceptionWithCode {
+    code: string | number;
+    name?: string;
+    message?: string;
+    stack?: string;
+}
+interface ExceptionWithMessage {
+    code?: string | number;
+    message: string;
+    name?: string;
+    stack?: string;
+}
+interface ExceptionWithName {
+    code?: string | number;
+    message?: string;
+    name: string;
+    stack?: string;
+}
+/**
+ * Defines Exception.
+ *
+ * string or an object with one of (message or name or code) and optional stack
+ *
+ * @since 1.0.0
+ */
+type Exception = ExceptionWithCode | ExceptionWithMessage | ExceptionWithName | string;
+
+/**
+ * Defines High-Resolution Time.
+ *
+ * The first number, HrTime[0], is UNIX Epoch time in seconds since 00:00:00 UTC on 1 January 1970.
+ * The second number, HrTime[1], represents the partial second elapsed since Unix Epoch time represented by first number in nanoseconds.
+ * For example, 2021-01-01T12:30:10.150Z in UNIX Epoch time in milliseconds is represented as 1609504210150.
+ * The first number is calculated by converting and truncating the Epoch time in milliseconds to seconds:
+ * HrTime[0] = Math.trunc(1609504210150 / 1000) = 1609504210.
+ * The second number is calculated by converting the digits after the decimal point of the subtraction, (1609504210150 / 1000) - HrTime[0], to nanoseconds:
+ * HrTime[1] = Number((1609504210.150 - HrTime[0]).toFixed(9)) * 1e9 = 150000000.
+ * This is represented in HrTime format as [1609504210, 150000000].
+ *
+ * @since 1.0.0
+ */
+type HrTime = [number, number];
+/**
+ * Defines TimeInput.
+ *
+ * hrtime, epoch milliseconds, performance.now() or Date
+ *
+ * @since 1.0.0
+ */
+type TimeInput = HrTime | number | Date;
+
+/**
+ * Attributes is a map from string to attribute values.
+ *
+ * Note: only the own enumerable keys are counted as valid attribute keys.
+ *
+ * @since 1.3.0
+ */
+interface Attributes {
+    [attributeKey: string]: AttributeValue | undefined;
+}
+/**
+ * Attribute values may be any non-nullish primitive value except an object.
+ *
+ * null or undefined attribute values are invalid and will result in undefined behavior.
+ *
+ * @since 1.3.0
+ */
+type AttributeValue = string | number | boolean | Array<null | undefined | string> | Array<null | undefined | number> | Array<null | undefined | boolean>;
+
+/**
+ * @deprecated please use {@link Attributes}
+ * @since 1.0.0
+ */
+type SpanAttributes = Attributes;
+/**
+ * @deprecated please use {@link AttributeValue}
+ * @since 1.0.0
+ */
+type SpanAttributeValue = AttributeValue;
+
+/**
+ * @since 1.0.0
+ */
+interface TraceState {
+    /**
+     * Create a new TraceState which inherits from this TraceState and has the
+     * given key set.
+     * The new entry will always be added in the front of the list of states.
+     *
+     * @param key key of the TraceState entry.
+     * @param value value of the TraceState entry.
+     */
+    set(key: string, value: string): TraceState;
+    /**
+     * Return a new TraceState which inherits from this TraceState but does not
+     * contain the given key.
+     *
+     * @param key the key for the TraceState entry to be removed.
+     */
+    unset(key: string): TraceState;
+    /**
+     * Returns the value to which the specified key is mapped, or `undefined` if
+     * this map contains no mapping for the key.
+     *
+     * @param key with which the specified value is to be associated.
+     * @returns the value to which the specified key is mapped, or `undefined` if
+     *     this map contains no mapping for the key.
+     */
+    get(key: string): string | undefined;
+    /**
+     * Serializes the TraceState to a `list` as defined below. The `list` is a
+     * series of `list-members` separated by commas `,`, and a list-member is a
+     * key/value pair separated by an equals sign `=`. Spaces and horizontal tabs
+     * surrounding `list-members` are ignored. There can be a maximum of 32
+     * `list-members` in a `list`.
+     *
+     * @returns the serialized string.
+     */
+    serialize(): string;
+}
+
+/**
+ * A SpanContext represents the portion of a {@link Span} which must be
+ * serialized and propagated along side of a {@link Baggage}.
+ *
+ * @since 1.0.0
+ */
+interface SpanContext {
+    /**
+     * The ID of the trace that this span belongs to. It is worldwide unique
+     * with practically sufficient probability by being made as 16 randomly
+     * generated bytes, encoded as a 32 lowercase hex characters corresponding to
+     * 128 bits.
+     */
+    traceId: string;
+    /**
+     * The ID of the Span. It is globally unique with practically sufficient
+     * probability by being made as 8 randomly generated bytes, encoded as a 16
+     * lowercase hex characters corresponding to 64 bits.
+     */
+    spanId: string;
+    /**
+     * Only true if the SpanContext was propagated from a remote parent.
+     */
+    isRemote?: boolean;
+    /**
+     * Trace flags to propagate.
+     *
+     * It is represented as 1 byte (bitmap). Bit to represent whether trace is
+     * sampled or not. When set, the least significant bit documents that the
+     * caller may have recorded trace data. A caller who does not record trace
+     * data out-of-band leaves this flag unset.
+     *
+     * see {@link TraceFlags} for valid flag values.
+     */
+    traceFlags: number;
+    /**
+     * Tracing-system-specific info to propagate.
+     *
+     * The tracestate field value is a `list` as defined below. The `list` is a
+     * series of `list-members` separated by commas `,`, and a list-member is a
+     * key/value pair separated by an equals sign `=`. Spaces and horizontal tabs
+     * surrounding `list-members` are ignored. There can be a maximum of 32
+     * `list-members` in a `list`.
+     * More Info: https://www.w3.org/TR/trace-context/#tracestate-field
+     *
+     * Examples:
+     *     Single tracing system (generic format):
+     *         tracestate: rojo=00f067aa0ba902b7
+     *     Multiple tracing systems (with different formatting):
+     *         tracestate: rojo=00f067aa0ba902b7,congo=t61rcWkgMzE
+     */
+    traceState?: TraceState;
+}
+
+/**
+ * @since 1.0.0
+ */
+interface SpanStatus {
+    /** The status code of this message. */
+    code: SpanStatusCode;
+    /** A developer-facing error message. */
+    message?: string;
+}
+/**
+ * An enumeration of status codes.
+ *
+ * @since 1.0.0
+ */
+declare enum SpanStatusCode {
+    /**
+     * The default status.
+     */
+    UNSET = 0,
+    /**
+     * The operation has been validated by an Application developer or
+     * Operator to have completed successfully.
+     */
+    OK = 1,
+    /**
+     * The operation contains an error.
+     */
+    ERROR = 2
+}
+
+/**
+ * A pointer from the current {@link Span} to another span in the same trace or
+ * in a different trace.
+ * Few examples of Link usage.
+ * 1. Batch Processing: A batch of elements may contain elements associated
+ *    with one or more traces/spans. Since there can only be one parent
+ *    SpanContext, Link is used to keep reference to SpanContext of all
+ *    elements in the batch.
+ * 2. Public Endpoint: A SpanContext in incoming client request on a public
+ *    endpoint is untrusted from service provider perspective. In such case it
+ *    is advisable to start a new trace with appropriate sampling decision.
+ *    However, it is desirable to associate incoming SpanContext to new trace
+ *    initiated on service provider side so two traces (from Client and from
+ *    Service Provider) can be correlated.
+ *
+ * @since 1.0.0
+ */
+interface Link {
+    /** The {@link SpanContext} of a linked span. */
+    context: SpanContext;
+    /** A set of {@link SpanAttributes} on the link. */
+    attributes?: SpanAttributes;
+    /** Count of attributes of the link that were dropped due to collection limits */
+    droppedAttributesCount?: number;
+}
+
+/**
+ * An interface that represents a span. A span represents a single operation
+ * within a trace. Examples of span might include remote procedure calls or a
+ * in-process function calls to sub-components. A Trace has a single, top-level
+ * "root" Span that in turn may have zero or more child Spans, which in turn
+ * may have children.
+ *
+ * Spans are created by the {@link Tracer.startSpan} method.
+ *
+ * @since 1.0.0
+ */
+interface Span {
+    /**
+     * Returns the {@link SpanContext} object associated with this Span.
+     *
+     * Get an immutable, serializable identifier for this span that can be used
+     * to create new child spans. Returned SpanContext is usable even after the
+     * span ends.
+     *
+     * @returns the SpanContext object associated with this Span.
+     */
+    spanContext(): SpanContext;
+    /**
+     * Sets an attribute to the span.
+     *
+     * Sets a single Attribute with the key and value passed as arguments.
+     *
+     * @param key the key for this attribute.
+     * @param value the value for this attribute. Setting a value null or
+     *              undefined is invalid and will result in undefined behavior.
+     */
+    setAttribute(key: string, value: SpanAttributeValue): this;
+    /**
+     * Sets attributes to the span.
+     *
+     * @param attributes the attributes that will be added.
+     *                   null or undefined attribute values
+     *                   are invalid and will result in undefined behavior.
+     */
+    setAttributes(attributes: SpanAttributes): this;
+    /**
+     * Adds an event to the Span.
+     *
+     * @param name the name of the event.
+     * @param [attributesOrStartTime] the attributes that will be added; these are
+     *     associated with this event. Can be also a start time
+     *     if type is {@type TimeInput} and 3rd param is undefined
+     * @param [startTime] start time of the event.
+     */
+    addEvent(name: string, attributesOrStartTime?: SpanAttributes | TimeInput, startTime?: TimeInput): this;
+    /**
+     * Adds a single link to the span.
+     *
+     * Links added after the creation will not affect the sampling decision.
+     * It is preferred span links be added at span creation.
+     *
+     * @param link the link to add.
+     */
+    addLink(link: Link): this;
+    /**
+     * Adds multiple links to the span.
+     *
+     * Links added after the creation will not affect the sampling decision.
+     * It is preferred span links be added at span creation.
+     *
+     * @param links the links to add.
+     */
+    addLinks(links: Link[]): this;
+    /**
+     * Sets the status of the span.
+     *
+     * By default, a span has status {@link SpanStatusCode.UNSET}.
+     * Calling this method overrides that default.
+     *
+     * The status codes have a total order: `OK > ERROR > UNSET`.
+     *
+     * - Once {@link SpanStatusCode.OK} is set, any further attempts to change
+     *   the status are ignored.
+     * - Any attempt to set {@link SpanStatusCode.UNSET} is always ignored.
+     *
+     * The `message` field is only used when {@link SpanStatusCode.ERROR} is set.
+     * For all other status codes, `message` is ignored.
+     *
+     * @param status The {@link SpanStatus} to set.
+     */
+    setStatus(status: SpanStatus): this;
+    /**
+     * Updates the Span name.
+     *
+     * This will override the name provided via {@link Tracer.startSpan}.
+     *
+     * Upon this update, any sampling behavior based on Span name will depend on
+     * the implementation.
+     *
+     * @param name the Span name.
+     */
+    updateName(name: string): this;
+    /**
+     * Marks the end of Span execution.
+     *
+     * Call to End of a Span MUST not have any effects on child spans. Those may
+     * still be running and can be ended later.
+     *
+     * Do not return `this`. The Span generally should not be used after it
+     * is ended so chaining is not desired in this context.
+     *
+     * @param [endTime] the time to set as Span's end time. If not provided,
+     *     use the current time as the span's end time.
+     */
+    end(endTime?: TimeInput): void;
+    /**
+     * Returns the flag whether this span will be recorded.
+     *
+     * @returns true if this Span is active and recording information like events
+     *     with the `AddEvent` operation and attributes using `setAttributes`.
+     */
+    isRecording(): boolean;
+    /**
+     * Sets exception as a span event
+     * @param exception the exception the only accepted values are string or Error
+     * @param [time] the time to set as Span's event time. If not provided,
+     *     use the current time.
+     */
+    recordException(exception: Exception, time?: TimeInput): void;
+}
 
 /**
  * Tracer encapsulates the OpenTelemetry Tracer.
@@ -11,7 +1942,7 @@ import { Writable } from 'node:stream';
 declare class Tracer {
     private tracer;
     constructor(name: string);
-    startSpan(name: string, attributes?: opentelemetry.Attributes): opentelemetry.Span;
+    startSpan(name: string, attributes?: Attributes): Span;
     /**
      * Execute the functions with a custom span with the given name using startActiveSpan.
      * The function executed will use the parent context of the function (it can be another span
@@ -33,7 +1964,7 @@ declare class Tracer {
      * })
      * ```
      */
-    startActiveSpan<T>(name: string, fn: (span: opentelemetry.Span) => Promise<T>, attributes?: opentelemetry.Attributes): Promise<T>;
+    startActiveSpan<T>(name: string, fn: (span: Span) => Promise<T>, attributes?: Attributes): Promise<T>;
 }
 
 /**
@@ -8032,7 +9963,7 @@ declare class Client extends BaseClient {
     /**
      * Get the Raw GraphQL client.
      */
-    getGQLClient(): graphql_request.GraphQLClient;
+    getGQLClient(): GraphQLClient;
     /**
      * A unique identifier for this Query.
      */
@@ -10089,5 +12020,5 @@ declare const enumType: () => (<T extends Class>(constructor: T) => T);
  */
 declare const argument: (opts?: ArgumentOptions) => ((target: object, propertyKey: string | undefined, parameterIndex: number) => void);
 
-export { Address, Agent, AgentMessage, AgentMessageDelivery, AgentMessageDeliveryNameToValue, AgentMessageDeliveryValueToName, AgentState, AgentStateNameToValue, AgentStateValueToName, Artifact, ArtifactDimension, ArtifactDimensionKey, ArtifactDimensionKind, ArtifactDimensionKindNameToValue, ArtifactDimensionKindValueToName, ArtifactPath, ArtifactResult, Artifacts, BaseClient, CacheSharingMode, CacheSharingModeNameToValue, CacheSharingModeValueToName, CacheVolume, Changeset, ChangesetMergeConflict, ChangesetMergeConflictNameToValue, ChangesetMergeConflictValueToName, ChangesetsMergeConflict, ChangesetsMergeConflictNameToValue, ChangesetsMergeConflictValueToName, Check, Client, ClientFilesyncMirror, Cloud, CollectionDelta, CollectionTypeDef, Command, Container, Context, CurrentModule, DaggerSDKError, DiffStat, DiffStatKind, DiffStatKindNameToValue, DiffStatKindValueToName, Directory, DockerImageRefValidationError, ERROR_CODES, Engine, EngineCache, EngineCacheEntry, EngineCacheEntrySet, EngineSessionConnectParamsParseError, EngineSessionConnectionTimeoutError, EngineSessionError, EnumTypeDef, EnumValueTypeDef, EnvFile, EnvVariable, Error$1 as Error, ErrorValue, ExecError, ExistsType, ExistsTypeNameToValue, ExistsTypeValueToName, Expertise, FieldTypeDef, File, FileType, FileTypeNameToValue, FileTypeValueToName, FunctionArg, FunctionCachePolicy, FunctionCachePolicyNameToValue, FunctionCachePolicyValueToName, FunctionCall, FunctionCallArgValue, FunctionNotFound, Function_, GeneratedCode, Generator, GitBundle, GitBundleRef, GitCommit, GitPushDisposition, GitPushDispositionNameToValue, GitPushDispositionValueToName, GitPushResult, GitRef, GitRemote, GitRepository, GraphQLRequestError, HTTPState, HealthcheckConfig, Host, ImageLayerCompression, ImageLayerCompressionNameToValue, ImageLayerCompressionValueToName, ImageMediaTypes, ImageMediaTypesNameToValue, ImageMediaTypesValueToName, InitEngineSessionBinaryError, InputTypeDef, InterfaceTypeDef, IntrospectionError, JSONValue, LLM, LLMContent, LLMContentBlock, LLMContentBlockKind, LLMContentBlockKindNameToValue, LLMContentBlockKindValueToName, LLMMessage, LLMMessageOrigin, LLMMessageOriginKind, LLMMessageOriginKindNameToValue, LLMMessageOriginKindValueToName, LLMMessageRole, LLMMessageRoleNameToValue, LLMMessageRoleValueToName, LLMSkill, LLMTokenUsage, Label, ListTypeDef, ModuleConfigClient, ModuleSource, ModuleSourceExperimentalFeature, ModuleSourceExperimentalFeatureNameToValue, ModuleSourceExperimentalFeatureValueToName, ModuleSourceKind, ModuleSourceKindNameToValue, ModuleSourceKindValueToName, Module_, NetworkProtocol, NetworkProtocolNameToValue, NetworkProtocolValueToName, NotAwaitedRequestError, ObjectTypeDef, PatchConflict, PatchConflictNameToValue, PatchConflictValueToName, Port, RegistryProtocol, RegistryProtocolNameToValue, RegistryProtocolValueToName, RemoteGitMirror, ReturnType, ReturnTypeNameToValue, ReturnTypeValueToName, SDKConfig, ScalarTypeDef, Schema, SearchResult, SearchSubmatch, Secret, Service, Socket, SourceMap, Stat, Terminal, TooManyNestedObjectsError, TypeDef, TypeDefKind, TypeDefKindNameToValue, TypeDefKindValueToName, UnknownDaggerError, Volume, Workspace, WorkspaceCommitPick, WorkspaceCommitPickReason, WorkspaceCommitPickReasonNameToValue, WorkspaceCommitPickReasonValueToName, WorkspaceCommitPickStatus, WorkspaceCommitPickStatusNameToValue, WorkspaceCommitPickStatusValueToName, WorkspaceGit, WorkspaceMigration, WorkspaceMigrationStep, WorkspaceModule, WorkspaceModuleSetting, WorkspaceSDK, _ExportableClient, _NodeClient, _SyncerClient, agent, argument, check, collection, connect, connection, dag, delta, enumType, field, func, generate, get, getRegisteredClass, getTracer, keys, object, up };
+export { Address, Agent, AgentMessage, AgentMessageDelivery, AgentMessageDeliveryNameToValue, AgentMessageDeliveryValueToName, AgentState, AgentStateNameToValue, AgentStateValueToName, Artifact, ArtifactDimension, ArtifactDimensionKey, ArtifactDimensionKind, ArtifactDimensionKindNameToValue, ArtifactDimensionKindValueToName, ArtifactPath, ArtifactResult, Artifacts, BaseClient, CacheSharingMode, CacheSharingModeNameToValue, CacheSharingModeValueToName, CacheVolume, Changeset, ChangesetMergeConflict, ChangesetMergeConflictNameToValue, ChangesetMergeConflictValueToName, ChangesetsMergeConflict, ChangesetsMergeConflictNameToValue, ChangesetsMergeConflictValueToName, Check, Client, ClientFilesyncMirror, Cloud, CollectionDelta, CollectionTypeDef, Command, Container, Context, CurrentModule, DaggerSDKError, DiffStat, DiffStatKind, DiffStatKindNameToValue, DiffStatKindValueToName, Directory, DockerImageRefValidationError, ERROR_CODES, Engine, EngineCache, EngineCacheEntry, EngineCacheEntrySet, EngineSessionConnectParamsParseError, EngineSessionConnectionTimeoutError, EngineSessionError, EnumTypeDef, EnumValueTypeDef, EnvFile, EnvVariable, Error$1 as Error, ErrorValue, ExecError, ExistsType, ExistsTypeNameToValue, ExistsTypeValueToName, Expertise, FieldTypeDef, File, FileType, FileTypeNameToValue, FileTypeValueToName, FunctionArg, FunctionCachePolicy, FunctionCachePolicyNameToValue, FunctionCachePolicyValueToName, FunctionCall, FunctionCallArgValue, FunctionNotFound, Function_, GeneratedCode, Generator, GitBundle, GitBundleRef, GitCommit, GitPushDisposition, GitPushDispositionNameToValue, GitPushDispositionValueToName, GitPushResult, GitRef, GitRemote, GitRepository, GraphQLClient, GraphQLRequestError, HTTPState, HealthcheckConfig, Host, ImageLayerCompression, ImageLayerCompressionNameToValue, ImageLayerCompressionValueToName, ImageMediaTypes, ImageMediaTypesNameToValue, ImageMediaTypesValueToName, InitEngineSessionBinaryError, InputTypeDef, InterfaceTypeDef, IntrospectionError, JSONValue, LLM, LLMContent, LLMContentBlock, LLMContentBlockKind, LLMContentBlockKindNameToValue, LLMContentBlockKindValueToName, LLMMessage, LLMMessageOrigin, LLMMessageOriginKind, LLMMessageOriginKindNameToValue, LLMMessageOriginKindValueToName, LLMMessageRole, LLMMessageRoleNameToValue, LLMMessageRoleValueToName, LLMSkill, LLMTokenUsage, Label, ListTypeDef, ModuleConfigClient, ModuleSource, ModuleSourceExperimentalFeature, ModuleSourceExperimentalFeatureNameToValue, ModuleSourceExperimentalFeatureValueToName, ModuleSourceKind, ModuleSourceKindNameToValue, ModuleSourceKindValueToName, Module_, NetworkProtocol, NetworkProtocolNameToValue, NetworkProtocolValueToName, NotAwaitedRequestError, ObjectTypeDef, PatchConflict, PatchConflictNameToValue, PatchConflictValueToName, Port, RegistryProtocol, RegistryProtocolNameToValue, RegistryProtocolValueToName, RemoteGitMirror, ReturnType, ReturnTypeNameToValue, ReturnTypeValueToName, SDKConfig, ScalarTypeDef, Schema, SearchResult, SearchSubmatch, Secret, Service, Socket, SourceMap, Stat, Terminal, TooManyNestedObjectsError, TypeDef, TypeDefKind, TypeDefKindNameToValue, TypeDefKindValueToName, UnknownDaggerError, Volume, Workspace, WorkspaceCommitPick, WorkspaceCommitPickReason, WorkspaceCommitPickReasonNameToValue, WorkspaceCommitPickReasonValueToName, WorkspaceCommitPickStatus, WorkspaceCommitPickStatusNameToValue, WorkspaceCommitPickStatusValueToName, WorkspaceGit, WorkspaceMigration, WorkspaceMigrationStep, WorkspaceModule, WorkspaceModuleSetting, WorkspaceSDK, _ExportableClient, _NodeClient, _SyncerClient, agent, argument, check, collection, connect, connection, dag, delta, enumType, field, func, generate, get, getRegisteredClass, getTracer, keys, object, up };
 export type { AddressContainerOpts, AddressDirectoryOpts, AddressFileOpts, AddressGitRefOpts, AgentNotifyOpts, AgentPauseOpts, AgentSendOpts, AgentStopOpts, ArtifactUriOpts, ArtifactValueOpts, ArtifactsFilterDirectivesOpts, ArtifactsFilterParentDirectivesOpts, ArtifactsFilterParentTypesOpts, ArtifactsFilterTypesOpts, ArtifactsPathDefinitionsOpts, ArtifactsValuesOpts, BuildArg, Bytes, CallbackFct, ChangesetFilterOpts, ChangesetWithChangesetOpts, ChangesetWithChangesetsOpts, ClientBlobOpts, ClientCacheVolumeOpts, ClientContainerOpts, ClientCurrentTypeDefsOpts, ClientEngineVolumeOpts, ClientEnvFileOpts, ClientFileOpts, ClientGitOpts, ClientHttpOpts, ClientLLMOpts, ClientModuleSourceOpts, ClientSecretOpts, ClientServeModuleOpts, ClientSshfsVolumeOpts, ConnectOpts, ContainerAsServiceOpts, ContainerAsTarballOpts, ContainerDirectoryOpts, ContainerExistsOpts, ContainerExportImageOpts, ContainerExportOpts, ContainerFileOpts, ContainerFromOpts, ContainerImportOpts, ContainerLayerOpts, ContainerManifestOpts, ContainerPublishOpts, ContainerShellOpts, ContainerStatOpts, ContainerTerminalOpts, ContainerUpOpts, ContainerWithDefaultTerminalCmdOpts, ContainerWithDirectoryOpts, ContainerWithDockerHealthcheckOpts, ContainerWithEntrypointOpts, ContainerWithEnvVariableOpts, ContainerWithExecOpts, ContainerWithExposedPortOpts, ContainerWithFileOpts, ContainerWithFilesOpts, ContainerWithMountedCacheOpts, ContainerWithMountedDirectoryOpts, ContainerWithMountedFileOpts, ContainerWithMountedSecretOpts, ContainerWithMountedTempOpts, ContainerWithMountedVolumeOpts, ContainerWithNewFileOpts, ContainerWithRunOpts, ContainerWithShellOpts, ContainerWithSymlinkOpts, ContainerWithUnixSocketOpts, ContainerWithWorkdirOpts, ContainerWithoutDirectoryOpts, ContainerWithoutEntrypointOpts, ContainerWithoutExposedPortOpts, ContainerWithoutFileOpts, ContainerWithoutFilesOpts, ContainerWithoutMountOpts, ContainerWithoutUnixSocketOpts, CurrentModuleWorkdirOpts, DirectoryAsModuleOpts, DirectoryAsModuleSourceOpts, DirectoryAsWorkspaceOpts, DirectoryDockerBuildOpts, DirectoryEntriesOpts, DirectoryExistsOpts, DirectoryExportOpts, DirectoryFilterOpts, DirectorySearchOpts, DirectoryStatOpts, DirectoryTerminalOpts, DirectoryWithDirectoryOpts, DirectoryWithFileOpts, DirectoryWithFilesOpts, DirectoryWithNewDirectoryOpts, DirectoryWithNewFileOpts, DirectoryWithPatchFileOpts, DirectoryWithPatchOpts, EngineCacheEntrySetOpts, EngineCachePruneOpts, EnvFileGetOpts, EnvFileVariablesOpts, Exportable, FileAsEnvFileOpts, FileContentsOpts, FileDigestOpts, FileExportOpts, FileSearchOpts, FileWithReplacedOpts, FunctionWithArgOpts, FunctionWithCachePolicyOpts, FunctionWithDeprecatedOpts, GitCommitAncestorReleaseTagOpts, GitCommitChangesOpts, GitCommitReleaseTagOpts, GitCommitTreeOpts, GitRefAsWorkspaceOpts, GitRefLogOpts, GitRefPushOpts, GitRefTreeOpts, GitRefWithCommitOpts, GitRepositoryAsWorkspaceOpts, GitRepositoryBranchOpts, GitRepositoryBranchesOpts, GitRepositoryBundleOpts, GitRepositoryHeadOpts, GitRepositoryLatestOpts, GitRepositoryRefOpts, GitRepositoryTagOpts, GitRepositoryTagsOpts, GitRepositoryWithBundleOpts, GitRepositoryWithRemoteOpts, HostDirectoryOpts, HostFileOpts, HostFindUpOpts, HostServiceOpts, HostTunnelOpts, ID, JSON, JSONValueContentsOpts, LLMArtifactsOpts, LLMContentBlockInput, LLMContentWithFileOpts, LLMLoopOpts, LLMMessageOriginInput, LLMSpawnOpts, LLMStepOpts, LLMWithContentFileOpts, LLMWithContentOpts, LLMWithModelOpts, LLMWithPromptOpts, LLMWithResponseOpts, LLMWithToolResultOpts, LLMWithToolsOpts, ModuleServeOpts, Node, PipelineLabel, Platform, PortForward, ServiceEndpointOpts, ServicePortsOpts, ServiceStopOpts, ServiceTerminalOpts, ServiceUpOpts, Syncer, TypeDefWithEnumMemberOpts, TypeDefWithEnumOpts, TypeDefWithEnumValueOpts, TypeDefWithFieldOpts, TypeDefWithInterfaceOpts, TypeDefWithObjectOpts, TypeDefWithScalarOpts, Void, WorkspaceArtifactsOpts, WorkspaceChangesOpts, WorkspaceCompareCommitsFromOpts, WorkspaceConfigReadOpts, WorkspaceDirectoryOpts, WorkspaceExportOpts, WorkspaceFindRootsOpts, WorkspaceFindUpOpts, WorkspaceMigrateModuleOpts, WorkspaceMigrateOpts, WorkspaceSearchOpts, WorkspaceWithClientOpts, WorkspaceWithCommitOpts, WorkspaceWithCommitsFromOpts, WorkspaceWithConfigEnvOpts, WorkspaceWithConfigValueOpts, WorkspaceWithFileOpts, WorkspaceWithInitModuleOpts, WorkspaceWithModuleOpts, WorkspaceWithNewFileOpts, WorkspaceWithPatchFileOpts, WorkspaceWithResetOpts, WorkspaceWithSdkOpts, WorkspaceWithUpdatedClientsOpts, WorkspaceWithUpdatedLockOpts, WorkspaceWithUpdatedModulesOpts, WorkspaceWithoutClientOpts, WorkspaceWithoutConfigEnvOpts, WorkspaceWithoutConfigValueOpts, WorkspaceWithoutModuleOpts, WorkspaceWithoutSdkOpts, __DirectiveArgsOpts, __FieldArgsOpts, __TypeEnumValuesOpts, __TypeFieldsOpts, __TypeInputFieldsOpts, float };

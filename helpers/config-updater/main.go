@@ -146,6 +146,11 @@ func updatePackageJSON(packageJSON string) (string, error) {
 		return "", err
 	}
 
+	packageJSON, err = pinNodeTypes(packageJSON)
+	if err != nil {
+		return "", err
+	}
+
 	// Remove legacy in-tree @dagger.io/dagger deps so we transition cleanly to
 	// the engine-managed bundle. Matches dagger/dagger UpdatePackageJSONForModule.
 	for _, key := range []string{
@@ -289,6 +294,11 @@ func updateSharedDeps(packageJSON, coreRel string, clientPairs []string) (string
 		return "", err
 	}
 
+	packageJSON, err = pinNodeTypes(packageJSON)
+	if err != nil {
+		return "", err
+	}
+
 	return sortDependencies(packageJSON)
 }
 
@@ -372,6 +382,45 @@ func pinTypeScript(packageJSON string) (string, error) {
 	return packageJSON, nil
 }
 
+const (
+	nodeTypesPackage = "@types/node"
+	// Tracks the major of the node image the generated entrypoint recipe runs
+	// on (templates/entrypoint_dang.go dangNodeImageRef). A range, not a pin:
+	// nothing matches on this one the way the runtime matches on the typescript
+	// version, and the user is the only one who installs it.
+	defaultNodeTypesVersion = "^24"
+)
+
+// pinNodeTypes declares @types/node unless the scope already declares it.
+//
+// Not a bundling leak to be fixed in the bundle like the rest of #94: the
+// dispatcher this SDK generates reads stdin through `Buffer` and `process`,
+// and core.d.ts takes `LogOutput` as a `node:stream` Writable, so the scope
+// really is a Node program and really does need the Node types to type-check.
+// A devDependency because every install the generated recipe runs omits dev
+// (`npm install --omit=dev`, `yarn install --prod`, ...), so this costs a call
+// nothing — it is there for the user's own `tsc` and their editor.
+//
+// Deno scopes never reach this: they get a deno.json and no package.json, and
+// Deno ships the node types itself.
+func pinNodeTypes(packageJSON string) (string, error) {
+	// Escaped, not spelled out: gjson reads a leading @ as a modifier, and sjson
+	// answers a path it cannot parse by returning the document unchanged and no
+	// error — so an unescaped key here writes nothing and says nothing.
+	key := gjson.Escape(nodeTypesPackage)
+	for _, section := range []string{"dependencies", "devDependencies", "peerDependencies"} {
+		if gjson.Get(packageJSON, section+"."+key).Exists() {
+			return packageJSON, nil
+		}
+	}
+
+	packageJSON, err := sjson.Set(packageJSON, "devDependencies."+key, defaultNodeTypesVersion)
+	if err != nil {
+		return "", fmt.Errorf("set %s dependency: %w", nodeTypesPackage, err)
+	}
+	return packageJSON, nil
+}
+
 // noLibAlias is the CORE_DIR sentinel that says "the SDK is not the resolver":
 // write no @dagger.io/dagger path alias, and remove one a previous layout left.
 // The shared-core node/bun layout uses it — the module resolves the library
@@ -406,6 +455,47 @@ func updateTSConfig(tsConfig, coreDir, clientsDir string, modules []string) (str
 	tsConfig, err = sjson.Set(tsConfig, "compilerOptions.experimentalDecorators", true)
 	if err != nil {
 		return "", fmt.Errorf("set experimentalDecorators: %w", err)
+	}
+
+	return fillTSConfigDefaults(tsConfig)
+}
+
+// fillTSConfigDefaults writes the compiler options a generated module needs to
+// type-check as it comes out, and only the ones the module has not chosen for
+// itself.
+//
+// Without them everything defaults: ES5, which has no Promise and no
+// Object.entries, and classic resolution, which does not look in node_modules
+// at all. `tsc --noEmit -p tsconfig.json` on a freshly generated module
+// answered with 525 errors from inside the SDK's own generated files, so the
+// one command a user reaches for when their editor is red was useless.
+//
+// Absent-only, the way "type" is handled in updateSharedDeps: a target is the
+// module's call, and regeneration must not drag it back. No `lib`, because the
+// default for a target already includes it; no `strict`, because turning it on
+// is a judgement about the user's own code.
+func fillTSConfigDefaults(tsConfig string) (string, error) {
+	tsConfig, err := setValueIfNotExists(tsConfig, "compilerOptions.target", "ES2022")
+	if err != nil {
+		return "", fmt.Errorf("set target: %w", err)
+	}
+
+	// Written as a pair or not at all: the two constrain each other, so filling
+	// one in beside a value the user picked for the other is how you produce
+	// TS5095 ("'bundler' can only be used when 'module' is ...") in a config
+	// that was fine before regeneration touched it.
+	module := gjson.Get(tsConfig, "compilerOptions.module").Exists()
+	resolution := gjson.Get(tsConfig, "compilerOptions.moduleResolution").Exists()
+	if !module && !resolution {
+		// Bundler, not Node16/NodeNext: the generated entrypoint imports the
+		// module's own source extensionless ("./src/index"), which the Node
+		// resolvers reject outright.
+		for _, kv := range [][2]string{{"module", "ESNext"}, {"moduleResolution", "Bundler"}} {
+			tsConfig, err = sjson.Set(tsConfig, "compilerOptions."+kv[0], kv[1])
+			if err != nil {
+				return "", fmt.Errorf("set %s: %w", kv[0], err)
+			}
+		}
 	}
 
 	return tsConfig, nil

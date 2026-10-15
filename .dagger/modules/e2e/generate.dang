@@ -1395,6 +1395,60 @@ type GenerateChecks {
   }
 
   """
+  A freshly generated module must type-check as it comes out, with no edits.
+
+  `npx tsc --noEmit -p tsconfig.json` is the one command a user reaches for when
+  their editor shows an error, and until #94 it answered with hundreds of errors
+  from inside the SDK's own generated files: the tsconfig carried no `target`,
+  `lib`, `module` or `moduleResolution`, so everything compiled as ES5 with no
+  globals, and `sdk/core.d.ts` imported packages the bundle exists to hide.
+
+  Nothing is installed here beyond what the module's own package.json declares —
+  a bare `npm install` — because that is the whole claim: out of the box. Every
+  other type-check in this repo runs against a fixture whose tsconfig was
+  hand-written with good options, or installs `@types/node` itself, which is
+  exactly why none of them noticed.
+  """
+  generateModuleTypeChecksCheck(ws: Workspace!): Void @check {
+    let path = fixtures.out + "/typecheck-node"
+    let changes = Gen.scope(ws, path, "typecheck-node", legacyRuntime: false)
+
+    container
+      .from("node:22-alpine")
+      .withMountedCache("/root/.npm", cacheVolume("npm-cache"))
+      .withDirectory("/app", changes.layer.directory(path))
+      .withWorkdir("/app")
+      .withExec(["npm", "install", "--no-audit", "--no-fund"])
+      .withExec(["npx", "--no-install", "tsc", "--noEmit", "-p", "tsconfig.json"])
+      .sync
+
+    null
+  }
+
+  """
+  The same bar for a Deno module, through Deno's own checker.
+
+  Deno resolves `@dagger.io/dagger` through the import map in deno.json rather
+  than node_modules, and `deno check` is the equivalent of `tsc --noEmit` there —
+  a different front end over the same compiler, with its own default lib and its
+  own idea of what a bare `node:` specifier means.
+  """
+  generateDenoModuleTypeChecksCheck(ws: Workspace!): Void @check {
+    let path = fixtures.out + "/typecheck-deno"
+    let changes = Gen.scope(ws, path, "typecheck-deno", runtime: "deno", legacyRuntime: false)
+
+    container
+      .from("denoland/deno:2.5.6")
+      .withMountedCache("/deno-dir", cacheVolume("deno-cache"))
+      .withDirectory("/app", changes.layer.directory(path))
+      .withWorkdir("/app")
+      .withExec(["deno", "check", "."])
+      .sync
+
+    null
+  }
+
+  """
   Type-check a pre-1.0 `dag.gendep()` call against a generated module tree:
   "compiled" or "rejected".
   """
