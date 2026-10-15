@@ -207,7 +207,10 @@ type Runtimes {
       .withWorkdir(".")
 
     let recipe = generated.directory("/" + path).file("entrypoint/main.dang").contents
-    if (recipe.contains("workspace.directory(\"..\", include: [\"shared/greet.ts\"]") == false) {
+    # Grouped under the file's own parent, with the file as the include: the
+    # map names a file, so that is the granularity, and the parent read is how
+    # a file, a directory and a glob are all spelled the same way.
+    if (recipe.contains("workspace.directory(\"../shared\", include: [\"greet.ts\"]") == false) {
       raise "the import map target should reach the sources member"
     }
 
