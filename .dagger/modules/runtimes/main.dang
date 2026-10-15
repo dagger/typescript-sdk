@@ -143,7 +143,7 @@ type Runtimes {
     holds if the module sits at its context subpath under the mount.
   - A @func takes its argument type from that directory, so the scan had to read
     it too — generation resolves the paths from the workspace itself, since the
-    `resources` member it would otherwise read is the one it is about to write.
+    `sources` member it would otherwise read is the one it is about to write.
 
   Read back through a check for the reason entrypointErrorTextCheck gives: a
   check's result is the one thing a caller can read without a typed client.
@@ -160,8 +160,8 @@ type Runtimes {
     if (recipe.contains("withArg(\"prefix\", typeDef.withKind(TypeDefKind.STRING_KIND)") == false) {
       raise "the scan should resolve a @func argument type imported from an included path"
     }
-    if (recipe.contains("pub resources: [String!]! {\n    [\"../shared\"]\n  }") == false) {
-      raise "the generated entrypoint should declare the module's resources"
+    if (recipe.contains("workspace.directory(\"..\", include: [\"shared\"]") == false) {
+      raise "the generated entrypoint's sources member should read the declared path"
     }
 
     let installed = generated.withModule(path, name: "runtime-include")
@@ -187,7 +187,7 @@ type Runtimes {
   A call should not be served a result built from an older version of an
   included file.
 
-  This is what the engine's `resources` member buys over reading the caller's
+  This is what the engine's `sources` member buys over reading the caller's
   workspace: the engine adds the listed files to the module context *before*
   anything reads the module digest, so they reach the cache key of every
   function call. Read from the workspace instead, as an earlier revision of this

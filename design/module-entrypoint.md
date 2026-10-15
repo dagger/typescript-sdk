@@ -251,15 +251,15 @@ constraints force that, and together they fix the layout:
 - Every exec after the module is mounted is keyed on everything mounted, so
   an install inside `runtime` would re-run on any source edit. `dependencies`
   reads the manifest and lockfile and nothing else, so it is keyed on the files
-  that actually decide it — and when the module declares resources, the context
-  minus the module's own tree, so those too.
+  that actually decide it — and when the module declares outside paths, the
+  context minus the module's own tree, so those too.
 - Whatever an install writes *under* the mount point is then hidden by the
   mount. Installing above it does not work either — the one directory node's
   resolution would walk up to is `/`, and npm refuses to install there
   (`Tracker "idealTree" already exists`).
 
 So `dependencies` installs in `/deps` — at `/deps/<sourceSubpath>` when the
-module declares resources, so a relative `file:` symlink resolves the same way
+module declares outside paths, so a relative `file:` symlink resolves the same way
 under both mounts — returns that `node_modules`, and `runtime` mounts it at the
 module's `node_modules`. `sdk/` is folded into
 that directory rather than mounted separately, which keeps it one mount with
@@ -529,8 +529,16 @@ whether the recipe mounts the workspace, the module source, or both.
 repository — `.git`, build output, a root `.env` — and keyed its container on all
 of them. It now mounts `currentModule.contextDirectory` and works from
 `currentModule.sourceSubpath`, so the engine decides what a call can see: the
-module directory, the manifest, and whatever the generated `resources` member
-lists. A module declares that list with `dagger.include` (`docs/include.md`).
+module directory, the manifest, and whatever the generated `sources` member
+returns. A module declares the outside paths with `dagger.include`
+(`docs/include.md`).
+
+`sources` replaced an earlier `resources` member, which returned include
+patterns for the engine to interpret (dagger/dagger#14639, shipped in beta.17).
+It now returns the directory itself (dagger/dagger#14693), and declaring it is
+what gets a `types` and a `call` with no workspace argument — the workspace they
+used to receive sat outside every cache key, so a read through it could be
+served stale. That is the floor moving to beta.18.
 
 This also answers the second half of the question. The context comes from the
 module's own source — a local checkout, a workspace, or a Git commit — not from

@@ -404,8 +404,9 @@ type GenerateChecks {
   — every unrelated file in the repository went into the module's container
   (.git, build output, a root .env) and keyed it, so an edit anywhere in the
   repository rebuilt it. The engine assembles the module context instead: the
-  module directory, the manifest and whatever `resources` lists, and nothing
-  else. Reading the workspace at all is the regression this guards.
+  module directory, the manifest and whatever `sources` returned, and nothing
+  else. Reading the workspace from the recipe at all is the regression this
+  guards — `sources` is the one member that takes one.
   """
   entrypointMountsModuleContextCheck(ws: Workspace!): Void @check {
     let scope = Fixtures.out + "/entrypoint-mount"
@@ -423,22 +424,31 @@ type GenerateChecks {
       recipe, "withWorkdir(\"/workspace/\" + currentModule.sourceSubpath)",
       "the recipe should run from the module's subpath inside the context",
     )
+    # `sources` takes a workspace and nothing below it does. Sliced rather than
+    # matched over the whole file for that reason.
+    let belowSources = recipe.split("pub types").takeLast(1).join("")
     Asserts.stringNotContains(
-      recipe, "workspace.directory(",
-      "the recipe should not read the caller's workspace",
+      belowSources, "workspace.",
+      "nothing below sources should read a workspace",
     )
-    # Nothing declared, so the member is absent and the engine loads the module
-    # as it did before it existed.
-    Asserts.stringNotContains(
-      recipe, "resources",
-      "a module declaring nothing should carry no resources member",
+    # Declared nothing, and the member is still there: one shape for every
+    # module is what the engine's contract keys on, and it is what gets a types
+    # and a call with no workspace argument.
+    Asserts.stringContains(
+      recipe,
+      "pub sources(workspace: Workspace!): Directory! {\n    directory\n      .withDirectory(workspace.cwd, workspace.directory(\".\", exclude: [\"**/.git\", \"**/node_modules\"]))\n  }",
+      "a module declaring nothing should still return its own directory",
+    )
+    Asserts.stringContains(
+      recipe, "pub types: [TypeDef!]! {",
+      "declaring sources should get a types with no workspace argument",
     )
 
     null
   }
 
   """
-  `dagger.include` should reach the scan, the `resources` member and the install
+  `dagger.include` should reach the scan, the `sources` member and the install
   context.
 
   One list, three places. The scan is generation's own: it assembles the tree
@@ -459,15 +469,25 @@ type GenerateChecks {
     )
 
     # Module-relative, as the user wrote it: the SDK resolves against the
-    # workspace root for its own reads, the engine resolves `resources` against
-    # the module directory, so the member carries the original form back.
+    # workspace root for its own reads, `sources` reads through a workspace
+    # whose cwd is the module, so the member carries the original form back.
+    #
+    # Read through the parent with an include filter rather than named directly,
+    # because a declared path can be a directory, a file or a glob and the
+    # parent read spells all three the same way.
     Asserts.stringContains(
       recipe,
-      "pub resources: [String!]! {\n    [\"../entrypoint-shared\"]\n  }",
-      "the declared paths should reach the resources member, module-relative",
+      "withDirectory(workspace.cwd + \"/..\", workspace.directory(\"..\", include: [\"entrypoint-shared\"]",
+      "the declared path should reach the sources member, module-relative",
+    )
+    # The module's own directory comes last, so it wins a collision.
+    Asserts.stringContains(
+      recipe,
+      "withDirectory(workspace.cwd, workspace.directory(\".\"",
+      "sources should return the module's own directory too",
     )
     # The mount is the same one every module gets — the engine decides what the
-    # context holds, so declaring resources changes nothing here.
+    # context holds, so declaring paths changes nothing here.
     Asserts.stringContains(
       recipe,
       "withMountedDirectory(\"/workspace\", currentModule.contextDirectory.filter(exclude: [\"**/node_modules\"]))",
@@ -476,7 +496,7 @@ type GenerateChecks {
     # The install moves to the module's subpath so the relative symlink npm
     # leaves for a file: dependency outside the module resolves to the same place
     # under the runtime mount, and the module's own tree is dropped from the
-    # context so the install stays keyed on the manifests and the resources.
+    # context so the install stays keyed on the manifests and those paths.
     Asserts.stringContains(
       recipe, "let installDir = \"/deps/\" + currentModule.sourceSubpath",
       "the install should run at the module's subpath inside the context",

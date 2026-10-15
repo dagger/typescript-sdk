@@ -122,7 +122,7 @@ func DangEntrypointTemplateFuncs(module *TypedefModule, opts DangEntrypointOptio
 		"dangRuntimeChain":         c.dangRuntimeChain,
 		"dangDispatchExec":         c.dangDispatchExec,
 		"dangRequireGeneratedBody": c.dangRequireGeneratedBody,
-		"dangResourcesMember":      c.dangResourcesMember,
+		"dangSourcesMember":        c.dangSourcesMember,
 	}
 }
 
@@ -527,64 +527,147 @@ func (c *dangFuncCtx) modulePath() string {
 	return path.Clean(p)
 }
 
-// dangResourcesMember renders the `resources` member, or "" when the module
-// declares nothing — in which case the member is left out entirely and the
-// engine loads the module as it did before it existed.
+// dangSourcesMember renders the `sources` member: the directory the engine
+// merges into the module context before anything reads the module digest.
 //
-// The engine reads this member while it loads the module source, with no API
-// access, so it has to be a literal list. It is a function rather than a value
-// field because the engine refuses the latter, and a function with no arguments
-// is also the only shape the dang driver's zero-argument constructor rule
-// allows on this type.
-func (c *dangFuncCtx) dangResourcesMember() string {
-	patterns := c.dangResourcePatterns()
-	if len(patterns) == 0 {
-		return ""
-	}
-	quoted := make([]string, len(patterns))
-	for i, p := range patterns {
-		quoted[i] = dangString(p)
-	}
-	return fmt.Sprintf(`  """
-  Paths outside the module directory this module builds and runs with.
+// Always emitted, even for a module that needs nothing outside its own
+// directory. One shape for every module is the engine's own choice, and it is
+// also what decides the interface: an entrypoint that declares `sources` gets a
+// `types` and `call` with no workspace argument, which is the whole point —
+// under the old `resources` member they still took one, and that workspace sat
+// outside every cache key, so a read through it could be served stale.
+//
+// Unlike `resources`, this runs with API access and receives a workspace, so it
+// returns data rather than a list of patterns for the engine to interpret. The
+// workspace is the module's own: a local checkout, the workspace it was loaded
+// from, or a Git commit — never the caller's.
+//
+// Keyed by `workspace.cwd`, which the engine sets to the module's path, so the
+// result is rooted at the context root the same way contextDirectory is.
+func (c *dangFuncCtx) dangSourcesMember() string {
+	var calls []string
 
-  Declared as `+"`dagger.include`"+` in the module's package.json or deno.json and
-  resolved at generation. The engine adds them to the module context and to the
-  module digest, so they reach contextDirectory below and a change to one of
-  them gives a call a new cache key.
+	// Outside paths first, so the module's own directory wins a collision — as
+	// it does again when the engine overlays the module's real files on top of
+	// all this.
+	for _, g := range c.dangSourceGroups() {
+		quoted := make([]string, len(g.include))
+		for i, p := range g.include {
+			quoted[i] = dangString(p)
+		}
+		args := []string{dangString(g.dir), "include: [" + strings.Join(quoted, ", ") + "]"}
+
+		exclude := append([]string{}, g.exclude...)
+		exclude = append(exclude, "**/.git", "**/node_modules")
+		quotedEx := make([]string, len(exclude))
+		for i, p := range exclude {
+			quotedEx[i] = dangString(p)
+		}
+		args = append(args, "exclude: ["+strings.Join(quotedEx, ", ")+"]", "gitignore: true")
+
+		calls = append(calls, fmt.Sprintf("withDirectory(workspace.cwd + %s, workspace.directory(%s))",
+			dangString("/"+g.dir), strings.Join(args, ", ")))
+	}
+
+	// The module's own directory, read without .gitignore: a module may ignore
+	// the generated clients/ it cannot run without, and the engine's own overlay
+	// of these files is what the manifest check below reads.
+	calls = append(calls, `withDirectory(workspace.cwd, workspace.directory(".", exclude: ["**/.git", "**/node_modules"]))`)
+
+	return fmt.Sprintf(`  """
+  Everything this module builds from, as one directory.
+
+  The engine merges it into the module context before anything reads the module
+  digest, so a change to any of it gives every call a new cache key — which is
+  what a workspace read could never do, the workspace being outside every key.
+
+  The module's own directory always, plus whatever its %s declares.
+  Rooted at the context root, which is what workspace.cwd keys each entry to.
   """
-  pub resources: [String!]! {
-    [%s]
+  pub sources(workspace: Workspace!): Directory! {
+    %s
   }
 
-`, strings.Join(quoted, ", "))
+`, "`dagger.include`", dangChain("directory", calls, "      "))
 }
 
-// dangResourcePatterns rebases the SDK's workspace-relative include list back to
-// the module-relative patterns the `resources` member declares.
+// dangSourceGroup is one workspace read the `sources` member makes: a directory
+// to read, the entries to take from it, and what to leave behind.
+type dangSourceGroup struct {
+	dir     string
+	include []string
+	exclude []string
+}
+
+// dangSourceGroups turns the SDK's workspace-relative include list into the
+// reads `sources` makes, module-relative.
+//
+// Grouped by the parent directory of each pattern, and read with an include
+// filter rather than named directly, because a pattern can be a directory, a
+// file (`../tsconfig.base.json`) or a glob (`../shared/*.ts`) and the parent
+// read spells all three the same way.
+func (c *dangFuncCtx) dangSourceGroups() []dangSourceGroup {
+	mod := c.modulePath()
+
+	var order []string
+	groups := map[string]*dangSourceGroup{}
+	group := func(dir string) *dangSourceGroup {
+		if g, ok := groups[dir]; ok {
+			return g
+		}
+		g := &dangSourceGroup{dir: dir}
+		groups[dir] = g
+		order = append(order, dir)
+		return g
+	}
+
+	// Includes first, so every group exists before an exclude looks for the one
+	// it belongs to.
+	var excludes []string
+	for _, p := range c.opts.Include {
+		rel, negated := c.relToModule(p, mod)
+		if negated {
+			excludes = append(excludes, rel)
+			continue
+		}
+		g := group(path.Dir(rel))
+		g.include = append(g.include, path.Base(rel))
+	}
+
+	for _, ex := range excludes {
+		// Onto every group whose directory contains it, rebased: an exclude is
+		// relative to the read it applies to. Dropping a subpath in more reads
+		// than strictly needed cannot take away a wanted include.
+		for _, dir := range order {
+			if rel, err := filepath.Rel(dir, ex); err == nil && !strings.HasPrefix(rel, "..") {
+				groups[dir].exclude = append(groups[dir].exclude, filepath.ToSlash(rel))
+			}
+		}
+	}
+
+	out := make([]dangSourceGroup, 0, len(order))
+	for _, dir := range order {
+		out = append(out, *groups[dir])
+	}
+	return out
+}
+
+// relToModule rebases one of the SDK's workspace-relative patterns back to the
+// module-relative form the generated program reads in, and reports whether it
+// was an exclude.
 //
 // The SDK resolves what the user wrote against the workspace root, because that
-// is the form its own generation-time reads need. The engine resolves `resources`
-// against the module directory, so the rebase here is the inverse of that
-// resolution and gives back what the user wrote.
-func (c *dangFuncCtx) dangResourcePatterns() []string {
-	mod := c.modulePath()
-	patterns := make([]string, 0, len(c.opts.Include))
-	for _, p := range c.opts.Include {
-		pattern, negated := strings.CutPrefix(p, "!")
-		rel, err := filepath.Rel(mod, pattern)
-		if err != nil {
-			// Only possible for a pattern the SDK never emits; keep it verbatim
-			// rather than dropping a path the module needs.
-			rel = pattern
-		}
-		rel = filepath.ToSlash(rel)
-		if negated {
-			rel = "!" + rel
-		}
-		patterns = append(patterns, rel)
+// is the form its own generation-time reads need. `sources` reads through a
+// workspace whose cwd is the module, so the rebase here is the inverse.
+func (c *dangFuncCtx) relToModule(pattern, mod string) (string, bool) {
+	p, negated := strings.CutPrefix(pattern, "!")
+	rel, err := filepath.Rel(mod, p)
+	if err != nil {
+		// Only possible for a pattern the SDK never emits; keep it verbatim
+		// rather than dropping a path the module needs.
+		rel = p
 	}
-	return patterns
+	return filepath.ToSlash(rel), negated
 }
 
 // packageManager is the manager the install step runs. The SDK detects it the
