@@ -299,7 +299,8 @@ type TypescriptSdk {
       # caller outside it installs.
       let targets = clientTargets(ws, clients)
       # Before the schema is read: a target that is not a dependency yet is not
-      # in the schema the bindings are generated from.
+      # in the schema the bindings are generated from, and one whose dependency
+      # has just been taken away no longer is.
       #
       # Skipped entirely under an entrypoint, where there is no [runtime] for a
       # dependency to belong to: the builder rejects one on its own
@@ -310,7 +311,7 @@ type TypescriptSdk {
       let served = if (legacyRuntime == false) {
         unhidden
       } else {
-        withClientDependencies(unhidden, scope, clients)
+        withClientDependencies(unhidden, scope, source, clients)
       }
 
       # The module's own path among the recorded clients is `dagger module
@@ -765,11 +766,14 @@ type TypescriptSdk {
   what the bindings are generated from: a target that is not a dependency yet is
   not in it.
 
-  Dependencies are upserted, never pruned. A manifest may carry entries nobody
-  here put there — written by hand, or migrated from a pre-1.0 dagger.json — and
-  they are indistinguishable from ours, so removing the ones that are missing
-  from `clients` would take those with them. The cost is that dropping a client
-  leaves its dependency behind, serving a module whose bindings are gone.
+  Dependencies are upserted, and pruned only where a client that has left can be
+  told from an entry nobody here put there — one written by hand, or migrated
+  from a pre-1.0 dagger.json. Absent from `clients` is not on its own a reason to
+  remove one; the bindings already on disk are what separates the two
+  (departedClients). What comes off the manifest takes everything derived from it
+  along on the same run: the module's schema loses the target, so its bindings,
+  its tsconfig alias and its compat entry are no longer rendered and the existing
+  pruning takes them.
   Generation also applies the lock setting when there are no clients.
 
   A pre-1.0 engine pin is raised here too, to the release the bundle is built
@@ -788,7 +792,7 @@ type TypescriptSdk {
   nothing — and a workspace that wrote a file is a workspace that reports it,
   identical bytes or not.
   """
-  let withClientDependencies(ws: Workspace!, scope: String!, clients: [ModuleSource!]!): Workspace! {
+  let withClientDependencies(ws: Workspace!, scope: String!, sourcePath: String!, clients: [ModuleSource!]!): Workspace! {
     let configPath = scopeFile(scope, "dagger-module.toml")
     let tomlPath = "/" + configPath
     let loaded = sdkHelpers.moduleManifest(loadToml: ws.file(tomlPath))
@@ -797,7 +801,11 @@ type TypescriptSdk {
     } else {
       loaded
     }
-    let updated = clients.reduce(pinned) { manifest, client =>
+    let names = clients.{{ moduleOriginalName }}.map { client => client.moduleOriginalName }
+    let kept = departedClients(ws, sourcePath, names).reduce(pinned) { manifest, name =>
+      manifest.withoutLegacyRuntimeDependency(name: name)
+    }
+    let updated = clients.reduce(kept) { manifest, client =>
       manifest.withLegacyRuntimeDependency(module: client)
     }.generate(ws.withWorkdir(scope), lock: lock, legacyJson: false).withWorkdir(".")
 
@@ -806,6 +814,53 @@ type TypescriptSdk {
     } else {
       updated
     }
+  }
+
+  """
+  Names of the clients a previous generation recorded for this module and this
+  one does not: the dependencies that are the SDK's to take off the manifest.
+
+  Told apart by the bindings on disk, which is the only record of a generation
+  the workspace keeps. Codegen renders the serve hook for a client the scope
+  records as a target and never for a plain manifest dependency, which the
+  engine already serves — so a `<name>.gen.ts` carrying one says that name was a
+  client when it was written. Missing from `clients` now, it has been removed,
+  and the dependency recorded with it goes too.
+
+  Reading what a previous run wrote is also what bounds the claim: the run that
+  acts on the hook is the run that rewrites the file without it, so a manifest
+  entry only ever looks like a departed client once. Every run after that sees
+  an ordinary dependency and leaves it alone, as it does one the module never
+  generated a client for at all.
+
+  The module's own client carries a hook too and is never in `clients`, but no
+  manifest declares a dependency on the module itself, so naming it changes
+  nothing.
+  """
+  let departedClients(ws: Workspace!, sourcePath: String!, clientNames: [String!]!): [String!]! {
+    let sdkPath = moduleSdkPath(sourcePath)
+
+    moduleBindings(ws, sourcePath)
+      .map { entry => entry.trimSuffix(".gen.ts") }
+      .filter { name => clientNames.filter { client => client == name }.length == 0 }
+      .filter { name => servesOwnModule(ws, sdkPath + "/" + name + ".gen.ts") }
+  }
+
+  """
+  Whether the generated client at `path` (workspace-root-relative) serves its own
+  module before its first query: the hook that marks it a recorded target rather
+  than a manifest dependency.
+
+  Matched on the function codegen names it after, which the core bindings beside
+  it do not have — they declare `serveModule` as a field of the client.
+  """
+  let servesOwnModule(ws: Workspace!, path: String!): Boolean! {
+    ws
+      .directory("/", include: [path])
+      .file(path)
+      .search(pattern: "__serveModule", limit: 1)
+      .{{id}}
+      .length > 0
   }
 
   """
