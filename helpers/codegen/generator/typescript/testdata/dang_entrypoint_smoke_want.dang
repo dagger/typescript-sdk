@@ -12,8 +12,8 @@ type Entrypoint implements ModuleEntrypoint {
   digest, so a change to any of it gives every call a new cache key — which is
   what a workspace read could never do, the workspace being outside every key.
 
-  The module's own directory always, plus whatever its `dagger.include` declares.
-  Rooted at the context root, which is what workspace.cwd keys each entry to.
+  The module's own directory always, plus whatever its code imports from outside
+  it. Rooted at the context root, which is what workspace.cwd keys each entry to.
   """
   pub sources(workspace: Workspace!): Directory! {
     directory

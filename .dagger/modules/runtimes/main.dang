@@ -145,7 +145,7 @@ type Runtimes {
     it too — generation resolves the paths from the workspace itself, since the
     `sources` member it would otherwise read is the one it is about to write.
 
-  The fixture's package.json declares no `dagger.include`: the one import in
+  The fixture declares nothing anywhere: the one import in
   `src/index.ts` is the whole input, and the directory it names is what carries
   `greeting.txt` along with it.
 

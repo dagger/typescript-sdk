@@ -58,10 +58,10 @@ type DangEntrypointOptions struct {
 	TSConfigPath string
 
 	// Include lists paths outside the module directory the module builds and
-	// runs with, workspace-relative and already resolved from `dagger.include`.
-	// A "!"-prefixed entry excludes. Rendered as the `resources` member, rebased
-	// to the module-relative form the engine resolves. Empty leaves the member
-	// out, and the engine then loads the module as it did before it existed.
+	// runs with, workspace-relative, as the SDK derived them from what the
+	// module's code imports. A "!"-prefixed entry excludes. Rendered as the
+	// reads the `sources` member makes, rebased to the module-relative form that
+	// member resolves in.
 	Include []string
 }
 
@@ -581,14 +581,14 @@ func (c *dangFuncCtx) dangSourcesMember() string {
   digest, so a change to any of it gives every call a new cache key — which is
   what a workspace read could never do, the workspace being outside every key.
 
-  The module's own directory always, plus whatever its %s declares.
-  Rooted at the context root, which is what workspace.cwd keys each entry to.
+  The module's own directory always, plus whatever its code imports from outside
+  it. Rooted at the context root, which is what workspace.cwd keys each entry to.
   """
   pub sources(workspace: Workspace!): Directory! {
     %s
   }
 
-`, "`dagger.include`", dangChain("directory", calls, "      "))
+`, dangChain("directory", calls, "      "))
 }
 
 // dangSourceGroup is one workspace read the `sources` member makes: a directory

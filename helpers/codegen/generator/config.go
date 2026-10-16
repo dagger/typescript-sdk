@@ -197,9 +197,8 @@ type DangEntrypointGeneratorConfig struct {
 	TSConfigPath string
 
 	// Include lists paths outside the module directory the module builds and
-	// runs with, workspace-relative and already resolved by the SDK from
-	// `dagger.include`. A "!"-prefixed entry excludes. They are rebased to
-	// module-relative for the generated `resources` member, which is what the
-	// engine resolves. Empty leaves the member out entirely.
+	// runs with, workspace-relative, as the SDK derived them from what the
+	// module's code imports. A "!"-prefixed entry excludes. They are rebased to
+	// module-relative for the reads the generated `sources` member makes.
 	Include []string
 }

@@ -53,8 +53,9 @@ type TypescriptSdk {
   `[entrypoint]` table and no `[runtime]`, and `engineVersion`, `source`,
   `include` and `[[dependencies]]` are fields of the runtime the module no
   longer declares — so a module that had them loses them, and an `include`
-  becomes `dagger.include` in the module's package.json or deno.json. Back onto
-  a `[runtime]`, it is written fresh: `engineVersion` pinned to the release this
+  becomes nothing to declare: an entrypoint's files outside its own directory
+  are derived from what its code imports. Back onto a `[runtime]`, it is
+  written fresh: `engineVersion` pinned to the release this
   SDK ships for, `[[dependencies]]` rebuilt from the scope's clients, and the
   other path's files — entrypoint/, __dagger.dispatch.ts, the clients/ packages
   — removed. A `source` or `include` the original `[runtime]` manifest carried
@@ -733,9 +734,10 @@ type TypescriptSdk {
   back (withModuleManifest) writes a fresh manifest rather than reading this
   one, so of those only the engine pin and the dependencies come back —
   re-pinned to the release this SDK ships for, and rebuilt from the scope's
-  clients. `source` and `include` do not — an entrypoint module declares files
-  outside its directory with `dagger.include` in its package.json or deno.json
-  instead, which is read at generation and baked into the recipe.
+  clients. `source` and `include` do not — an entrypoint module needs neither:
+  the files it builds with outside its own directory are derived from what its
+  code imports, and returned by the `sources` member of its generated
+  entrypoint.
   """
   let withEntrypointManifest(ws: Workspace!, scope: String!, name: String!, hasToml: Boolean!): Workspace! {
     let existing = if (hasToml) {
@@ -1786,7 +1788,7 @@ type TypescriptSdk {
         gitignore: true,
       )
       if (tree.entries.length == 0) {
-        raise "dagger.include matched nothing in the workspace: " + patterns.join(", ")
+        raise "the paths derived from this module's imports match nothing in the workspace: " + patterns.join(", ")
       } else {
         tree
       }
