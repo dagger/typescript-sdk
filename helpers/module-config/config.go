@@ -1,11 +1,6 @@
 package main
 
 import (
-	"errors"
-	"fmt"
-	"path"
-	"strings"
-
 	"github.com/tidwall/gjson"
 	"github.com/tidwall/sjson"
 )
@@ -36,88 +31,6 @@ func getBaseImage(input string) string {
 // when necessary.
 func setBaseImage(input, value string) (string, error) {
 	return sjson.Set(input, "dagger.baseImage", value)
-}
-
-// resolveInclude reads "dagger.include" and resolves every entry against the
-// module directory, returning workspace-relative patterns in declaration order.
-// A leading "!" marks an exclude and survives on the resolved pattern.
-//
-// A user writes a path relative to the module directory, which is also what the
-// generated `resources` member carries and what the engine resolves. The
-// workspace-relative form exists for generation's own reads: the scan assembles
-// the module's tree from the workspace, because the `resources` member it would
-// otherwise read is the one it is about to write.
-//
-// Three refusals, because each would otherwise silently do nothing: an absolute
-// path, a path that climbs past the workspace root (generation cannot read
-// above it), and a path that stays inside the module directory (already part of
-// the module source). The engine applies its own rules when it loads the
-// module, against the context root rather than the workspace root.
-func resolveInclude(input, modulePath string) ([]string, error) {
-	field := gjson.Get(input, "dagger.include")
-	if !field.Exists() {
-		return nil, nil
-	}
-	if !field.IsArray() {
-		return nil, errors.New("dagger.include must be an array of paths")
-	}
-	entries := field.Array()
-	if len(entries) == 0 {
-		return nil, nil
-	}
-
-	mod := strings.Trim(path.Clean("/"+modulePath), "/")
-	if mod == "" {
-		return nil, errors.New("dagger.include is not supported for a module at the workspace root: it already builds with every file in the workspace")
-	}
-	for _, part := range strings.Split(mod, "/") {
-		// The introspector records a scanned file's path by finding the first
-		// "src" component of its absolute path (ast.ts getNodeLocation). An
-		// include makes the module scan from inside a workspace-rooted tree, so
-		// a "src" above the module directory would be found first and every
-		// source map and dispatcher import would name the wrong file.
-		if part == "src" {
-			return nil, fmt.Errorf("dagger.include is not supported for a module under a \"src\" directory (%q): move the module, or drop the field", modulePath)
-		}
-	}
-
-	var out []string
-	for _, entry := range entries {
-		if entry.Type != gjson.String {
-			return nil, fmt.Errorf("dagger.include: %s is not a path", entry.Raw)
-		}
-		resolved, err := resolveIncludeEntry(entry.String(), mod)
-		if err != nil {
-			return nil, err
-		}
-		out = append(out, resolved)
-	}
-	return out, nil
-}
-
-// resolveIncludeEntry resolves one entry to the pattern that selects it from the
-// workspace root.
-func resolveIncludeEntry(entry, mod string) (string, error) {
-	rel, negated := strings.CutPrefix(entry, "!")
-	switch {
-	case rel == "":
-		return "", fmt.Errorf("dagger.include: %q names no path", entry)
-	case strings.HasPrefix(rel, "/"):
-		return "", fmt.Errorf("dagger.include: %q must be relative to the module directory", entry)
-	}
-
-	resolved := path.Join(mod, rel)
-	switch {
-	case resolved == ".." || strings.HasPrefix(resolved, "../"):
-		return "", fmt.Errorf("dagger.include: %q leaves the workspace root", entry)
-	case resolved == mod || strings.HasPrefix(resolved, mod+"/"):
-		return "", fmt.Errorf("dagger.include: %q is inside the module directory, which the module already builds with", entry)
-	}
-
-	if negated {
-		resolved = "!" + resolved
-	}
-	return resolved, nil
 }
 
 // unsetBaseImage removes "dagger.baseImage" and prunes the "dagger" object

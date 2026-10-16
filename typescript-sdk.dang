@@ -1335,8 +1335,55 @@ type TypescriptSdk {
       .withMountedCache("/root/.bun/install/cache", cacheVolume("bun-install"))
       .withWorkdir("/introspector")
       .withFile("/introspector/introspector.js", tsBundle.file("introspector.js"))
+      .withFile("/introspector/imports.js", tsBundle.file("imports.js"))
       .withExec(["bun", "add", "--no-save", "typescript@" + tsVersion])
   }
+
+  """
+  The paths a module needs from outside its own directory, derived from what its
+  source imports.
+
+  A relative specifier that climbs out of the module directory, a `file:`
+  dependency in package.json, a tsconfig `paths` target outside it: each is the
+  user's own code or config saying it needs something, so nothing here has to be
+  written for Dagger's benefit or kept in step by hand.
+
+  Workspace-relative, which is the form this SDK's own reads take; codegen
+  rebases them for the `sources` member the engine calls. A path that climbs
+  past the workspace root fails here, naming the import behind it: the SDK
+  cannot read above that root to scan the module, so no resource would make the
+  build work.
+
+  Transitive, which is why this reads the workspace rather than the module
+  alone: an import leaving the module directory is followed, and whatever that
+  file imports is followed too. Stopping at the first hop would only work by
+  accident, and a sibling that imports from a third directory would scan here
+  and fail to compile in the container.
+
+  The read is narrowed to the files an import can resolve to and the configs an
+  alias can come from, not the whole workspace: this runs on every generate, and
+  a monorepo's assets have no bearing on what the module imports. It is the
+  cheap half anyway — a lexical scan per file, no TypeScript program — and the
+  expensive typedef scan downstream stays keyed on the module and the paths this
+  returns rather than on all of it.
+  """
+  let importedResources(ws: Workspace!, sourcePath: String!): [String!]! {
+    let scanned = ws.directory(
+      "/",
+      include: ["**/*.ts", "**/*.mts", "**/*.cts", "**/*.tsx", "**/package.json", "**/tsconfig.json", "**/deno.json"],
+      exclude: ["**/node_modules"],
+      gitignore: true,
+    )
+
+    let printed = introspector
+      .withDirectory("/scan", scanned)
+      .withExec(["bun", "/introspector/imports.js", "/scan", sourcePath, "src"])
+      .stdout
+      .trimSuffix("\n")
+
+    if (printed == "") { [] } else { printed.split("\n") }
+  }
+
 
   """
   Scan the user's source into the typedef JSON every generated dispatch file is
@@ -1681,47 +1728,44 @@ type TypescriptSdk {
     # bakes nothing from it, but one that declares it is making a mistake worth
     # one exec to catch.
     let image = if (legacyRuntime == false) { effectiveBaseImage(ws, sourcePath, rt) } else { "" }
-    let includes = ModConfig(sourcePath: sourcePath, ws: ws).include
 
-    if (legacyRuntime and includes.length > 0) {
-      # A `[runtime]` module's files come from the module source the engine
-      # loads, which this SDK does not assemble — its manifest has an `include`
-      # field for exactly this, and honouring the package.json one would mean
-      # generating against files the module would not have at run time.
-      raise "dagger.include is only read for a module entrypoint; a [runtime] module declares files outside its directory with `include` in dagger-module.toml"
-    } else {
-      moduleDirectory(
-        ws.moduleSource("/" + scope).introspectionSchemaJSON.contents,
-        name,
-        sourcePath,
-        ws.directory("/" + sourcePrefix + "src"),
-        existingModuleConfig(ws, sourcePath),
-        rt,
-        pkgManager,
-        image,
-        targets,
-        workspaceRepoURL(ws, scope),
-        includes,
-        includeTree(ws, includes),
-      )
-    }
+    # Only for an entrypoint. A `[runtime]` module's files come from the module
+    # source the engine loads, which this SDK does not assemble, so deriving
+    # anything for it would widen the scan's tree past what the module would
+    # really have at run time.
+    let includes = if (legacyRuntime) { [] } else { importedResources(ws, sourcePath) }
+
+    moduleDirectory(
+      ws.moduleSource("/" + scope).introspectionSchemaJSON.contents,
+      name,
+      sourcePath,
+      ws.directory("/" + sourcePrefix + "src"),
+      existingModuleConfig(ws, sourcePath),
+      rt,
+      pkgManager,
+      image,
+      targets,
+      workspaceRepoURL(ws, scope),
+      includes,
+      includeTree(ws, includes),
+    )
   }
 
   """
-  The paths `dagger.include` declares, read from the workspace for the scan.
+  The derived paths, read from the workspace for the scan.
 
   Only the scan reads these. A call gets them from the engine instead: the
-  generated `resources` member names them, and the engine puts them in the
+  generated `sources` member returns them, and the engine merges them into the
   module context before anything reads the module digest. Generation cannot use
   that — the member it would read is the one it is about to write — so it
   assembles the same tree itself, from the workspace, with the filters the
   engine's own local module context applies: `.gitignore`, and node_modules on
   top of it, since these are directories the module does not own.
 
-  An empty result is refused. The engine is laxer — a `resources` pattern that
-  matches nothing is not an error there — but a scan built from nothing silently
+  An empty result is refused. The engine is laxer — `sources` returning less
+  than expected is not an error there — but a scan built from nothing silently
   produces typedefs for source whose imports did not resolve, which is the
-  failure this whole field exists to prevent.
+  failure this whole mechanism exists to prevent.
 
   shortcut: that catches a list that matches nothing, not one path of several
   that does. Per-path checking needs a workspace read per path, and a glob entry
