@@ -290,6 +290,46 @@ type Runtimes {
   }
 
   """
+  A pre-1.0 module should keep running, and a generate should not touch it.
+
+  Its only config is a dagger.json, so the engine's builtin TypeScript runtime
+  loads it and does its codegen at call time — there is nothing for this SDK to
+  write, and writing anything broke it: generating an entrypoint manifest
+  deleted the dagger.json, and with it the `[[dependencies]]` the module's own
+  code reaches through. The function here calls that dependency, so a generate
+  that dropped the edge fails this check rather than hiding in a manifest diff.
+
+  Both halves in one check because the order is the point: generate first, then
+  run what the generate was supposed to have left alone.
+  """
+  legacyModuleRunsCheck(ws: Workspace!): Void @check {
+    let path = fixtures + "/legacy/app"
+    let generated = typescriptSdk(legacyRuntime: false, skipGenerateFilename: "")
+      .generateScope(ws.withWorkdir(path), isModule: true, name: "runtime-legacy-app", clients: [])
+      .withWorkdir(".")
+
+    let changes = generated.changes(ws)
+    if (changes.addedPaths.length > 0 or changes.removedPaths.length > 0) {
+      raise "generating a pre-1.0 module should write nothing, got added [" +
+        changes.addedPaths.join(", ") + "] removed [" + changes.removedPaths.join(", ") + "]"
+    }
+
+    let outcomes = generated.withModule(path, name: "runtime-legacy-app")
+      .artifacts(include: ["runtime-legacy-app:dependency-check"]).asChecks
+      .{{ pass }}
+      .map { c => c.pass }
+
+    if (outcomes.length != 1) {
+      raise "expected the fixture's one check, got " + toString(outcomes.length)
+    }
+    if (outcomes.filter { ok => ok == false }.length > 0) {
+      raise "a pre-1.0 module should still reach the dependency its dagger.json declares"
+    }
+
+    null
+  }
+
+  """
   Generate a fixture, stage the result, and load the module from it.
 
   Generating into a Workspace rather than writing to disk keeps the generated
