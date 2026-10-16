@@ -1,0 +1,9 @@
+{
+  "imports": {
+    "@dagger.io/dagger": "./clients/dagger/index.ts",
+    "@shared/greet": "../shared/greet.ts",
+    "@shared/": "../shared/",
+    "typescript": "npm:typescript@5.9.3",
+    "std": "https://deno.land/std/mod.ts"
+  }
+}

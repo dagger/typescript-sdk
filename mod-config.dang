@@ -82,6 +82,7 @@ type ModConfig {
     }
   }
 
+
   let packageJsonPath: String! { sourceFile("package.json") }
   let denoJsonPath: String! { sourceFile("deno.json") }
   let bunLockPath: String! { sourceFile("bun.lock") }

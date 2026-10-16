@@ -129,6 +129,167 @@ type Runtimes {
   }
 
   """
+  A module should reach the files its source imports when it runs, and when it
+  is scanned — with nothing declared.
+
+  Everything else about includes is checked against what generation writes. This
+  is the one that runs it, and the fixture exercises both halves of the feature
+  at once:
+
+  - `src/index.ts` imports a function from the sibling directory and calls it. A
+    module context without those files turns that into a module-resolution
+    failure while the dispatcher is still importing the user's source.
+  - It reads a file there by a path relative to its own directory, which only
+    holds if the module sits at its context subpath under the mount.
+  - A @func takes its argument type from that directory, so the scan had to read
+    it too — generation resolves the paths from the workspace itself, since the
+    `sources` member it would otherwise read is the one it is about to write.
+
+  The fixture declares nothing anywhere: the one import in
+  `src/index.ts` is the whole input, and the directory it names is what carries
+  `greeting.txt` along with it.
+
+  Read back through a check for the reason entrypointErrorTextCheck gives: a
+  check's result is the one thing a caller can read without a typed client.
+  """
+  includeRunsCheck(ws: Workspace!): Void @check {
+    let path = fixtures + "/include/app"
+    let generated = typescriptSdk(legacyRuntime: false, skipGenerateFilename: "")
+      .generateScope(ws.withWorkdir(path), isModule: true, name: "runtime-include", clients: [])
+      .withWorkdir(".")
+
+    # The scan resolved `Volume` through the included file: unresolved, the
+    # argument would not come out as a plain string.
+    let recipe = generated.directory("/" + path).file("entrypoint/main.dang").contents
+    if (recipe.contains("withArg(\"prefix\", typeDef.withKind(TypeDefKind.STRING_KIND)") == false) {
+      raise "the scan should resolve a @func argument type imported from an included path"
+    }
+    # Two reads: the sibling the source imports, and the directory that
+    # sibling imports in turn — a second hop nothing in the module names.
+    if (recipe.contains("workspace.directory(\"..\", include: [\"deeper\", \"shared\"]") == false) {
+      raise "the sources member should read the imported directory and the one it imports"
+    }
+
+    let installed = generated.withModule(path, name: "runtime-include")
+
+    # `pass` rather than the error message entrypointErrorTextCheck reads: that
+    # one's fixture always throws, so its error is never null, and reading
+    # `.message` off a passing check's null error fails before the assertion.
+    let outcomes = installed.artifacts(include: ["runtime-include:include-check"]).asChecks
+      .{{ pass }}
+      .map { c => c.pass }
+
+    if (outcomes.length != 1) {
+      raise "expected the fixture's one check, got " + toString(outcomes.length)
+    }
+    if (outcomes.filter { ok => ok == false }.length > 0) {
+      raise "a module should reach its declared includes when it runs; the fixture's check failed"
+    }
+
+    null
+  }
+
+  """
+  A Deno module should reach what its import map points at, with nothing
+  declared.
+
+  Deno is where derivation has the least to go on: a Deno module has no
+  package.json and no tsconfig, so the import map is its only alias mechanism —
+  and this fixture imports `@shared/greet`, a bare specifier. Nothing in its
+  source names a path outside the module, so the map is the whole input.
+
+  The map names a file, and that is what comes out: a config target is derived
+  at the granularity the config wrote it, unlike an import, whose target
+  directory is taken because the extension gets rewritten.
+  """
+  includeDenoRunsCheck(ws: Workspace!): Void @check {
+    let path = fixtures + "/include-deno/app"
+    let generated = typescriptSdk(legacyRuntime: false, skipGenerateFilename: "")
+      .generateScope(ws.withWorkdir(path), isModule: true, name: "runtime-include-deno", clients: [])
+      .withWorkdir(".")
+
+    let recipe = generated.directory("/" + path).file("entrypoint/main.dang").contents
+    # Grouped under the file's own parent, with the file as the include: the
+    # map names a file, so that is the granularity, and the parent read is how
+    # a file, a directory and a glob are all spelled the same way.
+    if (recipe.contains("workspace.directory(\"../shared\", include: [\"greet.ts\"]") == false) {
+      raise "the import map target should reach the sources member"
+    }
+    # And what that target imports, which only following it can find.
+    if (recipe.contains("workspace.directory(\"..\", include: [\"deeper\"]") == false) {
+      raise "a second hop out of the import map's target should be followed"
+    }
+
+    let outcomes = generated.withModule(path, name: "runtime-include-deno")
+      .artifacts(include: ["runtime-include-deno:include-check"]).asChecks
+      .{{ pass }}
+      .map { c => c.pass }
+
+    if (outcomes.length != 1) {
+      raise "expected the fixture's one check, got " + toString(outcomes.length)
+    }
+    if (outcomes.filter { ok => ok == false }.length > 0) {
+      raise "a Deno module should reach its import map's target when it runs"
+    }
+
+    null
+  }
+
+  """
+  A call should not be served a result built from an older version of an
+  included file.
+
+  Derived from the fixture's import rather than declared, so this also pins that
+  a derived path keys a call exactly as a declared one does.
+
+  This is what the engine's `sources` member buys over reading the caller's
+  workspace: the engine adds the listed files to the module context *before*
+  anything reads the module digest, so they reach the cache key of every
+  function call. Read from the workspace instead, as an earlier revision of this
+  SDK did, the files are outside everything the key covers — and a function with
+  the default cache policy keeps returning its first answer however the files
+  change.
+
+  Two loads of the same fixture, with the included file rewritten in between.
+  Both calls are in one session, which is the stricter case: a changed digest is
+  the only thing that can tell them apart.
+  """
+  includeCacheKeyCheck(ws: Workspace!): Void @check {
+    let path = fixtures + "/include/app"
+    let shared = fixtures + "/include/shared/greeting.txt"
+
+    let generated = typescriptSdk(legacyRuntime: false, skipGenerateFilename: "")
+      .generateScope(ws.withWorkdir(path), isModule: true, name: "runtime-include", clients: [])
+      .withWorkdir(".")
+
+    # The fixture's check asserts the file's committed contents, so it passes on
+    # the first load and has to fail on the second.
+    let first = includeCheckPasses(generated, path)
+    let second = includeCheckPasses(generated.withNewFile("/" + shared, "changed\n"), path)
+
+    if (first == false) {
+      raise "the fixture's check should pass against the committed included file"
+    }
+    if (second) {
+      raise "a changed included file should give the call a new cache key; the check passed against stale content"
+    }
+
+    null
+  }
+
+  """
+  Whether the include fixture's check passes for a workspace, loaded fresh.
+  """
+  let includeCheckPasses(ws: Workspace!, path: String!): Boolean! {
+    ws.withModule(path, name: "runtime-include")
+      .artifacts(include: ["runtime-include:include-check"]).asChecks
+      .{{ pass }}
+      .map { c => c.pass }
+      .filter { ok => ok == false }
+      .length == 0
+  }
+
+  """
   Generate a fixture, stage the result, and load the module from it.
 
   Generating into a Workspace rather than writing to disk keeps the generated

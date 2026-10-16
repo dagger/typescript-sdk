@@ -366,7 +366,7 @@ type GenerateChecks {
       "a Node module with no lockfile should install with yarn",
     )
     Asserts.stringContains(
-      yarn, "withMountedDirectory(\"node_modules\", dependencies(workspace))",
+      yarn, "withMountedDirectory(\"node_modules\", dependencies)",
       "the installed dependencies should reach the call",
     )
 
@@ -391,6 +391,104 @@ type GenerateChecks {
     Asserts.stringContains(
       bun, "[\"bun\", \"install\"",
       "a Bun module should install with bun",
+    )
+
+    null
+  }
+
+  """
+  An entrypoint module's call recipe should build from the module context, not
+  from the caller's workspace.
+
+  call() receives the caller's workspace, and the recipe used to mount all of it
+  — every unrelated file in the repository went into the module's container
+  (.git, build output, a root .env) and keyed it, so an edit anywhere in the
+  repository rebuilt it. The engine assembles the module context instead: the
+  module directory, the manifest and whatever `sources` returned, and nothing
+  else. Reading the workspace from the recipe at all is the regression this
+  guards — `sources` is the one member that takes one.
+  """
+  entrypointMountsModuleContextCheck(ws: Workspace!): Void @check {
+    let scope = Fixtures.out + "/entrypoint-mount"
+    let recipe = entrypointRecipe(ws, scope, "entrypoint-mount")
+
+    Asserts.stringContains(
+      recipe,
+      "withMountedDirectory(\"/workspace\", currentModule.contextDirectory.filter(exclude: [\"**/node_modules\"]))",
+      "the recipe should mount the module context",
+    )
+    # sourceSubpath rather than a path baked at generation: it is the module's
+    # path inside the context, which is not the workspace-relative one when the
+    # context root is not the workspace root.
+    Asserts.stringContains(
+      recipe, "withWorkdir(\"/workspace/\" + currentModule.sourceSubpath)",
+      "the recipe should run from the module's subpath inside the context",
+    )
+    # `sources` takes a workspace and nothing below it does. Sliced rather than
+    # matched over the whole file for that reason.
+    let belowSources = recipe.split("pub types").takeLast(1).join("")
+    Asserts.stringNotContains(
+      belowSources, "workspace.",
+      "nothing below sources should read a workspace",
+    )
+    # Declared nothing, and the member is still there: one shape for every
+    # module is what the engine's contract keys on, and it is what gets a types
+    # and a call with no workspace argument.
+    Asserts.stringContains(
+      recipe,
+      "pub sources(workspace: Workspace!): Directory! {\n    directory\n      .withDirectory(workspace.cwd, workspace.directory(\".\", exclude: [\"**/.git\", \"**/node_modules\"]))\n  }",
+      "a module declaring nothing should still return its own directory",
+    )
+    Asserts.stringContains(
+      recipe, "pub types: [TypeDef!]! {",
+      "declaring sources should get a types with no workspace argument",
+    )
+
+    null
+  }
+
+  """
+  A module's sources should be derived from what its source imports.
+
+  Nothing is declared anywhere: a module's imports already say what it needs, so
+  the set comes from them —
+  a relative specifier that climbs out of the module directory, a `file:`
+  dependency, a tsconfig `paths` target outside it.
+
+  The fixture is the runtimes one, whose package.json declares nothing — its
+  `src/index.ts` imports from a sibling directory, and that is the whole input.
+  `runtimes:include-runs` then calls it for real.
+
+  Directory granularity, not per file: a specifier names `./greet.js` where the
+  file is `greet.ts`, so the resolved path often does not exist as written — and
+  the directory covers whatever that file reads from beside it, which is how the
+  fixture's `readFileSync("../shared/greeting.txt")` resolves without anything
+  importing it.
+  """
+  entrypointDerivedResourcesCheck(ws: Workspace!): Void @check {
+    let scope = Fixtures.runtimeInclude
+    let recipe = entrypointRecipe(ws, scope, "runtime-include")
+
+    Asserts.stringNotContains(
+      ws.directory("/" + scope).file("package.json").contents,
+      "dagger",
+      "the fixture must declare nothing for this check to mean anything",
+    )
+    Asserts.stringContains(
+      recipe,
+      "withDirectory(workspace.cwd + \"/..\", workspace.directory(\"..\", include: [\"deeper\", \"shared\"]",
+      "the import and the one it imports should both reach the sources member",
+    )
+    # The import is what was found, not the file it names.
+    Asserts.stringNotContains(
+      recipe, "greet.js",
+      "a derived resource should name the directory, not the specifier",
+    )
+    # Nothing resolving inside the module becomes a resource — least of all the
+    # SDK's own generated `file:` dependency on clients/dagger.
+    Asserts.stringNotContains(
+      recipe, "\"../clients",
+      "the module's own generated clients should not be derived as a resource",
     )
 
     null

@@ -171,8 +171,8 @@ type DangEntrypointGeneratorConfig struct {
 	Runtime string
 
 	// ModulePath is the module directory relative to the workspace root. The
-	// recipe uses it as the container workdir, so it is baked at generation
-	// rather than read from workspace.cwd, which is the caller's.
+	// container workdir comes from currentModule.sourceSubpath instead, so this
+	// is only what Include is rebased against.
 	ModulePath string
 
 	// PackageManager installs the module's dependencies: "npm", "yarn" or
@@ -195,4 +195,10 @@ type DangEntrypointGeneratorConfig struct {
 	// TSConfigPath is the tsconfig tsx loads, relative to the module directory.
 	// Node only; defaults to "tsconfig.json".
 	TSConfigPath string
+
+	// Include lists paths outside the module directory the module builds and
+	// runs with, workspace-relative, as the SDK derived them from what the
+	// module's code imports. A "!"-prefixed entry excludes. They are rebased to
+	// module-relative for the reads the generated `sources` member makes.
+	Include []string
 }

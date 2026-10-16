@@ -78,6 +78,14 @@ type Packager {
         "bun", "build", "src/module/introspector/introspection_entrypoint.ts",
         "--external=typescript", "--target=node", "--outfile", "/out/introspector.js",
       ])
+      # The import scanner, which derives a module's resources from what its
+      # source imports. Its own bundle rather than a mode of the scanner above:
+      # it runs *before* that one, to work out which files have to be in the
+      # tree the scan reads, and it needs none of the typedef machinery.
+      .withExec([
+        "bun", "build", "src/module/introspector/imports_entrypoint.ts",
+        "--external=typescript", "--target=node", "--outfile", "/out/imports.js",
+      ])
       # The scanner reads the user's code through the TypeScript compiler API,
       # which stays external to its bundle. The compiler is not shipped here —
       # it is a build-time dependency of ours (a different version from the one
