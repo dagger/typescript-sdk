@@ -2366,9 +2366,10 @@ type TypescriptSdk {
         .map { sibling => "  \"@dagger.io/" + sibling + "\": \"file:../" + sibling + "\"" }
 
     # main/types beside exports for the same reason the core package carries
-    # them: a module's tsconfig resolves with the classic `node` setting, which
-    # ignores `exports` — without a main/types a bare `@dagger.io/<name>` import
-    # resolves to nothing and the editor cannot find the module.
+    # them: generation writes `moduleResolution` only into a tsconfig that has
+    # none, so a module that predates that — or chose the classic `node`
+    # setting — resolves without reading `exports`, and a bare
+    # `@dagger.io/<name>` import finds nothing for the editor to show.
     "{\n" +
       "  \"name\": \"@dagger.io/" + name + "\",\n" +
       "  \"version\": \"0.0.0\",\n" +

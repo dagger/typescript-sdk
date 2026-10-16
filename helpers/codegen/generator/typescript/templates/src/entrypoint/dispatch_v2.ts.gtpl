@@ -18,12 +18,17 @@ type CallRequest = {
 // exec log. A nonzero exit therefore means the dispatcher itself failed.
 type CallReply = { result: string } | { error: { message: string } }
 
+// setEncoding rather than collecting Buffers: it decodes across chunk
+// boundaries just as correctly, and `Buffer` is the one Node global Deno does
+// not declare a type for — so a generated Deno module would not pass
+// `deno check` over a dispatcher that named it.
 async function readStdin(): Promise<string> {
-  const chunks: Buffer[] = []
+  const chunks: string[] = []
+  process.stdin.setEncoding("utf8")
   for await (const chunk of process.stdin) {
-    chunks.push(Buffer.from(chunk))
+    chunks.push(chunk)
   }
-  return Buffer.concat(chunks).toString("utf8")
+  return chunks.join("")
 }
 
 // receiverValue and fnArgs arrive as JSON *strings*, not as embedded objects: the

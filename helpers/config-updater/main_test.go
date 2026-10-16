@@ -19,7 +19,7 @@ func TestUpdatePackageJSON(t *testing.T) {
 		{
 			name:        "empty package.json",
 			packageJSON: `{}`,
-			expected:    `{"type": "module", "dependencies": {"typescript": "5.9.3"}}`,
+			expected:    `{"type": "module", "dependencies": {"typescript": "5.9.3"}, "devDependencies": {"@types/node": "^24"}}`,
 		},
 		{
 			// The runtime mounts its prebuilt compiler only when the pin matches
@@ -36,6 +36,9 @@ func TestUpdatePackageJSON(t *testing.T) {
   "type": "module",
   "dependencies": {
     "typescript": "5.4.0"
+  },
+  "devDependencies": {
+    "@types/node": "^24"
   }
 }`,
 		},
@@ -54,7 +57,8 @@ func TestUpdatePackageJSON(t *testing.T) {
 			expected: `{
   "type": "module",
   "devDependencies": {
-    "typescript": "5.4.0"
+    "typescript": "5.4.0",
+    "@types/node": "^24"
   }
 }`,
 		},
@@ -72,6 +76,9 @@ func TestUpdatePackageJSON(t *testing.T) {
   "type": "module",
   "peerDependencies": {
     "typescript": "^5"
+  },
+  "devDependencies": {
+    "@types/node": "^24"
   }
 }`,
 		},
@@ -88,6 +95,9 @@ func TestUpdatePackageJSON(t *testing.T) {
   "type": "module",
   "dependencies": {
     "typescript": "5.9.3"
+  },
+  "devDependencies": {
+    "@types/node": "^24"
   }
 }`,
 		},
@@ -107,7 +117,7 @@ func TestUpdatePackageJSON(t *testing.T) {
   "dependencies": {
     "typescript": "5.9.3"
   },
-  "devDependencies": {}
+  "devDependencies": {"@types/node": "^24"}
 }`,
 		},
 		{
@@ -132,6 +142,9 @@ func TestUpdatePackageJSON(t *testing.T) {
     "typescript": "5.9.3",
     "@dagger.io/shared": "file:../shared/clients/shared",
     "@dagger.io/published": "^1.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "^24"
   }
 }`,
 		},
@@ -149,6 +162,9 @@ func TestUpdatePackageJSON(t *testing.T) {
   "type": "module",
   "dependencies": {
     "typescript": "5.9.3"
+  },
+  "devDependencies": {
+    "@types/node": "^24"
   }
 }`,
 		},
@@ -170,13 +186,23 @@ func TestUpdatePackageJSON(t *testing.T) {
   "type": "module",
   "dependencies": {
     "typescript": "5.9.3"
+  },
+  "devDependencies": {
+    "@types/node": "^24"
   }
 }`,
 		},
 		{
 			name:        "type=module already set still gains the typescript pin",
 			packageJSON: `{"type": "module"}`,
-			expected:    `{"type": "module", "dependencies": {"typescript": "5.9.3"}}`,
+			expected:    `{"type": "module", "dependencies": {"typescript": "5.9.3"}, "devDependencies": {"@types/node": "^24"}}`,
+		},
+		{
+			// The generated dispatcher reads `process` and `Buffer`, so the Node
+			// types are the module's to have — but the version is the user's.
+			name:        "a user's own @types/node version is preserved",
+			packageJSON: `{"type": "module", "devDependencies": {"@types/node": "20.1.0"}}`,
+			expected:    `{"type": "module", "dependencies": {"typescript": "5.9.3"}, "devDependencies": {"@types/node": "20.1.0"}}`,
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
@@ -205,6 +231,9 @@ func TestUpdateTSConfig(t *testing.T) {
 			tsConfig: `{}`,
 			expected: `{
   "compilerOptions": {
+    "target": "ES2022",
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
     "experimentalDecorators": true,
     "paths": {
       "@dagger.io/dagger": ["./sdk/index.ts"],
@@ -225,6 +254,9 @@ func TestUpdateTSConfig(t *testing.T) {
 }`,
 			expected: `{
   "compilerOptions": {
+    "target": "ES2022",
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
     "experimentalDecorators": true,
     "paths": {
       "@dagger.io/dagger": ["./sdk/index.ts"],
@@ -247,6 +279,8 @@ func TestUpdateTSConfig(t *testing.T) {
 }`,
 			expected: `{
   "compilerOptions": {
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
     "target": "ES2020",
     "strict": true,
     "experimentalDecorators": true,
@@ -265,6 +299,9 @@ func TestUpdateTSConfig(t *testing.T) {
 			coreDir:  "../../.dagger/core/typescript",
 			expected: `{
   "compilerOptions": {
+    "target": "ES2022",
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
     "experimentalDecorators": true,
     "paths": {
       "@dagger.io/dagger": ["../../.dagger/core/typescript/index.ts"],
@@ -279,6 +316,9 @@ func TestUpdateTSConfig(t *testing.T) {
 			coreDir:  "-",
 			expected: `{
   "compilerOptions": {
+    "target": "ES2022",
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
     "experimentalDecorators": true
   }
 }`,
@@ -289,6 +329,9 @@ func TestUpdateTSConfig(t *testing.T) {
 			coreDir:  "-",
 			expected: `{
   "compilerOptions": {
+    "target": "ES2022",
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
     "experimentalDecorators": true,
     "paths": {"@user/lib": ["./src/lib.ts"]}
   }
@@ -301,6 +344,9 @@ func TestUpdateTSConfig(t *testing.T) {
 			modules:    []string{"my-dep", "app"},
 			expected: `{
   "compilerOptions": {
+    "target": "ES2022",
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
     "experimentalDecorators": true,
     "paths": {
       "@dagger.io/dagger": ["./sdk/index.ts"],
@@ -328,6 +374,9 @@ func TestUpdateTSConfig(t *testing.T) {
 			modules:    []string{"kept"},
 			expected: `{
   "compilerOptions": {
+    "target": "ES2022",
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
     "experimentalDecorators": true,
     "paths": {
       "@user/lib": ["./src/lib.ts"],
@@ -348,12 +397,41 @@ func TestUpdateTSConfig(t *testing.T) {
 }`,
 			expected: `{
   "compilerOptions": {
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
     "target": "ES2020",
     "experimentalDecorators": true,
     "paths": {
       "@dagger.io/dagger": ["./sdk/index.ts"],
       "@dagger.io/dagger/telemetry": ["./sdk/telemetry.ts"]
     }
+  }
+}`,
+		},
+		{
+			// The two constrain each other — "bundler" beside "Node16" is TS5095 —
+			// so a module that chose one keeps its own pair rather than having
+			// half of ours written into it.
+			name:     "a user's own module setting is not given a resolution",
+			tsConfig: `{"compilerOptions":{"module":"Node16"}}`,
+			coreDir:  "-",
+			expected: `{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "Node16",
+    "experimentalDecorators": true
+  }
+}`,
+		},
+		{
+			name:     "a user's own moduleResolution is not given a module",
+			tsConfig: `{"compilerOptions":{"moduleResolution":"NodeNext"}}`,
+			coreDir:  "-",
+			expected: `{
+  "compilerOptions": {
+    "target": "ES2022",
+    "moduleResolution": "NodeNext",
+    "experimentalDecorators": true
   }
 }`,
 		},
@@ -648,28 +726,28 @@ func TestUpdateSharedDeps(t *testing.T) {
 			packageJSON: `{}`,
 			coreRel:     "../../.dagger/core/typescript",
 			clients:     nil,
-			expected:    `{"type":"module","dependencies":{"@dagger.io/dagger":"file:../../.dagger/core/typescript","typescript":"5.9.3"}}`,
+			expected:    `{"type":"module","dependencies":{"@dagger.io/dagger":"file:../../.dagger/core/typescript","typescript":"5.9.3"}, "devDependencies": {"@types/node": "^24"}}`,
 		},
 		{
 			name:        "one declared client is a file: dep beside core",
 			packageJSON: `{}`,
 			coreRel:     "../../.dagger/core/typescript",
 			clients:     []string{"b=./.dagger/clients/b"},
-			expected:    `{"type":"module","dependencies":{"@dagger.io/dagger":"file:../../.dagger/core/typescript","@dagger.io/b":"file:./.dagger/clients/b","typescript":"5.9.3"}}`,
+			expected:    `{"type":"module","dependencies":{"@dagger.io/dagger":"file:../../.dagger/core/typescript","@dagger.io/b":"file:./.dagger/clients/b","typescript":"5.9.3"}, "devDependencies": {"@types/node": "^24"}}`,
 		},
 		{
 			name:        "a dropped client's dep is pruned, the user's own deps and keys survive",
 			packageJSON: `{"name":"my-app","dependencies":{"lodash":"^4","@dagger.io/dagger":"file:old","@dagger.io/gone":"file:./.dagger/clients/gone","@dagger.io/b":"file:./.dagger/clients/b"}}`,
 			coreRel:     ".dagger/core/typescript",
 			clients:     []string{"b=./.dagger/clients/b"},
-			expected:    `{"name":"my-app","dependencies":{"lodash":"^4","@dagger.io/dagger":"file:.dagger/core/typescript","@dagger.io/b":"file:./.dagger/clients/b","typescript":"5.9.3"},"type":"module"}`,
+			expected:    `{"name":"my-app","dependencies":{"lodash":"^4","@dagger.io/dagger":"file:.dagger/core/typescript","@dagger.io/b":"file:./.dagger/clients/b","typescript":"5.9.3"},"type":"module", "devDependencies": {"@types/node": "^24"}}`,
 		},
 		{
 			name:        "the user's typescript pin is left alone",
 			packageJSON: `{"devDependencies":{"typescript":"5.0.0"}}`,
 			coreRel:     ".dagger/core/typescript",
 			clients:     nil,
-			expected:    `{"devDependencies":{"typescript":"5.0.0"},"type":"module","dependencies":{"@dagger.io/dagger":"file:.dagger/core/typescript"}}`,
+			expected:    `{"devDependencies":{"typescript":"5.0.0","@types/node":"^24"},"type":"module","dependencies":{"@dagger.io/dagger":"file:.dagger/core/typescript"}}`,
 		},
 		{
 			// The manifest `bun init` writes: the compiler is a peer dependency,
@@ -678,7 +756,7 @@ func TestUpdateSharedDeps(t *testing.T) {
 			packageJSON: `{"type":"module","peerDependencies":{"typescript":"^5"}}`,
 			coreRel:     "./clients/dagger",
 			clients:     []string{"b=./clients/b"},
-			expected:    `{"type":"module","peerDependencies":{"typescript":"^5"},"dependencies":{"@dagger.io/dagger":"file:./clients/dagger","@dagger.io/b":"file:./clients/b"}}`,
+			expected:    `{"type":"module","peerDependencies":{"typescript":"^5"},"dependencies":{"@dagger.io/dagger":"file:./clients/dagger","@dagger.io/b":"file:./clients/b"}, "devDependencies": {"@types/node": "^24"}}`,
 		},
 		{
 			// A client scope's package.json is the user's; the SDK fills "type"
@@ -687,7 +765,7 @@ func TestUpdateSharedDeps(t *testing.T) {
 			packageJSON: `{"name":"my-app"}`,
 			coreRel:     "./clients/dagger",
 			clients:     []string{"b=./clients/b"},
-			expected:    `{"name":"my-app","type":"module","dependencies":{"@dagger.io/dagger":"file:./clients/dagger","@dagger.io/b":"file:./clients/b","typescript":"5.9.3"}}`,
+			expected:    `{"name":"my-app","type":"module","dependencies":{"@dagger.io/dagger":"file:./clients/dagger","@dagger.io/b":"file:./clients/b","typescript":"5.9.3"}, "devDependencies": {"@types/node": "^24"}}`,
 		},
 		{
 			// An explicit value, commonjs included, is the user's choice: the
@@ -697,7 +775,7 @@ func TestUpdateSharedDeps(t *testing.T) {
 			packageJSON: `{"name":"my-app","type":"commonjs"}`,
 			coreRel:     "./clients/dagger",
 			clients:     []string{"b=./clients/b"},
-			expected:    `{"name":"my-app","type":"commonjs","dependencies":{"@dagger.io/dagger":"file:./clients/dagger","@dagger.io/b":"file:./clients/b","typescript":"5.9.3"}}`,
+			expected:    `{"name":"my-app","type":"commonjs","dependencies":{"@dagger.io/dagger":"file:./clients/dagger","@dagger.io/b":"file:./clients/b","typescript":"5.9.3"}, "devDependencies": {"@types/node": "^24"}}`,
 		},
 		{
 			// A client the user installed from another scope for a self-call
@@ -707,7 +785,7 @@ func TestUpdateSharedDeps(t *testing.T) {
 			packageJSON: `{"dependencies":{"@dagger.io/test":"file:../../client/test"}}`,
 			coreRel:     "../../.dagger/core/typescript",
 			clients:     nil,
-			expected:    `{"dependencies":{"@dagger.io/test":"file:../../client/test","@dagger.io/dagger":"file:../../.dagger/core/typescript","typescript":"5.9.3"},"type":"module"}`,
+			expected:    `{"dependencies":{"@dagger.io/test":"file:../../client/test","@dagger.io/dagger":"file:../../.dagger/core/typescript","typescript":"5.9.3"},"type":"module", "devDependencies": {"@types/node": "^24"}}`,
 		},
 		{
 			// The self client is generated but not installed by default: a
@@ -716,7 +794,7 @@ func TestUpdateSharedDeps(t *testing.T) {
 			packageJSON: `{}`,
 			coreRel:     "./clients/dagger",
 			clients:     []string{"?test=./clients/test"},
-			expected:    `{"type":"module","dependencies":{"@dagger.io/dagger":"file:./clients/dagger","typescript":"5.9.3"}}`,
+			expected:    `{"type":"module","dependencies":{"@dagger.io/dagger":"file:./clients/dagger","typescript":"5.9.3"}, "devDependencies": {"@types/node": "^24"}}`,
 		},
 		{
 			// ...but once the user installed it, the dep survives regeneration
@@ -725,7 +803,7 @@ func TestUpdateSharedDeps(t *testing.T) {
 			packageJSON: `{"dependencies":{"@dagger.io/test":"file:./clients/test"}}`,
 			coreRel:     "./clients/dagger",
 			clients:     []string{"?test=./clients/test"},
-			expected:    `{"dependencies":{"@dagger.io/test":"file:./clients/test","@dagger.io/dagger":"file:./clients/dagger","typescript":"5.9.3"},"type":"module"}`,
+			expected:    `{"dependencies":{"@dagger.io/test":"file:./clients/test","@dagger.io/dagger":"file:./clients/dagger","typescript":"5.9.3"},"type":"module", "devDependencies": {"@types/node": "^24"}}`,
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
