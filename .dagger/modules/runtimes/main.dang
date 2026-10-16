@@ -164,8 +164,10 @@ type Runtimes {
     if (recipe.contains("withArg(\"prefix\", typeDef.withKind(TypeDefKind.STRING_KIND)") == false) {
       raise "the scan should resolve a @func argument type imported from an included path"
     }
-    if (recipe.contains("workspace.directory(\"..\", include: [\"shared\"]") == false) {
-      raise "the generated entrypoint's sources member should read the declared path"
+    # Two reads: the sibling the source imports, and the directory that
+    # sibling imports in turn — a second hop nothing in the module names.
+    if (recipe.contains("workspace.directory(\"..\", include: [\"deeper\", \"shared\"]") == false) {
+      raise "the sources member should read the imported directory and the one it imports"
     }
 
     let installed = generated.withModule(path, name: "runtime-include")
@@ -212,6 +214,10 @@ type Runtimes {
     # a file, a directory and a glob are all spelled the same way.
     if (recipe.contains("workspace.directory(\"../shared\", include: [\"greet.ts\"]") == false) {
       raise "the import map target should reach the sources member"
+    }
+    # And what that target imports, which only following it can find.
+    if (recipe.contains("workspace.directory(\"..\", include: [\"deeper\"]") == false) {
+      raise "a second hop out of the import map's target should be followed"
     }
 
     let outcomes = generated.withModule(path, name: "runtime-include-deno")

@@ -16,7 +16,7 @@ export class RuntimeInclude {
   @func()
   @check()
   includeCheck(): void {
-    if (greeting(false) !== "hello from shared") {
+    if (greeting(false) !== "hello from shared!") {
       throw new Error(`imported greeting() returned ${greeting(false)}`)
     }
 

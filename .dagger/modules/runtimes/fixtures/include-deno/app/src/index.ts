@@ -10,7 +10,7 @@ export class RuntimeIncludeDeno {
   @func()
   @check()
   includeCheck(): void {
-    if (greet("world") !== "hello world from ../shared") {
+    if (greet("world") !== "hello world from ../shared!") {
       throw new Error(`imported greet() returned ${greet("world")}`)
     }
   }

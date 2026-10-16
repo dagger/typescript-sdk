@@ -531,7 +531,7 @@ of them. It now mounts `currentModule.contextDirectory` and works from
 `currentModule.sourceSubpath`, so the engine decides what a call can see: the
 module directory, the manifest, and whatever the generated `sources` member
 returns. A module declares the outside paths with `dagger.include`
-(`docs/include.md`).
+(`docs/module-sources.md`).
 
 `sources` replaced an earlier `resources` member, which returned include
 patterns for the engine to interpret (dagger/dagger#14639, shipped in beta.17).

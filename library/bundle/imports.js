@@ -30,7 +30,8 @@ async function listFiles(dir = ".") {
 }
 
 // src/module/introspector/imports.ts
-async function deriveResources(moduleRoot, sourceDir) {
+async function deriveResources(workspaceRoot, modulePath, sourceDir) {
+  const moduleRoot = path2.resolve(workspaceRoot, modulePath);
   const found = new Map;
   const add = (target, origin) => {
     const pattern = outsidePattern(moduleRoot, target);
@@ -38,26 +39,93 @@ async function deriveResources(moduleRoot, sourceDir) {
       found.set(pattern, origin);
     }
   };
-  for (const file of await listFiles(path2.join(moduleRoot, sourceDir))) {
+  const queue = await listFiles(path2.join(moduleRoot, sourceDir));
+  const seen = new Set(queue);
+  const follow = (file) => {
     for (const specifier of importedFiles(file)) {
-      if (specifier.startsWith(".")) {
-        const resolved = path2.resolve(path2.dirname(file), specifier);
-        add(path2.dirname(resolved), file);
+      if (!specifier.startsWith(".")) {
+        continue;
+      }
+      const target = resolveRelative(file, specifier);
+      if (target === undefined) {
+        continue;
+      }
+      add(path2.dirname(target), file);
+      if (!seen.has(target)) {
+        seen.add(target);
+        queue.push(target);
+      }
+    }
+  };
+  while (queue.length > 0) {
+    follow(queue.shift());
+  }
+  for (const { target, origin, followable } of configuredTargets(moduleRoot)) {
+    add(target, origin);
+    if (!followable) {
+      continue;
+    }
+    for (const file of filesUnder(target)) {
+      if (!seen.has(file)) {
+        seen.add(file);
+        queue.push(file);
       }
     }
   }
-  for (const { target, origin } of configuredTargets(moduleRoot)) {
-    add(target, origin);
+  while (queue.length > 0) {
+    follow(queue.shift());
   }
   return [...found].map(([pattern, origin]) => ({ pattern, origin })).sort((a, b) => a.pattern < b.pattern ? -1 : 1);
 }
+function filesUnder(target) {
+  if (!fs2.existsSync(target)) {
+    return [];
+  }
+  if (fs2.statSync(target).isFile()) {
+    return [target];
+  }
+  const out = [];
+  for (const entry of fs2.readdirSync(target)) {
+    const child = path2.join(target, entry);
+    if (entry === "node_modules") {
+      continue;
+    }
+    out.push(...filesUnder(child));
+  }
+  return out.filter((f) => /\.(ts|mts|cts|tsx)$/.test(f));
+}
 function importedFiles(file) {
-  const text = fs2.readFileSync(file, "utf8");
+  let text;
+  try {
+    text = fs2.readFileSync(file, "utf8");
+  } catch {
+    return [];
+  }
   const info = ts.preProcessFile(text, true, true);
   return [...info.importedFiles, ...info.referencedFiles].map((f) => f.fileName);
 }
+function resolveRelative(from, specifier) {
+  const base = path2.resolve(path2.dirname(from), specifier);
+  const exts = [".ts", ".mts", ".cts", ".tsx", ".d.ts"];
+  const candidates = [base];
+  const swapped = base.replace(/\.(js|mjs|cjs|jsx)$/, "");
+  if (swapped !== base) {
+    candidates.push(...exts.map((e) => swapped + e));
+  }
+  candidates.push(...exts.map((e) => base + e));
+  candidates.push(...exts.map((e) => path2.join(base, "index" + e)));
+  for (const candidate of candidates) {
+    if (fs2.existsSync(candidate) && fs2.statSync(candidate).isFile()) {
+      return candidate;
+    }
+  }
+  if (fs2.existsSync(base) && fs2.statSync(base).isDirectory()) {
+    return path2.join(base, "index.ts");
+  }
+  return;
+}
 function outsidePattern(moduleRoot, target) {
-  const rel = path2.relative(path2.resolve(moduleRoot), target);
+  const rel = path2.relative(moduleRoot, target);
   if (rel === "" || !rel.startsWith("..")) {
     return;
   }
@@ -81,7 +149,8 @@ function configuredTargets(moduleRoot) {
         if (local !== undefined) {
           out.push({
             target: path2.resolve(moduleRoot, local),
-            origin: `${pkgPath} (${field}.${name})`
+            origin: `${pkgPath} (${field}.${name})`,
+            followable: true
           });
         }
       }
@@ -95,22 +164,13 @@ function configuredTargets(moduleRoot) {
     if (target.startsWith(".")) {
       out.push({
         target: path2.resolve(moduleRoot, target),
-        origin: `${tsconfigPath} (extends)`
+        origin: `${tsconfigPath} (extends)`,
+        followable: false
       });
     }
   }
-  const denoPath = path2.join(moduleRoot, "deno.json");
-  const imports = readJSON(denoPath)?.imports;
-  if (typeof imports === "object" && imports !== null) {
-    for (const [alias, target] of Object.entries(imports)) {
-      if (typeof target === "string" && target.startsWith(".")) {
-        out.push({
-          target: path2.resolve(moduleRoot, withoutGlob(target)),
-          origin: `${denoPath} (imports.${alias})`
-        });
-      }
-    }
-  }
+  const baseUrl = tsconfig?.compilerOptions?.baseUrl;
+  const pathsBase = typeof baseUrl === "string" ? path2.resolve(moduleRoot, baseUrl) : moduleRoot;
   const paths = tsconfig?.compilerOptions?.paths;
   if (typeof paths === "object" && paths !== null) {
     for (const [alias, targets] of Object.entries(paths)) {
@@ -122,8 +182,22 @@ function configuredTargets(moduleRoot) {
           continue;
         }
         out.push({
+          target: path2.resolve(pathsBase, withoutGlob(target)),
+          origin: `${tsconfigPath} (paths.${alias})`,
+          followable: true
+        });
+      }
+    }
+  }
+  const denoPath = path2.join(moduleRoot, "deno.json");
+  const imports = readJSON(denoPath)?.imports;
+  if (typeof imports === "object" && imports !== null) {
+    for (const [alias, target] of Object.entries(imports)) {
+      if (typeof target === "string" && target.startsWith(".")) {
+        out.push({
           target: path2.resolve(moduleRoot, withoutGlob(target)),
-          origin: `${tsconfigPath} (paths.${alias})`
+          origin: `${denoPath} (imports.${alias})`,
+          followable: true
         });
       }
     }
@@ -156,18 +230,23 @@ function readJSON(file) {
 async function main() {
   const args = process.argv.slice(2);
   if (args.length < 3) {
-    console.log("usage: imports <moduleRoot> <sourceDir> <modulePath>");
+    console.log("usage: imports <workspaceRoot> <modulePath> <sourceDir>");
     process.exit(1);
   }
-  const [moduleRoot, sourceDir, modulePath] = args;
+  const [workspaceRoot, modulePath, sourceDir] = args;
   const base = path3.posix.normalize(modulePath) === "." ? "" : modulePath;
-  for (const { pattern, origin } of await deriveResources(moduleRoot, sourceDir)) {
+  for (const { pattern, origin } of await deriveResources(workspaceRoot, modulePath, sourceDir)) {
     const resolved = path3.posix.join(base, pattern);
     if (resolved === ".." || resolved.startsWith("../")) {
-      console.error(`${origin} imports ${pattern}, which is outside the workspace root`);
+      console.error(`${relative3(workspaceRoot, origin)} imports ${pattern}, which is outside the workspace root`);
       process.exit(1);
     }
+    console.error(`derived ${resolved} from ${relative3(workspaceRoot, origin)}`);
     console.log(resolved);
   }
+}
+function relative3(workspaceRoot, origin) {
+  const rel = path3.relative(workspaceRoot, origin);
+  return rel.startsWith("..") ? origin : rel;
 }
 main();
