@@ -1759,6 +1759,58 @@ type GenerateChecks {
   }
 
   """
+  A directory at a module's root that merely looks like a generated client
+  package keeps the user's files, and an all-generated one still goes whole.
+
+  An even earlier layout wrote each client as a package at the scope root, so a
+  top-level directory carrying <name>.gen.ts is pruned on the way to clients/.
+  That marker is one a directory of the user's carries by accident —
+  types/types.gen.ts is what an openapi or graphql codegen writes — and the
+  prune took the directory whole, so `dagger generate` deleted a tree this SDK
+  had never written a line of, exit 0 and nothing printed. Ownership is by
+  shape, the rule clients/ and sdk/ get: the generated files go, the directory
+  follows only once nothing is left in it.
+  """
+  generateKeepsUserFilesInScopePackageCheck(ws: Workspace!): Void @check {
+    let path = fixtures.out + "/scope-package-keep"
+    let name = "scope-package-keep"
+    let dirty = ws
+      .withChanges(Gen.scope(ws, path, name, template: "empty", legacyRuntime: false))
+      .withNewFile("/" + path + "/types/types.gen.ts", "export type Stale = 1\n")
+      .withNewFile("/" + path + "/types/keepme.ts", "export const keep = 1\n")
+      .withNewFile("/" + path + "/legacy/legacy.gen.ts", "export const legacy = true\n")
+      .withNewFile("/" + path + "/legacy/package.json", "{ \"name\": \"@dagger.io/legacy\" }\n")
+
+    let changes = Gen.scope(dirty, path, name, template: "empty", legacyRuntime: false)
+    let files = dirty.withChanges(changes).directory("/" + path).glob("**")
+    let kept = ", kept [" + files.join(", ") + "]"
+
+    Asserts.assert(
+      Asserts.contains(files, "types/keepme.ts"),
+      "a user's file beside a types.gen.ts must survive regeneration" + kept,
+    )
+    Asserts.assert(
+      Asserts.contains(files, "types/"),
+      "a directory of the user's holding a types.gen.ts must survive regeneration" + kept,
+    )
+    Asserts.assert(
+      Asserts.contains(changes.removedPaths, path + "/types/keepme.ts") == false and
+        Asserts.contains(changes.removedPaths, path + "/types/") == false,
+      "regeneration removed a directory of the user's, got removed [" +
+        changes.removedPaths.join(", ") + "]",
+    )
+    # Nothing of the user's in there: the emptied package goes whole, manifest
+    # included, rather than lingering as a husk of the layout it was written by.
+    Asserts.assert(
+      Asserts.contains(files, "legacy/") == false and
+        Asserts.contains(files, "legacy/legacy.gen.ts") == false,
+      "an all-generated client package left at the module root should go whole" + kept,
+    )
+
+    null
+  }
+
+  """
   The workspace-level .dagger/core an earlier layout shared is pruned by the
   first scope that generates, and nothing around it is.
 
