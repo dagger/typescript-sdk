@@ -207,6 +207,55 @@ type ClientChecks {
   }
 
   """
+  The same ownership rule on a client-only scope: a directory of the user's
+  that merely looks like a generated client package keeps its files, and an
+  all-generated one still goes whole.
+
+  A client scope is the other caller of the scope-root package prune, and the
+  one most likely to be a project the user already works in — the marker is
+  types/types.gen.ts, what an openapi or graphql codegen writes beside its own
+  source. The prune took the directory whole, so `dagger generate` deleted a
+  tree this SDK had never written a line of, exit 0 and nothing printed.
+  """
+  generateClientKeepsUserFilesInScopePackageCheck(ws: Workspace!): Void @check {
+    let scope = fixtures.out + "/client-scope-package"
+    let dirty = ws
+      .withNewFile("/" + scope + "/package.json", "{\n  \"name\": \"scope-app\"\n}\n")
+      .withNewFile("/" + scope + "/types/types.gen.ts", "export type Stale = 1\n")
+      .withNewFile("/" + scope + "/types/keepme.ts", "export const keep = 1\n")
+      .withNewFile("/" + scope + "/legacy/legacy.gen.ts", "export const legacy = true\n")
+      .withNewFile("/" + scope + "/legacy/package.json", "{ \"name\": \"@dagger.io/legacy\" }\n")
+
+    let changes = generateClients(dirty, scope)
+    let files = dirty.withChanges(changes).directory("/" + scope).glob("**")
+    let kept = ", kept [" + files.join(", ") + "]"
+
+    Asserts.assert(
+      Asserts.contains(files, "types/keepme.ts") and Asserts.contains(files, "types/"),
+      "a user's file beside a types.gen.ts must survive client generation" + kept,
+    )
+    Asserts.assert(
+      Asserts.contains(changes.removedPaths, scope + "/types/keepme.ts") == false and
+        Asserts.contains(changes.removedPaths, scope + "/types/") == false,
+      "client generation removed a directory of the user's, got removed [" +
+        changes.removedPaths.join(", ") + "]",
+    )
+    Asserts.assert(
+      Asserts.contains(files, "clients/client-app/client-app.gen.ts"),
+      "the scope's own client must still be generated" + kept,
+    )
+    # Nothing of the user's in there: the emptied package goes whole, manifest
+    # included, rather than lingering as a husk of the layout it was written by.
+    Asserts.assert(
+      Asserts.contains(files, "legacy/") == false and
+        Asserts.contains(files, "legacy/legacy.gen.ts") == false,
+      "an all-generated client package left at the scope root should go whole" + kept,
+    )
+
+    null
+  }
+
+  """
   `"type"` in the scope's package.json is the user's field, and the one the SDK
   writes only when it is missing.
 

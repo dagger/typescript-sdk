@@ -2511,13 +2511,29 @@ type TypescriptSdk {
   scope — module or client-only — leaving the user's own files untouched. A
   stale package is a top-level dir, other than clients/, that carries the
   <name>.gen.ts a generated client is known by.
+
+  Same ownership rule as every other prune: the generated files go, and the
+  directory follows only once nothing is left in it. It used to go whole, which
+  took the user's files with it — and the marker is one a directory of theirs
+  can carry by accident, since types/types.gen.ts is what an openapi or graphql
+  codegen writes, so `dagger generate` deleted a directory this SDK had never
+  written a line of (#99 made every sibling prune ownership-based and missed
+  this one).
   """
   let prunedClientPackages(ws: Workspace!, scope: String!, modules: [String!]!): Workspace! {
     existingDir(ws, scope).entries
       .map { entry => entry.trimSuffix("/") }
       .filter { name => name != "clients" and modules.filter { m => m == name }.length == 0 }
       .filter { name => existingDir(ws, scopeFile(scope, name)).exists(name + ".gen.ts") }
-      .reduce(ws) { acc, name => acc.withoutDirectory("/" + scopeFile(scope, name)) }
+      .reduce(ws) { acc, name =>
+        let pkg = scopeFile(scope, name)
+        # Weighed from a parent of its own: ownedFiles reads a package's
+        # manifest as <name>/package.json, the depth the layout gave it, and at
+        # the package's own root it would read as a file of the user's.
+        let owned = ownedFiles(directory.withDirectory(name, existingDir(acc, pkg)))
+
+        prunedFiles(acc, pkg, owned.map { path => path.trimPrefix(name + "/") })
+      }
   }
 
 }
