@@ -461,7 +461,11 @@ func (c *dangFuncCtx) dangFunctionExpr(fn *TypedefFunction) string {
 	if name == "" {
 		name = fn.Name
 	}
-	head := fmt.Sprintf("function(%s, %s)", dangString(name), c.dangTypeDef(fn.ReturnType))
+	returnType := c.dangTypeDef(fn.ReturnType)
+	if fn.IsNullable {
+		returnType += ".withOptional(true)"
+	}
+	head := fmt.Sprintf("function(%s, %s)", dangString(name), returnType)
 
 	var calls []string
 	if fn.Description != "" {

@@ -358,12 +358,24 @@ function introspectMethod(
   local: Set<string>,
 ): Field {
   const returnType = (fn as DaggerFunction).returnType
+  let type = returnType
+    ? introspectTypeRef(returnType, moduleName, local)
+    : voidRef()
+  // A nullable return drops the NON_NULL wrapper, as an optional arg does: the
+  // function returns null, and a non-null field cannot carry one — the caller
+  // is served the type's zero value instead.
+  if (
+    (fn as DaggerFunction).isNullable &&
+    type.kind === TypeKind.NonNull &&
+    type.ofType
+  ) {
+    type = type.ofType
+  }
+
   const field: Field = {
     name: toLowerCamel((fn as DaggerFunction).alias ?? fn.name),
     description: trim(fn.description),
-    type: returnType
-      ? introspectTypeRef(returnType, moduleName, local)
-      : voidRef(),
+    type,
     args: introspectArgs(fn.arguments, moduleName, local),
   }
   const deprecated = (fn as DaggerFunction).deprecated

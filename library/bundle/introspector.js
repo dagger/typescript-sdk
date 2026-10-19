@@ -105930,7 +105930,7 @@ class AST {
     return type;
   }
   typeToStringType(type) {
-    const stringType = this.checker.typeToString(this.unwrapNullable(type));
+    const stringType = this.checker.typeToString(this.unwrapNullable(this.awaitedType(type)));
     return this.stringTypeToUnwrappedType(stringType);
   }
   unwrapNullable(type) {
@@ -105938,6 +105938,27 @@ class AST {
       return this.checker.getNonNullableType(type);
     }
     return type;
+  }
+  awaitedType(type) {
+    if (!(type.flags & ts3.TypeFlags.Object)) {
+      return type;
+    }
+    const objectType = type;
+    if (!(objectType.objectFlags & ts3.ObjectFlags.Reference)) {
+      return type;
+    }
+    if (type.symbol?.getName() !== "Promise") {
+      return type;
+    }
+    const typeArguments = this.checker.getTypeArguments(type);
+    return typeArguments.length === 1 ? typeArguments[0] : type;
+  }
+  isNullableType(type) {
+    const resolved = this.awaitedType(type);
+    if (!resolved.isUnion()) {
+      return false;
+    }
+    return resolved.types.some((member) => (member.flags & (ts3.TypeFlags.Null | ts3.TypeFlags.Undefined)) !== 0);
   }
   tsTypeToTypeDef(node, type) {
     type = this.unwrapNullable(type);
@@ -106545,6 +106566,7 @@ class DaggerFunction extends Locatable {
   isUp = false;
   isAgent = false;
   isCollectionGet = false;
+  isNullable = false;
   signature;
   symbol;
   constructor(node, ast2) {
@@ -106586,6 +106608,7 @@ class DaggerFunction extends Locatable {
   }
   getReturnType() {
     const type = this.signature.getReturnType();
+    this.isNullable = this.ast.isNullableType(type);
     const typedef = this.ast.tsTypeToTypeDef(this.node, type);
     if (typedef === undefined || !isTypeDefResolved(typedef)) {
       this._returnTypeRef = this.ast.typeToStringType(type);
@@ -106655,6 +106678,7 @@ class DaggerInterfaceFunction extends Locatable {
   _returnTypeRef;
   returnType;
   arguments = {};
+  isNullable = false;
   symbol;
   signature;
   alias;
@@ -106677,6 +106701,7 @@ class DaggerInterfaceFunction extends Locatable {
       this.arguments[parameter.name.getText()] = new DaggerArgument(parameter, this.ast);
     }
     const signatureReturnType = signature.getReturnType();
+    this.isNullable = this.ast.isNullableType(signatureReturnType);
     const typedef = this.ast.tsTypeToTypeDef(this.node, signatureReturnType);
     if (typedef === undefined || !isTypeDefResolved(typedef)) {
       this._returnTypeRef = this.ast.typeToStringType(signatureReturnType);
@@ -107561,10 +107586,14 @@ function nodeIDField(typeName) {
 }
 function introspectMethod(fn, moduleName, local) {
   const returnType = fn.returnType;
+  let type = returnType ? introspectTypeRef(returnType, moduleName, local) : voidRef();
+  if (fn.isNullable && type.kind === TypeKind.NonNull && type.ofType) {
+    type = type.ofType;
+  }
   const field2 = {
     name: toLowerCamel(fn.alias ?? fn.name),
     description: trim(fn.description),
-    type: returnType ? introspectTypeRef(returnType, moduleName, local) : voidRef(),
+    type,
     args: introspectArgs(fn.arguments, moduleName, local)
   };
   const deprecated = fn.deprecated;
@@ -107917,7 +107946,11 @@ class Register {
     return dag.function_("", owner).with(this.addArg(constructor2.arguments));
   }
   addFunction(fct) {
-    let fnDef = dag.function_(fct.alias ?? fct.name, addTypeDef(fct.returnType)).withDescription(fct.description).withSourceMap(addSourceMap(fct)).with(this.addArg(fct.arguments));
+    let returnType = addTypeDef(fct.returnType);
+    if (fct.isNullable) {
+      returnType = returnType.withOptional(true);
+    }
+    let fnDef = dag.function_(fct.alias ?? fct.name, returnType).withDescription(fct.description).withSourceMap(addSourceMap(fct)).with(this.addArg(fct.arguments));
     switch (fct.cache) {
       case "never": {
         fnDef = fnDef.withCachePolicy("Never" /* Never */);
@@ -108077,6 +108110,7 @@ function serializeFunction(fn) {
     isUp: f4.isUp === true,
     isAgent: f4.isAgent === true,
     isCollectionGet: f4.isCollectionGet === true,
+    isNullable: f4.isNullable === true,
     location: f4.getLocation(),
     returnType: f4.returnType ? serializeType(f4.returnType) : undefined,
     arguments: Object.values(f4.arguments).map(serializeArgument)

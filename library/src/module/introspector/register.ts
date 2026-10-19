@@ -148,8 +148,13 @@ export class Register {
    * Create a function in the Dagger API.
    */
   addFunction(fct: Method | DaggerInterfaceFunction): Function_ {
+    let returnType = addTypeDef(fct.returnType!)
+    if ((fct as Method).isNullable) {
+      returnType = returnType.withOptional(true)
+    }
+
     let fnDef = dag
-      .function_(fct.alias ?? fct.name, addTypeDef(fct.returnType!))
+      .function_(fct.alias ?? fct.name, returnType)
       .withDescription(fct.description)
       .withSourceMap(addSourceMap(fct))
       .with(this.addArg(fct.arguments))

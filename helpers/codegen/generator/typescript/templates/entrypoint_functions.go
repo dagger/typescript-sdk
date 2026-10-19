@@ -407,7 +407,11 @@ func (c *entrypointFuncCtx) renderFunctionExpr(fn *TypedefFunction) string {
 	if fnName == "" {
 		fnName = fn.Name
 	}
-	parts := []string{fmt.Sprintf("dag.function_(%s, %s)", jsString(fnName), c.renderTypeDef(fn.ReturnType))}
+	returnType := c.renderTypeDef(fn.ReturnType)
+	if fn.IsNullable {
+		returnType += ".withOptional(true)"
+	}
+	parts := []string{fmt.Sprintf("dag.function_(%s, %s)", jsString(fnName), returnType)}
 	if fn.Description != "" {
 		parts = append(parts, fmt.Sprintf(".withDescription(%s)", jsString(fn.Description)))
 	}

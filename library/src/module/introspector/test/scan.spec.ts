@@ -60,6 +60,10 @@ describe("scan by reference TypeScript", function () {
       directory: "voidReturn",
     },
     {
+      name: "Should correctly scan nullable return",
+      directory: "nullableReturn",
+    },
+    {
       name: "Should correctly scan state",
       directory: "state",
     },

@@ -474,7 +474,9 @@ export class AST {
   }
 
   public typeToStringType(type: ts.Type): string {
-    const stringType = this.checker.typeToString(this.unwrapNullable(type))
+    const stringType = this.checker.typeToString(
+      this.unwrapNullable(this.awaitedType(type)),
+    )
 
     return this.stringTypeToUnwrappedType(stringType)
   }
@@ -489,6 +491,51 @@ export class AST {
       return this.checker.getNonNullableType(type)
     }
     return type
+  }
+
+  /**
+   * What a `Promise<T>` resolves to, or the type itself.
+   *
+   * The promise has to be unwrapped here, at the type level, for a nullable
+   * union inside it to be strippable: `Promise<T | null>` only unwraps to
+   * "T | null" once stringified, and that is no type's name.
+   */
+  private awaitedType(type: ts.Type): ts.Type {
+    if (!(type.flags & ts.TypeFlags.Object)) {
+      return type
+    }
+
+    const objectType = type as ts.ObjectType
+    if (!(objectType.objectFlags & ts.ObjectFlags.Reference)) {
+      return type
+    }
+
+    if (type.symbol?.getName() !== "Promise") {
+      return type
+    }
+
+    const typeArguments = this.checker.getTypeArguments(
+      type as ts.TypeReference,
+    )
+
+    return typeArguments.length === 1 ? typeArguments[0] : type
+  }
+
+  /**
+   * Whether the type — or, for a promise, what it resolves to — includes
+   * `null` or `undefined`, in which case the value it describes must be
+   * registered optional or the engine refuses the null the function returns.
+   */
+  public isNullableType(type: ts.Type): boolean {
+    const resolved = this.awaitedType(type)
+    if (!resolved.isUnion()) {
+      return false
+    }
+
+    return resolved.types.some(
+      (member) =>
+        (member.flags & (ts.TypeFlags.Null | ts.TypeFlags.Undefined)) !== 0,
+    )
   }
 
   public tsTypeToTypeDef(

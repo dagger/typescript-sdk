@@ -75,6 +75,7 @@ function serializeFunction(fn: DaggerFunction | DaggerInterfaceFunction) {
     isUp: f.isUp === true,
     isAgent: f.isAgent === true,
     isCollectionGet: f.isCollectionGet === true,
+    isNullable: f.isNullable === true,
     location: f.getLocation(),
     returnType: f.returnType ? serializeType(f.returnType) : undefined,
     arguments: Object.values(f.arguments).map(serializeArgument),
