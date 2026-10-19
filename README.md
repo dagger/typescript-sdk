@@ -104,8 +104,10 @@ its `package.json` and `tsconfig.json` until you remove them — because
 generation never removes what it did not write.
 
 `--package-manager` accepts the Node-standard `name@version` syntax (e.g.
-`npm@10.7.0`, `pnpm@8.15.4`, `yarn@1.22.22`). It is only valid with the Node
-runtime; Bun and Deno bundle their own.
+`npm@10.7.0`, `pnpm@8.15.4`, `yarn@4.9.1`). It is only valid with the Node
+runtime; Bun and Deno bundle their own. A yarn other than the 1.x the base
+image ships is installed through corepack, and installs the module's
+devDependencies along with the rest — Yarn Berry has no `--prod` of its own.
 
 `--base-image` writes to `deno.json` for Deno modules and to `package.json`
 otherwise — matching where the engine reads it from.

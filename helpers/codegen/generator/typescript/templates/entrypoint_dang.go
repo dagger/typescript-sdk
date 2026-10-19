@@ -845,6 +845,11 @@ func (c *dangFuncCtx) dangManifestFiles() []string {
 // mirroring the engine's builtin runtime (runtime_node.go, runtime_bun.go,
 // runtime_deno.go) — including its --prod / --omit=dev flags, so a module gets
 // the same tree under an entrypoint as it does under a [runtime].
+//
+// A yarn pin the base image cannot run is the one place that mirror is not
+// followed: the engine's own `yarn install --prod` aborts the same way, and
+// only a module with a dependency of its own reaches it, because its yarn
+// manager skips the install entirely for the default one.
 func (c *dangFuncCtx) dangInstallExecs() []string {
 	switch c.packageManager() {
 	case "deno":
@@ -852,9 +857,35 @@ func (c *dangFuncCtx) dangInstallExecs() []string {
 	case "bun":
 		return []string{`withExec(["bun", "install", "--no-verify", "--omit=dev", "--omit=peer", "--omit=optional"])`}
 	case "yarn":
-		// No setup exec: the node image ships yarn 1, and corepack picks up a
-		// package.json "packageManager" naming any other version on its own.
-		return []string{`withExec(["yarn", "install", "--prod"])`}
+		major, _, _ := strings.Cut(c.opts.PackageManagerVersion, ".")
+		if major == "" || major == "1" {
+			return []string{`withExec(["yarn", "install", "--prod"])`}
+		}
+		// The node image ships yarn 1 with corepack bundled but *not* enabled, so
+		// yarn 1 refuses to run at all for a package.json pinning another major
+		// rather than delegating to it. Enabling it is the setup exec yarn needs,
+		// the way pnpm needs its global install — and the only one: yarn Berry is
+		// not published to npm.
+		return []string{
+			`withExec(["corepack", "enable", "yarn"])`,
+			// --activate so the pin still holds when it came from this SDK's
+			// setting rather than from a packageManager field corepack can read:
+			// the shim falls back to corepack's own default (yarn 1) otherwise.
+			fmt.Sprintf(`withExec(["corepack", "prepare", %s, "--activate"])`,
+				dangString(c.dangManagerSpec("yarn"))),
+			// Berry takes no --prod, and its default PnP linker writes no
+			// node_modules for the call to mount. The env var overrides a
+			// .yarnrc.yml of the user's, which is the point: this recipe mounts
+			// node_modules, so that is the one setting it cannot honour.
+			//
+			// shortcut: devDependencies come along, unlike every other manager
+			// here — Berry's prod-only install is `yarn workspaces focus
+			// --production`, a plugin command only yarn 4 bundles, and a yarn 2/3
+			// pin has to keep installing. Upgrade when the pin's major is worth
+			// branching on.
+			`withEnvVariable("YARN_NODE_LINKER", "node-modules")`,
+			`withExec(["yarn", "install"])`,
+		}
 	case "pnpm":
 		return []string{
 			fmt.Sprintf(`withExec(["npm", "install", "-g", %s])`, dangString(c.dangManagerSpec("pnpm"))),

@@ -412,6 +412,45 @@ func TestGenerateDangEntrypointNpmPinMatchingImage(t *testing.T) {
 	require.Contains(t, render(t, "10.9.0"), `withExec(["npm", "install", "-g", "npm@10.9.0"])`)
 }
 
+// TestGenerateDangEntrypointYarnPin covers the yarn pin the node image cannot
+// run itself: its yarn 1 aborts for a package.json naming another major instead
+// of delegating to corepack, which is bundled in the image but not enabled. So
+// a Berry pin earns the setup exec yarn 1 does not, and the install it can
+// actually take.
+func TestGenerateDangEntrypointYarnPin(t *testing.T) {
+	render := func(t *testing.T, version string) string {
+		t.Helper()
+		gen := &TypeScriptGenerator{Config: generator.Config{
+			DangEntrypointConfig: &generator.DangEntrypointGeneratorConfig{
+				TypedefJSONPath:       "testdata/typedef_smoke.json",
+				Runtime:               "node",
+				PackageManager:        "yarn",
+				PackageManagerVersion: version,
+			},
+		}}
+		state, err := gen.GenerateDangEntrypoint(context.Background())
+		require.NoError(t, err)
+		return readOverlay(t, state, DefaultDangEntrypointFile)
+	}
+
+	// The image's own yarn, and any other 1.x — which it runs for happily, so
+	// nothing is spent on corepack.
+	for _, version := range []string{"1.22.22", "1.22.19"} {
+		classic := render(t, version)
+		require.Contains(t, classic, `withExec(["yarn", "install", "--prod"])`)
+		require.NotContains(t, classic, "corepack")
+	}
+
+	berry := render(t, "4.9.1")
+	require.Contains(t, berry, `withExec(["corepack", "enable", "yarn"])`)
+	require.Contains(t, berry, `withExec(["corepack", "prepare", "yarn@4.9.1", "--activate"])`)
+	// Berry's default linker writes no node_modules for the call to mount, and
+	// it has no --prod to reject the whole install over.
+	require.Contains(t, berry, `withEnvVariable("YARN_NODE_LINKER", "node-modules")`)
+	require.Contains(t, berry, `withExec(["yarn", "install"])`)
+	require.NotContains(t, berry, `"yarn", "install", "--prod"`)
+}
+
 // TestGenerateDangEntrypointImplementsContract pins the shape the dang driver
 // requires, all of which it rejects the module for getting wrong: exactly one
 // type implementing ModuleEntrypoint, constructible with no arguments, and

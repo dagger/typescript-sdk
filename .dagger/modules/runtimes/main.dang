@@ -570,4 +570,41 @@ type Runtimes {
 
     null
   }
+
+  """
+  A module pinned to a yarn the base image does not ship should install and run.
+
+  The node image ships yarn 1 with corepack bundled but not enabled, so yarn 1
+  refuses to run at all for a package.json pinning another major rather than
+  delegating to it: every call on a module created with
+  `--package-manager yarn@4.9.1` died in `yarn install --prod` with "Corepack
+  must currently be enabled". Nothing a generated-file check reads could show
+  it — the recipe was well-formed, the image just could not run it — so the
+  install has to happen for real.
+
+  The pin is a plain `packageManager` field, which is both what the flag writes
+  and what a user writes by hand, and the fixture's check reads the tree the
+  install produced to say which yarn produced it.
+  """
+  entrypointYarnBerryCheck(ws: Workspace!): Void @check {
+    let path = fixtures + "/yarn-berry"
+    let installed = typescriptSdk(legacyRuntime: false, skipGenerateFilename: "")
+      .generateScope(ws.withWorkdir(path), isModule: true, name: "runtime-yarn-berry", clients: [])
+      .withWorkdir(".")
+      .withModule(path, name: "runtime-yarn-berry")
+
+    # Only `pass` is selected, for the reason entrypointBaseImageCheck gives.
+    let passes = installed.artifacts(include: ["runtime-yarn-berry:berry-installed-check"]).asChecks
+      .{{ pass }}
+      .map { c => c.pass }
+
+    if (passes.length != 1) {
+      raise "expected the fixture's one check, got " + toString(passes.length)
+    }
+    if (passes.filter { p => p }.length != 1) {
+      raise "the module's dependencies were not installed by the yarn its package.json pins"
+    }
+
+    null
+  }
 }

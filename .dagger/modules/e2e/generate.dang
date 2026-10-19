@@ -382,6 +382,12 @@ type GenerateChecks {
       "a committed package-lock.json should install with npm",
     )
 
+    # The fallback is yarn 1, which the image ships, so it costs no setup.
+    Asserts.stringNotContains(
+      yarn, "corepack",
+      "a module on the image's own yarn should not pay for corepack",
+    )
+
     # Bun ships its own, and a bun lockfile is what selects the Bun runtime.
     let bun = entrypointRecipe(
       ws.withNewFile("/" + bunScope + "/bun.lock", ""),
@@ -391,6 +397,34 @@ type GenerateChecks {
     Asserts.stringContains(
       bun, "[\"bun\", \"install\"",
       "a Bun module should install with bun",
+    )
+
+    # A `packageManager` pin on another yarn major, which is what
+    # `--package-manager yarn@4.9.1` records and what a user writes by hand. The
+    # image's yarn 1 refuses to run for it rather than delegating, because
+    # corepack is bundled there but not enabled — so the recipe enables it, and
+    # installs the way the pinned yarn can.
+    let berryScope = Fixtures.out + "/entrypoint-install-yarn-berry"
+    let berry = entrypointRecipe(
+      ws.withNewFile("/" + berryScope + "/package.json", "{\n  \"packageManager\": \"yarn@4.9.1\"\n}\n"),
+      berryScope,
+      "entrypoint-install-yarn-berry",
+    )
+    Asserts.stringContains(
+      berry, "[\"corepack\", \"enable\", \"yarn\"]",
+      "a pinned Berry yarn should get corepack enabled for it",
+    )
+    Asserts.stringContains(
+      berry, "[\"corepack\", \"prepare\", \"yarn@4.9.1\", \"--activate\"]",
+      "the recipe should activate the pinned version, not corepack's default",
+    )
+    Asserts.stringContains(
+      berry, "withEnvVariable(\"YARN_NODE_LINKER\", \"node-modules\")",
+      "Berry's default PnP linker would leave no node_modules to mount",
+    )
+    Asserts.stringContains(
+      berry, "[\"yarn\", \"install\"]",
+      "a pinned Berry yarn should install without yarn 1's --prod, which it rejects",
     )
 
     null
