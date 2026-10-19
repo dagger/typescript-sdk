@@ -467,6 +467,75 @@ type Runtimes {
   }
 
   """
+  A function returning `X | null` should return null — and a value — across the
+  boundary.
+
+  Nullability of a return was dropped on the way to the engine: the function
+  registered non-null, so the null it returned reached the caller as the type's
+  zero value — an empty string, not a failure. An object inside the `Promise<>`
+  did not even get that far, failing the scan with "could not resolve type
+  reference for X | null".
+
+  Two scopes, generated in order: the dependency declares both returns, the
+  dependent calls them — a call that stays inside a module never reaches the
+  dispatcher, so only a cross-module call makes the engine read a null off the
+  boundary. Read back through the dependent's own checks for the reason
+  entrypointErrorTextCheck gives.
+  """
+  nullableReturnsCheck(ws: Workspace!): Void @check {
+    let depPath = fixtures + "/nullable-dep"
+    let appPath = fixtures + "/nullable"
+
+    let installed = generated(generated(ws, depPath, "runtime-nullable-dep"), appPath, "runtime-nullable")
+      .withModule(appPath, name: "runtime-nullable")
+
+    let outcomes = installed.artifacts(include: [
+      "runtime-nullable:absent-check",
+      "runtime-nullable:present-check",
+    ]).asChecks.{{ pass, error.{{ message }} }}
+
+    if (outcomes.length != 2) {
+      raise "expected the fixture's two checks, got " + toString(outcomes.length)
+    }
+
+    # Selected on `pass` first: reading the error of a check that passed raises
+    # instead of yielding null.
+    let messages = outcomes.filter { c => c.pass == false }.map { c => c.error.message }
+    if (messages.length > 0) {
+      raise "a nullable return did not survive the round trip: " + messages.join(" | ")
+    }
+
+    null
+  }
+
+  """
+  The same return under an entrypoint, where the recipe is ours.
+
+  nullableReturnsCheck covers the value, and can only cover it under a
+  `[runtime]`: its two modules reach each other through a manifest
+  [[dependencies]], which an entrypoint manifest has no table for — the reason
+  interfaceFieldEntrypointCheck gives. What is left to pin here is the other
+  emitter: the generated recipe has to carry the optionality too, and the
+  engine has to accept the module that declares it.
+  """
+  nullableReturnEntrypointCheck(ws: Workspace!): Void @check {
+    let path = fixtures + "/nullable-dep"
+    let staged = typescriptSdk(legacyRuntime: false, skipGenerateFilename: "")
+      .generateScope(ws.withWorkdir(path), isModule: true, name: "runtime-nullable-dep", clients: [])
+      .withWorkdir(".")
+
+    let recipe = staged.directory("/" + path).file("entrypoint/main.dang").contents
+    if (recipe.contains("function(\"maybeText\", typeDef.withKind(TypeDefKind.STRING_KIND).withOptional(true))") == false) {
+      raise "a nullable scalar return should register optional"
+    }
+    if (recipe.contains("function(\"maybeNote\", typeDef.withObject(\"RuntimeNullableNote\").withOptional(true))") == false) {
+      raise "a nullable object return should register optional"
+    }
+
+    assertLoads(staged, path, "RuntimeNullableDep", "the module with a nullable return")
+  }
+
+  """
   A module whose config pins a base image should run on that image.
 
   Under a `[runtime]` the engine reads `dagger.baseImage` and builds on it.

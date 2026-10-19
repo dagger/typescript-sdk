@@ -38,6 +38,14 @@ export class DaggerFunction extends Locatable {
   public isAgent: boolean = false
   public isCollectionGet: boolean = false
 
+  /**
+   * Whether the return type includes `null` / `undefined`, in or out of a
+   * `Promise<>`. Carried beside the typedef rather than on it: an object
+   * return resolves to the module's single shared reference for that type, so
+   * a flag set on the typedef would mark every other use of it too.
+   */
+  public isNullable: boolean = false
+
   private signature: ts.Signature
   private symbol: ts.Symbol
 
@@ -103,6 +111,8 @@ export class DaggerFunction extends Locatable {
 
   private getReturnType(): TypeDef<TypeDefKind> | undefined {
     const type = this.signature.getReturnType()
+
+    this.isNullable = this.ast.isNullableType(type)
 
     const typedef = this.ast.tsTypeToTypeDef(this.node, type)
     if (typedef === undefined || !isTypeDefResolved(typedef)) {

@@ -1,0 +1,121 @@
+{
+  "name": "NullableReturn",
+  "objects": {
+    "NullableReturn": {
+      "name": "NullableReturn",
+      "description": "NullableReturn class",
+      "methods": {
+        "maybeNote": {
+          "name": "maybeNote",
+          "description": "An object reference inside a `Promise<>` union — the shape that failed to\nresolve at all, because the reference was recorded as \"Note | null\".",
+          "arguments": {
+            "yes": {
+              "name": "yes",
+              "description": "",
+              "type": {
+                "kind": "BOOLEAN_KIND"
+              },
+              "isVariadic": false,
+              "isNullable": false,
+              "isOptional": false
+            }
+          },
+          "returnType": {
+            "kind": "OBJECT_KIND",
+            "name": "Note"
+          }
+        },
+        "maybeNoteSync": {
+          "name": "maybeNoteSync",
+          "description": "The same return, written without the Promise.",
+          "arguments": {
+            "yes": {
+              "name": "yes",
+              "description": "",
+              "type": {
+                "kind": "BOOLEAN_KIND"
+              },
+              "isVariadic": false,
+              "isNullable": false,
+              "isOptional": false
+            }
+          },
+          "returnType": {
+            "kind": "OBJECT_KIND",
+            "name": "Note"
+          }
+        },
+        "maybeUndefinedNote": {
+          "name": "maybeUndefinedNote",
+          "description": "",
+          "arguments": {},
+          "returnType": {
+            "kind": "OBJECT_KIND",
+            "name": "Note"
+          }
+        },
+        "maybeNotes": {
+          "name": "maybeNotes",
+          "description": "",
+          "arguments": {},
+          "returnType": {
+            "kind": "LIST_KIND",
+            "typeDef": {
+              "kind": "OBJECT_KIND",
+              "name": "Note"
+            }
+          }
+        },
+        "maybeString": {
+          "name": "maybeString",
+          "description": "",
+          "arguments": {},
+          "returnType": {
+            "kind": "STRING_KIND"
+          }
+        },
+        "note": {
+          "name": "note",
+          "description": "A non-nullable return of the same type stays non-nullable.",
+          "arguments": {},
+          "returnType": {
+            "kind": "OBJECT_KIND",
+            "name": "Note"
+          }
+        }
+      },
+      "properties": {}
+    },
+    "Note": {
+      "name": "Note",
+      "description": "",
+      "constructor": {
+        "arguments": {
+          "text": {
+            "name": "text",
+            "description": "",
+            "type": {
+              "kind": "STRING_KIND"
+            },
+            "isVariadic": false,
+            "isNullable": false,
+            "isOptional": false
+          }
+        }
+      },
+      "methods": {},
+      "properties": {
+        "text": {
+          "name": "text",
+          "description": "",
+          "type": {
+            "kind": "STRING_KIND"
+          },
+          "isExposed": true
+        }
+      }
+    }
+  },
+  "enums": {},
+  "interfaces": {}
+}

@@ -23,6 +23,7 @@ export class DaggerInterfaceFunction extends Locatable {
   private _returnTypeRef?: string
   public returnType?: TypeDef<TypeDefKind>
   public arguments: DaggerArguments = {}
+  public isNullable: boolean = false
   private symbol: ts.Symbol
   private signature?: ts.Signature
 
@@ -70,6 +71,7 @@ export class DaggerInterfaceFunction extends Locatable {
     }
 
     const signatureReturnType = signature.getReturnType()
+    this.isNullable = this.ast.isNullableType(signatureReturnType)
     const typedef = this.ast.tsTypeToTypeDef(this.node, signatureReturnType)
     if (typedef === undefined || !isTypeDefResolved(typedef)) {
       this._returnTypeRef = this.ast.typeToStringType(signatureReturnType)

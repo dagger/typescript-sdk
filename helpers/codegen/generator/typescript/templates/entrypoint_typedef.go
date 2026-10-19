@@ -46,6 +46,7 @@ type TypedefFunction struct {
 	IsGenerator     bool               `json:"isGenerator"`
 	IsUp            bool               `json:"isUp"`
 	IsAgent         bool               `json:"isAgent"`
+	IsNullable      bool               `json:"isNullable"`
 	Location        *TypedefLocation   `json:"location,omitempty"`
 	ReturnType      *TypedefType       `json:"returnType,omitempty"`
 	Arguments       []*TypedefArgument `json:"arguments"`

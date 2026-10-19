@@ -141,6 +141,46 @@ describe("serializeIntrospection", function () {
     assert.equal(ctor?.type.ofType?.name, "HelloWorld")
   })
 
+  it("emits a nullable return without the NON_NULL wrapper", async function () {
+    this.timeout(60000)
+
+    const files = await listFiles(`${rootDirectory}/nullableReturn`)
+    const module = await scan(files, "nullableReturn")
+    const obj = typeByName(
+      serializeIntrospection(module as never).__schema,
+      "NullableReturn",
+    )
+
+    for (const name of [
+      "maybeNote",
+      "maybeNoteSync",
+      "maybeUndefinedNote",
+      "maybeNotes",
+      "maybeString",
+    ]) {
+      const field = fieldByName(obj, name)
+      assert.ok(field, `${name} is emitted as a field`)
+      assert.notEqual(
+        field?.type.kind,
+        "NON_NULL",
+        `${name} returns null, so its field must be nullable`,
+      )
+    }
+    // The same type returned non-nullably keeps its NON_NULL wrapper.
+    assert.equal(fieldByName(obj, "note")?.type.kind, "NON_NULL")
+
+    // And the flag the entrypoint emitter renders `.withOptional(true)` from.
+    const registration = serializeModule(module) as {
+      objects: Record<
+        string,
+        { methods: Record<string, { isNullable: boolean }> }
+      >
+    }
+    const methods = registration.objects.NullableReturn.methods
+    assert.equal(methods.maybeNote.isNullable, true)
+    assert.equal(methods.note.isNullable, false)
+  })
+
   it("namespaces module-local enums and keeps conventional member names", async function () {
     this.timeout(60000)
     const schema = await introspect("enums")
