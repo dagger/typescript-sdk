@@ -120,6 +120,45 @@ export class AST {
     return fileName.endsWith(GENERATED_CLIENT_SUFFIX)
   }
 
+  /**
+   * Names the core library contributes to the schema: the classes and enums
+   * declared in `client.gen.ts`.
+   *
+   * Scoped to that one file on purpose. The engine namespaces a module's types
+   * against other modules, so a name shared with a dependency's client
+   * (`<dep>.gen.ts`) or with the module's own is fine; core is the namespace a
+   * module's types land in, so only core names can be shadowed.
+   *
+   * The file's type aliases are left out: the `<X>Opts` records exist only in
+   * TypeScript, to spell optional arguments, and have no schema type to collide
+   * with.
+   */
+  public coreTypeNames(): Set<string> {
+    const names = new Set<string>()
+
+    for (const sourceFile of this.sourceFiles) {
+      if (
+        !this.isGeneratedClientFile(sourceFile.fileName) ||
+        path.basename(sourceFile.fileName) !== CLIENT_GEN_FILE
+      ) {
+        continue
+      }
+
+      ts.forEachChild(sourceFile, (node) => {
+        if (!ts.isClassDeclaration(node) && !ts.isEnumDeclaration(node)) {
+          return
+        }
+
+        const name = node.name?.getText()
+        if (name) {
+          names.add(name)
+        }
+      })
+    }
+
+    return names
+  }
+
   public findResolvedNodeByName<T extends keyof DeclarationsMap>(
     name: string,
 

@@ -105724,6 +105724,24 @@ class AST {
     }
     return fileName.endsWith(GENERATED_CLIENT_SUFFIX);
   }
+  coreTypeNames() {
+    const names = new Set;
+    for (const sourceFile of this.sourceFiles) {
+      if (!this.isGeneratedClientFile(sourceFile.fileName) || path8.basename(sourceFile.fileName) !== CLIENT_GEN_FILE) {
+        continue;
+      }
+      ts3.forEachChild(sourceFile, (node) => {
+        if (!ts3.isClassDeclaration(node) && !ts3.isEnumDeclaration(node)) {
+          return;
+        }
+        const name = node.name?.getText();
+        if (name) {
+          names.add(name);
+        }
+      });
+    }
+    return names;
+  }
   findResolvedNodeByName(name, kind2) {
     let result;
     for (const sourceFile of this.sourceFiles) {
@@ -107115,6 +107133,19 @@ class DaggerTypeObject extends Locatable {
 }
 
 // src/module/introspector/dagger_module/module.ts
+function declarationKind(node) {
+  if (ts10.isClassDeclaration(node)) {
+    return "class";
+  }
+  if (ts10.isEnumDeclaration(node)) {
+    return "enum";
+  }
+  if (ts10.isInterfaceDeclaration(node)) {
+    return "interface";
+  }
+  return "type alias";
+}
+
 class DaggerModule {
   name;
   userModule;
@@ -107130,6 +107161,7 @@ class DaggerModule {
     this.name = name;
     this.userModule = userModule2;
     this.ast = ast2;
+    this.validateNoCoreTypeShadowing();
     const classObjects = this.findClasses();
     for (const classObject of classObjects) {
       const mainFileContent = classObject.file.getFullText();
@@ -107274,6 +107306,25 @@ class DaggerModule {
       return;
     }
     throw new IntrospectionError(`could not resolve type reference for ${reference} at ${AST.getNodePosition(typeAlias.node)}`);
+  }
+  validateNoCoreTypeShadowing() {
+    const coreTypes = this.ast.coreTypeNames();
+    if (coreTypes.size === 0) {
+      return;
+    }
+    const declarations = [
+      ...this.ast.findAllDeclarations(ts10.SyntaxKind.ClassDeclaration),
+      ...this.ast.findAllDeclarations(ts10.SyntaxKind.EnumDeclaration),
+      ...this.ast.findAllDeclarations(ts10.SyntaxKind.InterfaceDeclaration),
+      ...this.ast.findAllDeclarations(ts10.SyntaxKind.TypeAliasDeclaration)
+    ];
+    for (const { node, file } of declarations) {
+      const name = node.name?.getText();
+      if (!name || !coreTypes.has(name) || this.ast.isGeneratedClientFile(file.fileName)) {
+        continue;
+      }
+      throw new IntrospectionError(`${declarationKind(node)} ${name} at ${AST.getNodePosition(node)} shadows the core Dagger type ${name}. ` + `A module's types are namespaced against other modules but not against core, so the core type answers for that name wherever it is used. ` + `Rename the declaration.`);
+    }
   }
   validateUniqueClassNames(declarations) {
     const seen = new Map;

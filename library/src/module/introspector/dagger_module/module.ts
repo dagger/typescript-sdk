@@ -18,6 +18,20 @@ import { DaggerObjectsBase } from "./objectBase.js"
 import { References } from "./reference.js"
 import { DaggerTypeObject } from "./typeObject.js"
 
+function declarationKind(node: ts.Declaration): string {
+  if (ts.isClassDeclaration(node)) {
+    return "class"
+  }
+  if (ts.isEnumDeclaration(node)) {
+    return "enum"
+  }
+  if (ts.isInterfaceDeclaration(node)) {
+    return "interface"
+  }
+
+  return "type alias"
+}
+
 /**
  * DaggerModule represents a TypeScript module with a set of files
  * with Dagger object conversion and notation.
@@ -91,6 +105,8 @@ export class DaggerModule {
     private userModule: Module[],
     private ast: AST,
   ) {
+    this.validateNoCoreTypeShadowing()
+
     const classObjects = this.findClasses()
     for (const classObject of classObjects) {
       // This only applies to cloud. If this is the true main object, it is correct
@@ -350,6 +366,58 @@ export class DaggerModule {
     throw new IntrospectionError(
       `could not resolve type reference for ${reference} at ${AST.getNodePosition(typeAlias.node)}`,
     )
+  }
+
+  /**
+   * A type the module declares must not be named after a core type.
+   *
+   * The engine namespaces a module's types against other modules, not against
+   * core, so a declaration sharing a core name does not get a namespace of its
+   * own: the core type answers for it wherever the name is used. Nothing failed
+   * — `type Volume = "loud" | "quiet"` generated a module taking a core Volume,
+   * which `dagger call ... --volume loud` then rejected as a volume address,
+   * and `@object class Volume` generated an object whose own fields could not be
+   * queried. Go and Python modules collide the same way, so this is refused
+   * here rather than worked around.
+   *
+   * Checked before anything else: it has to report the declaration the user
+   * wrote, and by the time a reference to it is resolved the core type has
+   * already answered for the name.
+   *
+   * Every declaration counts, decorated or not and used by the module's API or
+   * not. An undecorated `class Volume` is the same silent failure one `@func`
+   * argument later, and a rule that holds for a declaration rather than for a
+   * use does not depend on which of the two the resolver happens to find first.
+   */
+  private validateNoCoreTypeShadowing(): void {
+    const coreTypes = this.ast.coreTypeNames()
+    if (coreTypes.size === 0) {
+      return
+    }
+
+    const declarations = [
+      ...this.ast.findAllDeclarations(ts.SyntaxKind.ClassDeclaration),
+      ...this.ast.findAllDeclarations(ts.SyntaxKind.EnumDeclaration),
+      ...this.ast.findAllDeclarations(ts.SyntaxKind.InterfaceDeclaration),
+      ...this.ast.findAllDeclarations(ts.SyntaxKind.TypeAliasDeclaration),
+    ]
+
+    for (const { node, file } of declarations) {
+      const name = node.name?.getText()
+      if (
+        !name ||
+        !coreTypes.has(name) ||
+        this.ast.isGeneratedClientFile(file.fileName)
+      ) {
+        continue
+      }
+
+      throw new IntrospectionError(
+        `${declarationKind(node)} ${name} at ${AST.getNodePosition(node)} shadows the core Dagger type ${name}. ` +
+          `A module's types are namespaced against other modules but not against core, so the core type answers for that name wherever it is used. ` +
+          `Rename the declaration.`,
+      )
+    }
   }
 
   /**
