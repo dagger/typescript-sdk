@@ -68,6 +68,10 @@ export class Bin implements EngineConn {
     let downloadError: Error | undefined
 
     if (!this.binPath) {
+      this.binPath = this.engineProvidedCLI()
+    }
+
+    if (!this.binPath) {
       try {
         this.binPath = await this.downloadCLI(opts.LogOutput)
       } catch (e) {
@@ -166,6 +170,29 @@ export class Bin implements EngineConn {
     }
 
     return binPath
+  }
+
+  /**
+   * The CLI the engine put there for us, if there is one.
+   *
+   * A command the engine runs with a session of its own is handed DAGGER_ENGINE
+   * instead of a session to join, and a CLI matching the engine's own version
+   * on PATH to open one with. Downloading another there is slower and can
+   * straddle two versions, so prefer what is already in place.
+   *
+   * DAGGER_ENGINE only says where the engine is, so a missing CLI is not an
+   * error: fall through to the download.
+   */
+  private engineProvidedCLI(): string | undefined {
+    if (!process.env["DAGGER_ENGINE"]) {
+      return undefined
+    }
+
+    try {
+      return this.findDaggerCLI()
+    } catch {
+      return undefined
+    }
   }
 
   private fallbackToLocalCLI(
@@ -376,7 +403,7 @@ export class Bin implements EngineConn {
     }
 
     const connectParams: ConnectParams = (await Promise.race([
-      this.readConnectParams(stdoutReader),
+      this.readConnectParams(binPath, stdoutReader),
       new Promise((_, reject) => {
         setTimeout(() => {
           reject(
@@ -399,8 +426,9 @@ export class Bin implements EngineConn {
   }
 
   private async readConnectParams(
+    binPath: string,
     stdoutReader: readline.Interface,
-  ): Promise<ConnectParams | undefined> {
+  ): Promise<ConnectParams> {
     for await (const line of stdoutReader) {
       // parse the line as json-encoded connect params
       const connectParams = JSON.parse(line) as ConnectParams
@@ -415,16 +443,25 @@ export class Bin implements EngineConn {
       )
     }
 
-    // Need to find a better way to handle this part
-    // At this stage something wrong happened, `for await` didn't return anything
-    // await the subprocess to catch the error
+    // stdout ended before any connect params, so the session never started.
+    // Awaiting the subprocess rejects with its exit code and stderr, which is
+    // the only account of what went wrong; without them the caller used to read
+    // `port` off nothing and report a TypeError.
     try {
       await this.subProcess
-    } catch {
-      this.subProcess?.catch((e) => {
-        throw new EngineSessionError(e.stderr)
-      })
+    } catch (e) {
+      const exit = e as { exitCode?: number; stderr?: string }
+      const stderr = exit.stderr?.trim()
+      throw new EngineSessionError(
+        `dagger CLI "${binPath}" exited with code ${exit.exitCode ?? "unknown"} without starting a session` +
+          (stderr ? `: ${stderr}` : ""),
+        { cause: e instanceof Error ? e : undefined },
+      )
     }
+
+    throw new EngineSessionError(
+      `dagger CLI "${binPath}" exited without starting a session`,
+    )
   }
 
   async Close(): Promise<void> {
