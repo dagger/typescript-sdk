@@ -261,6 +261,10 @@ type Fixtures {
   # generation has to refuse rather than keep one of them.
   let duplicateNamesModule: String! = root + "/duplicate-names/app"
 
+  # A module whose union type alias is named after a core type: the shape whose
+  # name used to answer from the generated client instead of being refused.
+  let shadowedCoreTypeModule: String! = root + "/shadowed-core-type/app"
+
   # Pre-1.0 configs that cannot be migrated: two declaring fields
   # dagger-module.toml has no table for, one belonging to another SDK.
   let migrateToolchainsModule: String! = root + "/migrate/toolchains"
@@ -391,6 +395,7 @@ type Fixtures {
     depLibModule,
     denoModule,
     duplicateNamesModule,
+    shadowedCoreTypeModule,
     parentSourceModule,
     splitDenoModule,
   ] + runtimeFixtures

@@ -2000,4 +2000,32 @@ type GenerateChecks {
 
     null
   }
+
+  """
+  A type the module declares under a core type's name is refused.
+
+  The engine namespaces a module's types against other modules, not against
+  core, so such a declaration never gets a namespace of its own: the core type
+  answers for the name. Nothing failed — `type Volume = "loud" | "quiet"`
+  generated a module taking a core Volume the author never mentioned, and
+  `dagger call ... --volume loud` died on "unsupported volume address"; an
+  `@object class Volume` generated an object whose own fields could not be
+  queried. Go and Python modules collide identically, so the SDK refuses the
+  declaration instead of working around it.
+  """
+  generateRefusesShadowedCoreTypeCheck(ws: Workspace!): Void @check {
+    # Asserted as a failure rather than by message, for the reason
+    # generateRefusesDuplicateObjectCheck gives: the scan is a container exec
+    # and its stderr stays in the trace. The message is asserted where it is
+    # reachable, in library/src/module/introspector/test/type_alias.spec.ts.
+    let failure = Gen.failure(Gen.module(ws, fixtures.shadowedCoreTypeModule, "shadowed-core-type-app"))
+
+    Asserts.stringContains(
+      failure,
+      "exit code",
+      "generating a module declaring a type named after a core type should fail, got: " + failure,
+    )
+
+    null
+  }
 }
