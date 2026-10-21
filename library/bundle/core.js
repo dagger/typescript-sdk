@@ -96785,6 +96785,9 @@ class Bin {
   async Connect(opts) {
     let downloadError;
     if (!this.binPath) {
+      this.binPath = this.engineProvidedCLI();
+    }
+    if (!this.binPath) {
       try {
         this.binPath = await this.downloadCLI(opts.LogOutput);
       } catch (e2) {
@@ -96846,6 +96849,16 @@ failed to use CLI from PATH "${this.binPath}": ${sessionError.message}`, { cause
       console.error("could not clean up temporary binary files");
     }
     return binPath;
+  }
+  engineProvidedCLI() {
+    if (!process11.env["DAGGER_ENGINE"]) {
+      return;
+    }
+    try {
+      return this.findDaggerCLI();
+    } catch {
+      return;
+    }
   }
   fallbackToLocalCLI(downloadError, logOutput) {
     if (!this.hasCLIReleaseUnavailableError(downloadError)) {
@@ -96980,7 +96993,7 @@ dagger CLI not found in PATH: ${pathError.message}`, { cause: e2 });
 Establishing connection to Engine... `);
     }
     const connectParams = await Promise.race([
-      this.readConnectParams(stdoutReader),
+      this.readConnectParams(binPath, stdoutReader),
       new Promise((_2, reject) => {
         setTimeout(() => {
           reject(new EngineSessionConnectionTimeoutError("Engine connection timeout", {
@@ -96995,7 +97008,7 @@ Establishing connection to Engine... `);
     }
     return createGQLClient(connectParams.port, connectParams.session_token);
   }
-  async readConnectParams(stdoutReader) {
+  async readConnectParams(binPath, stdoutReader) {
     for await (const line of stdoutReader) {
       const connectParams = JSON.parse(line);
       if (connectParams.port && connectParams.session_token) {
@@ -97007,11 +97020,12 @@ Establishing connection to Engine... `);
     }
     try {
       await this.subProcess;
-    } catch {
-      this.subProcess?.catch((e2) => {
-        throw new EngineSessionError(e2.stderr);
-      });
+    } catch (e2) {
+      const exit = e2;
+      const stderr2 = exit.stderr?.trim();
+      throw new EngineSessionError(`dagger CLI "${binPath}" exited with code ${exit.exitCode ?? "unknown"} without starting a session` + (stderr2 ? `: ${stderr2}` : ""), { cause: e2 instanceof Error ? e2 : undefined });
     }
+    throw new EngineSessionError(`dagger CLI "${binPath}" exited without starting a session`);
   }
   async Close() {
     if (this.subProcess?.pid) {
