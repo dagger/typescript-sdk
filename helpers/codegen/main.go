@@ -14,6 +14,8 @@
 //	                 manifest-v2 dispatcher instead: stdin/stdout, no register().
 //	codegen dang-entrypoint — the Dang program the engine loads under a manifest
 //	                 `[entrypoint]` table, from the same typedef JSON.
+//	codegen dang-toml — the dang.toml beside that program, declaring the Dang
+//	                 and Dagger versions it is written against.
 //
 // Generation is engine-free: the schema and the bound module's metadata are
 // supplied as files, so no session is opened. `codegen introspect` is the one
@@ -89,10 +91,12 @@ func run(args []string) error {
 		return runEntrypoint(args[1:])
 	case "dang-entrypoint":
 		return runDangEntrypoint(args[1:])
+	case "dang-toml":
+		return runDangToml(args[1:])
 	case "introspect":
 		return runIntrospect(args[1:])
 	default:
-		return fmt.Errorf("unknown command %q (want module, client, library, entrypoint, dang-entrypoint or introspect)", args[0])
+		return fmt.Errorf("unknown command %q (want module, client, library, entrypoint, dang-entrypoint, dang-toml or introspect)", args[0])
 	}
 }
 
@@ -224,6 +228,24 @@ func runDangEntrypoint(args []string) error {
 	}
 
 	return nil
+}
+
+// runDangToml prints the dang.toml a module's generated entrypoint gets when it
+// has none yet, or nothing when the running engine should get none (see
+// typescriptgenerator.RenderDangToml). The SDK writes it into the workspace
+// before it reads the module's schema, so the engine already serves the module
+// at the version it declares.
+func runDangToml(args []string) error {
+	fs := flag.NewFlagSet("dang-toml", flag.ExitOnError)
+	var (
+		engineVersion = fs.String("engine-version", "", "the running engine's version")
+		fresh         = fs.Bool("fresh", false, "the module is being initialized: pin it to the running engine's version rather than the pre-cut one")
+	)
+	if err := fs.Parse(args); err != nil {
+		return err
+	}
+	_, err := fmt.Fprint(os.Stdout, typescriptgenerator.RenderDangToml(*engineVersion, *fresh))
+	return err
 }
 
 // parsePackageManager splits the `name[@version]` spelling the Node ecosystem

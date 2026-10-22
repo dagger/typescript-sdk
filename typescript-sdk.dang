@@ -147,6 +147,15 @@ type TypescriptSdk {
   let dangEntrypointFile: String! = "main.dang"
 
   """
+  The dang.toml beside the generated Dang program: the Dang and Dagger versions
+  it is written against. An engine carrying dagger/dagger#14812 serves the
+  module at that Dagger version — its API view, and the naming rules its
+  declarations get. Written once (withEntrypointDangToml) and then the module's:
+  generation never rewrites it.
+  """
+  let dangTomlFile: String! = "dang.toml"
+
+  """
   The dispatcher the engine's builtin TypeScript runtime loads.
 
   Only written for a module that still declares a `[runtime]`: under an
@@ -281,7 +290,14 @@ type TypescriptSdk {
       # not declare, and the engine resolves no `source` out of it, so the
       # module's files are looked for at the workspace root.
       let configured = if (legacyRuntime == false) {
-        withEntrypointManifest(seeded, scope, name, hasToml)
+        # The dang.toml goes in with the manifest, before anything below reads
+        # the module's schema: the engine serves the module at the version it
+        # declares, and the bindings and entrypoint are generated for that.
+        withEntrypointDangToml(
+          withEntrypointManifest(seeded, scope, name, hasToml),
+          scope,
+          (hasToml or hasJSON) == false,
+        )
       } else if (hasToml and isEntrypointManifest(seeded, scopeFile(scope, "dagger-module.toml")) == false) {
         seeded
       } else {
@@ -781,6 +797,40 @@ type TypescriptSdk {
       .withDangEntrypoint(source: "./" + dangEntrypointDir)
       .generate(ws.withWorkdir(scope), lock: lock, legacyJson: false)
       .withWorkdir(".")
+  }
+
+  """
+  Give an entrypoint module the dang.toml that declares which Dang and Dagger
+  versions its generated entrypoint is written against, when it has none.
+
+  An existing dang.toml is the module's and is kept as it is: raising its
+  `dagger` version is how a module opts into a newer API and its naming rules.
+  A module being initialized (`fresh`) is pinned to the running engine's
+  version. One that already had an entrypoint is pinned to v1.0.0-beta.20,
+  which is what dagger/dagger#14812 serves a versionless entrypoint at — so
+  regenerating never silently moves it onto the identifier naming of
+  v1.0.0-beta.21.
+
+  Nothing is written on an engine older than beta.21: it serves the entrypoint
+  at its own version whatever the file says, and its Dang may predate the
+  `dagger = "<version>"` form (vito/dang#206). The rules live in the codegen
+  helper (`codegen dang-toml`), which prints nothing in that case.
+  """
+  let withEntrypointDangToml(ws: Workspace!, scope: String!, fresh: Boolean!): Workspace! {
+    let file = dangEntrypointDir + "/" + dangTomlFile
+    if (hasScopeFile(ws, scope, file)) {
+      ws
+    } else {
+      let freshArgs = if (fresh) { ["--fresh"] } else { [] }
+      let contents = codegenBuilder
+        .withExec(["codegen", "dang-toml", "--engine-version", version] + freshArgs)
+        .stdout
+      if (contents == "") {
+        ws
+      } else {
+        ws.withNewFile("/" + scopeFile(scope, file), contents)
+      }
+    }
   }
 
   """
