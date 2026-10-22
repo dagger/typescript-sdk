@@ -51,6 +51,13 @@ const identifierSchemaJSON = `
           {"name": "block", "type": {"kind": "INPUT_OBJECT", "name": "ToolResultInput"}}
         ],
         "type": {"kind": "NON_NULL", "ofType": {"kind": "OBJECT", "name": "GitCommit"}}
+      },
+      {
+        "name": "method",
+        "args": [
+          {"name": "fallback", "type": {"kind": "NON_NULL", "ofType": {"kind": "ENUM", "name": "HttpMethod"}}}
+        ],
+        "type": {"kind": "NON_NULL", "ofType": {"kind": "ENUM", "name": "HttpMethod"}}
       }
     ],
     "inputFields": null,
@@ -78,6 +85,17 @@ const identifierSchemaJSON = `
     "enumValues": [
       {"name": "TCP"},
       {"name": "GITHUB_SSH"}
+    ],
+    "possibleTypes": null
+  },
+  {
+    "kind": "ENUM",
+    "name": "HttpMethod",
+    "fields": null,
+    "inputFields": null,
+    "interfaces": [],
+    "enumValues": [
+      {"name": "GET"}
     ],
     "possibleTypes": null
   }
@@ -149,6 +167,15 @@ func TestEngineFormattedNames(t *testing.T) {
 	// type names are left alone
 	require.Contains(t, got, "export class GitCommit extends BaseClient")
 	require.Contains(t, got, "export function NetworkProtocolValueToName(")
+
+	// so are enum converters, which their call sites name after the raw type
+	// name, even when a dependency named by the legacy rules brings one the
+	// engine would recase
+	require.Contains(t, got, "export function HttpMethodValueToName(")
+	require.Contains(t, got, "export function HttpMethodNameToValue(")
+	require.Contains(t, got, "value_to_name: HttpMethodValueToName")
+	require.Contains(t, got, "return HttpMethodNameToValue(response)")
+	require.NotContains(t, got, "HTTPMethod")
 }
 
 // Without Query.formatIdentifiers (a schema view before v1.0.0-beta.21), every

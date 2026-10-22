@@ -119,6 +119,7 @@ func (funcs typescriptTemplateFuncs) FuncMap() template.FuncMap {
 		"GetRequiredArgs":           funcs.getRequiredArgs,
 		"HasPrefix":                 strings.HasPrefix,
 		"PascalCase":                funcs.pascalCase,
+		"EnumConverterPrefix":       funcs.enumConverterPrefix,
 		"IsArgOptional":             funcs.isArgOptional,
 		"IsCustomScalar":            funcs.isCustomScalar,
 		"IsEnum":                    funcs.isEnum,
@@ -1009,7 +1010,7 @@ func (funcs typescriptTemplateFuncs) clientImports(fileTypes []*introspection.Ty
 			if spec == "" {
 				continue
 			}
-			groupFor(spec).values[funcs.pascalCase(t.Name)+suffix] = struct{}{}
+			groupFor(spec).values[funcs.enumConverterPrefix(t.Name)+suffix] = struct{}{}
 		}
 	}
 	for _, t := range fileTypes {

@@ -15,7 +15,7 @@ import (
 // naming rules format them:
 //
 //   - methods, args and opts keys: CAMEL / UPPERCASE (httpClient, withGPU);
-//   - "Opts" types and enum converters: PASCAL / UPPERCASE (ClientHTTPOpts);
+//   - "Opts" types: PASCAL / UPPERCASE (ClientHTTPOpts);
 //   - enum members: PASCAL / CAPITALIZED, the closest match to what the
 //     generator has always written (Tcp, ObjectKind).
 //
@@ -112,8 +112,8 @@ func (funcs typescriptTemplateFuncs) formatArgName(name string) string {
 }
 
 // pascalCase converts a schema name into a PascalCase identifier part, for
-// the names the generator derives from schema names: "<Parent><Field>Opts"
-// types and the "<Enum>ValueToName" / "<Enum>NameToValue" converters.
+// the names the generator derives from schema field names: "<Parent><Field>Opts"
+// types.
 func (funcs typescriptTemplateFuncs) pascalCase(name string) string {
 	if formatted, ok := funcs.engineName(name, pascalNames); ok {
 		return formatted
@@ -125,6 +125,28 @@ func (funcs typescriptTemplateFuncs) pascalCase(name string) string {
 // of the parent type (Client for Query).
 func (funcs typescriptTemplateFuncs) optsTypeName(parent, field string) string {
 	return parent + funcs.pascalCase(field) + "Opts"
+}
+
+// enumConverterPrefix returns the prefix of an enum's "<Enum>ValueToName" /
+// "<Enum>NameToValue" converters, which every call site spells with the enum's
+// raw type name. The legacy converter happens to leave type names alone; with
+// engine-formatted names the type name is used as is, since a dependency named
+// by the legacy rules can still bring a type the engine would recase
+// (HttpMethod), and recasing only the declaration would break its callers.
+func (funcs typescriptTemplateFuncs) enumConverterPrefix(typeName string) string {
+	if funcs.engineNames() {
+		return typeName
+	}
+	return toPascalCase(typeName)
+}
+
+// engineNames reports whether the schema has engine-formatted names.
+func (funcs typescriptTemplateFuncs) engineNames() bool {
+	schema := funcs.fullSchema
+	if schema == nil {
+		schema = generator.GetSchema()
+	}
+	return schema != nil && len(schema.FormattedNames) > 0
 }
 
 // legacyOptsTypeName returns the name the generator gave a field's Opts type

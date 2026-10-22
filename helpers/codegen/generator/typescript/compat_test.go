@@ -153,6 +153,36 @@ func TestGenerateModule_CompatShimSkips(t *testing.T) {
 		"the loader must evaluate the shim before any dispatch")
 }
 
+// TestGenerateModule_CompatShimEngineNames: with the engine's naming rules
+// (a schema with Query.formatIdentifiers), a renamed root field is installed
+// under its new name and, deprecated, its old one — on the core Client through
+// the shim, and as a top-level function of its module's client.
+func TestGenerateModule_CompatShimEngineNames(t *testing.T) {
+	schema := compatSchema(t)
+	query := schema.Query()
+	str := &introspection.TypeRef{Kind: introspection.TypeKindNonNull, OfType: &introspection.TypeRef{Kind: introspection.TypeKindScalar, Name: "String"}}
+	query.Fields = append(query.Fields,
+		&introspection.Field{Name: "awsCli", TypeRef: str, Directives: introspection.Directives{newSourceMapDirective("plain")}},
+		&introspection.Field{Name: "formatIdentifiers", TypeRef: str},
+	)
+	generator.SetSchemaParents(schema)
+
+	state, err := generate(generator.Config{
+		ModuleConfig: &generator.ModuleGeneratorConfig{ModuleName: "app", EmitLoader: true, FlatClients: true},
+	}, ClientGenFile, schema, "v1.0.0-beta.21")
+	require.NoError(t, err)
+
+	compat := readOverlay(t, state, "compat.gen.ts")
+	require.Contains(t, compat, "    awsCLI(): Promise<string>\n")
+	require.Contains(t, compat, `    awsCli: Client["awsCLI"]`)
+	require.Contains(t, compat, `__install("awsCLI", (...args: any[]) =>`)
+	require.Contains(t, compat, "__install(\"awsCli\", (...args: any[]) =>\n  (__dagPlain.awsCLI as any)(...args),")
+
+	plain := readOverlay(t, state, "plain.gen.ts")
+	require.Contains(t, plain, "export function awsCLI(): Promise<string> {")
+	require.Contains(t, plain, "export const awsCli = awsCLI")
+}
+
 // TestGenerateModule_CompatShimOnlyWithClients covers both ends of when the
 // file exists at all: a scope with no module client has nothing to restore, and
 // a standalone client scope has no loader to evaluate a shim, so neither gets
