@@ -11,6 +11,7 @@ import (
 
 	"codegen/generator"
 	"codegen/generator/typescript/templates"
+	"codegen/introspection"
 )
 
 // DefaultEntrypointFile is the filename of the static dispatch entrypoint
@@ -48,13 +49,29 @@ func (g *TypeScriptGenerator) GenerateEntrypoint(ctx context.Context) (*generato
 		}
 	}
 
-	tmpl := templates.NewEntrypoint(&module, templates.EntrypointOptions{
+	opts := templates.EntrypointOptions{
 		SDKImportPath:    cfg.SDKImportPath,
 		ModuleRoot:       cfg.ModuleRoot,
 		SourceDir:        cfg.SourceDir,
 		DispatchMode:     cfg.DispatchMode,
 		LoaderImportPath: cfg.LoaderImportPath,
-	})
+	}
+	if cfg.IntrospectionJSONPath != "" {
+		schemaJSON, err := os.ReadFile(cfg.IntrospectionJSONPath)
+		if err != nil {
+			return nil, fmt.Errorf("read introspection json %q: %w", cfg.IntrospectionJSONPath, err)
+		}
+		var resp introspection.Response
+		if err := json.Unmarshal(schemaJSON, &resp); err != nil {
+			return nil, fmt.Errorf("parse introspection json: %w", err)
+		}
+		// The same gate as the bindings: the module's schema is served at the
+		// module's engine version, and Query.formatIdentifiers is in it exactly
+		// when the engine names the module's declarations with engine/naming.
+		opts.EngineNaming = resp.Schema.HasFormatIdentifiers()
+		opts.NamingVersion = resp.SchemaVersion
+	}
+	tmpl := templates.NewEntrypoint(&module, opts)
 
 	topLevel := "entrypoint"
 	if cfg.DispatchMode {

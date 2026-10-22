@@ -112,6 +112,7 @@ func runEntrypoint(args []string) error {
 		sourceDir    = fs.String("source-dir", "src", "the module's source directory, relative to its root")
 		dispatch     = fs.Bool("dispatch", false, "render the manifest-v2 dispatcher (stdin/stdout, no register) instead of the legacy entrypoint")
 		loaderImport = fs.String("loader-import", "", "where the entrypoint imports the object loader from, relative to the module root (default clients/loader.gen.js)")
+		schemaPath   = fs.String("introspection-json-path", "", "the module's own schema, read for the naming gate: with Query.formatIdentifiers, calls through the module's interfaces use the engine's names")
 	)
 	if err := fs.Parse(args); err != nil {
 		return err
@@ -130,13 +131,14 @@ func runEntrypoint(args []string) error {
 	cfg := generator.Config{
 		OutputDir: *outputDir,
 		EntrypointConfig: &generator.EntrypointGeneratorConfig{
-			TypedefJSONPath:  *typedefPath,
-			OutputFile:       outName,
-			ModuleRoot:       *moduleRoot,
-			SDKImportPath:    *sdkImport,
-			SourceDir:        *sourceDir,
-			DispatchMode:     *dispatch,
-			LoaderImportPath: *loaderImport,
+			TypedefJSONPath:       *typedefPath,
+			OutputFile:            outName,
+			ModuleRoot:            *moduleRoot,
+			SDKImportPath:         *sdkImport,
+			SourceDir:             *sourceDir,
+			DispatchMode:          *dispatch,
+			LoaderImportPath:      *loaderImport,
+			IntrospectionJSONPath: *schemaPath,
 		},
 	}
 	gen := &typescriptgenerator.TypeScriptGenerator{Config: cfg}

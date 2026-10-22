@@ -147,6 +147,13 @@ type EntrypointGeneratorConfig struct {
 	// embedded [runtime] layout passes sdk/loader.gen.js, since its loader ships
 	// inside the library directory.
 	LoaderImportPath string
+
+	// IntrospectionJSONPath, when set, is the module's own schema (the
+	// introspection JSON the module bindings are generated from), read for the
+	// naming gate: a schema with Query.formatIdentifiers means the engine names
+	// the module's declarations with its naming rules, so calls through the
+	// module's own interfaces select those names. Empty keeps the legacy names.
+	IntrospectionJSONPath string
 }
 
 // Specific configuration for generating the Dang module entrypoint — the program

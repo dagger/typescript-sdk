@@ -1474,13 +1474,25 @@ type TypescriptSdk {
     codegenBuilder.withNewFile("/typedef.json", typedef)
   }
 
-  let generateModuleEntrypoint(typedef: String!): File! {
+  """
+  The codegen container for a dispatch entrypoint: the typedef, plus the
+  module's own schema, which is the naming gate. A module schema with
+  Query.formatIdentifiers (served at v1.0.0-beta.21 or later) means the engine
+  names the module's declarations with its naming rules, so calls the
+  entrypoint makes through the module's own interfaces use those names.
+  """
+  let dispatchCodegen(typedef: String!, schemaJSON: String!): Container! {
+    entrypointCodegen(typedef).withNewFile("/schema.json", schemaJSON)
+  }
+
+  let generateModuleEntrypoint(typedef: String!, schemaJSON: String!): File! {
     # The embedded layout ships the loader inside sdk/, beside the clients the
     # runtime mounts with it, so the entrypoint imports it from there.
-    entrypointCodegen(typedef)
+    dispatchCodegen(typedef, schemaJSON)
       .withExec([
         "codegen", "entrypoint",
         "--typedef-json-path", "/typedef.json",
+        "--introspection-json-path", "/schema.json",
         "--output", "/out",
         "--module-root", "/work",
         "--source-dir", "src",
@@ -1497,15 +1509,16 @@ type TypescriptSdk {
   __dagger.entrypoint.ts the builtin runtime execs — the two are the same half
   of two different loading paths, and a module is on one of them.
   """
-  let generateModuleDispatcher(typedef: String!): File! {
+  let generateModuleDispatcher(typedef: String!, schemaJSON: String!): File! {
     # The dispatcher serves nothing: each generated client serves its own module
     # before the first query that reaches it — a `dag.<module>()` call through
     # the client's served context, or a received value loaded through the loader,
     # which sits under clients/ beside the packages it imports.
-    entrypointCodegen(typedef)
+    dispatchCodegen(typedef, schemaJSON)
       .withExec([
         "codegen", "entrypoint", "--dispatch",
         "--typedef-json-path", "/typedef.json",
+        "--introspection-json-path", "/schema.json",
         "--output", "/out",
         "--module-root", "/work",
         "--source-dir", "src",
@@ -1612,7 +1625,7 @@ type TypescriptSdk {
       directory
         .withDirectory("clients", withClientPackageManifests(clients, clientNames))
         .withDirectory("clients/dagger", corePackage(bindings))
-        .withFile(dispatchFile, generateModuleDispatcher(typedef))
+        .withFile(dispatchFile, generateModuleDispatcher(typedef, schemaJSON))
         .withFile(
           dangEntrypointDir + "/" + dangEntrypointFile,
           generateDangEntrypoint(typedef, moduleName, sourcePath, runtime, packageManager, image, includes),
@@ -1620,7 +1633,7 @@ type TypescriptSdk {
     } else {
       directory
         .withDirectory("sdk", sdk)
-        .withFile(legacyEntrypointFile, generateModuleEntrypoint(typedef))
+        .withFile(legacyEntrypointFile, generateModuleEntrypoint(typedef, schemaJSON))
     }
 
     # The config the module's source resolves its clients through. Entrypoint:

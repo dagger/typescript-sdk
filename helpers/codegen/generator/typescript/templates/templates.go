@@ -98,4 +98,15 @@ type EntrypointOptions struct {
 	// LoaderImportPath overrides where the entrypoint imports the object loader
 	// from, relative to the module root (empty = clients/loader.gen.js).
 	LoaderImportPath string
+
+	// EngineNaming reports whether the module's declarations are named by the
+	// engine's naming rules (engine/naming) rather than the legacy strcase
+	// ones: its schema has Query.formatIdentifiers. Calls through the module's
+	// own interfaces then select the names the engine gives them; otherwise
+	// they keep the names the entrypoint always used.
+	EngineNaming bool
+
+	// NamingVersion selects the naming dictionary under EngineNaming: the
+	// __schemaVersion of the module's schema. Empty means the latest.
+	NamingVersion string
 }

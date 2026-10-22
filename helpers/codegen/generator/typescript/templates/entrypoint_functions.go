@@ -10,6 +10,8 @@ import (
 	"strings"
 	"text/template"
 	"unicode"
+
+	"codegen/naming"
 )
 
 // LoaderImportPath is where the generated entrypoints import the object
@@ -47,6 +49,7 @@ func EntrypointTemplateFuncs(module *TypedefModule, opts EntrypointOptions) temp
 		"argCoercionLine":      c.argCoercionLine,
 		"hasDefault":           hasDefault,
 		"engineIfaceTypeName":  c.engineIfaceTypeName,
+		"ifaceFieldName":       c.ifaceFieldName,
 		"plannedImports":       c.plannedImports,
 		"isVariadic":           func(a *TypedefArgument) bool { return a.IsVariadic },
 		"propFieldName":        propFieldName,
@@ -478,12 +481,75 @@ func (c *entrypointFuncCtx) argCoercionLine(arg *TypedefArgument) string {
 	)
 }
 
-// engineIfaceTypeName returns "<Module><Iface>" — the namespaced GraphQL type
-// name under which a module interface is registered in the schema. The iface
-// wrapper uses it with node(id:) (via Context.selectNode) to instantiate from
-// its engine-side ID.
+// engineIfaceTypeName returns the namespaced GraphQL type name under which a
+// module interface is registered in the schema. The iface wrapper uses it with
+// node(id:) (via Context.selectNode) to instantiate from its engine-side ID.
+//
+// Legacy (strcase) naming spells it "<Module><Iface>". A module named by the
+// engine's naming rules (EntrypointOptions.EngineNaming) gets the name the
+// engine gives it: the module's name followed by the interface's, unless the
+// interface's name already starts with the module's words (core.Namer's
+// NamespaceObject), in PascalCase with uppercase acronyms — HttpFetcher in
+// module pond is PondHTTPFetcher.
 func (c *entrypointFuncCtx) engineIfaceTypeName(iface *TypedefInterface) string {
-	return pascalize(c.module.Name) + iface.Name
+	dict := c.namingDictionary()
+	if dict == nil {
+		return pascalize(c.module.Name) + iface.Name
+	}
+	obj, err := dict.Parse(iface.Name)
+	if err != nil {
+		return pascalize(c.module.Name) + iface.Name
+	}
+	mod, err := dict.Parse(c.module.Name)
+	if err != nil {
+		return pascalize(c.module.Name) + iface.Name
+	}
+	rest := obj.Words
+	if hasWordPrefix(obj.Words, mod.Words) {
+		rest = obj.Words[len(mod.Words):]
+	}
+	words := append(append([]naming.Word(nil), mod.Words...), rest...)
+	return naming.Identifier{Words: words}.Format(naming.Pascal, naming.Uppercase)
+}
+
+// hasWordPrefix reports whether words starts with prefix, comparing words by
+// their spelling, ignoring case, like the engine does.
+func hasWordPrefix(words, prefix []naming.Word) bool {
+	if len(prefix) > len(words) {
+		return false
+	}
+	for i, w := range prefix {
+		if !strings.EqualFold(words[i].Text, w.Text) || !strings.EqualFold(words[i].Suffix, w.Suffix) {
+			return false
+		}
+	}
+	return true
+}
+
+// ifaceFieldName returns the schema name of a function or argument of a module
+// interface, which a call through the interface selects by: the TS name as
+// declared under legacy naming, the engine's camelCase with uppercase acronyms
+// (getUrl is getURL) for a module named by the engine's naming rules. A name
+// the engine can't parse stays as it is, as the engine leaves it.
+func (c *entrypointFuncCtx) ifaceFieldName(name string) string {
+	dict := c.namingDictionary()
+	if dict == nil {
+		return name
+	}
+	id, err := dict.Parse(name)
+	if err != nil {
+		return name
+	}
+	return id.Format(naming.Camel, naming.Uppercase)
+}
+
+// namingDictionary is the dictionary of the engine's naming rules the module's
+// declarations are named by, or nil for the legacy (strcase) rules.
+func (c *entrypointFuncCtx) namingDictionary() *naming.Dictionary {
+	if !c.opts.EngineNaming {
+		return nil
+	}
+	return naming.DictionaryFor(c.opts.NamingVersion)
 }
 
 // plannedImports returns an ordered slice of import lines to emit. Encodes
