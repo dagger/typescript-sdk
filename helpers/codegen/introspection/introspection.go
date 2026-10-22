@@ -31,6 +31,12 @@ type Schema struct {
 
 	Types      Types           `json:"types"`
 	Directives []*DirectiveDef `json:"directives"`
+
+	// FormattedNames holds schema names formatted by the engine's naming
+	// rules, per name format, for codegen to look up with FormattedName. It is
+	// never part of the schema JSON: codegen fills it in with
+	// LoadFormattedNames.
+	FormattedNames map[NameFormat]map[string]string `json:"-"`
 }
 
 func (s *Schema) Query() *Type {

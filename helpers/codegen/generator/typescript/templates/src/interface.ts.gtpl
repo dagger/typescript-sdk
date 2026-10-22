@@ -19,9 +19,15 @@
 export interface {{ .Name | FormatName }} { {{- with .Directives.SourceMap }} // {{ .Module }} ({{ .Filelink | ModuleRelPath }}) {{- end }}
 			{{- range $field := .Fields }}
 				{{- if Solve . }}
-  {{ .Name | FormatName }}({{ template "interface_args" . }}): Promise<{{ . | FormatFieldReturnType }}>
+  {{ .Name | FormatMethodName }}({{ template "interface_args" . }}): Promise<{{ . | FormatFieldReturnType }}>
 				{{- else }}
-  {{ .Name | FormatName }}({{ template "interface_args" . }}): {{ .TypeRef | FormatOutputType }}
+  {{ .Name | FormatMethodName }}({{ template "interface_args" . }}): {{ .TypeRef | FormatOutputType }}
+				{{- end }}
+				{{- with MethodAlias . false }}
+  /**
+   * @deprecated use {{ .Name }} instead.
+   */
+  {{ .Legacy }}: {{ .Class }}["{{ .Name }}"]
 				{{- end }}
 			{{- end }}
 }
@@ -83,10 +89,10 @@ export class _{{ .Name | FormatName }}Client extends BaseClient { {{- with .Dire
 		{{- if .TypeRef.IsOptional }}
 			{{- $opt = "?" }}
 		{{- end }}
-		{{- .Name | FormatName }}{{ $opt }}: {{ . | FormatInputType }}
+		{{- .Name | FormatArgName }}{{ $opt }}: {{ . | FormatInputType }}
 		{{- if or (ne $index $maxIndex) $optionals }}, {{ end }}
 	{{- end }}
 	{{- if $optionals }}
-		{{- "" }}opts?: {{ $.ParentObject.Name }}{{ .Name | PascalCase }}Opts
+		{{- "" }}opts?: {{ OptsTypeName $.ParentObject.Name .Name }}
 	{{- end }}
 {{- end }}
