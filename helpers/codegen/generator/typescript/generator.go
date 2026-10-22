@@ -56,10 +56,11 @@ func generate(config generator.Config, target string, schema *introspection.Sche
 	generator.SetSchema(schema)
 
 	// TypeScript identifiers are the schema's names as the engine's naming
-	// rules format them, when the schema has Query.formatIdentifiers (see
-	// templates/naming.go). Older schemas format nothing and keep the legacy
-	// converters.
-	if err := schema.LoadFormattedNames(schemaVersion, templates.NameFormats...); err != nil {
+	// rules format them, when the schema has Query.formatIdentifiers and the
+	// engine that served it names modules with those rules (see
+	// templates/naming.go). Otherwise nothing is formatted and the legacy
+	// converters apply.
+	if err := schema.LoadFormattedNames(schemaVersion, config.EngineVersion, templates.NameFormats...); err != nil {
 		return nil, err
 	}
 

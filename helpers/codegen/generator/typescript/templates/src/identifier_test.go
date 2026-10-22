@@ -118,9 +118,10 @@ const identifierSchemaJSON = `
 `
 
 // identifierSchema loads identifierSchemaJSON, with Query.formatIdentifiers
-// when gated, the way the generator does: names are formatted only when the
-// schema has the field.
-func identifierSchema(t *testing.T, gated bool) *introspection.Schema {
+// when gated, the way the generator does for an engine at engineVersion:
+// names are formatted only when the schema has the field and the engine is
+// v1.0.0-beta.21 or later.
+func identifierSchema(t *testing.T, gated bool, engineVersion string) *introspection.Schema {
 	t.Helper()
 	schema := objectsInit(t, identifierSchemaJSON)
 	schema.QueryType.Name = "Query"
@@ -137,14 +138,14 @@ func identifierSchema(t *testing.T, gated bool) *introspection.Schema {
 			ParentObject: query,
 		})
 	}
-	require.NoError(t, schema.LoadFormattedNames("v1.0.0-beta.21", templates.NameFormats...))
+	require.NoError(t, schema.LoadFormattedNames("v1.0.0-beta.21", engineVersion, templates.NameFormats...))
 	generator.SetSchema(&schema)
 	t.Cleanup(func() { generator.SetSchema(nil) })
 	return &schema
 }
 
 func TestEngineFormattedNames(t *testing.T) {
-	got := renderAPI(t, identifierSchema(t, true), "v1.0.0-beta.21")
+	got := renderAPI(t, identifierSchema(t, true, "v1.0.0-beta.21"), "v1.0.0-beta.21")
 
 	// methods, with a deprecated alias under the old name
 	require.Contains(t, got, "shortSHA = async (): Promise<string> => {")
@@ -203,10 +204,27 @@ func TestEngineFormattedNames(t *testing.T) {
 // Without Query.formatIdentifiers (a schema view before v1.0.0-beta.21), every
 // name goes through the legacy converters.
 func TestEngineFormattedNamesFallback(t *testing.T) {
-	schema := identifierSchema(t, false)
-	require.Nil(t, schema.FormattedNames)
-	got := renderAPI(t, schema, "v1.0.0-beta.20")
+	for name, tc := range map[string]struct {
+		gated  bool
+		engine string
+	}{
+		"schema without formatIdentifiers": {false, "v1.0.0-beta.21"},
+		// Released beta.19/beta.20 engines serve formatIdentifiers on every v1
+		// view (with __schemaVersion "v1.0.0") but still name modules with
+		// strcase: the engine's own version decides.
+		"beta.20 engine serving formatIdentifiers": {true, "v1.0.0-beta.20"},
+		"unknown engine version":                   {true, ""},
+	} {
+		t.Run(name, func(t *testing.T) {
+			schema := identifierSchema(t, tc.gated, tc.engine)
+			require.Nil(t, schema.FormattedNames)
+			assertLegacyNames(t, renderAPI(t, schema, "v1.0.0"))
+		})
+	}
+}
 
+func assertLegacyNames(t *testing.T, got string) {
+	t.Helper()
 	require.Contains(t, got, "shortSha = async (): Promise<string> => {")
 	require.NotContains(t, got, "shortSHA")
 	require.Contains(t, got, "withToolResult = (callId: string,")

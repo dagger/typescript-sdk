@@ -823,7 +823,7 @@ type TypescriptSdk {
     } else {
       let freshArgs = if (fresh) { ["--fresh"] } else { [] }
       let contents = codegenBuilder
-        .withExec(["codegen", "dang-toml", "--engine-version", version] + freshArgs)
+        .withExec(["codegen", "dang-toml", "--engine-version", runningEngineVersion] + freshArgs)
         .stdout
       if (contents == "") {
         ws
@@ -1152,6 +1152,18 @@ type TypescriptSdk {
   }
 
   """
+  The version of the engine running this generation (Query.version), as it
+  reports it. Codegen runs engine-free, so it is passed in where it decides
+  something: with a schema that has Query.formatIdentifiers, an engine at
+  v1.0.0-beta.21 or later is what names identifiers with the engine's naming
+  rules. The schema alone can't tell — released beta.19 and beta.20 engines
+  serve formatIdentifiers on v1 views while still naming modules with strcase.
+  """
+  let runningEngineVersion: String! {
+    version
+  }
+
+  """
   Container with the config-updater helper compiled and on PATH.
   """
   let configUpdaterBuilder: Container! {
@@ -1223,6 +1235,7 @@ type TypescriptSdk {
       .withExec([
         "codegen", "module",
         "--introspection-json-path", "/schema.json",
+        "--engine-version", runningEngineVersion,
         "--module-name", moduleName,
         "--output", "/out",
         "--workspace-repo-url", repoURL,
@@ -1543,6 +1556,7 @@ type TypescriptSdk {
         "codegen", "entrypoint",
         "--typedef-json-path", "/typedef.json",
         "--introspection-json-path", "/schema.json",
+        "--engine-version", runningEngineVersion,
         "--output", "/out",
         "--module-root", "/work",
         "--source-dir", "src",
@@ -1569,6 +1583,7 @@ type TypescriptSdk {
         "codegen", "entrypoint", "--dispatch",
         "--typedef-json-path", "/typedef.json",
         "--introspection-json-path", "/schema.json",
+        "--engine-version", runningEngineVersion,
         "--output", "/out",
         "--module-root", "/work",
         "--source-dir", "src",
@@ -2408,6 +2423,7 @@ type TypescriptSdk {
       .withExec([
         "codegen", "client",
         "--client-meta-path", "/meta.json",
+        "--engine-version", runningEngineVersion,
         "--packaged-clients",
         "--output", "/out",
         "--workspace-repo-url", repoURL,

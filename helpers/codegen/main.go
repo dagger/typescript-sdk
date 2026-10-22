@@ -117,6 +117,7 @@ func runEntrypoint(args []string) error {
 		dispatch     = fs.Bool("dispatch", false, "render the manifest-v2 dispatcher (stdin/stdout, no register) instead of the legacy entrypoint")
 		loaderImport = fs.String("loader-import", "", "where the entrypoint imports the object loader from, relative to the module root (default clients/loader.gen.js)")
 		schemaPath   = fs.String("introspection-json-path", "", "the module's own schema, read for the naming gate: with Query.formatIdentifiers, calls through the module's interfaces use the engine's names")
+		engine       = engineVersionFlag(fs)
 	)
 	if err := fs.Parse(args); err != nil {
 		return err
@@ -133,7 +134,8 @@ func runEntrypoint(args []string) error {
 	}
 
 	cfg := generator.Config{
-		OutputDir: *outputDir,
+		OutputDir:     *outputDir,
+		EngineVersion: *engine,
 		EntrypointConfig: &generator.EntrypointGeneratorConfig{
 			TypedefJSONPath:       *typedefPath,
 			OutputFile:            outName,
@@ -248,6 +250,14 @@ func runDangToml(args []string) error {
 	return err
 }
 
+// engineVersionFlag registers --engine-version: the running engine's version
+// (Query.version), which, with the schema having Query.formatIdentifiers,
+// gates the engine's naming rules. Codegen runs engine-free, so the SDK reads
+// it in its own session and passes it in.
+func engineVersionFlag(fs *flag.FlagSet) *string {
+	return fs.String("engine-version", "", "the running engine's version (Query.version); with a schema that has Query.formatIdentifiers, v1.0.0-beta.21 or later names identifiers with the engine's naming rules, and empty keeps the legacy names")
+}
+
 // parsePackageManager splits the `name[@version]` spelling the Node ecosystem
 // uses for `packageManager`, and the SDK passes through unchanged. An empty spec
 // leaves the choice to the generator, which falls back to the runtime's own.
@@ -303,6 +313,7 @@ func runLibrary(args []string) error {
 	var (
 		introspectionPath = fs.String("introspection-json-path", "", "path to the introspection schema JSON")
 		outputDir         = fs.String("output", ".", "output directory for the generated bindings")
+		engine            = engineVersionFlag(fs)
 	)
 	if err := fs.Parse(args); err != nil {
 		return err
@@ -311,7 +322,7 @@ func runLibrary(args []string) error {
 	return generateFromSchema(
 		"library bindings",
 		*introspectionPath,
-		generator.Config{OutputDir: *outputDir},
+		generator.Config{OutputDir: *outputDir, EngineVersion: *engine},
 		(*typescriptgenerator.TypeScriptGenerator).GenerateLibrary,
 	)
 }
@@ -327,6 +338,7 @@ func runModule(args []string) error {
 		flat              = fs.Bool("flat-clients", false, "write the client files and the loader beside client.gen.ts in the output root, for the embedded [runtime] layout that ships them inside sdk/")
 		repoURL           = fs.String("workspace-repo-url", "", "Git repository the workspace was loaded from; source-map URLs into it are dropped for the module-relative filename")
 		clientsDir        = fs.String("clients-dir", "", "workspace-relative directory the generated client files land in; source-map filenames are rebased against it")
+		engine            = engineVersionFlag(fs)
 	)
 	if err := fs.Parse(args); err != nil {
 		return err
@@ -366,7 +378,8 @@ func runModule(args []string) error {
 	schema.StripSourceMapURLs(*repoURL)
 
 	gen := &typescriptgenerator.TypeScriptGenerator{Config: generator.Config{
-		OutputDir: *outputDir,
+		OutputDir:     *outputDir,
+		EngineVersion: *engine,
 		ModuleConfig: &generator.ModuleGeneratorConfig{
 			ModuleName:      *moduleName,
 			BoundModules:    bound,
@@ -454,6 +467,7 @@ func runClient(args []string) error {
 		packaged       = fs.Bool("packaged-clients", false, "nest each client in its own <module>/<module>.gen.ts package directory")
 		repoURL        = fs.String("workspace-repo-url", "", "Git repository the workspace was loaded from; source-map URLs into it are dropped for the module-relative filename")
 		clientsDir     = fs.String("clients-dir", "", "workspace-relative directory the generated client files land in; source-map filenames are rebased against it")
+		engine         = engineVersionFlag(fs)
 	)
 	if err := fs.Parse(args); err != nil {
 		return err
@@ -495,7 +509,8 @@ func runClient(args []string) error {
 	schema.StripSourceMapURLs(*repoURL)
 
 	gen := &typescriptgenerator.TypeScriptGenerator{Config: generator.Config{
-		OutputDir: *outputDir,
+		OutputDir:     *outputDir,
+		EngineVersion: *engine,
 		ModuleConfig: &generator.ModuleGeneratorConfig{
 			BoundModules:    bound,
 			FlatClients:     true,

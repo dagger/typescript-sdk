@@ -168,7 +168,8 @@ func TestGenerateModule_CompatShimEngineNames(t *testing.T) {
 	generator.SetSchemaParents(schema)
 
 	state, err := generate(generator.Config{
-		ModuleConfig: &generator.ModuleGeneratorConfig{ModuleName: "app", EmitLoader: true, FlatClients: true},
+		EngineVersion: "v1.0.0-beta.21",
+		ModuleConfig:  &generator.ModuleGeneratorConfig{ModuleName: "app", EmitLoader: true, FlatClients: true},
 	}, ClientGenFile, schema, "v1.0.0-beta.21")
 	require.NoError(t, err)
 
@@ -181,6 +182,24 @@ func TestGenerateModule_CompatShimEngineNames(t *testing.T) {
 	plain := readOverlay(t, state, "plain.gen.ts")
 	require.Contains(t, plain, "export function awsCLI(): Promise<string> {")
 	require.Contains(t, plain, "export const awsCli = awsCLI")
+
+	// A beta.20 engine serves formatIdentifiers too, but still names modules
+	// with strcase: the same schema keeps the legacy names there.
+	schema = compatSchema(t)
+	query = schema.Query()
+	query.Fields = append(query.Fields,
+		&introspection.Field{Name: "awsCli", TypeRef: str, Directives: introspection.Directives{newSourceMapDirective("plain")}},
+		&introspection.Field{Name: "formatIdentifiers", TypeRef: str},
+	)
+	generator.SetSchemaParents(schema)
+	state, err = generate(generator.Config{
+		EngineVersion: "v1.0.0-beta.20",
+		ModuleConfig:  &generator.ModuleGeneratorConfig{ModuleName: "app", EmitLoader: true, FlatClients: true},
+	}, ClientGenFile, schema, "v1.0.0")
+	require.NoError(t, err)
+	compat = readOverlay(t, state, "compat.gen.ts")
+	require.Contains(t, compat, "    awsCli(): Promise<string>\n")
+	require.NotContains(t, compat, "awsCLI")
 }
 
 // TestGenerateModule_CompatShimOnlyWithClients covers both ends of when the

@@ -73,13 +73,15 @@ func pondTypedefJSON(t *testing.T) string {
 	return path
 }
 
-// The module schema is the naming gate for calls through the module's own
-// interfaces, in both the legacy entrypoint and the dispatcher.
+// The module schema and the engine's version are the naming gate for calls
+// through the module's own interfaces, in both the legacy entrypoint and the
+// dispatcher.
 func TestGenerateEntrypointInterfaceNamingGate(t *testing.T) {
 	typedef := pondTypedefJSON(t)
 	for _, dispatch := range []bool{false, true} {
-		render := func(schemaPath string) string {
+		render := func(schemaPath, engineVersion string) string {
 			gen := &TypeScriptGenerator{Config: generator.Config{
+				EngineVersion: engineVersion,
 				EntrypointConfig: &generator.EntrypointGeneratorConfig{
 					TypedefJSONPath:       typedef,
 					ModuleRoot:            "/work",
@@ -98,15 +100,20 @@ func TestGenerateEntrypointInterfaceNamingGate(t *testing.T) {
 			return readOverlay(t, state, file)
 		}
 
-		legacy := render("")
+		legacy := render("", "v1.0.0-beta.21")
 		require.Contains(t, legacy, `selectNode(id, "PondHttpFetcher")`)
 		require.Contains(t, legacy, `select("getUrl", __args)`)
 
 		// a pre-cut module schema keeps the legacy names, byte for byte
-		require.Equal(t, legacy, render(moduleSchemaJSON(t, false, "v1.0.0-beta.20")))
+		require.Equal(t, legacy, render(moduleSchemaJSON(t, false, "v1.0.0-beta.20"), "v1.0.0-beta.21"))
+
+		// so does a beta.20 engine, which serves formatIdentifiers on v1 views
+		// but still names modules with strcase, and an unknown engine
+		require.Equal(t, legacy, render(moduleSchemaJSON(t, true, "v1.0.0"), "v1.0.0-beta.20"))
+		require.Equal(t, legacy, render(moduleSchemaJSON(t, true, "v1.0.0"), ""))
 
 		// from the cut, the names the engine gives the module's declarations
-		gated := render(moduleSchemaJSON(t, true, "v1.0.0-beta.21"))
+		gated := render(moduleSchemaJSON(t, true, "v1.0.0-beta.21"), "v1.0.0-beta.21+abc")
 		require.Contains(t, gated, `selectNode(id, "PondHTTPFetcher")`)
 		require.Contains(t, gated, `__args["comURL"] = comUrl`)
 		require.Contains(t, gated, `select("getURL", __args)`)

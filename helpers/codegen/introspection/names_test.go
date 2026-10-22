@@ -59,13 +59,13 @@ var (
 // v1.0.0-beta.21) formats nothing, so codegen keeps its legacy converters.
 func TestLoadFormattedNamesGate(t *testing.T) {
 	schema := namesTestSchema(false)
-	require.NoError(t, schema.LoadFormattedNames("v1.0.0-beta.20", camelUpper))
+	require.NoError(t, schema.LoadFormattedNames("v1.0.0-beta.20", "v1.0.0-beta.21", camelUpper))
 	require.Nil(t, schema.FormattedNames)
 	_, ok := schema.FormattedName("httpClient", camelUpper)
 	require.False(t, ok)
 
 	schema = namesTestSchema(true)
-	require.NoError(t, schema.LoadFormattedNames("v1.0.0-beta.21", camelUpper, pascalUpper, pascalCap))
+	require.NoError(t, schema.LoadFormattedNames("v1.0.0-beta.21", "v1.0.0-beta.21", camelUpper, pascalUpper, pascalCap))
 	for name, want := range map[NameFormat]map[string]string{
 		camelUpper:  {"httpClient": "httpClient", "insecureSkipTLSVerify": "insecureSkipTLSVerify", "LLMContentBlockInput": "llmContentBlockInput"},
 		pascalUpper: {"httpClient": "HTTPClient", "commitSHA": "CommitSHA", "SHARED": "Shared"},
@@ -85,6 +85,27 @@ func TestLoadFormattedNamesGate(t *testing.T) {
 	got, ok := schema.Exclude("someModule").FormattedName("httpClient", pascalUpper)
 	require.True(t, ok)
 	require.Equal(t, "HTTPClient", got)
+}
+
+// The other half of the gate: released beta.19 and beta.20 engines serve
+// Query.formatIdentifiers on every v1 view (with __schemaVersion "v1.0.0") but
+// still name modules with strcase, so their schemas keep the legacy names. So
+// does an unknown engine version.
+func TestLoadFormattedNamesEngineGate(t *testing.T) {
+	for _, engine := range []string{"v1.0.0-beta.20", "v1.0.0-beta.19", "v1.0.0-beta.20+abc", "", "devel", "v0.21.9"} {
+		schema := namesTestSchema(true)
+		require.False(t, schema.UsesEngineNaming(engine), engine)
+		require.NoError(t, schema.LoadFormattedNames("v1.0.0", engine, camelUpper))
+		require.Nil(t, schema.FormattedNames, engine)
+	}
+	for _, engine := range []string{"v1.0.0-beta.21", "1.0.0-beta.22", "v1.0.0-beta.21+42424242.dirty", "v1.0.0-dev-0a53dcd", "v1.0.0", "v1.1.0"} {
+		schema := namesTestSchema(true)
+		require.True(t, schema.UsesEngineNaming(engine), engine)
+		require.NoError(t, schema.LoadFormattedNames("v1.0.0", engine, camelUpper))
+		require.NotNil(t, schema.FormattedNames, engine)
+	}
+	// and the field is still required
+	require.False(t, namesTestSchema(false).UsesEngineNaming("v1.0.0-beta.21"))
 }
 
 func TestFormatNamesUnknownFormat(t *testing.T) {

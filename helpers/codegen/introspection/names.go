@@ -5,6 +5,8 @@ import (
 	"sort"
 	"strings"
 
+	"golang.org/x/mod/semver"
+
 	"codegen/naming"
 )
 
@@ -15,11 +17,58 @@ import (
 // its shared test vectors and TestFormatIdentifiersParity are what keep the
 // two in step.
 //
-// The gate is the schema being generated: Query.formatIdentifiers is only
-// visible in views from v1.0.0-beta.21, the same views whose module
-// declarations the engine names with engine/naming. A schema without it
-// formats nothing, and codegen keeps its legacy converters, so older schemas
-// generate byte-identical code.
+// The gate is the schema being generated and the engine generating it:
+// Query.formatIdentifiers is visible in views from v1.0.0-beta.21, the same
+// views whose module declarations the engine names with engine/naming — but
+// released beta.19 and beta.20 engines already serve it on every v1 view while
+// still naming modules with strcase, and their __schemaVersion ("v1.0.0")
+// can't tell them apart. So the engine's own version (Query.version) has to be
+// v1.0.0-beta.21 or later too (see UsesEngineNaming). Otherwise codegen keeps
+// its legacy converters, so older schemas and engines generate byte-identical
+// code.
+
+// IdentifierCasingVersion is the first engine release that names module
+// declarations with engine/naming (engine.IdentifierCasingVersion).
+const IdentifierCasingVersion = "v1.0.0-beta.21"
+
+// UsesEngineNaming reports whether the schema's identifiers are named with
+// the engine's naming rules: it has Query.formatIdentifiers, and engineVersion,
+// the version of the engine that served it, is IdentifierCasingVersion or
+// later. An empty or unparseable engine version is not.
+func (s *Schema) UsesEngineNaming(engineVersion string) bool {
+	return s.HasFormatIdentifiers() && EngineVersionAtLeast(engineVersion, IdentifierCasingVersion)
+}
+
+// EngineVersionAtLeast reports whether an engine version, as Query.version
+// reports it, is minVersion or later. Build metadata is ignored, and a dev
+// build (a prerelease mentioning "dev") counts as its release, as the engine's
+// API views do. An empty or unparseable version is not.
+func EngineVersionAtLeast(engineVersion, minVersion string) bool {
+	v, ok := NormalizeEngineVersion(engineVersion)
+	if !ok {
+		return false
+	}
+	if pre := semver.Prerelease(v); strings.Contains(pre, "dev") {
+		v = strings.TrimSuffix(v, pre)
+	}
+	return semver.Compare(v, minVersion) >= 0
+}
+
+// NormalizeEngineVersion returns an engine version with a "v" prefix and no
+// build metadata, or false if it isn't a semantic version.
+func NormalizeEngineVersion(v string) (string, bool) {
+	v = strings.TrimSpace(v)
+	if v == "" {
+		return "", false
+	}
+	if !strings.HasPrefix(v, "v") {
+		v = "v" + v
+	}
+	if !semver.IsValid(v) {
+		return "", false
+	}
+	return strings.TrimSuffix(v, semver.Build(v)), true
+}
 
 // Casing is a convention for joining words into an identifier: a value of the
 // engine's Casing enum.
@@ -152,11 +201,12 @@ func FormatNames(names []string, f NameFormat, schemaVersion string) (map[string
 
 // LoadFormattedNames formats every name of the schema (see Names) in each of
 // formats, with the naming dictionary of schemaVersion (see FormatNames), and
-// keeps the results on the schema for FormattedName. A schema without
-// Query.formatIdentifiers is left as is, so FormattedName reports false and
-// codegen falls back to its legacy converters.
-func (s *Schema) LoadFormattedNames(schemaVersion string, formats ...NameFormat) error {
-	if !s.HasFormatIdentifiers() {
+// keeps the results on the schema for FormattedName. A schema that doesn't
+// use the engine's naming rules (UsesEngineNaming, with engineVersion the
+// version of the engine that served it) is left as is, so FormattedName
+// reports false and codegen falls back to its legacy converters.
+func (s *Schema) LoadFormattedNames(schemaVersion, engineVersion string, formats ...NameFormat) error {
+	if !s.UsesEngineNaming(engineVersion) {
 		return nil
 	}
 	names := s.Names()

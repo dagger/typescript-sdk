@@ -2,9 +2,8 @@ package typescriptgenerator
 
 import (
 	"fmt"
-	"strings"
 
-	"golang.org/x/mod/semver"
+	"codegen/introspection"
 )
 
 // DangTomlFile is the dang.toml written beside the generated Dang entrypoint
@@ -44,8 +43,8 @@ const (
 // version, minus build metadata; a module that already had an entrypoint is
 // pinned to PreCutDaggerVersion, the version it was being served at.
 func RenderDangToml(engineVersion string, fresh bool) string {
-	version, ok := normalizeEngineVersion(engineVersion)
-	if !ok || !atLeast(version, VersionedEntrypointsVersion) {
+	version, ok := introspection.NormalizeEngineVersion(engineVersion)
+	if !ok || !introspection.EngineVersionAtLeast(version, VersionedEntrypointsVersion) {
 		return ""
 	}
 	dagger := PreCutDaggerVersion
@@ -61,27 +60,4 @@ dang = %q
 [imports.Dagger]
 dagger = %q
 `, DangVersion, dagger)
-}
-
-// normalizeEngineVersion returns an engine version with a "v" prefix and no
-// build metadata, as dang.toml declares it.
-func normalizeEngineVersion(v string) (string, bool) {
-	v = strings.TrimSpace(v)
-	if !strings.HasPrefix(v, "v") {
-		v = "v" + v
-	}
-	if !semver.IsValid(v) {
-		return "", false
-	}
-	return strings.TrimSuffix(v, semver.Build(v)), true
-}
-
-// atLeast reports whether engine version v is min or later. A dev build (a
-// prerelease mentioning "dev") counts as its release, as the engine's own API
-// views do.
-func atLeast(v, minVersion string) bool {
-	if pre := semver.Prerelease(v); strings.Contains(pre, "dev") {
-		v = strings.TrimSuffix(v, pre)
-	}
-	return semver.Compare(v, minVersion) >= 0
 }

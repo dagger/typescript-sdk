@@ -66,9 +66,11 @@ func (g *TypeScriptGenerator) GenerateEntrypoint(ctx context.Context) (*generato
 			return nil, fmt.Errorf("parse introspection json: %w", err)
 		}
 		// The same gate as the bindings: the module's schema is served at the
-		// module's engine version, and Query.formatIdentifiers is in it exactly
-		// when the engine names the module's declarations with engine/naming.
-		opts.EngineNaming = resp.Schema.HasFormatIdentifiers()
+		// module's engine version, and has Query.formatIdentifiers from
+		// v1.0.0-beta.21 — but beta.19 and beta.20 engines serve the field
+		// too while still naming modules with strcase, so the engine's own
+		// version has to be past the cut as well.
+		opts.EngineNaming = resp.Schema.UsesEngineNaming(g.Config.EngineVersion)
 		opts.NamingVersion = resp.SchemaVersion
 	}
 	tmpl := templates.NewEntrypoint(&module, opts)
