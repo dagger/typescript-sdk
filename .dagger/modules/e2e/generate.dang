@@ -1328,13 +1328,34 @@ type GenerateChecks {
   through @dagger.io/dagger/<dep>.
   """
   generateDependencyBindingsCheck(ws: Workspace!): Void @check {
-    let changes = Gen.module(Gen.withDependency(ws), fixtures.depAppModule, "generate-deps-app")
+    let path = fixtures.depAppModule
+    # The module's own binding from a previous run, planted the way the stale
+    # bindings above are: a dependency's client is what tells an entry this SDK
+    # recorded from one nobody did, so the run has to see one to be deciding
+    # anything. This fixture's dependency is hand-written and was never a client,
+    # so its file carries no serve hook — the mirror of
+    # client:remove-module-client-prunes-dependency, which removes the entry of
+    # one whose file does.
+    let staged = Gen.withDependency(ws)
+      .withNewFile("/" + path + "/sdk/gendep.gen.ts", "export const planted = true\n")
+    let changes = Gen.module(staged, path, "generate-deps-app")
+    let tree = staged.withChanges(changes).directory("/" + path)
 
-    Asserts.generated(changes, fixtures.depAppModule + "/sdk/gendep.gen.ts")
+    Asserts.generated(changes, path + "/sdk/gendep.gen.ts")
     Asserts.notAdded(
       changes,
       fixtures.depLibModule + "/sdk/index.ts",
       "generating a dependent should not also write its dependency's files",
+    )
+    Asserts.stringContains(
+      tree.file("dagger-module.toml").contents,
+      "name = \"gendep\"",
+      "a hand-written dependency was never a client and must survive a generation",
+    )
+    Asserts.stringNotContains(
+      tree.file("sdk/gendep.gen.ts").contents,
+      "__serveModule",
+      "a manifest dependency the engine serves should get no serve hook of its own",
     )
 
     null
