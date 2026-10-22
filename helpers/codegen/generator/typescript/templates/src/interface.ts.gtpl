@@ -23,11 +23,14 @@ export interface {{ .Name | FormatName }} { {{- with .Directives.SourceMap }} //
 				{{- else }}
   {{ .Name | FormatMethodName }}({{ template "interface_args" . }}): {{ .TypeRef | FormatOutputType }}
 				{{- end }}
+				{{- /* Optional: a plain object implementing the interface
+				structurally needn't spell the old name too. The generated
+				client classes always carry it. */ -}}
 				{{- with MethodAlias . false }}
   /**
    * @deprecated use {{ .Name }} instead.
    */
-  {{ .Legacy }}: {{ .Class }}["{{ .Name }}"]
+  {{ .Legacy }}?: {{ .Class }}["{{ .Name }}"]
 				{{- end }}
 			{{- end }}
 }

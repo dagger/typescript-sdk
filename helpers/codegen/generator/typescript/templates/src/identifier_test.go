@@ -98,6 +98,21 @@ const identifierSchemaJSON = `
       {"name": "GET"}
     ],
     "possibleTypes": null
+  },
+  {
+    "kind": "INTERFACE",
+    "name": "Fetcher",
+    "fields": [
+      {
+        "name": "getUrl",
+        "args": [],
+        "type": {"kind": "NON_NULL", "ofType": {"kind": "SCALAR", "name": "String"}}
+      }
+    ],
+    "inputFields": null,
+    "interfaces": [],
+    "enumValues": null,
+    "possibleTypes": []
   }
 ]
 `
@@ -176,6 +191,13 @@ func TestEngineFormattedNames(t *testing.T) {
 	require.Contains(t, got, "value_to_name: HttpMethodValueToName")
 	require.Contains(t, got, "return HttpMethodNameToValue(response)")
 	require.NotContains(t, got, "HTTPMethod")
+
+	// interfaces: the old name is an optional member, so an object
+	// implementing the interface structurally needn't spell it; the
+	// generated client class always has it
+	require.Contains(t, got, "  getURL(): Promise<string>\n")
+	require.Contains(t, got, `  getUrl?: Fetcher["getURL"]`)
+	require.Contains(t, got, `  getUrl: Fetcher["getURL"] = (...args) =>`)
 }
 
 // Without Query.formatIdentifiers (a schema view before v1.0.0-beta.21), every
