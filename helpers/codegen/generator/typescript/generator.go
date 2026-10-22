@@ -55,6 +55,15 @@ func (g *TypeScriptGenerator) GenerateLibrary(_ context.Context, schema *introsp
 func generate(config generator.Config, target string, schema *introspection.Schema, schemaVersion string) (*generator.GeneratedState, error) {
 	generator.SetSchema(schema)
 
+	// TypeScript identifiers are the schema's names as the engine's naming
+	// rules format them, when the schema has Query.formatIdentifiers and the
+	// engine that served it names modules with those rules (see
+	// templates/naming.go). Otherwise nothing is formatted and the legacy
+	// converters apply.
+	if err := schema.LoadFormattedNames(schemaVersion, config.EngineVersion, templates.NameFormats...); err != nil {
+		return nil, err
+	}
+
 	sort.SliceStable(schema.Types, func(i, j int) bool {
 		return schema.Types[i].Name < schema.Types[j].Name
 	})

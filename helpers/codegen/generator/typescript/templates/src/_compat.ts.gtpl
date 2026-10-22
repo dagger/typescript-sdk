@@ -56,6 +56,12 @@ declare module "@dagger.io/dagger" {
      * @deprecated Reach {{ $client.Module }} through its own client instead: `import { {{ $field.Name | FormatMemberName }} } from "{{ $client.Package }}"`.
      */
     {{ $field.Name | FormatMemberName }}({{ if $required }}{{ template "args" $field }}{{ end }}{{ if $optionals }}{{ if $required }}, {{ end }}opts?: {{ CompatOptsName $field }}{{ end }}): {{ if Solve $field }}Promise<{{ if $field.TypeRef.IsVoid }}void{{ else }}{{ $field | FormatFieldReturnType }}{{ if IsNullableObject $field.TypeRef }} | null{{ end }}{{ end }}>{{ else }}{{ $field.TypeRef | FormatOutputType }}{{ end }}
+{{- with MethodAlias $field true }}
+    /**
+     * @deprecated use {{ .Name }} instead.
+     */
+    {{ .Legacy }}: Client[{{ .Name | printf "%q" }}]
+{{- end }}
 {{- end }}
 {{- end }}
   }
@@ -78,6 +84,11 @@ const __install = (name: string, impl: (...args: any[]) => any): void => {
 __install({{ $field.Name | FormatMemberName | printf "%q" }}, (...args: any[]) =>
   ({{ $client.DagAlias }}.{{ $field.Name | FormatMemberName }} as any)(...args),
 )
+{{- with MethodAlias $field true }}
+__install({{ .Legacy | printf "%q" }}, (...args: any[]) =>
+  ({{ $client.DagAlias }}.{{ .Name }} as any)(...args),
+)
+{{- end }}
 {{- end }}
 {{- end }}
 {{- end }}

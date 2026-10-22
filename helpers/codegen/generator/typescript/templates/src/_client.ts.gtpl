@@ -105,10 +105,17 @@ keyword cannot be a top-level function name. */ -}}
 {{- if not ($field.Name | IsKeyword) }}
 {{- $required := GetRequiredArgs $field.Args }}
 {{- $optionals := GetOptionalArgs $field.Args }}
-export function {{ $field.Name | FormatMemberName }}({{ if $required }}{{ template "args" $field }}{{ end }}{{ if $optionals }}{{ if $required }}, {{ end }}opts?: Client{{ $field.Name | PascalCase }}Opts{{ end }}): {{ if Solve $field }}Promise<{{ if $field.TypeRef.IsVoid }}void{{ else }}{{ $field | FormatFieldReturnType }}{{ if IsNullableObject $field.TypeRef }} | null{{ end }}{{ end }}>{{ else }}{{ $field.TypeRef | FormatOutputType }}{{ end }} {
-  return dag.{{ $field.Name | FormatMemberName }}({{ range $i, $a := $required }}{{ if $i }}, {{ end }}{{ $a.Name | FormatName }}{{ end }}{{ if $optionals }}{{ if $required }}, {{ end }}opts{{ end }})
+export function {{ $field.Name | FormatMemberName }}({{ if $required }}{{ template "args" $field }}{{ end }}{{ if $optionals }}{{ if $required }}, {{ end }}opts?: {{ OptsTypeName "Client" $field.Name }}{{ end }}): {{ if Solve $field }}Promise<{{ if $field.TypeRef.IsVoid }}void{{ else }}{{ $field | FormatFieldReturnType }}{{ if IsNullableObject $field.TypeRef }} | null{{ end }}{{ end }}>{{ else }}{{ $field.TypeRef | FormatOutputType }}{{ end }} {
+  return dag.{{ $field.Name | FormatMemberName }}({{ range $i, $a := $required }}{{ if $i }}, {{ end }}{{ $a.Name | FormatArgName }}{{ end }}{{ if $optionals }}{{ if $required }}, {{ end }}opts{{ end }})
 }
 {{ "" }}
+{{- with MethodAlias $field true }}
+/**
+ * @deprecated use {{ .Name }} instead.
+ */
+export const {{ .Legacy }} = {{ .Name }}
+{{ "" }}
+{{- end }}
 {{- end }}
 {{- end }}
 {{- end }}

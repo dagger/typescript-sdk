@@ -21,6 +21,14 @@ type Config struct {
 	// DangEntrypointConfig is the specific config to generate the Dang module
 	// entrypoint the engine loads under a manifest `[entrypoint]` table.
 	DangEntrypointConfig *DangEntrypointGeneratorConfig
+
+	// EngineVersion is the version of the engine that served the schema
+	// (Query.version), half of the gate for the engine's naming rules: the
+	// schema must have Query.formatIdentifiers AND this must be
+	// v1.0.0-beta.21 or later (introspection.Schema.UsesEngineNaming), since
+	// beta.19 and beta.20 engines serve the field while still naming modules
+	// with strcase. Empty keeps the legacy names.
+	EngineVersion string
 }
 
 // ModuleGeneratorConfig drives a scope's client generation — the same for a
@@ -147,6 +155,13 @@ type EntrypointGeneratorConfig struct {
 	// embedded [runtime] layout passes sdk/loader.gen.js, since its loader ships
 	// inside the library directory.
 	LoaderImportPath string
+
+	// IntrospectionJSONPath, when set, is the module's own schema (the
+	// introspection JSON the module bindings are generated from), read for the
+	// naming gate: a schema with Query.formatIdentifiers means the engine names
+	// the module's declarations with its naming rules, so calls through the
+	// module's own interfaces select those names. Empty keeps the legacy names.
+	IntrospectionJSONPath string
 }
 
 // Specific configuration for generating the Dang module entrypoint — the program

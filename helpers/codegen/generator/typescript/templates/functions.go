@@ -8,7 +8,6 @@ import (
 	"sort"
 	"strings"
 	"text/template"
-	"unicode"
 
 	"golang.org/x/mod/semver"
 
@@ -101,13 +100,26 @@ func (funcs typescriptTemplateFuncs) FuncMap() template.FuncMap {
 		"FormatInputType":           funcs.formatInputType(commonFunc),
 		"FormatOutputType":          commonFunc.FormatOutputType,
 		"FormatEnum":                funcs.formatEnum,
+		"LegacyEnumAlias":           funcs.legacyEnumAlias,
 		"FormatName":                funcs.formatName,
 		"FormatMemberName":          funcs.formatMemberName,
+		"LegacyMemberName":          funcs.legacyMemberName,
+		"FormatMethodName":          funcs.formatMethodName,
+		"LegacyMethodName":          funcs.legacyMethodName,
+		"MethodAlias":               funcs.methodAliasFor,
+		"ArgName":                   funcs.argName,
+		"FormatArgName":             funcs.formatArgName,
+		"RenamedArgs":               funcs.renamedArgs,
+		"OptsTypeName":              funcs.optsTypeName,
+		"LegacyOptsTypeName":        funcs.legacyOptsTypeName,
+		"OptsFields":                optsFieldList,
+		"InputFields":               inputFieldList,
 		"QueryToClient":             funcs.queryToClient,
 		"GetOptionalArgs":           funcs.getOptionalArgs,
 		"GetRequiredArgs":           funcs.getRequiredArgs,
 		"HasPrefix":                 strings.HasPrefix,
 		"PascalCase":                funcs.pascalCase,
+		"EnumConverterPrefix":       funcs.enumConverterPrefix,
 		"IsArgOptional":             funcs.isArgOptional,
 		"IsCustomScalar":            funcs.isCustomScalar,
 		"IsEnum":                    funcs.isEnum,
@@ -291,16 +303,6 @@ func (funcs typescriptTemplateFuncs) fieldExpectedIDType(field introspection.Fie
 	return ""
 }
 
-// pascalCase converts a type name to PascalCase. strcase.ToCamel mishandles
-// runs of consecutive uppercase letters (e.g. "LLMContentBlockKind" ->
-// "LlmcontentBlockKind"), which would make the generated enum converter
-// definitions (named via PascalCase) diverge from their raw-named call sites
-// and fail to type-check, so use a custom implementation that preserves
-// configured acronyms.
-func (funcs typescriptTemplateFuncs) pascalCase(name string) string {
-	return toPascalCase(name)
-}
-
 var (
 	reUpperToUpperLower = regexp.MustCompile(`([A-Z]+)([A-Z][a-z])`)
 	reLowerToUpper      = regexp.MustCompile(`([a-z0-9])([A-Z])`)
@@ -314,6 +316,14 @@ var pascalCaseAcronyms = map[string]string{
 	"LLM": "LLM",
 }
 
+// toPascalCase is the legacy PascalCase converter, used for schemas without
+// engine-formatted names (see pascalCase in naming.go).
+//
+// strcase.ToCamel mishandles runs of consecutive uppercase letters (e.g.
+// "LLMContentBlockKind" -> "LlmcontentBlockKind"), which would make the
+// generated enum converter definitions (named via PascalCase) diverge from
+// their raw-named call sites and fail to type-check, so this is a custom
+// implementation that preserves configured acronyms.
 func toPascalCase(s string) string {
 	// Insert word boundaries: "LLMContent" -> "LLM_Content", "blockKind" -> "block_Kind"
 	s = reUpperToUpperLower.ReplaceAllString(s, `${1}_${2}`)
@@ -420,21 +430,6 @@ func (funcs typescriptTemplateFuncs) formatName(s string) string {
 	return s
 }
 
-// formatMemberName renders a schema field as a TypeScript member. Fields are
-// camelCase by convention and this is a no-op for them, but a module whose name
-// starts with an underscore gets a capitalised field, and the binding for it
-// would then be the one member of the API not shaped like the rest. The wire
-// name is rendered separately from the raw field, so lowering the first letter
-// here changes what the caller writes, not what is selected.
-func (funcs typescriptTemplateFuncs) formatMemberName(s string) string {
-	if s == "" {
-		return s
-	}
-	runes := []rune(s)
-	runes[0] = unicode.ToLower(runes[0])
-	return funcs.formatName(string(runes))
-}
-
 func (funcs typescriptTemplateFuncs) queryToClient(s string) string {
 	if s == generator.QueryStructName {
 		return generator.QueryStructClientName
@@ -513,15 +508,6 @@ var jsKeywords = map[string]struct{}{
 	"namespace": {},
 }
 
-// formatEnum formats a GraphQL enum into a TS equivalent
-// formatEnum names an enum member. It uses the same PascalCase rule as the rest
-// of the generator rather than strcase.ToCamel, which mangles consecutive
-// capitals ("EStarGZ" -> "EstarGz" instead of "EStarGz") and would leave a
-// module's bindings incompatible with code written against the engine's.
-func (funcs typescriptTemplateFuncs) formatEnum(s string) string {
-	return toPascalCase(s)
-}
-
 // isArgOptional checks if some arg are optional.
 // They are, if all of there InputValues are optional.
 func (funcs typescriptTemplateFuncs) isArgOptional(values introspection.InputValues) bool {
@@ -590,14 +576,24 @@ func (funcs typescriptTemplateFuncs) sortEnumFields(s []introspection.EnumValue)
 	copy := slices.Clone(s)
 
 	slices.SortStableFunc(copy, func(x, y introspection.EnumValue) int {
-		return cmp.Compare(strcase.ToCamel(x.Name), strcase.ToCamel(y.Name))
+		return cmp.Compare(funcs.enumKey(x.Name), funcs.enumKey(y.Name))
 	})
 
 	copy = slices.CompactFunc(copy, func(x, y introspection.EnumValue) bool {
-		return strcase.ToCamel(x.Name) == strcase.ToCamel(y.Name)
+		return funcs.enumKey(x.Name) == funcs.enumKey(y.Name)
 	})
 
 	return copy
+}
+
+// enumKey is what enum members are sorted and deduplicated by: their TS name
+// when the engine formats it (two schema names it formats alike would
+// otherwise declare one member twice), else the legacy strcase key.
+func (funcs typescriptTemplateFuncs) enumKey(name string) string {
+	if formatted, ok := funcs.engineName(name, pascalCapitalizedNames); ok {
+		return formatted
+	}
+	return strcase.ToCamel(name)
 }
 
 func (funcs typescriptTemplateFuncs) extractEnumValue(enum introspection.EnumValue) string {
@@ -613,7 +609,7 @@ func (funcs typescriptTemplateFuncs) groupEnumByValue(s []introspection.EnumValu
 	for _, v := range s {
 		value := cmp.Or(v.Directives.EnumValue(), v.Name)
 		if !slices.ContainsFunc(m[value], func(other introspection.EnumValue) bool {
-			return strcase.ToCamel(v.Name) == strcase.ToCamel(other.Name)
+			return funcs.enumKey(v.Name) == funcs.enumKey(other.Name)
 		}) {
 			m[value] = append(m[value], v)
 		}
@@ -1014,7 +1010,7 @@ func (funcs typescriptTemplateFuncs) clientImports(fileTypes []*introspection.Ty
 			if spec == "" {
 				continue
 			}
-			groupFor(spec).values[funcs.pascalCase(t.Name)+suffix] = struct{}{}
+			groupFor(spec).values[funcs.enumConverterPrefix(t.Name)+suffix] = struct{}{}
 		}
 	}
 	for _, t := range fileTypes {
@@ -1248,7 +1244,7 @@ func (funcs typescriptTemplateFuncs) compatFile() string {
 // compatOptsName is the options type a root field's optional arguments render
 // as, declared beside the field's own Client in the module's client file.
 func (funcs typescriptTemplateFuncs) compatOptsName(field *introspection.Field) string {
-	return generator.QueryStructClientName + funcs.pascalCase(field.Name) + "Opts"
+	return funcs.optsTypeName(generator.QueryStructClientName, field.Name)
 }
 
 // compatImports plans the compat shim's type imports: everything the re-attached

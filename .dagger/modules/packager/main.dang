@@ -26,12 +26,14 @@ type Packager {
   The schema comes from the session rather than from a module: a plain session
   serves no modules, so introspecting it yields the core API alone — which is
   exactly what a library binds. That one step is why this opens a nested
-  session; rendering the bindings from the resulting JSON does not.
+  session; rendering the bindings from the resulting JSON does not. The engine's
+  version goes along: with the schema having Query.formatIdentifiers, it is what
+  decides whether identifiers follow the engine's naming rules.
   """
   libraryBindings(ws: Workspace!): Changeset! @generate {
     let bindings = codegen(ws)
       .withExec(["codegen", "introspect", "--output", "/schema.json"], experimentalPrivilegedNesting: true)
-      .withExec(["codegen", "library", "--introspection-json-path", "/schema.json", "--output", "/out"])
+      .withExec(["codegen", "library", "--introspection-json-path", "/schema.json", "--engine-version", version, "--output", "/out"])
       .directory("/out")
 
     # Stage over the directory's existing contents, not in place of them:

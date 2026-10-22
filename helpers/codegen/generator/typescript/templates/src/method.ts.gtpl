@@ -23,7 +23,7 @@
 	{{- if $optionals }}
 		{{- /* Insert a comma if there was previous required arguments. */ -}}
 		{{- if $required }}, {{ end }}
-		{{- "" }}opts?: {{ $parentName }}{{ .Name | PascalCase }}Opts {{- with .Directives.SourceMap }} // {{ .Module }} ({{ .Filelink | ModuleRelPath }}) 
+		{{- "" }}opts?: {{ OptsTypeName $parentName .Name }} {{- with .Directives.SourceMap }} // {{ .Module }} ({{ .Filelink | ModuleRelPath }}) 
 		{{ "" }} 
 		{{- end }}
 	{{- end }}
@@ -33,4 +33,18 @@
 	{{- /* Body is shared between the core and per-module client classes. */ -}}
 	{{- template "method_body" . }}
   }
+	{{- template "method_alias" (MethodAlias . true) }}
+{{- end }}
+
+{{- /* Write a deprecated alias under the name a method had before the engine's
+naming rules, when it differs. The dot is a methodAlias, nil for none. */ -}}
+{{ define "method_alias" }}
+	{{- with . }}
+
+  /**
+   * @deprecated use {{ .Name }} instead.
+   */
+  {{ .Legacy }}: {{ .Class }}["{{ .Name }}"] = (...args) =>
+    this.{{ .Name }}(...args)
+	{{- end }}
 {{- end }}

@@ -83,6 +83,14 @@ export enum {{ $enumName }} { {{- with .Directives.SourceMap }} // {{ .Module }}
 
 			  {{- end }}
   {{ $fieldName }} = {{ $fieldValue }}, {{- with .Directives.SourceMap }} // {{ .Module }} ({{ .Filelink | ModuleRelPath }}) {{- end }}
+			  {{- /* Keep the member's name from before the engine's naming rules. */ -}}
+			  {{- with LegacyEnumAlias $ $field.Name }}
+
+  /**
+   * @deprecated use {{ $fullFieldName }} instead.
+   */
+  {{ . }} = {{ $fullFieldName }},
+			  {{- end }}
 			{{- end }}
 	{{- end }}
 }
@@ -91,7 +99,7 @@ export enum {{ $enumName }} { {{- with .Directives.SourceMap }} // {{ .Module }}
  * Utility function to convert a {{ .Name }} value to its name so
  * it can be uses as argument to call a exposed function.
  */
-export function {{ .Name | PascalCase }}ValueToName(value: {{ .Name }}): string {
+export function {{ .Name | EnumConverterPrefix }}ValueToName(value: {{ .Name }}): string {
   switch (value) {
 	{{- range $fields := .EnumValues | SortEnumFields | GroupEnumByValue -}}
 		{{- $field := index $fields 0 }}
@@ -108,7 +116,7 @@ export function {{ .Name | PascalCase }}ValueToName(value: {{ .Name }}): string 
  * Utility function to convert a {{ $enumName }} name to its value so
  * it can be properly used inside the module runtime.
  */
-export function {{ $enumName | PascalCase }}NameToValue(name: string): {{ $enumName }} {
+export function {{ $enumName | EnumConverterPrefix }}NameToValue(name: string): {{ $enumName }} {
   switch (name) {
 	{{- range $fields := .EnumValues | SortEnumFields | GroupEnumByValue -}}
 		{{- $field := index $fields 0 }}
@@ -127,17 +135,27 @@ export function {{ $enumName | PascalCase }}NameToValue(name: string): {{ $enumN
 		{{- range . }}
 			{{- $optionals := GetOptionalArgs .Args }}
 			{{- if gt (len $optionals) 0 }}
-export type {{ $.Name | QueryToClient }}{{ .Name | PascalCase }}Opts = {
-				{{- template "field" $optionals }}
+				{{- $optsName := OptsTypeName ($.Name | QueryToClient) .Name }}
+				{{- $legacyOptsName := LegacyOptsTypeName ($.Name | QueryToClient) .Name }}
+export type {{ $optsName }} = {
+				{{- template "field" (OptsFields $optionals) }}
 }
-{{ "" }}	{{- end }}
+{{ "" }}
+				{{- if ne $optsName $legacyOptsName }}
+/**
+ * @deprecated use {{ $optsName }} instead.
+ */
+export type {{ $legacyOptsName }} = {{ $optsName }}
+{{ "" }}
+				{{- end }}
+			{{- end }}
 		{{- end }}
 	{{- end }}
 
 	{{- /* Generate input GraphQL type. */ -}}
 	{{- with .InputFields }}
 export type {{ $.Name | FormatName }} = {
-		{{- template "field" (SortInputFields .) }}
+		{{- template "field" (InputFields (SortInputFields .)) }}
 }
 {{ "" }}
 	{{- end }}
@@ -145,8 +163,14 @@ export type {{ $.Name | FormatName }} = {
 {{- end }}
 
 {{- define "field" }}
-	{{- range $i, $field := . }}
+	{{- $isOpts := .Opts }}
+	{{- range $i, $field := .Fields }}
 		{{- $opt := "" }}
+		{{- /* Opts keys are TS names; input object fields go over the wire. */ -}}
+		{{- $key := $field.Name }}
+		{{- if $isOpts }}
+			{{- $key = $field.Name | ArgName }}
+		{{- end }}
 
 		{{- /* Add ? if field is optional. */ -}}
 		{{- if $field.TypeRef.IsOptional }}
@@ -177,7 +201,16 @@ export type {{ $.Name | FormatName }} = {
 		{{- end }}
 
 		{{- /* Write type. */}}
-  {{ $field.Name }}{{ $opt }}: {{ $field | FormatInputType }} {{- with .Directives.SourceMap }} // {{ .Module }} ({{ .Filelink | ModuleRelPath }}) {{- end }}
+  {{ $key }}{{ $opt }}: {{ $field | FormatInputType }} {{- with .Directives.SourceMap }} // {{ .Module }} ({{ .Filelink | ModuleRelPath }}) {{- end }}
+
+		{{- /* Keep accepting the schema name of a renamed opts key. */ -}}
+		{{- if ne $key $field.Name }}
+
+  /**
+   * @deprecated use {{ $key }} instead.
+   */
+  {{ $field.Name }}{{ $opt }}: {{ $field | FormatInputType }}
+		{{- end }}
 
 	{{- end }}
 {{- end }}

@@ -147,6 +147,15 @@ type TypescriptSdk {
   let dangEntrypointFile: String! = "main.dang"
 
   """
+  The dang.toml beside the generated Dang program: the Dang and Dagger versions
+  it is written against. An engine carrying dagger/dagger#14812 serves the
+  module at that Dagger version — its API view, and the naming rules its
+  declarations get. Written once (withEntrypointDangToml) and then the module's:
+  generation never rewrites it.
+  """
+  let dangTomlFile: String! = "dang.toml"
+
+  """
   The dispatcher the engine's builtin TypeScript runtime loads.
 
   Only written for a module that still declares a `[runtime]`: under an
@@ -281,7 +290,14 @@ type TypescriptSdk {
       # not declare, and the engine resolves no `source` out of it, so the
       # module's files are looked for at the workspace root.
       let configured = if (legacyRuntime == false) {
-        withEntrypointManifest(seeded, scope, name, hasToml)
+        # The dang.toml goes in with the manifest, before anything below reads
+        # the module's schema: the engine serves the module at the version it
+        # declares, and the bindings and entrypoint are generated for that.
+        withEntrypointDangToml(
+          withEntrypointManifest(seeded, scope, name, hasToml),
+          scope,
+          (hasToml or hasJSON) == false,
+        )
       } else if (hasToml and isEntrypointManifest(seeded, scopeFile(scope, "dagger-module.toml")) == false) {
         seeded
       } else {
@@ -785,6 +801,40 @@ type TypescriptSdk {
   }
 
   """
+  Give an entrypoint module the dang.toml that declares which Dang and Dagger
+  versions its generated entrypoint is written against, when it has none.
+
+  An existing dang.toml is the module's and is kept as it is: raising its
+  `dagger` version is how a module opts into a newer API and its naming rules.
+  A module being initialized (`fresh`) is pinned to the running engine's
+  version. One that already had an entrypoint is pinned to v1.0.0-beta.20,
+  which is what dagger/dagger#14812 serves a versionless entrypoint at — so
+  regenerating never silently moves it onto the identifier naming of
+  v1.0.0-beta.21.
+
+  Nothing is written on an engine older than beta.21: it serves the entrypoint
+  at its own version whatever the file says, and its Dang may predate the
+  `dagger = "<version>"` form (vito/dang#206). The rules live in the codegen
+  helper (`codegen dang-toml`), which prints nothing in that case.
+  """
+  let withEntrypointDangToml(ws: Workspace!, scope: String!, fresh: Boolean!): Workspace! {
+    let file = dangEntrypointDir + "/" + dangTomlFile
+    if (hasScopeFile(ws, scope, file)) {
+      ws
+    } else {
+      let freshArgs = if (fresh) { ["--fresh"] } else { [] }
+      let contents = codegenBuilder
+        .withExec(["codegen", "dang-toml", "--engine-version", runningEngineVersion] + freshArgs)
+        .stdout
+      if (contents == "") {
+        ws
+      } else {
+        ws.withNewFile("/" + scopeFile(scope, file), contents)
+      }
+    }
+  }
+
+  """
   Record the scope's client targets as the module's runtime dependencies.
 
   This is what makes a client callable rather than merely typed. A module's
@@ -1180,6 +1230,18 @@ type TypescriptSdk {
   }
 
   """
+  The version of the engine running this generation (Query.version), as it
+  reports it. Codegen runs engine-free, so it is passed in where it decides
+  something: with a schema that has Query.formatIdentifiers, an engine at
+  v1.0.0-beta.21 or later is what names identifiers with the engine's naming
+  rules. The schema alone can't tell — released beta.19 and beta.20 engines
+  serve formatIdentifiers on v1 views while still naming modules with strcase.
+  """
+  let runningEngineVersion: String! {
+    version
+  }
+
+  """
   Container with the config-updater helper compiled and on PATH.
   """
   let configUpdaterBuilder: Container! {
@@ -1251,6 +1313,7 @@ type TypescriptSdk {
       .withExec([
         "codegen", "module",
         "--introspection-json-path", "/schema.json",
+        "--engine-version", runningEngineVersion,
         "--module-name", moduleName,
         "--output", "/out",
         "--workspace-repo-url", repoURL,
@@ -1552,13 +1615,26 @@ type TypescriptSdk {
     codegenBuilder.withNewFile("/typedef.json", typedef)
   }
 
-  let generateModuleEntrypoint(typedef: String!): File! {
+  """
+  The codegen container for a dispatch entrypoint: the typedef, plus the
+  module's own schema, which is the naming gate. A module schema with
+  Query.formatIdentifiers (served at v1.0.0-beta.21 or later) means the engine
+  names the module's declarations with its naming rules, so calls the
+  entrypoint makes through the module's own interfaces use those names.
+  """
+  let dispatchCodegen(typedef: String!, schemaJSON: String!): Container! {
+    entrypointCodegen(typedef).withNewFile("/schema.json", schemaJSON)
+  }
+
+  let generateModuleEntrypoint(typedef: String!, schemaJSON: String!): File! {
     # The embedded layout ships the loader inside sdk/, beside the clients the
     # runtime mounts with it, so the entrypoint imports it from there.
-    entrypointCodegen(typedef)
+    dispatchCodegen(typedef, schemaJSON)
       .withExec([
         "codegen", "entrypoint",
         "--typedef-json-path", "/typedef.json",
+        "--introspection-json-path", "/schema.json",
+        "--engine-version", runningEngineVersion,
         "--output", "/out",
         "--module-root", "/work",
         "--source-dir", "src",
@@ -1575,15 +1651,17 @@ type TypescriptSdk {
   __dagger.entrypoint.ts the builtin runtime execs — the two are the same half
   of two different loading paths, and a module is on one of them.
   """
-  let generateModuleDispatcher(typedef: String!): File! {
+  let generateModuleDispatcher(typedef: String!, schemaJSON: String!): File! {
     # The dispatcher serves nothing: each generated client serves its own module
     # before the first query that reaches it — a `dag.<module>()` call through
     # the client's served context, or a received value loaded through the loader,
     # which sits under clients/ beside the packages it imports.
-    entrypointCodegen(typedef)
+    dispatchCodegen(typedef, schemaJSON)
       .withExec([
         "codegen", "entrypoint", "--dispatch",
         "--typedef-json-path", "/typedef.json",
+        "--introspection-json-path", "/schema.json",
+        "--engine-version", runningEngineVersion,
         "--output", "/out",
         "--module-root", "/work",
         "--source-dir", "src",
@@ -1690,7 +1768,7 @@ type TypescriptSdk {
       directory
         .withDirectory("clients", withClientPackageManifests(clients, clientNames))
         .withDirectory("clients/dagger", corePackage(bindings))
-        .withFile(dispatchFile, generateModuleDispatcher(typedef))
+        .withFile(dispatchFile, generateModuleDispatcher(typedef, schemaJSON))
         .withFile(
           dangEntrypointDir + "/" + dangEntrypointFile,
           generateDangEntrypoint(typedef, moduleName, sourcePath, runtime, packageManager, image, includes),
@@ -1698,7 +1776,7 @@ type TypescriptSdk {
     } else {
       directory
         .withDirectory("sdk", sdk)
-        .withFile(legacyEntrypointFile, generateModuleEntrypoint(typedef))
+        .withFile(legacyEntrypointFile, generateModuleEntrypoint(typedef, schemaJSON))
     }
 
     # The config the module's source resolves its clients through. Entrypoint:
@@ -2128,10 +2206,12 @@ type TypescriptSdk {
   the same reason stale bindings are: what is no longer generated is not removed
   by not generating it.
 
-  entrypoint/ holds the generated Dang program and nothing else, so the
-  directory goes with it — but by emptying it, not wholesale: a file the user
-  put in there is still theirs, and taking the directory whole took it along
-  (issue #87).
+  entrypoint/ holds the generated Dang program and the dang.toml that versions
+  it, so the directory goes with them — but by emptying it, not wholesale: a
+  file the user put in there is still theirs, and taking the directory whole
+  took it along (issue #87). The dang.toml is the module's only while it has
+  an entrypoint to version; a module moved back onto one starts from the
+  pre-cut pin again (see withEntrypointDangToml).
   """
   let prunedInactiveDispatch(ws: Workspace!, sourcePath: String!): Workspace! {
     let existing = existingDir(ws, sourcePath)
@@ -2149,7 +2229,7 @@ type TypescriptSdk {
       } else {
         ws
       }
-      prunedFiles(withoutDispatcher, scopeFile(sourcePath, dangEntrypointDir), [dangEntrypointFile])
+      prunedFiles(withoutDispatcher, scopeFile(sourcePath, dangEntrypointDir), [dangEntrypointFile, dangTomlFile])
     }
   }
 
@@ -2421,6 +2501,7 @@ type TypescriptSdk {
       .withExec([
         "codegen", "client",
         "--client-meta-path", "/meta.json",
+        "--engine-version", runningEngineVersion,
         "--packaged-clients",
         "--output", "/out",
         "--workspace-repo-url", repoURL,
