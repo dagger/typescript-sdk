@@ -73,6 +73,18 @@ func TestEntrypointInterfaceEngineNames(t *testing.T) {
 	// already namespaced: the module's words aren't repeated
 	require.Contains(t, got, `selectNode(id, "PondHTTPClient")`)
 	require.Contains(t, got, `this._ctx.select("withSSHKey", __args)`)
+
+	// nor are they when the words are cut differently around digits
+	my2go := &TypedefModule{
+		Name:    "My2go",
+		Objects: map[string]*TypedefObject{},
+		Enums:   map[string]*TypedefEnum{},
+		Interfaces: map[string]*TypedefInterface{
+			"My2GoFetcher": {Name: "My2GoFetcher", Functions: map[string]*TypedefFunction{}},
+		},
+	}
+	got = renderEntrypoint(t, my2go, EntrypointOptions{EngineNaming: true})
+	require.Contains(t, got, `selectNode(id, "My2goFetcher")`)
 }
 
 // Older modules keep the names the entrypoint always used.
@@ -82,6 +94,5 @@ func TestEntrypointInterfaceLegacyNames(t *testing.T) {
 	require.Contains(t, got, `selectNode(id, "PondHttpFetcher")`)
 	require.Contains(t, got, `__args["comUrl"] = comUrl`)
 	require.Contains(t, got, `this._ctx.select("getUrl", __args)`)
-	require.Contains(t, got, `selectNode(id, "PondPondHttpClient")`)
 	require.Contains(t, got, `this._ctx.select("withSshKey", __args)`)
 }

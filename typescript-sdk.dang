@@ -2113,10 +2113,12 @@ type TypescriptSdk {
   the same reason stale bindings are: what is no longer generated is not removed
   by not generating it.
 
-  entrypoint/ holds the generated Dang program and nothing else, so the
-  directory goes with it — but by emptying it, not wholesale: a file the user
-  put in there is still theirs, and taking the directory whole took it along
-  (issue #87).
+  entrypoint/ holds the generated Dang program and the dang.toml that versions
+  it, so the directory goes with them — but by emptying it, not wholesale: a
+  file the user put in there is still theirs, and taking the directory whole
+  took it along (issue #87). The dang.toml is the module's only while it has
+  an entrypoint to version; a module moved back onto one starts from the
+  pre-cut pin again (see withEntrypointDangToml).
   """
   let prunedInactiveDispatch(ws: Workspace!, sourcePath: String!): Workspace! {
     let existing = existingDir(ws, sourcePath)
@@ -2134,7 +2136,7 @@ type TypescriptSdk {
       } else {
         ws
       }
-      prunedFiles(withoutDispatcher, scopeFile(sourcePath, dangEntrypointDir), [dangEntrypointFile])
+      prunedFiles(withoutDispatcher, scopeFile(sourcePath, dangEntrypointDir), [dangEntrypointFile, dangTomlFile])
     }
   }
 

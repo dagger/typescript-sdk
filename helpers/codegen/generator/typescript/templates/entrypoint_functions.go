@@ -487,29 +487,75 @@ func (c *entrypointFuncCtx) argCoercionLine(arg *TypedefArgument) string {
 //
 // Legacy (strcase) naming spells it "<Module><Iface>". A module named by the
 // engine's naming rules (EntrypointOptions.EngineNaming) gets the name the
-// engine gives it: the module's name followed by the interface's, unless the
-// interface's name already starts with the module's words (core.Namer's
-// NamespaceObject), in PascalCase with uppercase acronyms — HttpFetcher in
-// module pond is PondHTTPFetcher.
+// engine gives it, mirroring core.Namer.NamespaceObject: the module's name
+// followed by the interface's, unless the interface's name already starts with
+// the module's (by words, or failing that by flattened spelling, for names cut
+// differently around digits and acronyms like My2Go in module my2go), in
+// PascalCase with uppercase acronyms — HttpFetcher in module pond is
+// PondHTTPFetcher.
 func (c *entrypointFuncCtx) engineIfaceTypeName(iface *TypedefInterface) string {
 	dict := c.namingDictionary()
 	if dict == nil {
 		return pascalize(c.module.Name) + iface.Name
 	}
+	objectName := func(name string) string {
+		id, err := dict.Parse(name)
+		if err != nil {
+			return name
+		}
+		return id.Format(naming.Pascal, naming.Uppercase)
+	}
 	obj, err := dict.Parse(iface.Name)
 	if err != nil {
-		return pascalize(c.module.Name) + iface.Name
+		return objectName(c.module.Name + "_" + iface.Name)
 	}
 	mod, err := dict.Parse(c.module.Name)
 	if err != nil {
-		return pascalize(c.module.Name) + iface.Name
+		return objectName(c.module.Name + "_" + iface.Name)
 	}
 	rest := obj.Words
 	if hasWordPrefix(obj.Words, mod.Words) {
 		rest = obj.Words[len(mod.Words):]
+	} else if k := flatWordPrefix(obj.Words, flatName(c.module.Name)); k >= 0 {
+		rest = obj.Words[k:]
 	}
 	words := append(append([]naming.Word(nil), mod.Words...), rest...)
 	return naming.Identifier{Words: words}.Format(naming.Pascal, naming.Uppercase)
+}
+
+// flatName is name lowercased, with everything but ASCII letters and digits
+// dropped: the spelling every casing of a name shares (core's flatName).
+func flatName(name string) string {
+	var b strings.Builder
+	for i := 0; i < len(name); i++ {
+		c := name[i]
+		switch {
+		case 'a' <= c && c <= 'z', '0' <= c && c <= '9':
+			b.WriteByte(c)
+		case 'A' <= c && c <= 'Z':
+			b.WriteByte(c + 'a' - 'A')
+		}
+	}
+	return b.String()
+}
+
+// flatWordPrefix returns how many of words, flattened and joined, spell prefix
+// exactly, ending on a word boundary; or -1 (core's flatWordPrefix).
+func flatWordPrefix(words []naming.Word, prefix string) int {
+	if prefix == "" {
+		return -1
+	}
+	var spelled string
+	for i, w := range words {
+		spelled += flatName(w.Text + w.Suffix)
+		switch {
+		case spelled == prefix:
+			return i + 1
+		case len(spelled) >= len(prefix) || !strings.HasPrefix(prefix, spelled):
+			return -1
+		}
+	}
+	return -1
 }
 
 // hasWordPrefix reports whether words starts with prefix, comparing words by
