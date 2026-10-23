@@ -26,7 +26,7 @@ committed `bundle/`, and the Go generator all move together or not at all.
 
 ## The target release has moved ahead of the tag
 
-`typescript-sdk.dang`'s `targetEngineVersion` is `1.0.0-beta.17`, and the tag
+`typescript-sdk.dang`'s `targetEngineVersion` is `1.0.0-beta.20`, and the tag
 above is still beta.11. That is a deliberate separation of two facts the rule
 above had treated as one: where the sources were copied *from*, and which engine
 release the bundle is paired *with*.
@@ -36,30 +36,38 @@ The pairing first moved to beta.15, because a module now generates an
 (dagger/dagger#14038). It then moved on to beta.16 with the engine the nested
 check suite runs in — `engine-e2e`'s `engine-dev` pin — which went to the
 oldest release carrying `dagger check --parallel` (dagger/dagger#14459), the
-only way to stop ~70 nested checks starting at once. It is now beta.17, simply
-because that is the current release and a pairing one release behind puts
-`packager:library-bindings/stale` red on whatever engine people actually run.
+only way to stop ~70 nested checks starting at once. beta.17, beta.18 and now
+beta.20 each moved for the same plain reason: that was the current release, and
+a pairing one release behind puts `packager:library-bindings/stale` red on
+whatever engine people actually run. beta.19 was never paired with; beta.20
+supersedes it and the step is taken in one go.
+
 Those two are not free to move apart: `packager:library-bindings/stale`
 regenerates `src/core/client.gen.ts` from the *running* engine's core schema, so
 the pinned engine is what decides whether the committed bindings are current.
 
+This file lagged one release behind that rule. The beta.18 step rode along in a
+feature change (#86) rather than a pairing chore of its own, and nothing here
+was updated with it, so the paragraphs above read beta.17 while the SDK was
+already on beta.18. The beta.20 numbers below are therefore measured against
+beta.18, the release actually superseded, not against beta.17.
+
 The sources did not move either time, because nothing required them to:
 
 - `src/core/client.gen.ts` is regenerated here, not vendored, and
-  `packager:library-bindings/stale` is green inside a beta.17 engine — so the
-  bindings half of the pairing is already beta.17's.
+  `packager:library-bindings/stale` is green inside a beta.20 engine — so the
+  bindings half of the pairing is already beta.20's.
 - `runtimes:{node,bun,deno}-runs-check` load and run modules built from the
   committed `bundle/` in that same engine.
 
-So this is vendoring lag, not a broken pairing: upstream's beta.12–beta.17
+So this is vendoring lag, not a broken pairing: upstream's beta.12–beta.20
 changes to the runtime sources (introspector, decorators, registry,
 `compute_query`, `provisioning/default.ts`'s `CLI_VERSION`) are improvements
 this repo has not taken, and several of those files carry local work that a
 re-vendor has to merge against rather than overwrite. Taking them is its own
 change, and it is what moves the tag.
 
-The beta.15 → beta.16 and beta.16 → beta.17 steps each added almost nothing to
-that lag. Across beta.15 → beta.16 upstream's `sdk/typescript` changed four
+None of the pairing steps so far has added much to that lag. Across beta.15 → beta.16 upstream's `sdk/typescript` changed four
 files, three of them outside what is vendored: `runtime/dagger.json` became
 `runtime/dagger-module.toml` (the Go runtime module stays upstream),
 `src/api/client.gen.ts` is regenerated here rather than copied, and
@@ -67,10 +75,22 @@ files, three of them outside what is vendored: `runtime/dagger.json` became
 in `src/provisioning/default.ts` that records `CLI_VERSION`, which is still
 `1.0.0-beta.11` here and only matters when connecting from outside an engine.
 
-beta.17 adds three core fields to the regenerated bindings
+beta.17 added three core fields to the regenerated bindings
 (`Module.contextDirectory`, `Module.sourceSubpath`, and a `private` argument) —
 34 lines, purely additive, so a module built against the previous bundle still
-runs on beta.17. The rebuilt bundle grew by under 1.5 KB in total.
+ran on beta.17. The rebuilt bundle grew by under 1.5 KB in total.
+
+beta.18 → beta.20 is a larger step but the same shape: `src/core/client.gen.ts`
+moves +835/−101, and the export set only grows, 118 types to 124. The six new
+ones are a core naming API — `AcronymStyle`, `Casing`, `Identifier`,
+`IdentifierWord`, `IdentifierWordKind` and `NamingTerm`. **Nothing is removed**,
+which is what the 101 deleted lines could have meant and do not: they are
+in-place rewrites of existing declarations, the largest being
+`InterfaceTypeDef`'s constructor dropping `_description`, `_name` and
+`_sourceModuleName`. Those are internals of the generated client, not surface a
+module calls, so a module built against the previous bundle still runs on
+beta.20. The rebuilt bundle grew ~25.4 KB in total (core.js +8.6 KB, core.d.ts
++10.0 KB, introspector.js +6.8 KB).
 
 ## What was left behind
 
