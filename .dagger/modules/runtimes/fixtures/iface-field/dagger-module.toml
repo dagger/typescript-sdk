@@ -1,5 +1,5 @@
 name = "runtime-iface-field"
-engineVersion = "v1.0.0-beta.18"
+engineVersion = "v1.0.0-beta.21"
 
 [runtime]
   source = "typescript"
