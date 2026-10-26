@@ -118,7 +118,10 @@ type TypescriptSdk {
   from the schema of whatever engine runs the checks, so this value and
   `engine-e2e`'s `engine-dev` pin move together.
 
-  It is no longer the floor. Those were the same number up to beta.18 and are
+  Not a setting: it is read-only, and it pins only what a `[runtime]` manifest
+  declares as its `engineVersion`. A module's own target is `targetVersion`.
+
+  It is not the floor either. Those were the same number up to beta.18 and are
   not from beta.20 on: the floor is the oldest engine a module generated here
   still loads on, and nothing in beta.19 or beta.20 is required to load one. It
   stays **beta.18**, where it used to be beta.15 — the first release that reads
@@ -134,7 +137,7 @@ type TypescriptSdk {
   So the beta.18 the docs and the generated entrypoint's header still name is
   correct and deliberate, not a reference this bump forgot to move.
   """
-  targetEngineVersion: String! = "1.0.0-beta.20"
+  bundleEngineVersion: String! { "v1.0.0-beta.20" }
 
   """
   Directory holding the generated Dang entrypoint, relative to the module root.
@@ -727,13 +730,13 @@ type TypescriptSdk {
 
       # The loaded `source` is kept: the builder only replaces what is passed.
       sdkHelpers.moduleManifest(loadJson: ws.file(jsonPath))
-        .withLegacyTypescriptRuntime(engineVersion: "v" + targetEngineVersion)
+        .withLegacyTypescriptRuntime(engineVersion: bundleEngineVersion)
     } else {
       # Pin the engine version to the release this SDK's committed bundle was
       # built for, rather than letting it default to whichever engine happens to
       # be running: the generated files come from the bundle, so that is the
       # pairing the module actually has.
-      sdkHelpers.moduleManifest.withLegacyTypescriptRuntime(engineVersion: "v" + targetEngineVersion)
+      sdkHelpers.moduleManifest.withLegacyTypescriptRuntime(engineVersion: bundleEngineVersion)
     }
 
     existing.withName(name: name)
@@ -844,7 +847,7 @@ type TypescriptSdk {
     let tomlPath = "/" + configPath
     let loaded = sdkHelpers.moduleManifest(loadToml: ws.file(tomlPath))
     let pinned = if (hasLegacyEnginePin(ws, configPath)) {
-      loaded.withLegacyTypescriptRuntime(engineVersion: "v" + targetEngineVersion)
+      loaded.withLegacyTypescriptRuntime(engineVersion: bundleEngineVersion)
     } else {
       loaded
     }
@@ -1321,7 +1324,7 @@ type TypescriptSdk {
       ",\"self\":" + (if (target.isSelf) { "true" } else { "false" }) + "}"
     }.join(",")
 
-    "{\"engineVersion\":" + JSON.encode(targetEngineVersion) + ",\"modules\":[" + modulesJSON + "]}"
+    "{\"engineVersion\":" + JSON.encode(bundleEngineVersion) + ",\"modules\":[" + modulesJSON + "]}"
   }
 
   let stageTargets(builder: Container!, targets: [ClientTarget!]!): Container! {

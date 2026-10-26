@@ -26,7 +26,7 @@ committed `bundle/`, and the Go generator all move together or not at all.
 
 ## The target release has moved ahead of the tag
 
-`typescript-sdk.dang`'s `targetEngineVersion` is `1.0.0-beta.20`, and the tag
+`typescript-sdk.dang`'s `bundleEngineVersion` is `v1.0.0-beta.20`, and the tag
 above is still beta.11. That is a deliberate separation of two facts the rule
 above had treated as one: where the sources were copied *from*, and which engine
 release the bundle is paired *with*.

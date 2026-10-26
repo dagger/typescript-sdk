@@ -45,7 +45,7 @@ type SdkChecks {
   beta.7, through a bump nobody noticed missing them.
   """
   fixtureEngineVersionCheck(ws: Workspace!): Void @check {
-    let want = "engineVersion = \"v" + typescriptSdk.targetEngineVersion + "\""
+    let want = "engineVersion = \"" + typescriptSdk.bundleEngineVersion + "\""
 
     Fixtures.managedTomlFixtures.each { path =>
       Asserts.stringContains(
