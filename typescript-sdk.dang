@@ -128,7 +128,7 @@ type TypescriptSdk {
   module does not load at all: Dang's interface check reports the workspace
   argument as missing.
   """
-  targetEngineVersion: String! = "1.0.0-beta.18"
+  targetEngineVersion: String! = "1.0.0-beta.21"
 
   """
   Directory holding the generated Dang entrypoint, relative to the module root.
