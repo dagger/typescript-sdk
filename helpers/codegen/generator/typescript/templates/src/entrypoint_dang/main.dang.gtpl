@@ -58,7 +58,9 @@ type Entrypoint implements ModuleEntrypoint {
   from into the module context, which is what the container below mounts and
   what the call's cache key covers. `callDigest` is the engine's identifier for
   this call, passed to the dispatcher so a nested call it makes can be keyed on
-  it.
+  it. `DAGGER_CLIENT_VERSION` is the engine release the module's bindings are
+  generated for: the engine ignores it today, and a later one serves the module
+  process that release's view.
   """
   pub call(
     receiverType: String!,
@@ -77,6 +79,7 @@ type Entrypoint implements ModuleEntrypoint {
     let reply = JSON.decode(
       runtime
         .withEnvVariable("DAGGER_MODULE_CALL_DIGEST", callDigest ?? "")
+        .withEnvVariable("DAGGER_CLIENT_VERSION", {{ dangClientVersion }})
         .withExec({{ dangDispatchExec }}, stdin: request)
         .stdout,
     ) :: DispatchReply!

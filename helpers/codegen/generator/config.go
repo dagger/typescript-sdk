@@ -195,6 +195,11 @@ type DangEntrypointGeneratorConfig struct {
 	// `dagger.baseImage` records it. Empty keeps the pin for Runtime.
 	BaseImage string
 
+	// ClientVersion is the engine release the module's bindings are generated
+	// for, as a `v`-prefixed semver. The recipe declares it on the exec that
+	// starts the module process. Required.
+	ClientVersion string
+
 	// DispatchFile is the dispatcher call() execs, relative to the module
 	// directory. Defaults to "__dagger.dispatch.ts".
 	DispatchFile string

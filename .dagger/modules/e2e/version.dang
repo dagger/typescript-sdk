@@ -11,6 +11,10 @@ type VersionChecks {
   layout and in a client-only scope. The shared engine these checks run on is
   not the release the bundle is built for, so equality here is what shows the
   engine plays no part in the core.
+
+  The generated entrypoint declares that same release on the exec that starts
+  the module process. The engine ignores the variable today; a later one serves
+  the process that release's view.
   """
   coreFromBundleCheck(ws: Workspace!): Void @check {
     let core = ws.file("/library/src/core/client.gen.ts").contents
@@ -21,6 +25,14 @@ type VersionChecks {
     Asserts.assert(
       entrypoint.layer.file(entrypointPath + "/clients/dagger/client.gen.ts").contents == core,
       "an entrypoint module's core should be the library's own bindings",
+    )
+    let program = entrypoint.layer.file(entrypointPath + "/entrypoint/main.dang").contents
+    Asserts.stringContains(
+      program,
+      ".withEnvVariable(\"DAGGER_MODULE_CALL_DIGEST\", callDigest ?? \"\")\n" +
+        "        .withEnvVariable(\"DAGGER_CLIENT_VERSION\", \"" + typescriptSdk.bundleEngineVersion + "\")\n" +
+        "        .withExec(",
+      "the entrypoint should declare the client version beside the call digest, got:\n" + program,
     )
 
     let runtime = Gen.scope(ws, runtimePath, "version-core-runtime", template: "empty")

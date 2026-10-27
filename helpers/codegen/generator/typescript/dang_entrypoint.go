@@ -37,6 +37,9 @@ func (g *TypeScriptGenerator) GenerateDangEntrypoint(ctx context.Context) (*gene
 	if cfg.TypedefJSONPath == "" {
 		return nil, fmt.Errorf("generate-dang-entrypoint: TypedefJSONPath is required")
 	}
+	if cfg.ClientVersion == "" {
+		return nil, fmt.Errorf("generate-dang-entrypoint: ClientVersion is required")
+	}
 
 	data, err := os.ReadFile(cfg.TypedefJSONPath)
 	if err != nil {
@@ -55,6 +58,7 @@ func (g *TypeScriptGenerator) GenerateDangEntrypoint(ctx context.Context) (*gene
 		PackageManager:        cfg.PackageManager,
 		PackageManagerVersion: cfg.PackageManagerVersion,
 		BaseImage:             cfg.BaseImage,
+		ClientVersion:         cfg.ClientVersion,
 		DispatchFile:          cfg.DispatchFile,
 		TSConfigPath:          cfg.TSConfigPath,
 		Include:               cfg.Include,
