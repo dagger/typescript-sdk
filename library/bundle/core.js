@@ -98171,6 +98171,9 @@ class Bin {
   async Connect(opts) {
     let downloadError;
     if (!this.binPath) {
+      this.binPath = this.engineProvidedCLI();
+    }
+    if (!this.binPath) {
       try {
         this.binPath = await this.downloadCLI(opts.LogOutput);
       } catch (e2) {
@@ -98232,6 +98235,16 @@ failed to use CLI from PATH "${this.binPath}": ${sessionError.message}`, { cause
       console.error("could not clean up temporary binary files");
     }
     return binPath;
+  }
+  engineProvidedCLI() {
+    if (!process11.env["DAGGER_ENGINE"]) {
+      return;
+    }
+    try {
+      return this.findDaggerCLI();
+    } catch {
+      return;
+    }
   }
   fallbackToLocalCLI(downloadError, logOutput) {
     if (!this.hasCLIReleaseUnavailableError(downloadError)) {
@@ -98366,7 +98379,7 @@ dagger CLI not found in PATH: ${pathError.message}`, { cause: e2 });
 Establishing connection to Engine... `);
     }
     const connectParams = await Promise.race([
-      this.readConnectParams(stdoutReader),
+      this.readConnectParams(binPath, stdoutReader),
       new Promise((_2, reject) => {
         setTimeout(() => {
           reject(new EngineSessionConnectionTimeoutError("Engine connection timeout", {
@@ -98381,7 +98394,7 @@ Establishing connection to Engine... `);
     }
     return createGQLClient(connectParams.port, connectParams.session_token);
   }
-  async readConnectParams(stdoutReader) {
+  async readConnectParams(binPath, stdoutReader) {
     for await (const line of stdoutReader) {
       const connectParams = JSON.parse(line);
       if (connectParams.port && connectParams.session_token) {
@@ -98393,11 +98406,12 @@ Establishing connection to Engine... `);
     }
     try {
       await this.subProcess;
-    } catch {
-      this.subProcess?.catch((e2) => {
-        throw new EngineSessionError(e2.stderr);
-      });
+    } catch (e2) {
+      const exit = e2;
+      const stderr2 = exit.stderr?.trim();
+      throw new EngineSessionError(`dagger CLI "${binPath}" exited with code ${exit.exitCode ?? "unknown"} without starting a session` + (stderr2 ? `: ${stderr2}` : ""), { cause: e2 instanceof Error ? e2 : undefined });
     }
+    throw new EngineSessionError(`dagger CLI "${binPath}" exited without starting a session`);
   }
   async Close() {
     if (this.subProcess?.pid) {
@@ -99957,6 +99971,31 @@ async function withSession(fct, cfg = {}) {
   }
 }
 // src/core/dist/client.gen.js
+var AcronymStyle;
+(function(AcronymStyle2) {
+  AcronymStyle2["Capitalized"] = "CAPITALIZED";
+  AcronymStyle2["Uppercase"] = "UPPERCASE";
+})(AcronymStyle || (AcronymStyle = {}));
+function AcronymStyleValueToName(value) {
+  switch (value) {
+    case AcronymStyle.Capitalized:
+      return "CAPITALIZED";
+    case AcronymStyle.Uppercase:
+      return "UPPERCASE";
+    default:
+      return value;
+  }
+}
+function AcronymStyleNameToValue(name) {
+  switch (name) {
+    case "CAPITALIZED":
+      return AcronymStyle.Capitalized;
+    case "UPPERCASE":
+      return AcronymStyle.Uppercase;
+    default:
+      return name;
+  }
+}
 var AgentMessageDelivery;
 (function(AgentMessageDelivery2) {
   AgentMessageDelivery2["Queued"] = "QUEUED";
@@ -100088,6 +100127,51 @@ function CacheSharingModeNameToValue(name) {
       return CacheSharingMode.Private;
     case "SHARED":
       return CacheSharingMode.Shared;
+    default:
+      return name;
+  }
+}
+var Casing;
+(function(Casing2) {
+  Casing2["Camel"] = "CAMEL";
+  Casing2["Flat"] = "FLAT";
+  Casing2["Kebab"] = "KEBAB";
+  Casing2["Pascal"] = "PASCAL";
+  Casing2["ScreamingSnake"] = "SCREAMING_SNAKE";
+  Casing2["Snake"] = "SNAKE";
+})(Casing || (Casing = {}));
+function CasingValueToName(value) {
+  switch (value) {
+    case Casing.Camel:
+      return "CAMEL";
+    case Casing.Flat:
+      return "FLAT";
+    case Casing.Kebab:
+      return "KEBAB";
+    case Casing.Pascal:
+      return "PASCAL";
+    case Casing.ScreamingSnake:
+      return "SCREAMING_SNAKE";
+    case Casing.Snake:
+      return "SNAKE";
+    default:
+      return value;
+  }
+}
+function CasingNameToValue(name) {
+  switch (name) {
+    case "CAMEL":
+      return Casing.Camel;
+    case "FLAT":
+      return Casing.Flat;
+    case "KEBAB":
+      return Casing.Kebab;
+    case "PASCAL":
+      return Casing.Pascal;
+    case "SCREAMING_SNAKE":
+      return Casing.ScreamingSnake;
+    case "SNAKE":
+      return Casing.Snake;
     default:
       return name;
   }
@@ -100321,6 +100405,36 @@ function GitPushDispositionNameToValue(name) {
       return GitPushDisposition.Forced;
     case "UP_TO_DATE":
       return GitPushDisposition.UpToDate;
+    default:
+      return name;
+  }
+}
+var IdentifierWordKind;
+(function(IdentifierWordKind2) {
+  IdentifierWordKind2["Acronym"] = "ACRONYM";
+  IdentifierWordKind2["Term"] = "TERM";
+  IdentifierWordKind2["Word"] = "WORD";
+})(IdentifierWordKind || (IdentifierWordKind = {}));
+function IdentifierWordKindValueToName(value) {
+  switch (value) {
+    case IdentifierWordKind.Acronym:
+      return "ACRONYM";
+    case IdentifierWordKind.Term:
+      return "TERM";
+    case IdentifierWordKind.Word:
+      return "WORD";
+    default:
+      return value;
+  }
+}
+function IdentifierWordKindNameToValue(name) {
+  switch (name) {
+    case "ACRONYM":
+      return IdentifierWordKind.Acronym;
+    case "TERM":
+      return IdentifierWordKind.Term;
+    case "WORD":
+      return IdentifierWordKind.Word;
     default:
       return name;
   }
@@ -100819,8 +100933,8 @@ class Address extends BaseClient {
     const response = await ctx.execute();
     return response;
   };
-  container = () => {
-    const ctx = this._ctx.select("container");
+  container = (opts) => {
+    const ctx = this._ctx.select("container", { ...opts });
     return new Container(ctx);
   };
   directory = (opts) => {
@@ -100831,8 +100945,8 @@ class Address extends BaseClient {
     const ctx = this._ctx.select("file", { ...opts });
     return new File3(ctx);
   };
-  gitRef = () => {
-    const ctx = this._ctx.select("gitRef");
+  gitRef = (opts) => {
+    const ctx = this._ctx.select("gitRef", { ...opts });
     return new GitRef(ctx);
   };
   gitRepository = () => {
@@ -100938,6 +101052,14 @@ class Agent extends BaseClient {
     const response = await ctx.execute();
     return new Agent(ctx.copy().selectNode(response, "Agent"));
   };
+  parent = async () => {
+    const ctx = this._ctx.select("parent").select("id");
+    const response = await ctx.execute();
+    if (response === null) {
+      return null;
+    }
+    return new Agent(ctx.copy().selectNode(response, "Agent"));
+  };
   pause = async (opts) => {
     const ctx = this._ctx.select("pause", { ...opts });
     const response = await ctx.execute();
@@ -100952,6 +101074,10 @@ class Agent extends BaseClient {
     const ctx = this._ctx.select("resume");
     const response = await ctx.execute();
     return new Agent(ctx.copy().selectNode(response, "Agent"));
+  };
+  seed = () => {
+    const ctx = this._ctx.select("seed");
+    return new LLM(ctx);
   };
   send = async (message, opts) => {
     if (this._send) {
@@ -101108,6 +101234,14 @@ class Artifact extends BaseClient {
   value = (opts) => {
     const ctx = this._ctx.select("value", { ...opts });
     return new _NodeClient(ctx);
+  };
+  workspace = async () => {
+    const ctx = this._ctx.select("workspace").select("id");
+    const response = await ctx.execute();
+    if (response === null) {
+      return null;
+    }
+    return new Workspace(ctx.copy().selectNode(response, "Workspace"));
   };
 }
 
@@ -102336,10 +102470,12 @@ class Container extends BaseClient {
 class CurrentModule extends BaseClient {
   _id = undefined;
   _name = undefined;
-  constructor(ctx, _id, _name) {
+  _sourceSubpath = undefined;
+  constructor(ctx, _id, _name, _sourceSubpath) {
     super(ctx);
     this._id = _id;
     this._name = _name;
+    this._sourceSubpath = _sourceSubpath;
   }
   id = async () => {
     if (this._id) {
@@ -102348,6 +102484,10 @@ class CurrentModule extends BaseClient {
     const ctx = this._ctx.select("id");
     const response = await ctx.execute();
     return response;
+  };
+  contextDirectory = () => {
+    const ctx = this._ctx.select("contextDirectory");
+    return new Directory(ctx);
   };
   dependencies = async () => {
     const ctx = this._ctx.select("dependencies").select("id");
@@ -102369,6 +102509,14 @@ class CurrentModule extends BaseClient {
   source = () => {
     const ctx = this._ctx.select("source");
     return new Directory(ctx);
+  };
+  sourceSubpath = async () => {
+    if (this._sourceSubpath) {
+      return this._sourceSubpath;
+    }
+    const ctx = this._ctx.select("sourceSubpath");
+    const response = await ctx.execute();
+    return response;
   };
   workdir = (path8, opts) => {
     const ctx = this._ctx.select("workdir", { path: path8, ...opts });
@@ -103210,6 +103358,10 @@ class Expertise extends BaseClient {
     const response = await ctx.execute();
     return response;
   };
+  artifact = () => {
+    const ctx = this._ctx.select("artifact");
+    return new Artifact(ctx);
+  };
   description = async () => {
     if (this._description) {
       return this._description;
@@ -103929,7 +104081,8 @@ class GitCommit extends BaseClient {
   _messageHeadline = undefined;
   _sha = undefined;
   _shortSha = undefined;
-  constructor(ctx, _id, _authorEmail, _authorName, _authoredDate, _committedDate, _committerEmail, _committerName, _message, _messageBody, _messageHeadline, _sha, _shortSha) {
+  _treeSHA = undefined;
+  constructor(ctx, _id, _authorEmail, _authorName, _authoredDate, _committedDate, _committerEmail, _committerName, _message, _messageBody, _messageHeadline, _sha, _shortSha, _treeSHA) {
     super(ctx);
     this._id = _id;
     this._authorEmail = _authorEmail;
@@ -103943,6 +104096,7 @@ class GitCommit extends BaseClient {
     this._messageHeadline = _messageHeadline;
     this._sha = _sha;
     this._shortSha = _shortSha;
+    this._treeSHA = _treeSHA;
   }
   id = async () => {
     if (this._id) {
@@ -104069,6 +104223,14 @@ class GitCommit extends BaseClient {
     const ctx = this._ctx.select("tree", { ...opts });
     return new Directory(ctx);
   };
+  treeSHA = async () => {
+    if (this._treeSHA) {
+      return this._treeSHA;
+    }
+    const ctx = this._ctx.select("treeSHA");
+    const response = await ctx.execute();
+    return response;
+  };
 }
 
 class GitPushResult extends BaseClient {
@@ -104131,13 +104293,15 @@ class GitRef extends BaseClient {
   _id = undefined;
   _commit = undefined;
   _commitSHA = undefined;
+  _contains = undefined;
   _name = undefined;
   _ref = undefined;
-  constructor(ctx, _id, _commit, _commitSHA, _name, _ref) {
+  constructor(ctx, _id, _commit, _commitSHA, _contains, _name, _ref) {
     super(ctx);
     this._id = _id;
     this._commit = _commit;
     this._commitSHA = _commitSHA;
+    this._contains = _contains;
     this._name = _name;
     this._ref = _ref;
   }
@@ -104176,6 +104340,14 @@ class GitRef extends BaseClient {
   commonAncestor = (other) => {
     const ctx = this._ctx.select("commonAncestor", { other });
     return new GitRef(ctx);
+  };
+  contains = async (other) => {
+    if (this._contains) {
+      return this._contains;
+    }
+    const ctx = this._ctx.select("contains", { other });
+    const response = await ctx.execute();
+    return response;
   };
   log = async (opts) => {
     const ctx = this._ctx.select("log", { ...opts }).select("id");
@@ -104219,6 +104391,36 @@ class GitRef extends BaseClient {
   };
 }
 
+class GitRemote extends BaseClient {
+  _id = undefined;
+  _name = undefined;
+  constructor(ctx, _id, _name) {
+    super(ctx);
+    this._id = _id;
+    this._name = _name;
+  }
+  id = async () => {
+    if (this._id) {
+      return this._id;
+    }
+    const ctx = this._ctx.select("id");
+    const response = await ctx.execute();
+    return response;
+  };
+  name = async () => {
+    if (this._name) {
+      return this._name;
+    }
+    const ctx = this._ctx.select("name");
+    const response = await ctx.execute();
+    return response;
+  };
+  repository = () => {
+    const ctx = this._ctx.select("repository");
+    return new GitRepository(ctx);
+  };
+}
+
 class GitRepository extends BaseClient {
   _id = undefined;
   _url = undefined;
@@ -104239,8 +104441,8 @@ class GitRepository extends BaseClient {
     const ctx = this._ctx.select("asWorkspace", { ...opts });
     return new Workspace(ctx);
   };
-  branch = (name) => {
-    const ctx = this._ctx.select("branch", { name });
+  branch = (name, opts) => {
+    const ctx = this._ctx.select("branch", { name, ...opts });
     return new GitRef(ctx);
   };
   branches = async (opts) => {
@@ -104256,20 +104458,37 @@ class GitRepository extends BaseClient {
     const ctx = this._ctx.select("commit", { id });
     return new GitCommit(ctx);
   };
-  head = () => {
-    const ctx = this._ctx.select("head");
+  defaultRemote = async () => {
+    const ctx = this._ctx.select("defaultRemote").select("id");
+    const response = await ctx.execute();
+    if (response === null) {
+      return null;
+    }
+    return new GitRemote(ctx.copy().selectNode(response, "GitRemote"));
+  };
+  head = (opts) => {
+    const ctx = this._ctx.select("head", { ...opts });
     return new GitRef(ctx);
   };
   latest = (opts) => {
     const ctx = this._ctx.select("latest", { ...opts });
     return new GitRef(ctx);
   };
-  ref = (name) => {
-    const ctx = this._ctx.select("ref", { name });
+  ref = (name, opts) => {
+    const ctx = this._ctx.select("ref", { name, ...opts });
     return new GitRef(ctx);
   };
-  tag = (name) => {
-    const ctx = this._ctx.select("tag", { name });
+  remote = (name) => {
+    const ctx = this._ctx.select("remote", { name });
+    return new GitRemote(ctx);
+  };
+  remotes = async () => {
+    const ctx = this._ctx.select("remotes").select("id");
+    const response = await ctx.execute();
+    return response.map((r2) => new GitRemote(ctx.copy().selectNode(r2.id, "GitRemote")));
+  };
+  tag = (name, opts) => {
+    const ctx = this._ctx.select("tag", { name, ...opts });
     return new GitRef(ctx);
   };
   tags = async (opts) => {
@@ -104450,6 +104669,105 @@ class Host extends BaseClient {
   unixSocket = (path8) => {
     const ctx = this._ctx.select("unixSocket", { path: path8 });
     return new Socket(ctx);
+  };
+}
+
+class Identifier extends BaseClient {
+  _id = undefined;
+  _format = undefined;
+  _name = undefined;
+  constructor(ctx, _id, _format, _name) {
+    super(ctx);
+    this._id = _id;
+    this._format = _format;
+    this._name = _name;
+  }
+  id = async () => {
+    if (this._id) {
+      return this._id;
+    }
+    const ctx = this._ctx.select("id");
+    const response = await ctx.execute();
+    return response;
+  };
+  format = async (casing, opts) => {
+    if (this._format) {
+      return this._format;
+    }
+    const metadata = {
+      casing: { is_enum: true, value_to_name: CasingValueToName },
+      acronyms: { is_enum: true, value_to_name: AcronymStyleValueToName }
+    };
+    const ctx = this._ctx.select("format", { casing, ...opts, __metadata: metadata });
+    const response = await ctx.execute();
+    return response;
+  };
+  name = async () => {
+    if (this._name) {
+      return this._name;
+    }
+    const ctx = this._ctx.select("name");
+    const response = await ctx.execute();
+    return response;
+  };
+  words = async () => {
+    const ctx = this._ctx.select("words").select("id");
+    const response = await ctx.execute();
+    return response.map((r2) => new IdentifierWord(ctx.copy().selectNode(r2.id, "IdentifierWord")));
+  };
+}
+
+class IdentifierWord extends BaseClient {
+  _id = undefined;
+  _kind = undefined;
+  _suffix = undefined;
+  _text = undefined;
+  constructor(ctx, _id, _kind, _suffix, _text) {
+    super(ctx);
+    this._id = _id;
+    this._kind = _kind;
+    this._suffix = _suffix;
+    this._text = _text;
+  }
+  id = async () => {
+    if (this._id) {
+      return this._id;
+    }
+    const ctx = this._ctx.select("id");
+    const response = await ctx.execute();
+    return response;
+  };
+  kind = async () => {
+    if (this._kind) {
+      return this._kind;
+    }
+    const ctx = this._ctx.select("kind");
+    const response = await ctx.execute();
+    return IdentifierWordKindNameToValue(response);
+  };
+  suffix = async () => {
+    if (this._suffix) {
+      return this._suffix;
+    }
+    const ctx = this._ctx.select("suffix");
+    const response = await ctx.execute();
+    return response;
+  };
+  term = async () => {
+    const ctx = this._ctx.select("term").select("id");
+    const response = await ctx.execute();
+    if (response === null) {
+      return null;
+    }
+    return new NamingTerm(ctx.copy().selectNode(response, "NamingTerm"));
+  };
+  text = async () => {
+    if (this._text) {
+      return this._text;
+    }
+    const ctx = this._ctx.select("text");
+    const response = await ctx.execute();
+    return response;
   };
 }
 
@@ -104676,6 +104994,10 @@ class LLM extends BaseClient {
     const ctx = this._ctx.select("agent", { handle, name });
     return new Agent(ctx);
   };
+  artifacts = (opts) => {
+    const ctx = this._ctx.select("artifacts", { ...opts });
+    return new Artifacts(ctx);
+  };
   compose = (expertise) => {
     const ctx = this._ctx.select("compose", { expertise });
     return new LLM(ctx);
@@ -104695,6 +105017,11 @@ class LLM extends BaseClient {
     const ctx = this._ctx.select("contextWindow");
     const response = await ctx.execute();
     return response;
+  };
+  expertise = async () => {
+    const ctx = this._ctx.select("expertise").select("id");
+    const response = await ctx.execute();
+    return response.map((r2) => new Expertise(ctx.copy().selectNode(r2.id, "Expertise")));
   };
   fork = (label) => {
     const ctx = this._ctx.select("fork", { label });
@@ -104748,10 +105075,6 @@ class LLM extends BaseClient {
     const ctx = this._ctx.select("reasoningEffort");
     const response = await ctx.execute();
     return response;
-  };
-  recompose = (expertise) => {
-    const ctx = this._ctx.select("recompose", { expertise });
-    return new LLM(ctx);
   };
   skills = async () => {
     const ctx = this._ctx.select("skills").select("id");
@@ -104869,6 +105192,42 @@ class LLM extends BaseClient {
   workspace = () => {
     const ctx = this._ctx.select("workspace");
     return new Workspace(ctx);
+  };
+  with = (arg) => {
+    return arg(this);
+  };
+}
+
+class LLMContent extends BaseClient {
+  _id = undefined;
+  constructor(ctx, _id) {
+    super(ctx);
+    this._id = _id;
+  }
+  id = async () => {
+    if (this._id) {
+      return this._id;
+    }
+    const ctx = this._ctx.select("id");
+    const response = await ctx.execute();
+    return response;
+  };
+  blocks = async () => {
+    const ctx = this._ctx.select("blocks").select("id");
+    const response = await ctx.execute();
+    return response.map((r2) => new LLMContentBlock(ctx.copy().selectNode(r2.id, "LLMContentBlock")));
+  };
+  withData = (data, mimeType) => {
+    const ctx = this._ctx.select("withData", { data, mimeType });
+    return new LLMContent(ctx);
+  };
+  withFile = (file, opts) => {
+    const ctx = this._ctx.select("withFile", { file, ...opts });
+    return new LLMContent(ctx);
+  };
+  withText = (text) => {
+    const ctx = this._ctx.select("withText", { text });
+    return new LLMContent(ctx);
   };
   with = (arg) => {
     return arg(this);
@@ -105765,6 +106124,42 @@ class ModuleSource extends BaseClient {
   };
 }
 
+class NamingTerm extends BaseClient {
+  _id = undefined;
+  _capitalized = undefined;
+  _spelling = undefined;
+  constructor(ctx, _id, _capitalized, _spelling) {
+    super(ctx);
+    this._id = _id;
+    this._capitalized = _capitalized;
+    this._spelling = _spelling;
+  }
+  id = async () => {
+    if (this._id) {
+      return this._id;
+    }
+    const ctx = this._ctx.select("id");
+    const response = await ctx.execute();
+    return response;
+  };
+  capitalized = async () => {
+    if (this._capitalized) {
+      return this._capitalized;
+    }
+    const ctx = this._ctx.select("capitalized");
+    const response = await ctx.execute();
+    return response;
+  };
+  spelling = async () => {
+    if (this._spelling) {
+      return this._spelling;
+    }
+    const ctx = this._ctx.select("spelling");
+    const response = await ctx.execute();
+    return response;
+  };
+}
+
 class _NodeClient extends BaseClient {
   _id = undefined;
   constructor(ctx, _id) {
@@ -106025,6 +106420,15 @@ class Client extends BaseClient {
     const ctx = this._ctx.select("file", { name, contents, ...opts });
     return new File3(ctx);
   };
+  formatIdentifiers = async (names, casing, opts) => {
+    const metadata = {
+      casing: { is_enum: true, value_to_name: CasingValueToName },
+      acronyms: { is_enum: true, value_to_name: AcronymStyleValueToName }
+    };
+    const ctx = this._ctx.select("formatIdentifiers", { names, casing, ...opts, __metadata: metadata });
+    const response = await ctx.execute();
+    return response;
+  };
   function_ = (name, returnType) => {
     const ctx = this._ctx.select("function", { name, returnType });
     return new Function_(ctx);
@@ -106045,6 +106449,10 @@ class Client extends BaseClient {
     const ctx = this._ctx.select("http", { url, ...opts });
     return new File3(ctx);
   };
+  identifier = (name) => {
+    const ctx = this._ctx.select("identifier", { name });
+    return new Identifier(ctx);
+  };
   json = () => {
     const ctx = this._ctx.select("json");
     return new JSONValue(ctx);
@@ -106052,6 +106460,10 @@ class Client extends BaseClient {
   llm = (opts) => {
     const ctx = this._ctx.select("llm", { ...opts });
     return new LLM(ctx);
+  };
+  llmContent = () => {
+    const ctx = this._ctx.select("llmContent");
+    return new LLMContent(ctx);
   };
   module_ = () => {
     const ctx = this._ctx.select("module");
@@ -106063,6 +106475,11 @@ class Client extends BaseClient {
     };
     const ctx = this._ctx.select("moduleSource", { refString, ...opts, __metadata: metadata });
     return new ModuleSource(ctx);
+  };
+  namingDictionary = async () => {
+    const ctx = this._ctx.select("namingDictionary").select("id");
+    const response = await ctx.execute();
+    return response.map((r2) => new NamingTerm(ctx.copy().selectNode(r2.id, "NamingTerm")));
   };
   node = async (id) => {
     const ctx = this._ctx.select("node", { id }).select("id");
@@ -106863,7 +107280,8 @@ class Workspace extends BaseClient {
   _entrypoint = undefined;
   _export = undefined;
   _findUp = undefined;
-  constructor(ctx, _id, _address, _configFile, _configRead, _cwd, _detectScope, _entrypoint, _export, _findUp) {
+  _main = undefined;
+  constructor(ctx, _id, _address, _configFile, _configRead, _cwd, _detectScope, _entrypoint, _export, _findUp, _main) {
     super(ctx);
     this._id = _id;
     this._address = _address;
@@ -106874,6 +107292,7 @@ class Workspace extends BaseClient {
     this._entrypoint = _entrypoint;
     this._export = _export;
     this._findUp = _findUp;
+    this._main = _main;
   }
   id = async () => {
     if (this._id) {
@@ -106986,6 +107405,14 @@ class Workspace extends BaseClient {
     const response = await ctx.execute();
     return response;
   };
+  main = async () => {
+    if (this._main) {
+      return this._main;
+    }
+    const ctx = this._ctx.select("main");
+    const response = await ctx.execute();
+    return response;
+  };
   migrate = (opts) => {
     const ctx = this._ctx.select("migrate", { ...opts });
     return new WorkspaceMigration(ctx);
@@ -107084,6 +107511,10 @@ class Workspace extends BaseClient {
     const ctx = this._ctx.select("withInitialized");
     return new Workspace(ctx);
   };
+  withMain = (name) => {
+    const ctx = this._ctx.select("withMain", { name });
+    return new Workspace(ctx);
+  };
   withModule = (ref, opts) => {
     const ctx = this._ctx.select("withModule", { ref, ...opts });
     return new Workspace(ctx);
@@ -107104,6 +107535,13 @@ class Workspace extends BaseClient {
     const ctx = this._ctx.select("withNewFile", { path: path8, contents, ...opts });
     return new Workspace(ctx);
   };
+  withPatchFile = (patch, opts) => {
+    const metadata = {
+      onConflict: { is_enum: true, value_to_name: PatchConflictValueToName }
+    };
+    const ctx = this._ctx.select("withPatchFile", { patch, ...opts, __metadata: metadata });
+    return new Workspace(ctx);
+  };
   withReset = (commit, opts) => {
     const ctx = this._ctx.select("withReset", { commit, ...opts });
     return new Workspace(ctx);
@@ -107122,6 +107560,10 @@ class Workspace extends BaseClient {
   };
   withUpdatedModules = (opts) => {
     const ctx = this._ctx.select("withUpdatedModules", { ...opts });
+    return new Workspace(ctx);
+  };
+  withUserConfig = () => {
+    const ctx = this._ctx.select("withUserConfig");
     return new Workspace(ctx);
   };
   withWorkdir = (path8) => {
@@ -107153,6 +107595,14 @@ class Workspace extends BaseClient {
   };
   withoutFile = (path8) => {
     const ctx = this._ctx.select("withoutFile", { path: path8 });
+    return new Workspace(ctx);
+  };
+  withoutFiles = (paths) => {
+    const ctx = this._ctx.select("withoutFiles", { paths });
+    return new Workspace(ctx);
+  };
+  withoutMain = () => {
+    const ctx = this._ctx.select("withoutMain");
     return new Workspace(ctx);
   };
   withoutModule = (name, opts) => {
@@ -107333,12 +107783,14 @@ class WorkspaceMigrationStep extends BaseClient {
 class WorkspaceModule extends BaseClient {
   _id = undefined;
   _entrypoint = undefined;
+  _main = undefined;
   _name = undefined;
   _source = undefined;
-  constructor(ctx, _id, _entrypoint, _name, _source) {
+  constructor(ctx, _id, _entrypoint, _main, _name, _source) {
     super(ctx);
     this._id = _id;
     this._entrypoint = _entrypoint;
+    this._main = _main;
     this._name = _name;
     this._source = _source;
   }
@@ -107360,6 +107812,14 @@ class WorkspaceModule extends BaseClient {
   };
   functions = async () => {
     const ctx = this._ctx.select("functions");
+    const response = await ctx.execute();
+    return response;
+  };
+  main = async () => {
+    if (this._main) {
+      return this._main;
+    }
+    const ctx = this._ctx.select("main");
     const response = await ctx.execute();
     return response;
   };
@@ -107699,6 +108159,7 @@ export {
   NetworkProtocolValueToName,
   NetworkProtocolNameToValue,
   NetworkProtocol,
+  NamingTerm,
   Module_,
   ModuleSourceKindValueToName,
   ModuleSourceKindNameToValue,
@@ -107724,6 +108185,7 @@ export {
   LLMContentBlockKindNameToValue,
   LLMContentBlockKind,
   LLMContentBlock,
+  LLMContent,
   LLM,
   JSONValue,
   IntrospectionError,
@@ -107736,12 +108198,18 @@ export {
   ImageLayerCompressionValueToName,
   ImageLayerCompressionNameToValue,
   ImageLayerCompression,
+  IdentifierWordKindValueToName,
+  IdentifierWordKindNameToValue,
+  IdentifierWordKind,
+  IdentifierWord,
+  Identifier,
   Host,
   HealthcheckConfig,
   HTTPState,
   GraphQLRequestError,
   GraphQLClient,
   GitRepository,
+  GitRemote,
   GitRef,
   GitPushResult,
   GitPushDispositionValueToName,
@@ -107809,6 +108277,9 @@ export {
   ChangesetMergeConflictNameToValue,
   ChangesetMergeConflict,
   Changeset,
+  CasingValueToName,
+  CasingNameToValue,
+  Casing,
   CacheVolume,
   CacheSharingModeValueToName,
   CacheSharingModeNameToValue,
@@ -107831,5 +108302,8 @@ export {
   AgentMessageDelivery,
   AgentMessage,
   Agent,
-  Address
+  Address,
+  AcronymStyleValueToName,
+  AcronymStyleNameToValue,
+  AcronymStyle
 };

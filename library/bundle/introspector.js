@@ -109098,7 +109098,7 @@ class DaggerModule {
       return;
     }
     if (type.flags & ts10.TypeFlags.Union) {
-      throw new IntrospectionError(`Unsupported union type alias '${reference}' in ${typeAlias.file.fileName}. ` + `Declare an enum for a set of allowed values, or use a supported type.`);
+      throw new IntrospectionError2(`Unsupported union type alias '${reference}' in ${typeAlias.file.fileName}. ` + `Declare an enum for a set of allowed values, or use a supported type.`);
     }
     if (type.flags & ts10.TypeFlags.Object) {
       if (this.ast.isGeneratedClientFile(typeAlias.file.fileName)) {
@@ -109135,7 +109135,7 @@ class DaggerModule {
       if (!name || !coreTypes.has(name) || this.ast.isGeneratedClientFile(file.fileName)) {
         continue;
       }
-      throw new IntrospectionError(`${declarationKind(node)} ${name} at ${AST.getNodePosition(node)} shadows the core Dagger type ${name}. ` + `A module's types are namespaced against other modules but not against core, so the core type answers for that name wherever it is used. ` + `Rename the declaration.`);
+      throw new IntrospectionError2(`${declarationKind(node)} ${name} at ${AST.getNodePosition(node)} shadows the core Dagger type ${name}. ` + `A module's types are namespaced against other modules but not against core, so the core type answers for that name wherever it is used. ` + `Rename the declaration.`);
     }
   }
   validateUniqueClassNames(declarations) {
@@ -109150,7 +109150,7 @@ class DaggerModule {
       }
       const previous = seen.get(name);
       if (previous) {
-        throw new IntrospectionError(`class ${name} is declared twice, at ${AST.getNodePosition(previous)} and at ${AST.getNodePosition(node)}: dagger declarations are keyed by name, so one would silently replace the other. Rename one of them.`);
+        throw new IntrospectionError2(`class ${name} is declared twice, at ${AST.getNodePosition(previous)} and at ${AST.getNodePosition(node)}: dagger declarations are keyed by name, so one would silently replace the other. Rename one of them.`);
       }
       seen.set(name, node);
     }
