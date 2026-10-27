@@ -86,6 +86,7 @@ client add`, and are persisted per scope in `dagger.toml`:
 | `packageManager` | `--package-manager` | unset |
 | `baseImage` | `--base-image` | unset |
 | `legacyRuntime` | `--legacy-runtime` | `false` (the module declares an `[entrypoint]`) |
+| `targetVersion` | `--target-version` | unset (the release this SDK targets, the only one it accepts) |
 
 ```sh
 dagger module init typescript --name my-module --runtime bun
@@ -151,6 +152,11 @@ loading those modules on the running engine, which is the only way to get their
 types. They can change when the engine does, and a dependency that uses a core
 type newer than the targeted release does not type-check until the SDK targets
 that release.
+
+`targetVersion` pins the release a scope is generated for. This release of the
+SDK ships one bundle, so the only value it accepts is its own release, with or
+without the `v`; any other is refused by name, and an older release needs the
+SDK release built for it.
 
 ## Generate a typed client
 

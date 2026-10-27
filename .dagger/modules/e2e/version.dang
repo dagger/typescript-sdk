@@ -72,6 +72,49 @@ type VersionChecks {
   }
 
   """
+  The targetVersion setting pins the release a scope is generated for, and this
+  SDK release can generate for one release only: that one, spelled with or
+  without the `v` or with a build part, is accepted; any other release, and a
+  value whose build part is not one, is refused by name.
+  """
+  targetVersionPinCheck(ws: Workspace!): Void @check {
+    let path = Fixtures.out + "/version-pin"
+    let release = typescriptSdk.bundleEngineVersion
+
+    [release, release.trimPrefix("v"), " " + release + "+build "].each { pin =>
+      Asserts.added(
+        Gen.scope(ws, path, "version-pin", template: "empty", legacyRuntime: false, targetVersion: pin),
+        path + "/entrypoint/main.dang",
+      )
+    }
+
+    let failure = Gen.failure(
+      Gen.scope(ws, path, "version-pin", template: "empty", legacyRuntime: false, targetVersion: "v1.0.0-beta.19"),
+    )
+    Asserts.stringContains(
+      failure,
+      "module \"version-pin\" pins targetVersion v1.0.0-beta.19, which this release of the TypeScript SDK cannot generate for: it targets " + release + " only",
+      "a pin on another release should be refused by name, got: " + failure,
+    )
+    Asserts.stringContains(failure, "install the SDK release built for v1.0.0-beta.19", "the refusal should say what to do, got: " + failure)
+
+    # A build part the grammar cannot read is refused as given, not stripped
+    # into the supported release.
+    [release + "+???", release + "+a..b", release + "+"].each { pin =>
+      let malformed = Gen.failure(
+        Gen.scope(ws, path, "version-pin", template: "empty", legacyRuntime: false, targetVersion: pin),
+      )
+      Asserts.stringContains(
+        malformed,
+        "module \"version-pin\" pins targetVersion " + pin + ", which this release of the TypeScript SDK cannot generate for: it targets " + release + " only",
+        "a pin with an unreadable build part should be refused as given, got: " + malformed,
+      )
+    }
+
+    null
+  }
+
+  """
   The library should tell the session it starts which engine release to serve:
   the bundle carries the flag, and the release it carries is the SDK's pairing.
   """

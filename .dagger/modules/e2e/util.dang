@@ -140,6 +140,7 @@ type Gen {
     packageManager: String! = "",
     baseImage: String! = "",
     legacyRuntime: Boolean! = true,
+    targetVersion: String! = "",
   ): Changeset! {
     typescriptSdk(
       runtime: runtime,
@@ -147,6 +148,7 @@ type Gen {
       packageManager: packageManager,
       baseImage: baseImage,
       legacyRuntime: legacyRuntime,
+      targetVersion: targetVersion,
       # The fixtures carry the skip marker so `dagger generate` writes nothing
       # into them. These checks are the reason they exist, so they opt out of it
       # and generate the tree the marker protects.

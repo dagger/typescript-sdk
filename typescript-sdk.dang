@@ -86,6 +86,17 @@ type TypescriptSdk {
   baseImage: String! = ""
 
   """
+  Engine release to generate for, as `vX.Y.Z[-pre]`; empty means the release
+  this SDK targets. A value without the `v`, with whitespace around it or with
+  a `+<build>` part is read as the same release.
+
+  This release of the SDK ships one library bundle, built for one engine
+  release, so that is the only value accepted: generation refuses any other by
+  name. An older release needs the SDK release built for it.
+  """
+  targetVersion: String! = ""
+
+  """
   Marker filename that stops generation for the tree it sits in.
 
   Found with findUp from the scope, so one file disables generation for
@@ -264,6 +275,7 @@ type TypescriptSdk {
       # migrating onto it loses nothing and still happens below.
       ws
     } else if (isModule) {
+      let pinned = checkTargetVersion("module \"" + name + "\"")
       # One path serves init, migration and every later generation, and which
       # config the scope arrived with is what separates them: a manifest means
       # generate it as it stands, only a dagger.json means migrate it first,
@@ -390,11 +402,47 @@ type TypescriptSdk {
       # a workspace standing somewhere else.
       migrated.withWorkdir(scope)
     } else {
+      let pinned = checkTargetVersion("scope " + scope)
       # A client-only scope: clients/<module> packages under the scope, with the
       # scope's own clients/dagger beside them, wired through its package.json —
       # or its deno.json, for a Deno project.
       withoutLegacyWorkspaceCore(clientScope(ws, scope, clientTargets(ws, clients)), configDir(ws))
     }
+  }
+
+  """
+  Refuse a pinned release this SDK cannot generate for, before anything is
+  written. The bundle is built for one release, so a pin is accepted only when
+  it names that one. `subject` names the scope, so a refusal among several
+  generated at once says which.
+  """
+  let checkTargetVersion(subject: String!): Void {
+    let pin = targetVersion.trimSpace
+    # The whole value is checked before any part of it is dropped, so a build
+    # part the grammar cannot read is not stripped into one it can.
+    let pinned = if (isRelease(pin)) { releaseOf(pin) } else { pin }
+    if (pin != "" and pinned != bundleEngineVersion) {
+      raise subject + " pins targetVersion " + pinned + ", which this release of the TypeScript SDK " +
+        "cannot generate for: it targets " + bundleEngineVersion + " only. Remove targetVersion from the scope's " +
+        "settings in dagger.toml, or install the SDK release built for " + pinned
+    }
+    null
+  }
+
+  """
+  Whether a version reads as a release: `v?X.Y.Z`, then optional `-pre` and
+  `+build` parts made of non-empty dot-separated identifiers.
+  """
+  let isRelease(v: String!): Boolean! {
+    v.containsMatch("^v?[0-9]+\\.[0-9]+\\.[0-9]+(-[0-9A-Za-z-]+(\\.[0-9A-Za-z-]+)*)?(\\+[0-9A-Za-z-]+(\\.[0-9A-Za-z-]+)*)?$")
+  }
+
+  """
+  A release as this SDK records it: `v`-prefixed, without the `+<build>` part.
+  """
+  let releaseOf(v: String!): String! {
+    let release = v.split("+").takeFirst(1).join("")
+    if (release.hasPrefix("v")) { release } else { "v" + release }
   }
 
   """
