@@ -4,6 +4,7 @@ import * as os from "os"
 import * as path from "path"
 
 import { Bin } from "../bin.js"
+import { ENGINE_VERSION } from "../engineVersion.js"
 
 /**
  * A stand-in for the CLI on PATH, as a shell script, so nothing here downloads
@@ -79,6 +80,21 @@ describe("Bin provisioning", function () {
         !fs.existsSync(cli.marker),
         "a CLI was taken from PATH with no engine address",
       )
+    })
+  })
+
+  describe("starting a session", function () {
+    it("tells the CLI which engine release to serve", async function () {
+      const cli = fakeCLI(`printf '%s\\n' "$@" > "$(dirname "$0")/args"\n${CONNECT_PARAMS}`)
+
+      const bin = new Bin(cli.bin, NO_DOWNLOAD)
+      await bin.Connect({})
+      await bin.Close()
+
+      const args = fs.readFileSync(path.join(cli.dir, "args"), "utf8").split("\n")
+      const at = args.indexOf("--version")
+      assert.notStrictEqual(at, -1, `no --version among: ${args.join(" ")}`)
+      assert.strictEqual(args[at + 1], ENGINE_VERSION)
     })
   })
 

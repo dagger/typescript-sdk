@@ -104,12 +104,15 @@ type TypescriptSdk {
   let scopeMarkers: [String!]! = ["package.json", "deno.json", "deno.jsonc", "tsconfig.json"]
 
   """
-  Engine release the committed library bundle is built for.
+  Engine release the committed library bundle is built for, as the bundle
+  records it.
 
-  This SDK ships the library rather than letting the engine build it, so the
-  pairing is ours to state: checks drive their harness at this release, and
-  every fixture module in the repo targets it. Bumping the bundle means bumping
-  this, and the fixture check fails until they agree.
+  The constant lives in the library (src/session/provisioning/engineVersion.ts):
+  the session the library starts is told to serve that release, and the bundle
+  build copies it out for this SDK, so the pairing a module is generated for is
+  the one its library announces, by construction. Bumping the bundle means
+  bumping that constant and rebuilding; the fixture check fails until the
+  fixtures agree.
 
   This is the release the bundle is built *for*, which is no longer the release
   its vendored sources were copied *from* — see library/VENDOR.md. The pairing
@@ -118,8 +121,8 @@ type TypescriptSdk {
   from the schema of whatever engine runs the checks, so this value and
   `engine-e2e`'s `engine-dev` pin move together.
 
-  Not a setting: it is read-only, and it pins only what a `[runtime]` manifest
-  declares as its `engineVersion`. A module's own target is `targetVersion`.
+  Not a setting: it is read-only, and it pins what a `[runtime]` manifest
+  declares as its `engineVersion`.
 
   It is not the floor either. Those were the same number up to beta.18 and are
   not from beta.20 on: the floor is the oldest engine a module generated here
@@ -137,7 +140,9 @@ type TypescriptSdk {
   So the beta.18 the docs and the generated entrypoint's header still name is
   correct and deliberate, not a reference this bump forgot to move.
   """
-  bundleEngineVersion: String! { "v1.0.0-beta.20" }
+  bundleEngineVersion: String! {
+    tsBundle.file("engine-version.txt").contents.trimSuffix("\n")
+  }
 
   """
   Directory holding the generated Dang entrypoint, relative to the module root.

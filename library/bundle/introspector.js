@@ -35899,6 +35899,9 @@ var init_errors = __esm(() => {
   init_errors_codes();
 });
 
+// src/session/provisioning/engineVersion.ts
+var ENGINE_VERSION = "v1.0.0-beta.20";
+
 // src/session/provisioning/bin.ts
 import * as crypto2 from "crypto";
 import * as fs3 from "fs";
@@ -36104,7 +36107,8 @@ dagger CLI not found in PATH: ${pathError.message}`, { cause: e2 });
       { flag: "--workdir", value: opts.Workdir },
       { flag: "--project", value: opts.Project },
       { flag: "--label", value: "dagger.io/sdk.name:nodejs" },
-      { flag: "--label", value: `dagger.io/sdk.version:${sdkVersion}` }
+      { flag: "--label", value: `dagger.io/sdk.version:${sdkVersion}` },
+      { flag: "--version", value: ENGINE_VERSION }
     ];
     flagsAndValues.forEach((pair) => {
       if (pair.value) {

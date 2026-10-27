@@ -20,6 +20,7 @@ import {
 } from "../errors/index.js"
 import { createGQLClient } from "../graphql/client.js"
 import { ConnectOpts, EngineConn, ConnectParams } from "./engineconn.js"
+import { ENGINE_VERSION } from "./engineVersion.js"
 
 let OVERRIDE_CLI_URL: string = ""
 let OVERRIDE_CHECKSUMS_URL: string = ""
@@ -359,6 +360,7 @@ export class Bin implements EngineConn {
       { flag: "--project", value: opts.Project },
       { flag: "--label", value: "dagger.io/sdk.name:nodejs" },
       { flag: "--label", value: `dagger.io/sdk.version:${sdkVersion}` },
+      { flag: "--version", value: ENGINE_VERSION },
     ]
 
     flagsAndValues.forEach((pair) => {
