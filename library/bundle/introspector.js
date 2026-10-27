@@ -98583,7 +98583,6 @@ class BaseClient {
     this._ctx = _ctx;
   }
 }
-
 // src/core/client.gen.ts
 function AcronymStyleValueToName(value) {
   switch (value) {

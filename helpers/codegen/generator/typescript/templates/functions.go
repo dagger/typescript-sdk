@@ -135,7 +135,6 @@ func (funcs typescriptTemplateFuncs) FuncMap() template.FuncMap {
 		"CheckVersionCompatibility": commonFunc.CheckVersionCompatibility,
 		"ModuleRelPath":             funcs.moduleRelPath,
 		"FormatProtected":           funcs.formatProtected,
-		"IsBundle":                  funcs.isBundle,
 		"LegacyTypeScriptSDKCompat": funcs.legacyTypeScriptSDKCompat,
 		"LegacyIDableTypes":         funcs.legacyIDableTypes,
 		"LegacyIDName":              funcs.legacyIDName,
@@ -727,15 +726,6 @@ func (funcs typescriptTemplateFuncs) legacyIDableTypes(fileTypes []*introspectio
 	return types
 }
 
-// isBundle reports whether the core file sits next to the bundled SDK library
-// and must import it from ./core.js. That is any scope's client bindings — a
-// module's or a standalone client's — since both vendor the library as sdk/.
-// Only the library's own bindings (no ModuleConfig) import the runtime they
-// ship with, by relative source path.
-func (funcs typescriptTemplateFuncs) isBundle() bool {
-	return funcs.cfg.ModuleConfig != nil
-}
-
 // depFileName converts a module name to the kebab-cased basename used for its
 // generated file, e.g. "myDep" -> "my-dep" (file "my-dep.gen.ts").
 func (funcs typescriptTemplateFuncs) depFileName(moduleName string) string {
@@ -1096,26 +1086,31 @@ func (funcs typescriptTemplateFuncs) clientFileSpec(owner string) string {
 	return funcs.siblingImportSpec(owner)
 }
 
-// loaderFiles enumerates, per generated client file, the object classes the
-// entrypoint loader can instantiate from an ID: every exportable object type
-// with fields, keyed by its schema type name. The map is explicit rather than
-// searched so two modules exporting the same class name cannot resolve by
-// import order. The loader is generated only for module codegen, so core comes
-// from the @dagger.io/dagger package and module clients from relative siblings.
+// loaderFiles enumerates, per generated module client file, the object classes
+// the entrypoint loader can instantiate from an ID: every exportable object
+// type with fields, keyed by its schema type name. The map is explicit rather
+// than searched so two modules exporting the same class name cannot resolve by
+// import order. The loader is generated only for module codegen, and the module
+// clients are relative siblings.
+//
+// Core types are left out on purpose: the loader resolves them on the library
+// itself at run time. Listed here they would name whatever the engine serves at
+// generation, and a core type the engine gained since the library was built
+// would put a class in the map that the library beside it does not export.
 func (funcs typescriptTemplateFuncs) loaderFiles() []LoaderFile {
 	if funcs.fullSchema == nil {
 		return nil
 	}
 
-	const coreSpec = "@dagger.io/dagger"
-	// Keyed by owner module ("" for core) so the namespace alias derives from
-	// the module name, not from the import specifier's shape.
 	byOwner := map[string][]LoaderEntry{}
 	for _, t := range funcs.fullSchema.Types {
 		if t.Kind != introspection.TypeKindObject || len(t.Fields) == 0 || !funcs.isExportableType(t) {
 			continue
 		}
 		owner := typeOwner(t)
+		if owner == "" {
+			continue
+		}
 		byOwner[owner] = append(byOwner[owner], LoaderEntry{
 			TypeName:  t.Name,
 			ClassName: funcs.exportedTypeName(t),
@@ -1126,22 +1121,13 @@ func (funcs typescriptTemplateFuncs) loaderFiles() []LoaderFile {
 	for owner := range byOwner {
 		owners = append(owners, owner)
 	}
-	sort.Slice(owners, func(i, j int) bool {
-		if (owners[i] == "") != (owners[j] == "") {
-			return owners[i] == ""
-		}
-		return owners[i] < owners[j]
-	})
+	sort.Strings(owners)
 
 	out := make([]LoaderFile, 0, len(owners))
 	for _, owner := range owners {
 		entries := byOwner[owner]
 		sort.Slice(entries, func(a, b int) bool { return entries[a].TypeName < entries[b].TypeName })
-		if owner == "" {
-			out = append(out, LoaderFile{Alias: "__core", From: coreSpec, Entries: entries})
-			continue
-		}
-		// "__core" is reserved for the library, so a module named "core"
+		// "__core" is the library's alias, so a module named "core"
 		// ("__modCore") cannot collide with it.
 		out = append(out, LoaderFile{
 			Alias:   "__mod" + strcase.ToCamel(funcs.depFileName(owner)),

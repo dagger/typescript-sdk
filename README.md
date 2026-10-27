@@ -136,6 +136,22 @@ is what runs today.
 
 [manifest-v2]: https://github.com/dagger/dagger/pull/14038
 
+### The engine release a module targets
+
+Each release of this SDK targets one engine release: the one its library bundle
+is built for, `v1.0.0-beta.20` today. A module's core bindings, the
+`client.gen.ts` in its `sdk/` or `clients/dagger/`, are the library's own copy,
+generated for that release, and the library tells the session it starts to serve
+that release. So the core follows the SDK release, not the engine: updating the
+engine and running `dagger generate` writes nothing, and updating the SDK is
+what changes the generated core.
+
+The clients for other modules, the `<module>.gen.ts` files, still come from
+loading those modules on the running engine, which is the only way to get their
+types. They can change when the engine does, and a dependency that uses a core
+type newer than the targeted release does not type-check until the SDK targets
+that release.
+
 ## Generate a typed client
 
 Record a client for a module in the current scope:

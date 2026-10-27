@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"os"
 	"path/filepath"
 	"sort"
 	"strings"
@@ -134,8 +135,20 @@ func generate(config generator.Config, target string, schema *introspection.Sche
 
 	mfs := memfs.New()
 
-	// Render the core file from the filtered core schema.
-	if err := renderTemplate(mfs, tmpl, "api", target, depFileData{
+	// The core file: the library's own, shipped as it is, or one rendered from
+	// the filtered core schema.
+	if config.ModuleConfig != nil && config.ModuleConfig.CoreFile != "" {
+		core, err := os.ReadFile(config.ModuleConfig.CoreFile)
+		if err != nil {
+			return nil, fmt.Errorf("read core file: %w", err)
+		}
+		if err := mfs.MkdirAll(filepath.Dir(target), 0700); err != nil {
+			return nil, fmt.Errorf("failed to create target directory %s: %w", filepath.Dir(target), err)
+		}
+		if err := mfs.WriteFile(target, core, 0600); err != nil {
+			return nil, fmt.Errorf("failed to write core file at %s: %w", target, err)
+		}
+	} else if err := renderTemplate(mfs, tmpl, "api", target, depFileData{
 		Schema:        coreSchema,
 		SchemaVersion: schemaVersion,
 		Types:         coreSchema.Types,

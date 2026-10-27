@@ -98545,7 +98545,6 @@ class BaseClient {
     this._ctx = _ctx;
   }
 }
-
 // src/core/client.gen.ts
 var AcronymStyle;
 ((AcronymStyle2) => {

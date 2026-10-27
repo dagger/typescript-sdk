@@ -1229,11 +1229,15 @@ type TypescriptSdk {
   }
 
   """
-  Generate a module's own bindings: client.gen.ts holding core types, one
-  <module>.gen.ts client per manifest dependency and per recorded target, the
-  loader.gen.ts the entrypoints load ID-carrying values through, and the
-  compat.gen.ts that puts each client's root fields back on the core `dag` for
-  pre-1.0 source.
+  Generate a module's own bindings: the library's client.gen.ts, shipped as it
+  is, one <module>.gen.ts client per manifest dependency and per recorded
+  target, the loader.gen.ts the entrypoints load ID-carrying values through,
+  and the compat.gen.ts that puts each client's root fields back on the core
+  `dag` for pre-1.0 source.
+
+  The core is the library's own copy, generated for the release the bundle is
+  built for, so an engine update changes nothing here. The clients still read
+  the running engine: loading a module is the only way to get its types.
 
   Each module's file is a self-contained client — its own root Client, its own
   dag, its own entrypoint functions — reached from the module's source through
@@ -1244,7 +1248,7 @@ type TypescriptSdk {
   Engine-free: the schemas arrive as data, so this is a plain container exec.
   """
   let generateModuleBindings(schemaJSON: String!, moduleName: String!, targets: [ClientTarget!]!, repoURL: String!, sourcePath: String!): Directory! {
-    let base = codegenBuilder.withNewFile("/schema.json", schemaJSON)
+    let base = codegenBuilder.withNewFile("/schema.json", schemaJSON).withFile("/core.ts", coreBindings)
     let withTargets = if (targets.length == 0) { base } else { stageTargets(base, targets) }
 
     let clientMetaArgs = if (targets.length == 0) {
@@ -1269,8 +1273,18 @@ type TypescriptSdk {
         "--output", "/out",
         "--workspace-repo-url", repoURL,
         "--clients-dir", clientsDir,
+        "--core-file", "/core.ts",
       ] + clientMetaArgs + layoutArgs)
       .directory("/out")
+  }
+
+  """
+  The library's own core bindings, generated for the release the bundle is
+  built for. Every scope carries this file as its core, so its API is the one
+  the library announces to the engine, whichever engine generation ran on.
+  """
+  let coreBindings: File! {
+    currentModule.source.file("library/src/core/client.gen.ts")
   }
 
   """
@@ -2420,9 +2434,9 @@ type TypescriptSdk {
   }
 
   """
-  Generate a standalone client scope's bindings: one client.gen.ts holding the
-  core API (the vendored library's bindings), plus one flat <module>.gen.ts
-  client per target.
+  Generate a standalone client scope's bindings: the library's own
+  client.gen.ts, shipped as it is, plus one flat <module>.gen.ts client per
+  target.
 
   Rendered exactly like a module's clients — each is a self-contained client
   that serves its own module on use (git by ref+pin, local by workspace path) —
@@ -2431,7 +2445,7 @@ type TypescriptSdk {
   module); codegen merges them so the core API is emitted once.
   """
   let generateClientBindings(targets: [ClientTarget!]!, repoURL: String!, clientsDir: String!): Directory! {
-    stageTargets(codegenBuilder, targets)
+    stageTargets(codegenBuilder.withFile("/core.ts", coreBindings), targets)
       .withExec([
         "codegen", "client",
         "--client-meta-path", "/meta.json",
@@ -2439,6 +2453,7 @@ type TypescriptSdk {
         "--output", "/out",
         "--workspace-repo-url", repoURL,
         "--clients-dir", clientsDir,
+        "--core-file", "/core.ts",
       ])
       .directory("/out")
   }

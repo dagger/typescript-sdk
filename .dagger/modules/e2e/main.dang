@@ -49,6 +49,13 @@ type E2e {
   }
 
   """
+  Checks for the engine release the generated code targets.
+  """
+  version: VersionChecks! {
+    VersionChecks
+  }
+
+  """
   Checks that install the library from a registry rather than copying it.
   """
   registry: RegistryChecks! {

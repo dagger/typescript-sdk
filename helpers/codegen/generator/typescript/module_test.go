@@ -2,6 +2,8 @@ package typescriptgenerator
 
 import (
 	"context"
+	"os"
+	"path/filepath"
 	"strconv"
 	"testing"
 
@@ -132,19 +134,42 @@ func TestGenerateModule_SourceMapPathEscapesToWorkspaceRoot(t *testing.T) {
 	require.Contains(t, readOverlay(t, state, "gendep.gen.ts"), "// gendep (../../../ci/dep/src/index.ts:6:0)")
 }
 
-// TestGenerateLibrary_ImportsRuntimeFromSource covers the third import arm: the
-// SDK library's own bindings ship inside the library, so they reach the runtime
-// by relative source path rather than through the bundle or the package name.
-func TestGenerateLibrary_ImportsRuntimeFromSource(t *testing.T) {
-	gen := &TypeScriptGenerator{Config: generator.Config{}}
+// TestGenerateLibrary_RendersTheCoreAModuleShips pins the one property a
+// module's core rests on: the library's own bindings and a module's render
+// from the same schema are the same text, so the library's file can be shipped
+// into a module as it is. Both reach the runtime through ./core.js: the bundle
+// beside a module's copy, a re-export beside the library's own.
+func TestGenerateLibrary_RendersTheCoreAModuleShips(t *testing.T) {
+	schema := moduleSchema(t)
 
-	state, err := gen.GenerateLibrary(context.Background(), moduleSchema(t), "v0.21.0")
+	lib, err := (&TypeScriptGenerator{Config: generator.Config{}}).GenerateLibrary(context.Background(), schema, "v0.21.0")
+	require.NoError(t, err)
+	mod, err := (&TypeScriptGenerator{Config: generator.Config{
+		ModuleConfig: &generator.ModuleGeneratorConfig{ModuleName: "app", EmitLoader: true},
+	}}).GenerateModule(context.Background(), schema, "v0.21.0")
 	require.NoError(t, err)
 
-	core := readOverlay(t, state, "client.gen.ts")
-	require.Contains(t, core, `from "../session/context.js"`)
-	require.NotContains(t, core, `from "./core.js"`)
-	require.NotContains(t, core, `from "@dagger.io/dagger"`)
+	core := readOverlay(t, lib, "client.gen.ts")
+	require.Contains(t, core, `from "./core.js"`)
+	require.NotContains(t, core, `from "../session/context.js"`)
+	require.Equal(t, core, readOverlay(t, mod, "client.gen.ts"))
+}
+
+// TestGenerateModule_ShipsCoreFile covers the path the SDK takes: the core
+// file comes from the library, and only the module types around it are
+// rendered from the schema.
+func TestGenerateModule_ShipsCoreFile(t *testing.T) {
+	coreFile := filepath.Join(t.TempDir(), "client.gen.ts")
+	require.NoError(t, os.WriteFile(coreFile, []byte("// the library's core\n"), 0o600))
+
+	gen := &TypeScriptGenerator{Config: generator.Config{
+		ModuleConfig: &generator.ModuleGeneratorConfig{ModuleName: "app", EmitLoader: true, CoreFile: coreFile},
+	}}
+	state, err := gen.GenerateModule(context.Background(), moduleSchema(t), "v0.21.0")
+	require.NoError(t, err)
+
+	require.Equal(t, "// the library's core\n", readOverlay(t, state, "client.gen.ts"))
+	require.Contains(t, readOverlay(t, state, "clients/loader.gen.ts"), "export function __loadObject(")
 }
 
 // TestGenerateClient_Converges covers that a standalone client renders the same
