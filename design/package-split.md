@@ -324,12 +324,13 @@ the first time that pin has diverged from it.
 
 **And the declaration rollup has to inline the layers.** `rollup-plugin-dts` leaves
 `node_modules` external, so with the facade importing the layers as packages
-`bundle/core.d.ts` came out as seven lines of `export * from '@dagger.io/...'` —
-and every generated client scope failed to type-check against it with
+`bundle/core.d.ts` first came out as seven lines of `export * from '@dagger.io/...'`
+— and every generated client scope failed to type-check against it with
 `Property '_ctx' does not exist on type 'Address'`, because `BaseClient` was no
-longer declared anywhere it could see. `rollup.dts.config.mjs` now resolves
-`@dagger.io/*` to `src/<layer>/dist/index.d.ts` so they inline. Found by the full
-suite rather than by anything local, which is the argument for running it.
+longer declared anywhere it could see. `rollup.dts.config.mjs` already inlines
+everything but `reflect-metadata` and the node builtins, for its own reasons, and
+that covers the layers too. Nothing to change — but it is the reason the config has
+to stay that way.
 
 Two facts kept for the publishing side:
 
