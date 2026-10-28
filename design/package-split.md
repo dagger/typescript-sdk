@@ -83,6 +83,13 @@ failure when a standalone script is missing it.
 | Module (user source) | whole bundle, per scope | `@dagger.io/dagger` facade — **imports unchanged** |
 | Standalone script | whole bundle | `@dagger.io/dagger` facade — unchanged |
 
+**deno refuses an undeclared transitive dependency.** `Import "@dagger.io/session"
+not a dependency` — even when the resolver has installed it, where node and bun
+hoist it and say nothing. So the table above is a requirement rather than a
+description: a generated client that imports both `core` and `session` has to
+*declare* both, and cannot lean on `core` pulling `session` in. Measured while
+making `published-layers-check` prove the transitive pull.
+
 **Users never type `@dagger.io/core` or `@dagger.io/module`** (decided).
 `@dagger.io/dagger` stays the user-facing name permanently. The default template
 never changes.

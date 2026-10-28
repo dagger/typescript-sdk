@@ -323,7 +323,7 @@ type RegistryChecks {
     ["node", "bun", "deno"].each { runtime =>
       let out = layersProbe(ws, runtime)
 
-      ["session", "module", "telemetry"].each { layer =>
+      ["module", "telemetry"].each { layer =>
         Asserts.stringContains(
           out,
           layer + " function",
@@ -469,8 +469,20 @@ type RegistryChecks {
   }
 
   """
-  A consumer of all three layers, pinned exactly as a generated client would pin
-  them.
+  A consumer of the layers, pinned as a generated client would pin them.
+
+  `session` is deliberately not declared, and the probe does not import it. It has
+  to arrive through `@dagger.io/module`'s own dependency on it: `registry.ts` takes
+  `shared` from `session` at module scope, so `@dagger.io/module` cannot even be
+  imported unless the resolver pulled `session` too. `module function` below *is*
+  the transitive assertion.
+
+  Declaring it here instead — the first version of this check — would install it
+  either way, and the check would pass with `module`'s manifest empty, which is the
+  one thing about these packages only a resolver can tell us. Importing it without
+  declaring it is not an option: deno refuses an undeclared transitive dependency
+  outright, `Import "@dagger.io/session" not a dependency`, where node and bun
+  hoist it and say nothing.
   """
   let layersManifest: String! {
     "{\n" +
@@ -478,7 +490,6 @@ type RegistryChecks {
       "  \"version\": \"1.0.0\",\n" +
       "  \"type\": \"module\",\n" +
       "  \"dependencies\": {\n" +
-      "    \"@dagger.io/session\": \"1.0.0\",\n" +
       "    \"@dagger.io/module\": \"1.0.0\",\n" +
       "    \"@dagger.io/telemetry\": \"1.0.0\"\n" +
       "  }\n" +
@@ -490,10 +501,8 @@ type RegistryChecks {
   from its manifest fails on the import rather than on the assertion.
   """
   let layersProbeSource: String! {
-    "import { Context } from \"@dagger.io/session\"\n" +
-      "import { object } from \"@dagger.io/module\"\n" +
+    "import { object } from \"@dagger.io/module\"\n" +
       "import { getTracer } from \"@dagger.io/telemetry\"\n" +
-      "console.log(\"session \" + typeof Context)\n" +
       "console.log(\"module \" + typeof object)\n" +
       "console.log(\"telemetry \" + typeof getTracer)\n"
   }
