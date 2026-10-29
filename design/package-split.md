@@ -253,7 +253,9 @@ neither is pinned to the module's own engine version:
 2. **Codegen is engine-free.** It takes that JSON and emits files in a container
    with no engine attached — "it turns an introspection schema into generated
    bindings" (`typescript-sdk.dang:822`); the JSON is written to `/schema.json` and
-   passed as `--introspection-json-path`.
+   passed as `--introspection-json-path`. (The entrypoint generators are the
+   exception past v1.0.0-beta.22: they ask the engine how it names the module's
+   own declarations. That follows the module's version, not the bindings'.)
 
 So the pinned `typescript-sdk` version only has to *load* on the new engine, which
 forward compatibility already gives. It reads that engine's schema and emits
