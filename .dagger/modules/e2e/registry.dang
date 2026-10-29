@@ -387,7 +387,7 @@ type RegistryChecks {
     )
     Asserts.stringContains(
       out,
-      "next smoke: session function",
+      "next smoke: core object",
       "the staged version should install and import before anything is " +
         "flipped — that is what gates the flip. Got: " + out,
     )
@@ -399,7 +399,7 @@ type RegistryChecks {
     )
     Asserts.stringContains(
       out,
-      "latest smoke: session function",
+      "latest smoke: core object",
       "and import it. Got: " + out,
     )
 
@@ -418,24 +418,24 @@ type RegistryChecks {
   """
   let rehearsalScript: String! {
     "set -e\n" +
-      "for p in session module telemetry; do\n" +
+      "for p in core module session telemetry; do\n" +
       "  npm dist-tag add @dagger.io/$p@1.0.0 latest >/dev/null 2>&1\n" +
       "done\n" +
       "npm cache clean --force >/dev/null 2>&1\n" +
       "echo \"staged: latest $(npm view @dagger.io/session version --prefer-online)" +
       " next $(npm view @dagger.io/session@next version --prefer-online)\"\n" +
-      "npm install @dagger.io/session@next @dagger.io/module@next " +
+      "npm install @dagger.io/core@next @dagger.io/module@next " +
       "@dagger.io/telemetry@next >/dev/null 2>&1\n" +
-      "echo \"next smoke: $(node /work/probe.js | head -1)\"\n" +
-      "for p in session module telemetry; do\n" +
+      "echo \"next smoke: $(node /work/probe.js | tr '\\n' ' ')\"\n" +
+      "for p in core module session telemetry; do\n" +
       "  npm dist-tag add @dagger.io/$p@2.0.0 latest >/dev/null 2>&1\n" +
       "done\n" +
       "rm -rf node_modules package-lock.json\n" +
       "npm cache clean --force >/dev/null 2>&1\n" +
       "echo \"flipped: $(npm view @dagger.io/session version --prefer-online)\"\n" +
-      "npm install @dagger.io/session @dagger.io/module @dagger.io/telemetry " +
+      "npm install @dagger.io/core @dagger.io/module @dagger.io/telemetry " +
       ">/dev/null 2>&1\n" +
-      "echo \"latest smoke: $(node /work/probe.js | head -1)\"\n"
+      "echo \"latest smoke: $(node /work/probe.js | tr '\\n' ' ')\"\n"
   }
 
   """
