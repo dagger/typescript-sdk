@@ -78,6 +78,17 @@ func TestGenerateEntrypointInterfaceNames(t *testing.T) {
 		// The method keeps the name the user declared.
 		require.Contains(t, got, "async getURL(path: any, arch: any)")
 		require.Equal(t, 1, engine.FormatQueries(), "prefetched: one round trip")
+
+		// An argument of the module's own enum is sent as the engine's name
+		// for the member, and a result turned back into the TS value.
+		require.Contains(t, legacy, `__args.__metadata = { "arch": { is_enum: true, value_to_name: (v: string) => ({ "amd64": "AMD_64", "arm64": "ARM_64" } as Record<string, string>)[v] ?? v } }`)
+		require.Contains(t, got, `__args.__metadata = { "arch": { is_enum: true, value_to_name: (v: string) => ({ "amd64": "AMD64", "arm64": "ARM64" } as Record<string, string>)[v] ?? v } }`)
+		require.Contains(t, legacy, `const __name = await this._ctx.select("arch", __args).execute<any>()
+    return ({ "AMD_64": "amd64", "ARM_64": "arm64" } as Record<string, string>)[__name] ?? __name`)
+		require.Contains(t, got, `return ({ "AMD64": "amd64", "ARM64": "arm64" } as Record<string, string>)[__name] ?? __name`)
+		// Lists of them too, element by element.
+		require.Contains(t, got, `__args.__metadata = { "want": { is_enum: true, value_to_name: (vs: string[]) => vs.map((v) => ({ "amd64": "AMD64", "arm64": "ARM64" } as Record<string, string>)[v] ?? v) } }`)
+		require.Contains(t, got, `return (__name as string[]).map((__m) => ({ "AMD64": "amd64", "ARM64": "arm64" } as Record<string, string>)[__m] ?? __m)`)
 	}
 }
 

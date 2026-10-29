@@ -59,6 +59,7 @@
     "E2ETest": "e2eTest",
     "GetURL": "getUrl",
     "arch": "arch",
+    "archs": "archs",
     "baseUrl": "baseUrl",
     "comUrl": "comUrl",
     "e2ETest": "e2eTest",
@@ -67,6 +68,7 @@
     "getUrl": "getUrl",
     "path": "path",
     "selfCall": "selfCall",
+    "want": "want",
     "withSshKey": "withSshKey"
   },
   "SCREAMING_SNAKE/UPPERCASE": {

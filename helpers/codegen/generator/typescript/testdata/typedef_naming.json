@@ -71,6 +71,32 @@
       "name": "HttpFetcher",
       "description": "",
       "functions": {
+        "archs": {
+          "isCollectionGet": false,
+          "name": "archs",
+          "description": "",
+          "isCheck": false,
+          "isGenerator": false,
+          "isUp": false,
+          "isAgent": false,
+          "isNullable": false,
+          "returnType": { "kind": "LIST_KIND", "typeDef": { "kind": "ENUM_KIND", "name": "Arch" } },
+          "arguments": [
+            { "name": "want", "type": { "kind": "LIST_KIND", "typeDef": { "kind": "ENUM_KIND", "name": "Arch" } }, "isVariadic": false, "isNullable": false, "isOptional": false }
+          ]
+        },
+        "arch": {
+          "isCollectionGet": false,
+          "name": "arch",
+          "description": "",
+          "isCheck": false,
+          "isGenerator": false,
+          "isUp": false,
+          "isAgent": false,
+          "isNullable": false,
+          "returnType": { "kind": "ENUM_KIND", "name": "Arch" },
+          "arguments": []
+        },
         "getURL": {
           "isCollectionGet": false,
           "name": "getURL",

@@ -25,7 +25,10 @@ class __Iface_{{ $iface.Name }} {
 {{- /* A call through one of the module's own interfaces selects the engine's
 names for the interface's function and arguments (ifaceFieldName), which are
 not the TS names once the module is named by the engine's rules: the method
-keeps the name the user declared, the wire carries the schema's. */ -}}
+keeps the name the user declared, the wire carries the schema's. An argument or
+result of one of the module's own enums crosses as the engine's name for the
+member, converted from and to the TS enum's value (ifaceEnumMetadata,
+ifaceEnumResult). */ -}}
 {{- define "entrypoint_iface_method" -}}
 {{- $iface := .Iface -}}
 {{- $fn := .Fn -}}
@@ -41,10 +44,16 @@ keeps the name the user declared, the wire carries the schema's. */ -}}
     {{- range $arg := $fn.Arguments }}
     if ({{ $arg.Name }} !== undefined) __args[{{ jsString (ifaceFieldName $arg.Name) }}] = {{ $arg.Name }}
     {{- end }}
+    {{- with ifaceEnumMetadata $fn }}
+    {{ . }}
+    {{- end }}
     {{- if $fn.ReturnType }}
     {{- $kind := $fn.ReturnType.Kind }}
     {{- if eq $kind "VOID_KIND" }}
     await this._ctx.select({{ $field }}, __args).execute()
+    {{- else if ifaceEnumResult "__name" $fn.ReturnType }}
+    const __name = await this._ctx.select({{ $field }}, __args).execute<any>()
+    return {{ ifaceEnumResult "__name" $fn.ReturnType }}
     {{- else if or (eq $kind "OBJECT_KIND") (eq $kind "INTERFACE_KIND") }}
     {{- $ret := $fn.ReturnType }}
     {{- if and (eq $kind "INTERFACE_KIND") (index $module.Interfaces $ret.Name) }}
