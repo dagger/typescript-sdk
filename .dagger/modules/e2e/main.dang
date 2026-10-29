@@ -61,4 +61,13 @@ type E2e {
   registry: RegistryChecks! {
     RegistryChecks
   }
+
+  """
+  Checks for the names the engine gives a module's declarations, which the
+  generated entrypoints predict. They need an engine at v1.0.0-beta.22 or
+  later, so none of them is a @check yet.
+  """
+  naming: NamingChecks! {
+    NamingChecks
+  }
 }
