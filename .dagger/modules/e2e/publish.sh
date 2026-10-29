@@ -22,8 +22,11 @@ if published; then
   exit 0
 fi
 
-if npm publish >/tmp/publish.log 2>&1; then
-  echo "published: $name@$version"
+# DIST_TAG unset means npm's default, which also moves `latest`. The release
+# rehearsal publishes under `next` instead, so nothing on `latest` sees a version
+# until it is deliberately flipped.
+if npm publish ${DIST_TAG:+--tag "$DIST_TAG"} >/tmp/publish.log 2>&1; then
+  echo "published: $name@$version${DIST_TAG:+ (tag $DIST_TAG)}"
   exit 0
 fi
 

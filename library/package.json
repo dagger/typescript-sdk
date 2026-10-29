@@ -16,6 +16,12 @@
     "node": ">=20"
   },
   "main": "dist/src/index.js",
+  "workspaces": [
+    "src/session",
+    "src/core",
+    "src/module",
+    "src/telemetry"
+  ],
   "dependencies": {
     "@opentelemetry/api": "^1.9.1",
     "@opentelemetry/core": "^2.8.0",
