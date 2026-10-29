@@ -35916,6 +35916,9 @@ var init_index_min = __esm(() => {
   });
 });
 
+// src/session/dist/provisioning/engineVersion.js
+var ENGINE_VERSION = "v1.0.0-beta.20";
+
 // src/session/dist/provisioning/bin.js
 import * as crypto2 from "crypto";
 import * as fs3 from "fs";
@@ -36121,7 +36124,8 @@ dagger CLI not found in PATH: ${pathError.message}`, { cause: e2 });
       { flag: "--workdir", value: opts.Workdir },
       { flag: "--project", value: opts.Project },
       { flag: "--label", value: "dagger.io/sdk.name:nodejs" },
-      { flag: "--label", value: `dagger.io/sdk.version:${sdkVersion}` }
+      { flag: "--label", value: `dagger.io/sdk.version:${sdkVersion}` },
+      { flag: "--version", value: ENGINE_VERSION }
     ];
     flagsAndValues.forEach((pair) => {
       if (pair.value) {
@@ -100115,7 +100119,6 @@ import ts4 from "typescript";
 // src/module/introspector/typescript_module/ast.ts
 import * as path8 from "path";
 import ts3 from "typescript";
-
 // src/core/client.gen.ts
 function AcronymStyleValueToName(value) {
   switch (value) {

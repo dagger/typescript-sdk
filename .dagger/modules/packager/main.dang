@@ -160,6 +160,20 @@ type Packager {
   }
 
   """
+  Every layer built as a package here, including the one this repo does not
+  release.
+
+  `core` is published from dagger/dagger, but it is *built* here — so it is this
+  repo's job to know the tarball is sound. Nothing installed it until a relative
+  import out of `core.ts` emitted into `core/dist/core.js` as
+  `../session/context.js`, resolving inside the package to nothing at all, and no
+  check noticed.
+  """
+  builtLayers: [String!]! {
+    ["session", "core", "module", "telemetry"]
+  }
+
+  """
   One layer, built and ready to `npm publish`.
 
   The package is what sits in library/src/<layer>: its committed package.json

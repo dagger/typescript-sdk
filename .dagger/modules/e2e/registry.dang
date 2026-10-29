@@ -323,10 +323,10 @@ type RegistryChecks {
     ["node", "bun", "deno"].each { runtime =>
       let out = layersProbe(ws, runtime)
 
-      ["module", "telemetry"].each { layer =>
+      ["core", "module", "telemetry"].each { layer =>
         Asserts.stringContains(
           out,
-          layer + " function",
+          layer + (if (layer == "core") { " object" } else { " function" }),
           runtime + ": @dagger.io/" + layer + " should install from the registry " +
             "and load its entry point. Got: " + out,
         )
@@ -460,7 +460,7 @@ type RegistryChecks {
   The three published layers, at the version this harness publishes them under.
   """
   let layerPackages(ws: Workspace!, version: String! = "1.0.0"): [PublishedPackage!]! {
-    packager.publishedLayers.map { layer =>
+    packager.builtLayers.map { layer =>
       PublishedPackage(
         dir: packager.publishablePackage(ws, layer, version: version),
         id: layer + "-" + version,
@@ -490,6 +490,7 @@ type RegistryChecks {
       "  \"version\": \"1.0.0\",\n" +
       "  \"type\": \"module\",\n" +
       "  \"dependencies\": {\n" +
+      "    \"@dagger.io/core\": \"1.0.0\",\n" +
       "    \"@dagger.io/module\": \"1.0.0\",\n" +
       "    \"@dagger.io/telemetry\": \"1.0.0\"\n" +
       "  }\n" +
@@ -501,8 +502,10 @@ type RegistryChecks {
   from its manifest fails on the import rather than on the assertion.
   """
   let layersProbeSource: String! {
-    "import { object } from \"@dagger.io/module\"\n" +
+    "import { dag } from \"@dagger.io/core\"\n" +
+      "import { object } from \"@dagger.io/module\"\n" +
       "import { getTracer } from \"@dagger.io/telemetry\"\n" +
+      "console.log(\"core \" + typeof dag)\n" +
       "console.log(\"module \" + typeof object)\n" +
       "console.log(\"telemetry \" + typeof getTracer)\n"
   }
