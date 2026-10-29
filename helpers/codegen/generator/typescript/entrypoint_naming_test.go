@@ -10,9 +10,31 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"codegen/generator"
+	"codegen/identifiers"
+	"codegen/identifiers/identifierstest"
 )
 
-func renderNamingEntrypoint(t *testing.T, dispatch bool) string {
+// recordedEngine answers formatIdentifiers as the engine at v1.0.0-beta.22
+// (dagger/dagger naming/client-version-arg, 168f78a) does, from the table the
+// templates' tests share. A name the table lacks fails the render, so a test
+// learns of every name the generator predicts.
+func recordedEngine(t *testing.T) *identifierstest.Engine {
+	t.Helper()
+	table, err := identifierstest.Load("templates/testdata/identifiers-v1.0.0-beta.22.json")
+	require.NoError(t, err)
+	return &identifierstest.Engine{Release: "v1.0.0-beta.22", Table: table}
+}
+
+// namesAt returns the names of the module's declarations at version, through
+// engine; nil when version is before the cut.
+func namesAt(t *testing.T, engine *identifierstest.Engine, version string) *identifiers.Names {
+	t.Helper()
+	names, err := engine.Connector().Names(t.Context(), version)
+	require.NoError(t, err)
+	return names
+}
+
+func renderNamingEntrypoint(t *testing.T, dispatch bool, names *identifiers.Names) string {
 	t.Helper()
 	gen := &TypeScriptGenerator{Config: generator.Config{
 		EntrypointConfig: &generator.EntrypointGeneratorConfig{
@@ -22,6 +44,7 @@ func renderNamingEntrypoint(t *testing.T, dispatch bool) string {
 			SourceDir:       "src",
 			DispatchMode:    dispatch,
 			ModuleName:      "naming-app",
+			Names:           names,
 		},
 	}}
 	state, err := gen.GenerateEntrypoint(context.Background())
@@ -35,18 +58,30 @@ func renderNamingEntrypoint(t *testing.T, dispatch bool) string {
 
 // Calls through the module's own interfaces select the names the engine
 // gives the module's declarations, in both the [runtime] entrypoint and the
-// dispatcher. strcase writes getURL getUrl, which used to be sent as declared;
-// the TS method keeps the name the user declared.
+// dispatcher: by its rules for a module past the cut, by the strcase rules
+// before it, without asking the engine.
 func TestGenerateEntrypointInterfaceNames(t *testing.T) {
 	for _, dispatch := range []bool{false, true} {
-		got := renderNamingEntrypoint(t, dispatch)
-		require.Contains(t, got, `selectNode(id, "NamingAppHttpFetcher")`)
+		engine := recordedEngine(t)
+		legacy := renderNamingEntrypoint(t, dispatch, nil)
+		require.Contains(t, legacy, `selectNode(id, "NamingAppHttpFetcher")`)
+		// strcase writes getURL getUrl; it used to be sent as declared.
+		require.Contains(t, legacy, `this._ctx.select("getUrl", __args)`)
+
+		// A module named by a version before the cut keeps the legacy names.
+		require.Equal(t, legacy, renderNamingEntrypoint(t, dispatch, namesAt(t, engine, "v1.0.0-beta.20")))
+		require.Zero(t, engine.FormatQueries())
+
+		got := renderNamingEntrypoint(t, dispatch, namesAt(t, engine, "v1.0.0-beta.22"))
+		require.Contains(t, got, `selectNode(id, "NamingAppHTTPFetcher")`)
 		require.Contains(t, got, `this._ctx.select("getUrl", __args)`)
+		// The method keeps the name the user declared.
 		require.Contains(t, got, "async getURL(path: any, arch: any)")
+		require.Equal(t, 1, engine.FormatQueries(), "prefetched: one round trip")
 	}
 }
 
-func renderDangNaming(t *testing.T, typedefPath, moduleName string) string {
+func renderDangNaming(t *testing.T, typedefPath, moduleName string, names *identifiers.Names) string {
 	t.Helper()
 	gen := &TypeScriptGenerator{Config: generator.Config{
 		DangEntrypointConfig: &generator.DangEntrypointGeneratorConfig{
@@ -55,6 +90,7 @@ func renderDangNaming(t *testing.T, typedefPath, moduleName string) string {
 			Runtime:         "node",
 			ModulePath:      ".",
 			ClientVersion:   "v1.0.0-beta.20",
+			Names:           names,
 		},
 	}}
 	state, err := gen.GenerateDangEntrypoint(context.Background())
@@ -87,22 +123,47 @@ func constructed(main string) []string {
 }
 
 // The main object, the one the generated entrypoint gives a constructor, is
-// the one the engine would take for it by name: K8sTools for k8s-tools, as
-// this SDK's templates name the class, which was left without one. Failing
-// that, the one whose name pascalizes like the scanner's PascalCase of the
-// module's name, which is how it was picked before (K8STools for k8s-tools).
+// the one the engine would take for it by name: by its rules past the cut
+// (GitHubTools for module github-tools, which strcase spells GithubTools; MY2Go
+// for my2go, flat), by strcase before it (K8sTools for k8s-tools, as this
+// SDK's templates name the class, which was left without one). Failing that,
+// the one whose name pascalizes like the scanner's PascalCase of the module's
+// name, which is how it was picked before (K8STools for k8s-tools).
 func TestGenerateDangEntrypointMainObjectNames(t *testing.T) {
 	for _, test := range []struct {
 		module, typedefName string
 		classes             []string
-		want                []string
+		legacy, engine      []string
 	}{
-		{"k8s-tools", "K8STools", []string{"K8sTools", "Tools"}, []string{"K8sTools"}},
-		{"k8s-tools", "K8STools", []string{"K8STools", "Tools"}, []string{"K8STools"}},
-		{"github-tools", "GithubTools", []string{"GitHubTools", "Tools"}, nil},
-		{"naming-app", "NamingApp", []string{"NamingApp", "HttpClient"}, []string{"NamingApp"}},
+		{"github-tools", "GithubTools", []string{"GitHubTools", "Tools"}, nil, []string{"GitHubTools"}},
+		{"my2go", "My2Go", []string{"MY2Go", "Go"}, []string{"MY2Go"}, []string{"MY2Go"}},
+		{"my2go", "My2Go", []string{"My2go", "Go"}, []string{"My2go"}, []string{"My2go"}},
+		{"k8s-tools", "K8STools", []string{"K8sTools", "Tools"}, []string{"K8sTools"}, []string{"K8sTools"}},
+		{"k8s-tools", "K8STools", []string{"K8STools", "Tools"}, []string{"K8STools"}, []string{"K8STools"}},
+		{"naming-app", "NamingApp", []string{"NamingApp", "HttpClient"}, []string{"NamingApp"}, []string{"NamingApp"}},
 	} {
-		got := renderDangNaming(t, writeTypedef(t, test.typedefName, test.classes...), test.module)
-		require.Equal(t, test.want, constructed(got), "%s %v", test.module, test.classes)
+		typedef := writeTypedef(t, test.typedefName, test.classes...)
+		engine := recordedEngine(t)
+		legacy := renderDangNaming(t, typedef, test.module, nil)
+		require.Equal(t, test.legacy, constructed(legacy), "legacy %s %v", test.module, test.classes)
+		require.Equal(t, legacy, renderDangNaming(t, typedef, test.module, namesAt(t, engine, "v1.0.0-beta.20")))
+		got := renderDangNaming(t, typedef, test.module, namesAt(t, engine, "v1.0.0-beta.22"))
+		require.Equal(t, test.engine, constructed(got), "engine %s %v", test.module, test.classes)
 	}
+}
+
+// An engine error fails the render rather than falling back to names the
+// engine may not use.
+func TestGenerateEntrypointNamesEngineError(t *testing.T) {
+	engine := &identifierstest.Engine{Release: "v1.0.0-beta.22", Table: identifierstest.Table{}}
+	gen := &TypeScriptGenerator{Config: generator.Config{
+		EntrypointConfig: &generator.EntrypointGeneratorConfig{
+			TypedefJSONPath: "testdata/typedef_naming.json",
+			ModuleRoot:      "/work",
+			ModuleName:      "naming-app",
+			Names:           namesAt(t, engine, "v1.0.0-beta.22"),
+		},
+	}}
+	_, err := gen.GenerateEntrypoint(context.Background())
+	require.ErrorContains(t, err, "fake engine: no")
 }

@@ -498,7 +498,7 @@ func (c *entrypointFuncCtx) ifaceFieldName(name string) string {
 
 // namer predicts the engine's names for the module's own declarations.
 func (c *entrypointFuncCtx) namer() moduleNamer {
-	return moduleNamer{moduleName: c.opts.ModuleName, typedefName: c.module.Name}
+	return moduleNamer{names: c.opts.Names, moduleName: c.opts.ModuleName, typedefName: c.module.Name}
 }
 
 // plannedImports returns an ordered slice of import lines to emit. Encodes

@@ -1,6 +1,10 @@
 package generator
 
-import "strings"
+import (
+	"strings"
+
+	"codegen/identifiers"
+)
 
 // Config drives one codegen run. ModuleConfig covers both a module's own
 // bindings and a standalone client scope — they render the same client files
@@ -159,6 +163,12 @@ type EntrypointGeneratorConfig struct {
 	// namespaces the module's types with. The typedef carries only the
 	// scanner's PascalCase of it. Empty uses the typedef's.
 	ModuleName string
+
+	// Names are formatted by the rules the engine names the module's
+	// declarations by, at the module's effective version (see package
+	// identifiers): the names calls through the module's own interfaces
+	// select. Nil for the legacy rules.
+	Names *identifiers.Names
 }
 
 // Specific configuration for generating the Dang module entrypoint — the program
@@ -218,4 +228,9 @@ type DangEntrypointGeneratorConfig struct {
 	// module's code imports. A "!"-prefixed entry excludes. They are rebased to
 	// module-relative for the reads the generated `sources` member makes.
 	Include []string
+
+	// Names are formatted by the rules the engine names the module's
+	// declarations by, at the module's effective version: what decides which
+	// object carries the constructor. Nil for the legacy rules.
+	Names *identifiers.Names
 }
