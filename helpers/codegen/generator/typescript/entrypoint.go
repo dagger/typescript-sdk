@@ -54,6 +54,7 @@ func (g *TypeScriptGenerator) GenerateEntrypoint(ctx context.Context) (*generato
 		SourceDir:        cfg.SourceDir,
 		DispatchMode:     cfg.DispatchMode,
 		LoaderImportPath: cfg.LoaderImportPath,
+		ModuleName:       cfg.ModuleName,
 	})
 
 	topLevel := "entrypoint"

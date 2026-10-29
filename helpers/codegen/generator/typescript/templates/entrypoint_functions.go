@@ -47,6 +47,7 @@ func EntrypointTemplateFuncs(module *TypedefModule, opts EntrypointOptions) temp
 		"argCoercionLine":      c.argCoercionLine,
 		"hasDefault":           hasDefault,
 		"engineIfaceTypeName":  c.engineIfaceTypeName,
+		"ifaceFieldName":       c.ifaceFieldName,
 		"plannedImports":       c.plannedImports,
 		"isVariadic":           func(a *TypedefArgument) bool { return a.IsVariadic },
 		"propFieldName":        propFieldName,
@@ -478,12 +479,26 @@ func (c *entrypointFuncCtx) argCoercionLine(arg *TypedefArgument) string {
 	)
 }
 
-// engineIfaceTypeName returns "<Module><Iface>" — the namespaced GraphQL type
-// name under which a module interface is registered in the schema. The iface
-// wrapper uses it with node(id:) (via Context.selectNode) to instantiate from
-// its engine-side ID.
+// engineIfaceTypeName returns the namespaced GraphQL type name under which a
+// module interface is registered in the schema: the name the engine gives it
+// (moduleNamer.namespaceObject). The iface wrapper uses it with node(id:)
+// (via Context.selectNode) to instantiate from its engine-side ID, as an
+// inline fragment, so a misprediction selects a type that doesn't exist.
 func (c *entrypointFuncCtx) engineIfaceTypeName(iface *TypedefInterface) string {
-	return pascalize(c.module.Name) + iface.Name
+	return c.namer().namespaceObject(iface.Name)
+}
+
+// ifaceFieldName returns the schema name of a function or argument of one of
+// the module's own interfaces, which a call through the interface selects:
+// the engine's name for it (moduleNamer.fieldName). The TS method keeps the
+// name the user declared.
+func (c *entrypointFuncCtx) ifaceFieldName(name string) string {
+	return c.namer().fieldName(name)
+}
+
+// namer predicts the engine's names for the module's own declarations.
+func (c *entrypointFuncCtx) namer() moduleNamer {
+	return moduleNamer{moduleName: c.opts.ModuleName, typedefName: c.module.Name}
 }
 
 // plannedImports returns an ordered slice of import lines to emit. Encodes

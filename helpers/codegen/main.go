@@ -112,6 +112,7 @@ func runEntrypoint(args []string) error {
 		sourceDir    = fs.String("source-dir", "src", "the module's source directory, relative to its root")
 		dispatch     = fs.Bool("dispatch", false, "render the manifest-v2 dispatcher (stdin/stdout, no register) instead of the legacy entrypoint")
 		loaderImport = fs.String("loader-import", "", "where the entrypoint imports the object loader from, relative to the module root (default clients/loader.gen.js)")
+		moduleName   = fs.String("module-name", "", "the module's name as the engine knows it, which it namespaces the module's types with (default: the typedef's)")
 	)
 	if err := fs.Parse(args); err != nil {
 		return err
@@ -137,6 +138,7 @@ func runEntrypoint(args []string) error {
 			SourceDir:        *sourceDir,
 			DispatchMode:     *dispatch,
 			LoaderImportPath: *loaderImport,
+			ModuleName:       *moduleName,
 		},
 	}
 	gen := &typescriptgenerator.TypeScriptGenerator{Config: cfg}

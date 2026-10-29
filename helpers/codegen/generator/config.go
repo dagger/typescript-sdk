@@ -154,6 +154,11 @@ type EntrypointGeneratorConfig struct {
 	// embedded [runtime] layout passes sdk/loader.gen.js, since its loader ships
 	// inside the library directory.
 	LoaderImportPath string
+
+	// ModuleName is the module's name as the engine knows it, which it
+	// namespaces the module's types with. The typedef carries only the
+	// scanner's PascalCase of it. Empty uses the typedef's.
+	ModuleName string
 }
 
 // Specific configuration for generating the Dang module entrypoint — the program

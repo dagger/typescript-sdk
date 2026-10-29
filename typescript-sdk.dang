@@ -1628,9 +1628,11 @@ type TypescriptSdk {
     codegenBuilder.withNewFile("/typedef.json", typedef)
   }
 
-  let generateModuleEntrypoint(typedef: String!): File! {
+  let generateModuleEntrypoint(typedef: String!, moduleName: String!): File! {
     # The embedded layout ships the loader inside sdk/, beside the clients the
-    # runtime mounts with it, so the entrypoint imports it from there.
+    # runtime mounts with it, so the entrypoint imports it from there. The
+    # module's name is what the engine namespaces its interfaces with, which
+    # calls through them select.
     entrypointCodegen(typedef)
       .withExec([
         "codegen", "entrypoint",
@@ -1639,6 +1641,7 @@ type TypescriptSdk {
         "--module-root", "/work",
         "--source-dir", "src",
         "--loader-import", "sdk/loader.gen.js",
+        "--module-name", moduleName,
       ])
       .file("/out/__dagger.entrypoint.ts")
   }
@@ -1651,7 +1654,7 @@ type TypescriptSdk {
   __dagger.entrypoint.ts the builtin runtime execs — the two are the same half
   of two different loading paths, and a module is on one of them.
   """
-  let generateModuleDispatcher(typedef: String!): File! {
+  let generateModuleDispatcher(typedef: String!, moduleName: String!): File! {
     # The dispatcher serves nothing: each generated client serves its own module
     # before the first query that reaches it — a `dag.<module>()` call through
     # the client's served context, or a received value loaded through the loader,
@@ -1663,6 +1666,7 @@ type TypescriptSdk {
         "--output", "/out",
         "--module-root", "/work",
         "--source-dir", "src",
+        "--module-name", moduleName,
       ])
       .file("/out/" + dispatchFile)
   }
@@ -1768,7 +1772,7 @@ type TypescriptSdk {
       directory
         .withDirectory("clients", withClientPackageManifests(clients, clientNames))
         .withDirectory("clients/dagger", corePackage(bindings))
-        .withFile(dispatchFile, generateModuleDispatcher(typedef))
+        .withFile(dispatchFile, generateModuleDispatcher(typedef, moduleName))
         .withFile(
           dangEntrypointDir + "/" + dangEntrypointFile,
           generateDangEntrypoint(typedef, moduleName, sourcePath, runtime, packageManager, image, includes),
@@ -1776,7 +1780,7 @@ type TypescriptSdk {
     } else {
       directory
         .withDirectory("sdk", sdk)
-        .withFile(legacyEntrypointFile, generateModuleEntrypoint(typedef))
+        .withFile(legacyEntrypointFile, generateModuleEntrypoint(typedef, moduleName))
     }
 
     # The config the module's source resolves its clients through. Entrypoint:
