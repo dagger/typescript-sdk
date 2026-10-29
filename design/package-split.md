@@ -869,9 +869,13 @@ and the pre-v1 tree gets moved for nothing.
    | `@dagger.io/module` | `@dagger.io/session`, `reflect-metadata` |
    | `@dagger.io/telemetry` | `@opentelemetry/{api,core,exporter-trace-otlp-proto,sdk-node,sdk-trace-base}` |
 
-   `graphql` is absent from `session` and that is correct: the library's only use
-   of it is two `import type`s, erased by the compile. It arrives anyway as
-   `graphql-request`'s peer, which npm installs automatically.
+   `session` declares `graphql` even though its own use of it is two `import
+   type`s, erased by the compile. It is `graphql-request`'s peer, and that peer is
+   load-bearing on our code path — its runtime does `import { parse } from
+   'graphql'` — so leaving it to be auto-installed would make the package work on
+   npm and fail on pnpm before 8 or yarn classic, which do not install peers.
+   `manifest-is-honest-check` allows it by name as the one declared-but-unimported
+   dependency.
 
 *Then in dagger/dagger:*
 

@@ -12,8 +12,11 @@ const path = require("path")
 const { externalImports } = require("./imports.cjs")
 
 // Declared to satisfy another dependency's peer range rather than because this
-// code imports it. graphql-request peers on graphql "14 - 16"; the library's own
-// use of graphql is two `import type`s, so it is invisible here by design.
+// code imports it. graphql-request peers on graphql "14 - 16" and its runtime
+// does `import { parse } from 'graphql'`, so the peer is load-bearing on our own
+// code path — session declares it rather than trusting every resolver to install
+// a peer (npm does, pnpm before 8 and yarn classic do not). Our own use of
+// graphql is two `import type`s, so it is invisible to this scan by design.
 const peerOnly = new Set(["graphql"])
 
 const root = process.argv[2]
