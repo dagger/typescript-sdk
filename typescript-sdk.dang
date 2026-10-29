@@ -86,6 +86,17 @@ type TypescriptSdk {
   baseImage: String! = ""
 
   """
+  Engine release to generate for, as `vX.Y.Z[-pre]`; empty means the release
+  this SDK targets. A value without the `v`, with whitespace around it or with
+  a `+<build>` part is read as the same release.
+
+  This release of the SDK ships one library bundle, built for one engine
+  release, so that is the only value accepted: generation refuses any other by
+  name. An older release needs the SDK release built for it.
+  """
+  targetVersion: String! = ""
+
+  """
   Marker filename that stops generation for the tree it sits in.
 
   Found with findUp from the scope, so one file disables generation for
@@ -104,12 +115,15 @@ type TypescriptSdk {
   let scopeMarkers: [String!]! = ["package.json", "deno.json", "deno.jsonc", "tsconfig.json"]
 
   """
-  Engine release the committed library bundle is built for.
+  Engine release the committed library bundle is built for, as the bundle
+  records it.
 
-  This SDK ships the library rather than letting the engine build it, so the
-  pairing is ours to state: checks drive their harness at this release, and
-  every fixture module in the repo targets it. Bumping the bundle means bumping
-  this, and the fixture check fails until they agree.
+  The constant lives in the library (src/session/provisioning/engineVersion.ts):
+  the session the library starts is told to serve that release, and the bundle
+  build copies it out for this SDK, so the pairing a module is generated for is
+  the one its library announces, by construction. Bumping the bundle means
+  bumping that constant and rebuilding; the fixture check fails until the
+  fixtures agree.
 
   This is the release the bundle is built *for*, which is no longer the release
   its vendored sources were copied *from* — see library/VENDOR.md. The pairing
@@ -118,7 +132,10 @@ type TypescriptSdk {
   from the schema of whatever engine runs the checks, so this value and
   `engine-e2e`'s `engine-dev` pin move together.
 
-  It is no longer the floor. Those were the same number up to beta.18 and are
+  Not a setting: it is read-only, and it pins what a `[runtime]` manifest
+  declares as its `engineVersion`.
+
+  It is not the floor either. Those were the same number up to beta.18 and are
   not from beta.20 on: the floor is the oldest engine a module generated here
   still loads on, and nothing in beta.19 or beta.20 is required to load one. It
   stays **beta.18**, where it used to be beta.15 — the first release that reads
@@ -134,7 +151,9 @@ type TypescriptSdk {
   So the beta.18 the docs and the generated entrypoint's header still name is
   correct and deliberate, not a reference this bump forgot to move.
   """
-  targetEngineVersion: String! = "1.0.0-beta.20"
+  bundleEngineVersion: String! {
+    tsBundle.file("engine-version.txt").contents.trimSuffix("\n")
+  }
 
   """
   Directory holding the generated Dang entrypoint, relative to the module root.
@@ -256,6 +275,7 @@ type TypescriptSdk {
       # migrating onto it loses nothing and still happens below.
       ws
     } else if (isModule) {
+      let pinned = checkTargetVersion("module \"" + name + "\"")
       # One path serves init, migration and every later generation, and which
       # config the scope arrived with is what separates them: a manifest means
       # generate it as it stands, only a dagger.json means migrate it first,
@@ -382,11 +402,47 @@ type TypescriptSdk {
       # a workspace standing somewhere else.
       migrated.withWorkdir(scope)
     } else {
+      let pinned = checkTargetVersion("scope " + scope)
       # A client-only scope: clients/<module> packages under the scope, with the
       # scope's own clients/dagger beside them, wired through its package.json —
       # or its deno.json, for a Deno project.
       withoutLegacyWorkspaceCore(clientScope(ws, scope, clientTargets(ws, clients)), configDir(ws))
     }
+  }
+
+  """
+  Refuse a pinned release this SDK cannot generate for, before anything is
+  written. The bundle is built for one release, so a pin is accepted only when
+  it names that one. `subject` names the scope, so a refusal among several
+  generated at once says which.
+  """
+  let checkTargetVersion(subject: String!): Void {
+    let pin = targetVersion.trimSpace
+    # The whole value is checked before any part of it is dropped, so a build
+    # part the grammar cannot read is not stripped into one it can.
+    let pinned = if (isRelease(pin)) { releaseOf(pin) } else { pin }
+    if (pin != "" and pinned != bundleEngineVersion) {
+      raise subject + " pins targetVersion " + pinned + ", which this release of the TypeScript SDK " +
+        "cannot generate for: it targets " + bundleEngineVersion + " only. Remove targetVersion from the scope's " +
+        "settings in dagger.toml, or install the SDK release built for " + pinned
+    }
+    null
+  }
+
+  """
+  Whether a version reads as a release: `v?X.Y.Z`, then optional `-pre` and
+  `+build` parts made of non-empty dot-separated identifiers.
+  """
+  let isRelease(v: String!): Boolean! {
+    v.containsMatch("^v?[0-9]+\\.[0-9]+\\.[0-9]+(-[0-9A-Za-z-]+(\\.[0-9A-Za-z-]+)*)?(\\+[0-9A-Za-z-]+(\\.[0-9A-Za-z-]+)*)?$")
+  }
+
+  """
+  A release as this SDK records it: `v`-prefixed, without the `+<build>` part.
+  """
+  let releaseOf(v: String!): String! {
+    let release = v.split("+").takeFirst(1).join("")
+    if (release.hasPrefix("v")) { release } else { "v" + release }
   }
 
   """
@@ -727,13 +783,13 @@ type TypescriptSdk {
 
       # The loaded `source` is kept: the builder only replaces what is passed.
       sdkHelpers.moduleManifest(loadJson: ws.file(jsonPath))
-        .withLegacyTypescriptRuntime(engineVersion: "v" + targetEngineVersion)
+        .withLegacyTypescriptRuntime(engineVersion: bundleEngineVersion)
     } else {
       # Pin the engine version to the release this SDK's committed bundle was
       # built for, rather than letting it default to whichever engine happens to
       # be running: the generated files come from the bundle, so that is the
       # pairing the module actually has.
-      sdkHelpers.moduleManifest.withLegacyTypescriptRuntime(engineVersion: "v" + targetEngineVersion)
+      sdkHelpers.moduleManifest.withLegacyTypescriptRuntime(engineVersion: bundleEngineVersion)
     }
 
     existing.withName(name: name)
@@ -844,7 +900,7 @@ type TypescriptSdk {
     let tomlPath = "/" + configPath
     let loaded = sdkHelpers.moduleManifest(loadToml: ws.file(tomlPath))
     let pinned = if (hasLegacyEnginePin(ws, configPath)) {
-      loaded.withLegacyTypescriptRuntime(engineVersion: "v" + targetEngineVersion)
+      loaded.withLegacyTypescriptRuntime(engineVersion: bundleEngineVersion)
     } else {
       loaded
     }
@@ -1221,11 +1277,15 @@ type TypescriptSdk {
   }
 
   """
-  Generate a module's own bindings: client.gen.ts holding core types, one
-  <module>.gen.ts client per manifest dependency and per recorded target, the
-  loader.gen.ts the entrypoints load ID-carrying values through, and the
-  compat.gen.ts that puts each client's root fields back on the core `dag` for
-  pre-1.0 source.
+  Generate a module's own bindings: the library's client.gen.ts, shipped as it
+  is, one <module>.gen.ts client per manifest dependency and per recorded
+  target, the loader.gen.ts the entrypoints load ID-carrying values through,
+  and the compat.gen.ts that puts each client's root fields back on the core
+  `dag` for pre-1.0 source.
+
+  The core is the library's own copy, generated for the release the bundle is
+  built for, so an engine update changes nothing here. The clients still read
+  the running engine: loading a module is the only way to get its types.
 
   Each module's file is a self-contained client — its own root Client, its own
   dag, its own entrypoint functions — reached from the module's source through
@@ -1236,7 +1296,7 @@ type TypescriptSdk {
   Engine-free: the schemas arrive as data, so this is a plain container exec.
   """
   let generateModuleBindings(schemaJSON: String!, moduleName: String!, targets: [ClientTarget!]!, repoURL: String!, sourcePath: String!): Directory! {
-    let base = codegenBuilder.withNewFile("/schema.json", schemaJSON)
+    let base = codegenBuilder.withNewFile("/schema.json", schemaJSON).withFile("/core.ts", coreBindings)
     let withTargets = if (targets.length == 0) { base } else { stageTargets(base, targets) }
 
     let clientMetaArgs = if (targets.length == 0) {
@@ -1261,8 +1321,18 @@ type TypescriptSdk {
         "--output", "/out",
         "--workspace-repo-url", repoURL,
         "--clients-dir", clientsDir,
+        "--core-file", "/core.ts",
       ] + clientMetaArgs + layoutArgs)
       .directory("/out")
+  }
+
+  """
+  The library's own core bindings, generated for the release the bundle is
+  built for. Every scope carries this file as its core, so its API is the one
+  the library announces to the engine, whichever engine generation ran on.
+  """
+  let coreBindings: File! {
+    currentModule.source.file("library/src/core/client.gen.ts")
   }
 
   """
@@ -1321,7 +1391,7 @@ type TypescriptSdk {
       ",\"self\":" + (if (target.isSelf) { "true" } else { "false" }) + "}"
     }.join(",")
 
-    "{\"engineVersion\":" + JSON.encode(targetEngineVersion) + ",\"modules\":[" + modulesJSON + "]}"
+    "{\"engineVersion\":" + JSON.encode(bundleEngineVersion) + ",\"modules\":[" + modulesJSON + "]}"
   }
 
   let stageTargets(builder: Container!, targets: [ClientTarget!]!): Container! {
@@ -1607,7 +1677,8 @@ type TypescriptSdk {
   for the same reason the engine's builtin runtime detects one: the module's
   dependencies have to be installed before a call can run, and nothing else
   installs them under an entrypoint. `image` likewise: empty keeps the pin the
-  generator ships for `rt`.
+  generator ships for `rt`. The release the module's bindings are generated
+  for is baked in too, for the module process to declare to the engine.
   """
   let generateDangEntrypoint(
     typedef: String!,
@@ -1628,6 +1699,7 @@ type TypescriptSdk {
         "--module-path", sourcePath,
         "--package-manager", pkgManager,
         "--base-image", image,
+        "--client-version", bundleEngineVersion,
       ] + includes.reduce([]) { acc, path => acc + ["--include", path] })
       .file("/out/entrypoint/main.dang")
   }
@@ -2412,9 +2484,9 @@ type TypescriptSdk {
   }
 
   """
-  Generate a standalone client scope's bindings: one client.gen.ts holding the
-  core API (the vendored library's bindings), plus one flat <module>.gen.ts
-  client per target.
+  Generate a standalone client scope's bindings: the library's own
+  client.gen.ts, shipped as it is, plus one flat <module>.gen.ts client per
+  target.
 
   Rendered exactly like a module's clients — each is a self-contained client
   that serves its own module on use (git by ref+pin, local by workspace path) —
@@ -2423,7 +2495,7 @@ type TypescriptSdk {
   module); codegen merges them so the core API is emitted once.
   """
   let generateClientBindings(targets: [ClientTarget!]!, repoURL: String!, clientsDir: String!): Directory! {
-    stageTargets(codegenBuilder, targets)
+    stageTargets(codegenBuilder.withFile("/core.ts", coreBindings), targets)
       .withExec([
         "codegen", "client",
         "--client-meta-path", "/meta.json",
@@ -2431,6 +2503,7 @@ type TypescriptSdk {
         "--output", "/out",
         "--workspace-repo-url", repoURL,
         "--clients-dir", clientsDir,
+        "--core-file", "/core.ts",
       ])
       .directory("/out")
   }

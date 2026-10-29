@@ -1,0 +1,136 @@
+"""
+Checks for the engine release the generated code targets.
+
+A scope's core bindings are the library's own, generated for the release the
+bundle is built for, so what generation writes follows the SDK release and not
+the engine it ran on.
+"""
+type VersionChecks {
+  """
+  A scope's core should be the library's own file, byte for byte, under either
+  layout and in a client-only scope. The shared engine these checks run on is
+  not the release the bundle is built for, so equality here is what shows the
+  engine plays no part in the core.
+
+  The generated entrypoint declares that same release on the exec that starts
+  the module process. The engine ignores the variable today; a later one serves
+  the process that release's view.
+  """
+  coreFromBundleCheck(ws: Workspace!): Void @check {
+    let core = ws.file("/library/src/core/client.gen.ts").contents
+    let entrypointPath = Fixtures.out + "/version-core-entrypoint"
+    let runtimePath = Fixtures.out + "/version-core-runtime"
+
+    let entrypoint = Gen.scope(ws, entrypointPath, "version-core-entrypoint", template: "empty", legacyRuntime: false)
+    Asserts.assert(
+      entrypoint.layer.file(entrypointPath + "/clients/dagger/client.gen.ts").contents == core,
+      "an entrypoint module's core should be the library's own bindings",
+    )
+    let program = entrypoint.layer.file(entrypointPath + "/entrypoint/main.dang").contents
+    Asserts.stringContains(
+      program,
+      ".withEnvVariable(\"DAGGER_MODULE_CALL_DIGEST\", callDigest ?? \"\")\n" +
+        "        .withEnvVariable(\"DAGGER_CLIENT_VERSION\", \"" + typescriptSdk.bundleEngineVersion + "\")\n" +
+        "        .withExec(",
+      "the entrypoint should declare the client version beside the call digest, got:\n" + program,
+    )
+
+    let runtime = Gen.scope(ws, runtimePath, "version-core-runtime", template: "empty")
+    Asserts.assert(
+      runtime.layer.file(runtimePath + "/sdk/client.gen.ts").contents == core,
+      "a [runtime] module's core should be the library's own bindings",
+    )
+
+    # The loader resolves core classes on the library at run time: listed, they
+    # would follow the engine generation ran on.
+    let loader = entrypoint.layer.file(entrypointPath + "/clients/loader.gen.ts").contents
+    Asserts.stringNotContains(loader, "__core.Container", "the loader should list no core class")
+    Asserts.stringContains(loader, "(__core as any)[typeName]", "the loader should resolve core classes on the library")
+
+    null
+  }
+
+  """
+  Regenerating a settled entrypoint module should write nothing: its output is
+  a function of the SDK release and its own source, not of the engine.
+  """
+  entrypointRegenerateNoDiffCheck(ws: Workspace!): Void @check {
+    let path = Fixtures.out + "/version-settled"
+    let name = "version-settled"
+
+    let seeded = ws.withChanges(Gen.scope(ws, path, name, template: "empty", legacyRuntime: false))
+    let settled = seeded.withChanges(Gen.scope(seeded, path, name, legacyRuntime: false))
+    let again = Gen.scope(settled, path, name, legacyRuntime: false)
+
+    Asserts.assert(
+      again.isEmpty,
+      "regenerating a settled entrypoint module should write nothing, got added [" +
+        again.addedPaths.join(", ") + "], modified [" + again.modifiedPaths.join(", ") + "]",
+    )
+
+    null
+  }
+
+  """
+  The targetVersion setting pins the release a scope is generated for, and this
+  SDK release can generate for one release only: that one, spelled with or
+  without the `v` or with a build part, is accepted; any other release, and a
+  value whose build part is not one, is refused by name.
+  """
+  targetVersionPinCheck(ws: Workspace!): Void @check {
+    let path = Fixtures.out + "/version-pin"
+    let release = typescriptSdk.bundleEngineVersion
+
+    [release, release.trimPrefix("v"), " " + release + "+build "].each { pin =>
+      Asserts.added(
+        Gen.scope(ws, path, "version-pin", template: "empty", legacyRuntime: false, targetVersion: pin),
+        path + "/entrypoint/main.dang",
+      )
+    }
+
+    let failure = Gen.failure(
+      Gen.scope(ws, path, "version-pin", template: "empty", legacyRuntime: false, targetVersion: "v1.0.0-beta.19"),
+    )
+    Asserts.stringContains(
+      failure,
+      "module \"version-pin\" pins targetVersion v1.0.0-beta.19, which this release of the TypeScript SDK cannot generate for: it targets " + release + " only",
+      "a pin on another release should be refused by name, got: " + failure,
+    )
+    Asserts.stringContains(failure, "install the SDK release built for v1.0.0-beta.19", "the refusal should say what to do, got: " + failure)
+
+    # A build part the grammar cannot read is refused as given, not stripped
+    # into the supported release.
+    [release + "+???", release + "+a..b", release + "+"].each { pin =>
+      let malformed = Gen.failure(
+        Gen.scope(ws, path, "version-pin", template: "empty", legacyRuntime: false, targetVersion: pin),
+      )
+      Asserts.stringContains(
+        malformed,
+        "module \"version-pin\" pins targetVersion " + pin + ", which this release of the TypeScript SDK cannot generate for: it targets " + release + " only",
+        "a pin with an unreadable build part should be refused as given, got: " + malformed,
+      )
+    }
+
+    null
+  }
+
+  """
+  The library should tell the session it starts which engine release to serve:
+  the bundle carries the flag, and the release it carries is the SDK's pairing.
+  """
+  libraryAnnouncesVersionCheck(ws: Workspace!): Void @check {
+    let bundle = ws.directory("/library/bundle")
+
+    Asserts.stringContains(
+      bundle.file("core.js").contents,
+      "{ flag: \"--version\", value: ENGINE_VERSION }",
+      "the bundle should pass --version to the session it starts",
+    )
+    Asserts.assert(
+      bundle.file("engine-version.txt").contents.trimSuffix("\n") == typescriptSdk.bundleEngineVersion,
+      "the SDK's pairing should be the release the bundle announces",
+    )
+
+    null
+  }
+}

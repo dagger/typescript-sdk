@@ -208,7 +208,7 @@ type GenerateChecks {
     Asserts.stringContains(manifest, "source = \"typescript\"", "the runtime should be the builtin typescript one")
     Asserts.stringContains(
       manifest,
-      "engineVersion = \"v" + typescriptSdk.targetEngineVersion + "\"",
+      "engineVersion = \"" + typescriptSdk.bundleEngineVersion + "\"",
       "flipping back should pin the engine release this SDK ships for",
     )
     Asserts.stringNotContains(manifest, "[entrypoint]", "a [runtime] module should not declare an entrypoint")
@@ -1003,7 +1003,7 @@ type GenerateChecks {
 
     Asserts.stringContains(
       tree.file("dagger-module.toml").contents,
-      "engineVersion = \"v" + typescriptSdk.targetEngineVersion + "\"",
+      "engineVersion = \"" + typescriptSdk.bundleEngineVersion + "\"",
       "migration should raise a pre-1.0 engine pin to the release the bundle is built for",
     )
     Asserts.generated(changes, path + "/sdk/legacypindep.gen.ts")
@@ -1049,7 +1049,7 @@ type GenerateChecks {
     Asserts.modified(changes, manifest)
     Asserts.stringContains(
       tree.file("dagger-module.toml").contents,
-      "engineVersion = \"v" + typescriptSdk.targetEngineVersion + "\"",
+      "engineVersion = \"" + typescriptSdk.bundleEngineVersion + "\"",
       "regenerating should raise a pre-1.0 engine pin to the release the bundle is built for",
     )
     Asserts.stringContains(

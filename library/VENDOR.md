@@ -26,7 +26,7 @@ committed `bundle/`, and the Go generator all move together or not at all.
 
 ## The target release has moved ahead of the tag
 
-`typescript-sdk.dang`'s `targetEngineVersion` is `1.0.0-beta.20`, and the tag
+`typescript-sdk.dang`'s `bundleEngineVersion` is `v1.0.0-beta.20`, and the tag
 above is still beta.11. That is a deliberate separation of two facts the rule
 above had treated as one: where the sources were copied *from*, and which engine
 release the bundle is paired *with*.
@@ -127,6 +127,7 @@ either a new upstream change (fine) or a delta being dropped (not fine).
 | `src/module/introspector/typescript_module/ast.ts` | `sdkPathAliases` feeds `paths` to `ts.createProgram` | Upstream scans a module from inside its own installed tree, where node_modules and a tsconfig already say what `@dagger.io/dagger` is. This SDK scans it in a bare container that has neither, and an unresolved SDK import does not fail the scan — the error type it yields still *prints* the written name, so the scan half-works and falls over only on signatures a name cannot carry (dagger/typescript-sdk#69). |
 | `src/module/introspector/test/scan.spec.ts`, `test/testdata/sdkAlias/` | `sdkAlias` fixture and the case driving it | Guards the row above: the only fixture laid out as a module's source *beside* its generated SDK rather than as a flat directory, which is the layout the aliases exist for. |
 | `bundle/` | Built here, committed | Not upstream at all. Produced by `packager:library-bundle`. |
+| `src/session/provisioning/engineVersion.ts`, `bin.ts` | **Local.** The engine release the library targets, and `--version` on the `dagger session` it starts | Upstream's library and CLI share one release, so its session announces the right version by itself. This library is built for one engine release and may start another release's CLI, so it says which release to serve. The bundle build copies the constant to `bundle/engine-version.txt`, which the SDK reads as its pairing. |
 | `src/` | **Relaid out into layers** | `common/` + `connect.ts` + `connectOpts.ts` + `provisioning/` became `session/`; `api/` became `core/`. The layering — session ← core ← module, telemetry to one side — is what lets these ship as separate packages later, and `packager:layering-check` holds it. See `design/package-split.md`. This is the largest delta in this table and the one an import is most likely to fight. |
 | `src/core/connect.ts` | `connect` split out of `connection` | Upstream keeps both in `src/connect.ts`, but `connect` constructs a `Client` and so belongs with the bindings, while `connection` only establishes a session. Same split as the Go SDK's `dagger.Connect` vs `core.NewQuery`. |
 | `src/session/shared.ts` | Added (not upstream) | `globalConnection` and `registry` are held on `globalThis` under `Symbol.for`, so two copies of the session package in one tree still share one instance. Measured: without it the decorator writes one registry and the dispatcher reads another, on npm, bun and deno alike. |

@@ -79,6 +79,33 @@ type ManifestChecks {
     null
   }
 
+  """
+  The only `[entrypoint]` a module keeps is the generated one. A manifest that
+  names a remote entrypoint source is rewritten to the generated entrypoint at
+  generation, so a module always runs on the entrypoint this SDK wrote for it.
+  """
+  remoteEntrypointReplacedCheck(ws: Workspace!): Void @check {
+    let path = Fixtures.out + "/manifest-remote-entrypoint"
+    let input = ws
+      .withNewFile(
+        "/" + path + "/dagger-module.toml",
+        "name = \"manifest-remote-entrypoint\"\n\n[entrypoint]\n  kind = \"dang\"\n  source = \"github.com/dagger/sdk-helpers/entrypoint@main\"\n",
+      )
+      .withNewFile(
+        "/" + path + "/src/index.ts",
+        "import { object } from \"@dagger.io/dagger\"\n\n@object()\nexport class ManifestRemoteEntrypoint {}\n",
+      )
+
+    let changes = Gen.scope(input, path, "manifest-remote-entrypoint", legacyRuntime: false)
+    let manifest = input.withChanges(changes).file("/" + path + "/dagger-module.toml").contents
+
+    Asserts.stringContains(manifest, "source = \"./entrypoint\"", "the generated entrypoint should replace the remote one, got:\n" + manifest)
+    Asserts.stringNotContains(manifest, "github.com", "the remote entrypoint source should be gone, got:\n" + manifest)
+    Asserts.added(changes, path + "/entrypoint/main.dang")
+
+    null
+  }
+
   """A local dependency path starts at the manifest, even with separate source files."""
   splitSourceClientCheck(ws: Workspace!): Void @check {
     let dependency = Fixtures.splitDenoRoot + "/dep"

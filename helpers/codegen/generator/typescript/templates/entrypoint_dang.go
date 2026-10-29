@@ -49,6 +49,10 @@ type DangEntrypointOptions struct {
 	// on the same image.
 	BaseImage string
 
+	// ClientVersion is the engine release the module's bindings are generated
+	// for, declared on the exec that starts the module process.
+	ClientVersion string
+
 	// DispatchFile is the generated dispatcher call() execs, relative to the
 	// module directory.
 	DispatchFile string
@@ -123,7 +127,14 @@ func DangEntrypointTemplateFuncs(module *TypedefModule, opts DangEntrypointOptio
 		"dangDispatchExec":         c.dangDispatchExec,
 		"dangRequireGeneratedBody": c.dangRequireGeneratedBody,
 		"dangSourcesMember":        c.dangSourcesMember,
+		"dangClientVersion":        c.dangClientVersion,
 	}
+}
+
+// dangClientVersion renders the release the module process is told its
+// bindings are generated for.
+func (c *dangFuncCtx) dangClientVersion() string {
+	return dangString(c.opts.ClientVersion)
 }
 
 type dangFuncCtx struct {

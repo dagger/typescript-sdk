@@ -96,6 +96,10 @@ type Packager {
       # written against.
       .withExec(["sh", "-c",
         "node -p \"require('./node_modules/typescript/package.json').version\" > /out/typescript-version.txt"])
+      # The engine release the library announces, for the SDK: its own pairing
+      # is whatever the bundle it ships was built to announce.
+      .withExec(["sh", "-c",
+        "bun -e \"import('./src/session/provisioning/engineVersion.ts').then(m => console.log(m.ENGINE_VERSION))\" > /out/engine-version.txt"])
       .directory("/out")
 
     # Same overlay as the bindings: the bundle directory also holds the

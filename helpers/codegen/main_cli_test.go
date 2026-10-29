@@ -341,11 +341,11 @@ func TestRunLibrary(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	// The library's bindings ship inside the library, so they reach the runtime
-	// by relative path rather than through the bundle or the package name.
+	// The same text a module ships: the library's own copy reaches the runtime
+	// through a ./core.js re-export of its own.
 	contents, err := os.ReadFile(filepath.Join(out, "client.gen.ts"))
 	require.NoError(t, err)
-	require.Contains(t, string(contents), `from "../session/context.js"`)
+	require.Contains(t, string(contents), `from "./core.js"`)
 }
 
 func TestRunEntrypoint(t *testing.T) {

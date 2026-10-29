@@ -168,6 +168,7 @@ func runDangEntrypoint(args []string) error {
 		modulePath   = fs.String("module-path", ".", "module directory relative to the workspace root, used as the container workdir")
 		packageMgr   = fs.String("package-manager", "", "package manager the call() recipe installs with, as name[@version] (npm, yarn, pnpm, bun, deno)")
 		baseImage    = fs.String("base-image", "", "image the call() recipe builds on; empty keeps the pin for --runtime")
+		clientVer    = fs.String("client-version", "", "engine release the module's bindings are generated for, as vX.Y.Z[-pre]; declared to the engine when a call starts the module")
 		dispatchFile = fs.String("dispatch-file", typescriptgenerator.DefaultDispatchFile, "dispatcher call() execs, relative to the module directory")
 		tsconfigPath = fs.String("tsconfig", "tsconfig.json", "tsconfig tsx loads, relative to the module directory (node only)")
 	)
@@ -181,6 +182,9 @@ func runDangEntrypoint(args []string) error {
 	}
 	if *typedefPath == "" {
 		return fmt.Errorf("--typedef-json-path is required")
+	}
+	if *clientVer == "" {
+		return fmt.Errorf("--client-version is required")
 	}
 	switch *runtime {
 	case "node", "bun", "deno":
@@ -204,6 +208,7 @@ func runDangEntrypoint(args []string) error {
 			PackageManager:        pkgMgr,
 			PackageManagerVersion: pkgMgrVersion,
 			BaseImage:             *baseImage,
+			ClientVersion:         *clientVer,
 			DispatchFile:          *dispatchFile,
 			TSConfigPath:          *tsconfigPath,
 			Include:               includes,
@@ -303,6 +308,7 @@ func runModule(args []string) error {
 		flat              = fs.Bool("flat-clients", false, "write the client files and the loader beside client.gen.ts in the output root, for the embedded [runtime] layout that ships them inside sdk/")
 		repoURL           = fs.String("workspace-repo-url", "", "Git repository the workspace was loaded from; source-map URLs into it are dropped for the module-relative filename")
 		clientsDir        = fs.String("clients-dir", "", "workspace-relative directory the generated client files land in; source-map filenames are rebased against it")
+		coreFile          = fs.String("core-file", "", "core client file to ship as it is, in place of one rendered from the schema")
 	)
 	if err := fs.Parse(args); err != nil {
 		return err
@@ -350,6 +356,7 @@ func runModule(args []string) error {
 			PackagedClients: *packaged,
 			FlatClients:     *flat,
 			ClientsDir:      *clientsDir,
+			CoreFile:        *coreFile,
 		},
 	}}
 
@@ -430,6 +437,7 @@ func runClient(args []string) error {
 		packaged       = fs.Bool("packaged-clients", false, "nest each client in its own <module>/<module>.gen.ts package directory")
 		repoURL        = fs.String("workspace-repo-url", "", "Git repository the workspace was loaded from; source-map URLs into it are dropped for the module-relative filename")
 		clientsDir     = fs.String("clients-dir", "", "workspace-relative directory the generated client files land in; source-map filenames are rebased against it")
+		coreFile       = fs.String("core-file", "", "core client file to ship as it is, in place of one rendered from the schema")
 	)
 	if err := fs.Parse(args); err != nil {
 		return err
@@ -478,6 +486,7 @@ func runClient(args []string) error {
 			EmitLoader:      false,
 			PackagedClients: *packaged,
 			ClientsDir:      *clientsDir,
+			CoreFile:        *coreFile,
 		},
 	}}
 

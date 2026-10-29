@@ -489,9 +489,16 @@ func TestGenerate_Module_EmitsLoader(t *testing.T) {
 	loader := readOverlay(t, state, "clients/loader.gen.ts")
 	require.Contains(t, loader, `import * as __core from "@dagger.io/dagger"`)
 	require.Contains(t, loader, `import * as __modMyDep from "@dagger.io/my-dep"`)
-	require.Contains(t, loader, `"Container": __core.Container,`)
 	require.Contains(t, loader, `"MyDep": __modMyDep.MyDep,`)
 	require.Contains(t, loader, "export function __loadObject(")
+
+	// Core classes are resolved on the library at run time, never listed: a
+	// list would follow the engine generation ran on, and a core type the
+	// engine gained since the library was built would name a class the
+	// library beside the loader does not export.
+	require.NotContains(t, loader, `"Container": __core.Container,`)
+	require.Contains(t, loader, "(__core as any)[typeName] ??")
+	require.Contains(t, loader, "(__core as any)[`${typeName}_`]")
 }
 
 // TestGenerate_RejectsReservedModuleNames asserts a module whose kebab-cased

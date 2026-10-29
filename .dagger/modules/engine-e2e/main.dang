@@ -13,7 +13,7 @@ type EngineE2e {
   with `dagger module update engine-dev`, deliberately.
 
   It is pinned at a release tag's commit, not an arbitrary main revision, and
-  the release has to be `typescriptSdk.targetEngineVersion`: the suite this
+  the release has to be `typescriptSdk.bundleEngineVersion`: the suite this
   engine runs includes `packager:library-bindings/stale`, which regenerates the
   library's bindings from this engine's core schema and compares them with the
   committed file. Moving one without the other turns that check red.

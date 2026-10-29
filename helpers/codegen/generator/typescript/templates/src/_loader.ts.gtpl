@@ -15,6 +15,7 @@ clients.
  * Do not make direct changes to the file.
  */
 import { Context } from "@dagger.io/dagger"
+import * as __core from "@dagger.io/dagger"
 {{- if CompatClients }}
 {{- /* Side-effect only: the shim installs the pre-1.0 `dag.<module>()` methods
 on the core Client when it is evaluated, and the loader is what guarantees that
@@ -39,8 +40,15 @@ const __classes: Record<string, any> = {
 // signatures use core types or its own types, never a dependency's, so the
 // engine always has the type served and no lazy serve is needed here. Replaces
 // the retired load<Type>FromID API (removed in #12041).
+//
+// A core class is looked up on the library rather than listed above, so the
+// map names no core type the library beside it may not export. A class named
+// after a JS keyword carries a trailing underscore.
 export function __loadObject(id: string, typeName: string): any {
-  const cls = __classes[typeName]
+  const cls =
+    __classes[typeName] ??
+    (__core as any)[typeName] ??
+    (__core as any)[`${typeName}_`]
   if (!cls) {
     throw new Error(`generated client class not found for type: ${typeName}`)
   }

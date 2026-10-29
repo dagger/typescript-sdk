@@ -65,6 +65,13 @@ type ModuleGeneratorConfig struct {
 	// client package that is not installed (the default self client) must still
 	// resolve at dispatch time.
 	PackagedClients bool
+
+	// CoreFile is a core client file to ship as it is instead of rendering one
+	// from the schema: the library's own bindings, generated for the engine
+	// release the library targets, so the core a scope carries follows the
+	// library and not the engine generation ran on. The schema still provides
+	// the module types around it. Empty renders the core from the schema.
+	CoreFile string
 }
 
 // Module-source kinds a generated client can bind to. A local module
@@ -187,6 +194,11 @@ type DangEntrypointGeneratorConfig struct {
 	// BaseImage overrides the image the recipe builds on, as the module's
 	// `dagger.baseImage` records it. Empty keeps the pin for Runtime.
 	BaseImage string
+
+	// ClientVersion is the engine release the module's bindings are generated
+	// for, as a `v`-prefixed semver. The recipe declares it on the exec that
+	// starts the module process. Required.
+	ClientVersion string
 
 	// DispatchFile is the dispatcher call() execs, relative to the module
 	// directory. Defaults to "__dagger.dispatch.ts".
