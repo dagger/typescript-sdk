@@ -104,4 +104,8 @@ type EntrypointOptions struct {
 	// module-root-relative, but a relative import resolves from the importing
 	// file, so the dispatcher under entrypoint/ needs them rebased.
 	OutputDir string
+
+	// Names are the engine's names for the module's own declarations, which
+	// calls through its interfaces select (LoadModuleNames).
+	Names *ModuleNames
 }

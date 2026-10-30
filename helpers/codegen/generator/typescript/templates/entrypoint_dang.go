@@ -67,6 +67,11 @@ type DangEntrypointOptions struct {
 	// reads the `sources` member makes, rebased to the module-relative form that
 	// member resolves in.
 	Include []string
+
+	// Names are the engine's names for the module's own declarations: which
+	// object it takes for the main one decides which carries the constructor
+	// (LoadModuleNames).
+	Names *ModuleNames
 }
 
 // Pins shared with the engine's built-in TypeScript runtime
@@ -291,11 +296,31 @@ func (c *dangFuncCtx) dangObjectEntry(obj *TypedefObject) string {
 	return dangChain("typeDef", calls, dangTypeIndent)
 }
 
-// isMainObject mirrors the engine's name rule for runtime modules
-// (gqlObjectName(object) == gqlObjectName(module)). The scanner already
-// pascal-cases the module name; pascalize normalizes the class name to match.
+// isMainObject decides which object carries the constructor. The engine takes
+// whichever object of an entrypoint module carries one for its main object, so
+// the choice is this generator's: the object the engine would take for the
+// main one by name in a module whose runtime registers its objects
+// (ModuleNaming.mainObject). Failing that, the object whose name pascalizes
+// like the scanner's PascalCase of the module's name, which is how it was
+// chosen before, so that a module whose main object only that rule found
+// keeps its constructor. One object at most either way.
 func (c *dangFuncCtx) isMainObject(obj *TypedefObject) bool {
-	return pascalize(obj.Name) == pascalize(c.module.Name)
+	return obj.Name == c.mainObjectName()
+}
+
+// mainObjectName is the name of the object isMainObject picks, or "".
+func (c *dangFuncCtx) mainObjectName() string {
+	if c.opts.Names != nil {
+		if main := c.opts.Names.MainObject(); c.module.Objects[main] != nil {
+			return main
+		}
+	}
+	for _, name := range sortedObjectKeys(c.module.Objects) {
+		if pascalize(name) == pascalize(c.module.Name) {
+			return name
+		}
+	}
+	return ""
 }
 
 func (c *dangFuncCtx) dangEnumEntry(e *TypedefEnum) string {
