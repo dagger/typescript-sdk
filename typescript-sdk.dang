@@ -166,10 +166,26 @@ type TypescriptSdk {
   let dangEntrypointDir: String! = "entrypoint"
 
   """
-  The one file that directory holds: the generated Dang program the engine
-  loads. Named because pruning has to know what it owns in there.
+  The generated Dang program the engine loads from that directory. Named because
+  pruning has to know what it owns in there.
   """
   let dangEntrypointFile: String! = "main.dang"
+
+  """
+  The Dang project configuration beside that program.
+  """
+  let dangConfigFile: String! = "dang.toml"
+
+  """
+  The Dang language a generated entrypoint is written in. Independent of the
+  Dang implementation that parses a versioned import, which needs v2.2.0.
+  """
+  let dangLanguage: String! = "2.1"
+
+  """
+  The dang.toml import a generated entrypoint reaches the engine through.
+  """
+  let dangDaggerImport: String! = "Dagger"
 
   """
   The dispatcher the engine's builtin TypeScript runtime loads.
@@ -306,8 +322,11 @@ type TypescriptSdk {
       # the builder refuses to hang a dependency off a runtime the manifest does
       # not declare, and the engine resolves no `source` out of it, so the
       # module's files are looked for at the workspace root.
+      # Read before the manifest is rewritten, which makes the entrypoint local
+      # whatever it was before.
+      let ownedEntrypoint = ownsDangEntrypoint(seeded, scope)
       let configured = if (legacyRuntime == false) {
-        withEntrypointManifest(seeded, scope, name, hasToml)
+        withDangConfig(withEntrypointManifest(seeded, scope, name, hasToml), seeded, scope, name, ownedEntrypoint)
       } else if (hasToml and isEntrypointManifest(seeded, scopeFile(scope, "dagger-module.toml")) == false) {
         seeded
       } else {
@@ -391,6 +410,7 @@ type TypescriptSdk {
         # bindings it could not re-render. The entrypoint path loads through the
         # Dang literals and is never in that position.
         legacyRuntime == false or selfTargets.length > 0,
+        ownedEntrypoint,
       )
 
       # The workspace-level .dagger/core an earlier layout shared is gone: every
@@ -722,7 +742,23 @@ type TypescriptSdk {
   """
   let hasScopeFile(ws: Workspace!, scope: String!, name: String!): Boolean! {
     let path = scopeFile(scope, name)
-    ws.directory("/", include: [path]).exists(path)
+    ws.directory("/", include: [literalGlob(path)]).exists(path)
+  }
+
+  """
+  A workspace path as an include pattern matching only that path. Include filters
+  read their patterns as globs, while the engine stats a module's paths literally,
+  so a directory named `custom[0]` would otherwise match nothing and read as
+  absent. A leading `!` would make the pattern an exclusion. Once any escape puts
+  moby/patternmatcher v0.6.1 in regexp mode, it passes `^`, `{`, `|` and `}` through
+  as regexp syntax, so those are escaped too. It also trims whitespace from a
+  pattern before cleaning it, so a path starting or ending in whitespace is wrapped
+  in what cleaning removes.
+  """
+  let literalGlob(path: String!): String! {
+    let escaped = ["\\", "*", "?", "[", "]", "^", "{", "|", "}"].reduce(path) { acc, char => acc.replace(char, "\\" + char) }
+    let guarded = if (escaped.hasPrefix("!")) { "\\" + escaped } else { escaped }
+    if (guarded.trimSpace != guarded) { "./" + guarded + "/" } else { guarded }
   }
 
   """
@@ -844,6 +880,257 @@ type TypescriptSdk {
       .withDangEntrypoint(source: "./" + dangEntrypointDir)
       .generate(ws.withWorkdir(scope), lock: lock, legacyJson: false)
       .withWorkdir(".")
+  }
+
+  """
+  Write entrypoint/dang.toml, naming the release the bundle is built for as the
+  entrypoint's Dagger version. `original` is the workspace as the scope arrived,
+  before the manifest was rewritten.
+
+  An SDK-generated entrypoint's Dagger version is the SDK's to manage, so an
+  older pin or `dagger = true` there is replaced. Everything else in the file
+  survives by value; its comments and formatting do not, because the helper
+  renders through TOML. An entrypoint this SDK did not generate may carry a pin
+  someone chose, and generation replaces that entrypoint regardless, so a
+  disagreeing pin there is refused rather than overwritten.
+
+  dagger/dagger#14902 reads the nearest dang.toml inside the module and does not
+  merge files; no released engine reads it yet. So the file that governs the local entrypoint being replaced — the
+  nearest one from its source up to the module root, whatever already sits at the
+  new path — is refused when the new file would lose anything from it. Its
+  relative paths would need rebasing, so nothing is carried over. A remote
+  entrypoint reads none of them; a module-root file is still refused when a new
+  file would shadow it. A dang.toml above the module is outside what #14902 reads,
+  so it is neither consulted nor touched.
+
+  Runs before the first pass because that pass loads the module, and an engine
+  that reads this file does so when it loads the entrypoint.
+  """
+  let withDangConfig(ws: Workspace!, original: Workspace!, scope: String!, name: String!, owned: Boolean!): Workspace! {
+    let dir = scopeFile(scope, dangEntrypointDir)
+    let leafPath = dir + "/" + dangConfigFile
+    let rootPath = scopeFile(scope, dangConfigFile)
+    let source = entrypointSource(original, scope)
+    let local = isLocalEntrypoint(original, scope, source)
+    let cleaned = cleanedPath(source)
+    if (local and (source.hasPrefix("/") or cleaned == ".." or cleaned.hasPrefix("../"))) {
+      raise "module \"" + name + "\": entrypoint source " + source + " escapes the module directory, which the engine " +
+        "refuses, so generation cannot tell which dang.toml governs it: fix the source in " + scopeFile(scope, "dagger-module.toml")
+    }
+    let sourcePaths = if (local) {
+      [rootPath] + dangConfigDirs(cleaned).map { sub => scopeFile(scope, sub + "/" + dangConfigFile) }
+    } else {
+      []
+    }
+    let existing = original.directory("/", include: ([leafPath, rootPath] + sourcePaths).map { path => literalGlob(path) })
+    let target = ws.withWorkdir(dir)
+    let desired = dangConfigWithTarget(sdkHelpers.dangConfig)
+    let governing = if (local) {
+      sourcePaths.filter { path => existing.exists(path) }.takeLast(1)
+    } else if (existing.exists(leafPath) == false and existing.exists(rootPath)) {
+      [rootPath]
+    } else {
+      []
+    }
+    governing.filter { path => path != leafPath }.each { path =>
+      let loaded = checkedDangConfig(existing.file(path), path, name)
+      refuseDisagreeingPin(loaded, path, name, false)
+      if (dangConfigWithTarget(loaded).generate(target).file(dangConfigFile).contents != desired.generate(target).file(dangConfigFile).contents) {
+        raise "module \"" + name + "\": a generated " + leafPath + " would replace the settings in " + path +
+          ", because dang.toml files are not merged: move them to " + leafPath + " or remove " + path
+      }
+    }
+
+    let config = if (existing.exists(leafPath)) {
+      let loaded = checkedDangConfig(existing.file(leafPath), leafPath, name)
+      if (owned == false) {
+        refuseDisagreeingPin(loaded, leafPath, name, true)
+      }
+      dangConfigWithTarget(loaded)
+    } else {
+      desired
+    }
+
+    writeChanged(ws, dir, directory.withFile(dangConfigFile, config.generate(target).file(dangConfigFile)))
+  }
+
+  """
+  A dang.toml's configuration with the generated entrypoint's language and
+  Dagger version set.
+  """
+  let dangConfigWithTarget(config: SdkHelpersDangConfig!): SdkHelpersDangConfig! {
+    config
+      .withVersion(dangLanguage)
+      .withDaggerImport(name: dangDaggerImport, version: bundleEngineVersion)
+  }
+
+  """
+  A TOML file's values, to read what the builders keep to themselves.
+  """
+  let tomlValues(file: File!): Dagger.JSONValue! {
+    Dagger.json.withContents(JSON.encode(TOML.decode(file.contents)) :: Dagger.JSON!)
+  }
+
+  """
+  Whether a Dagger version names the release the bundle is built for, in any
+  spelling targetVersion accepts for it.
+  """
+  let isBundleRelease(version: String!): Boolean! {
+    let trimmed = version.trimSpace
+    isRelease(trimmed) and releaseOf(trimmed) == bundleEngineVersion
+  }
+
+  """
+  Load a dang.toml, refusing what the helper would otherwise overwrite without a
+  word or leave for Dang to reject: withVersion replaces a different language,
+  withDaggerImport drops a `path` from an import of the same name, and it checks
+  an endpoint against a version only on that one import.
+  """
+  let checkedDangConfig(file: File!, path: String!, name: String!): SdkHelpersDangConfig! {
+    let config = sdkHelpers.dangConfig(loadToml: file)
+    if (config.version != dangLanguage) {
+      raise "module \"" + name + "\": " + path + " declares Dang language " + config.version +
+        ", and a generated entrypoint is written in " + dangLanguage
+    }
+    let values = tomlValues(file)
+    if (values.fields.contains("imports") and
+      values.field(["imports"]).fields.contains(dangDaggerImport) and
+      values.field(["imports", dangDaggerImport]).fields.contains("path")) {
+      raise "module \"" + name + "\": " + path + " gives the " + dangDaggerImport +
+        " import a `path`, which a generated entrypoint cannot keep: it connects that import to the engine"
+    }
+    let imports = config.daggerImports.{{name, version}}
+    let disagreeing = imports
+      .filter { i => i.name != dangDaggerImport and i.version != null and isBundleRelease(i.version ?? "") == false }
+      .map { i => i.name + " to " + (i.version ?? "") }
+    if (disagreeing.length > 0) {
+      raise "module \"" + name + "\": " + path + " pins import " + disagreeing.join(", ") +
+        ", and the generated entrypoint targets " + bundleEngineVersion
+    }
+    let withEndpoint = imports
+      .filter { i => i.name != dangDaggerImport and i.version != null }
+      .map { i => i.name }
+      .filter { alias =>
+        values.field(["imports", alias]).fields.contains("endpoint") and
+          toString(values.field(["imports", alias, "endpoint"]).contents) != "\"\""
+      }
+    if (withEndpoint.length > 0) {
+      raise "module \"" + name + "\": " + path + " import " + withEndpoint.join(", ") +
+        " has an endpoint with a Dagger version, which Dang does not allow"
+    }
+    config
+  }
+
+  """
+  Refuse a Dagger version this generation would change in a file it does not own.
+  `refuseUnpinned` also refuses `dagger = true`: rewriting that file loses it,
+  while a nearer generated file only narrows it.
+  """
+  let refuseDisagreeingPin(config: SdkHelpersDangConfig!, path: String!, name: String!, refuseUnpinned: Boolean!): Void {
+    let disagreeing = config.daggerImports.{{name, version}}
+      .filter { i => i.name == dangDaggerImport }
+      .map { i => i.version ?? "true" }
+      .filter { version =>
+        if (version == "true") { refuseUnpinned } else { isBundleRelease(version) == false }
+      }
+    if (disagreeing.length > 0) {
+      raise "module \"" + name + "\": " + path + " sets the " + dangDaggerImport + " import to " +
+        disagreeing.join(", ") + " and was not generated by this SDK, whose entrypoint targets " +
+        bundleEngineVersion + ": set it to " + bundleEngineVersion + " or remove it"
+    }
+    null
+  }
+
+  """
+  The `source` of the `[entrypoint]` a scope's manifest declares, as written;
+  empty without one. Parsed rather than matched, so a commented-out line does not
+  count and a TOML literal string does.
+  """
+  let entrypointSource(ws: Workspace!, scope: String!): String! {
+    if (hasScopeFile(ws, scope, "dagger-module.toml")) {
+      let values = tomlValues(ws.file("/" + scopeFile(scope, "dagger-module.toml")))
+      if (values.fields.contains("entrypoint") and values.field(["entrypoint"]).fields.contains("source")) {
+        values.field(["entrypoint", "source"]).asString
+      } else {
+        ""
+      }
+    } else {
+      ""
+    }
+  }
+
+  """
+  Whether an entrypoint source names a path in the module rather than a module
+  reference or an address, by the rules the engine classifies it with
+  (classifySource in dagger/dagger core/sdk/entrypoint). A source that could be
+  either is a path only when the module holds it, so a remote source never
+  matches files that happen to share its leading segments.
+  """
+  let isLocalEntrypoint(ws: Workspace!, scope: String!, source: String!): Boolean! {
+    if (source == "") {
+      false
+    } else if (source.hasPrefix(".") or source.hasPrefix("/")) {
+      true
+    } else if (source.contains(":")) {
+      false
+    } else if (source.contains(".") == false) {
+      true
+    } else {
+      let cleaned = cleanedPath(source)
+      let path = scopeFile(scope, cleaned)
+      cleaned != ".." and cleaned.hasPrefix("../") == false and
+        ws.directory("/", include: [literalGlob(path), literalGlob(path) + "/**"]).exists(path)
+    }
+  }
+
+  """
+  A relative path with its `.` and empty segments gone and each `..` resolved, as
+  the engine reads an entrypoint source: empty for the directory itself, and
+  leading with `..` when it leaves that directory.
+  """
+  let cleanedPath(path: String!): String! {
+    path.split("/").reduce([]) { kept, segment =>
+      if (segment == "" or segment == ".") {
+        kept
+      } else if (segment == ".." and kept.length > 0 and kept.takeLast(1).join("") != "..") {
+        kept.dropLast(1)
+      } else {
+        kept + [segment]
+      }
+    }.join("/")
+  }
+
+  """
+  The directories a cleaned local entrypoint source reads a dang.toml from inside
+  its module, nearest last and without the module root.
+  """
+  let dangConfigDirs(cleaned: String!): [String!]! {
+    if (cleaned == "") {
+      []
+    } else {
+      let segments = cleaned.split("/")
+      segments.map { segment, index => segments.takeFirst(index + 1).join("/") }
+    }
+  }
+
+  """
+  Whether a scope arrived with an entrypoint this SDK generated: its manifest
+  selects the local entrypoint directory with the Dang kind, and the program
+  there carries the generator's header. Neither alone will do, since any module
+  can use the conventional path and a remote entrypoint can leave a generated
+  program behind.
+  """
+  let ownsDangEntrypoint(ws: Workspace!, scope: String!): Boolean! {
+    let program = dangEntrypointDir + "/" + dangEntrypointFile
+    if (cleanedPath(entrypointSource(ws, scope)) != dangEntrypointDir or hasScopeFile(ws, scope, program) == false) {
+      false
+    } else {
+      let values = tomlValues(ws.file("/" + scopeFile(scope, "dagger-module.toml")))
+      values.fields.contains("runtime") == false and
+        values.field(["entrypoint"]).fields.contains("kind") and
+        values.field(["entrypoint", "kind"]).asString == "dang" and
+        ws.file("/" + scopeFile(scope, program)).contents.hasPrefix("# Code generated by Dagger. DO NOT EDIT.")
+    }
   }
 
   """
@@ -2018,7 +2305,7 @@ type TypescriptSdk {
   Written with withFile rather than withNewFile so the generated files keep the
   permissions they were rendered with.
   """
-  let moduleFiles(ws: Workspace!, sourcePath: String!, generated: Directory!, pruneStale: Boolean!): Workspace! {
+  let moduleFiles(ws: Workspace!, sourcePath: String!, generated: Directory!, pruneStale: Boolean!, ownedEntrypoint: Boolean!): Workspace! {
     if (legacyRuntime == false) {
       # What this SDK generated into clients/ and does not render this run is
       # stale and removed — that and nothing else, so a file of the user's in
@@ -2026,7 +2313,7 @@ type TypescriptSdk {
       # loader or client packages left at the module root, whichever a previous
       # generation wrote.
       let base = prunedClientPackages(
-        prunedRootLoader(prunedEmbeddedSdk(prunedInactiveDispatch(ws, sourcePath), sourcePath), sourcePath),
+        prunedRootLoader(prunedEmbeddedSdk(prunedInactiveDispatch(ws, sourcePath, ownedEntrypoint), sourcePath), sourcePath),
         sourcePath,
         [],
       )
@@ -2045,7 +2332,7 @@ type TypescriptSdk {
       # broken than it found it.
       let pruned = if (pruneStale) { prunedBindings(ws, sourcePath, generated) } else { ws }
       writeChanged(
-        prunedEmbeddedClientsDir(prunedInactiveDispatch(pruned, sourcePath), sourcePath),
+        prunedEmbeddedClientsDir(prunedInactiveDispatch(pruned, sourcePath, ownedEntrypoint), sourcePath),
         sourcePath,
         generated,
       )
@@ -2164,8 +2451,7 @@ type TypescriptSdk {
   the ones really there, and the directory once that leaves nothing in it.
 
   The removal half of the rule above, for the directories whose owned set is
-  known by name rather than by shape — a module's entrypoint/, which holds the
-  generated Dang program and nothing else.
+  known by name rather than by shape — a module's entrypoint/.
   """
   let prunedFiles(ws: Workspace!, dir: String!, owned: [String!]!): Workspace! {
     let existing = existingDir(ws, dir)
@@ -2206,12 +2492,16 @@ type TypescriptSdk {
   the same reason stale bindings are: what is no longer generated is not removed
   by not generating it.
 
-  entrypoint/ holds the generated Dang program and nothing else, so the
-  directory goes with it — but by emptying it, not wholesale: a file the user
+  entrypoint/ holds the generated Dang program and its dang.toml, so the
+  directory goes with them — but by emptying it, not wholesale: a file the user
   put in there is still theirs, and taking the directory whole took it along
-  (issue #87).
+  (issue #87). A dang.toml goes only beside an entrypoint this SDK generated, and
+  only when it says exactly what generation writes: one with anything more
+  carries settings the module may want back. Kept with another release's pin, it
+  is refused when the module returns to an entrypoint, because nothing marks it
+  as generated any more.
   """
-  let prunedInactiveDispatch(ws: Workspace!, sourcePath: String!): Workspace! {
+  let prunedInactiveDispatch(ws: Workspace!, sourcePath: String!, ownedEntrypoint: Boolean!): Workspace! {
     let existing = existingDir(ws, sourcePath)
     let prefix = if (sourcePath == ".") { "/" } else { "/" + sourcePath + "/" }
 
@@ -2227,7 +2517,15 @@ type TypescriptSdk {
       } else {
         ws
       }
-      prunedFiles(withoutDispatcher, scopeFile(sourcePath, dangEntrypointDir), [dangEntrypointFile])
+      let dir = scopeFile(sourcePath, dangEntrypointDir)
+      let isUnchanged = ownedEntrypoint and existingDir(ws, dir).exists(dangConfigFile) and
+        ws.file("/" + dir + "/" + dangConfigFile).contents ==
+          dangConfigWithTarget(sdkHelpers.dangConfig).generate(ws.withWorkdir(dir)).file(dangConfigFile).contents
+      prunedFiles(
+        withoutDispatcher,
+        dir,
+        if (isUnchanged) { [dangEntrypointFile, dangConfigFile] } else { [dangEntrypointFile] },
+      )
     }
   }
 

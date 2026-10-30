@@ -158,6 +158,73 @@ SDK ships one bundle, so the only value it accepts is its own release, with or
 without the `v`; any other is refused by name, and an older release needs the
 SDK release built for it.
 
+### The Dagger version in `entrypoint/dang.toml`
+
+Generating an entrypoint module writes `entrypoint/dang.toml`, with Dang language
+`2.1` and `[imports.Dagger] dagger` set to the release the SDK targets. The
+generated program also declares that release in `DAGGER_CLIENT_VERSION`. Language
+`2.1` is the language the entrypoint is written in; parsing a versioned import
+separately needs the Dang implementation at v2.2.0 or later, so older standalone
+Dang tooling may reject the file.
+
+The two values reach the engine separately:
+
+- `DAGGER_CLIENT_VERSION`: `v1.0.0-beta.22` reads it, through
+  [dagger/dagger#14881](https://github.com/dagger/dagger/pull/14881). Earlier
+  releases do not.
+- `dang.toml`: released engines through `v1.0.0-beta.22` ignore it, because they
+  copy only `.dang` files when they evaluate an entrypoint.
+  [dagger/dagger#14902](https://github.com/dagger/dagger/pull/14902), still open,
+  reads the nearest `dang.toml` inside the module. Its version is meant to set the
+  entrypoint's view, and the module process is meant to use that view by default.
+
+`v1.0.0-beta.22` is the first prerelease with an API view of its own;
+`v1.0.0-beta.20` and `v1.0.0-beta.21` share one. This SDK stays on
+`v1.0.0-beta.21` ahead of the identifier-casing cut, whose release is not decided.
+
+The `version` checks read what generation writes, which does not depend on the
+engine running them. No check shows either value taking effect at run time. An
+existing module gets the file on its next `dagger generate`.
+
+An entrypoint this SDK generated has its Dagger version managed: `dagger = true`
+or another version is replaced on every generation. Other settings and imports
+are kept by value. The file is rendered through TOML, so **its comments and
+formatting are lost** the first time it changes.
+
+Generation refuses, and writes nothing, when the file:
+
+- declares a Dang language other than `2.1`
+- gives the `Dagger` import a `path` or a non-empty `endpoint`
+- pins another Dagger import to a different release, or gives a versioned one a
+  non-empty `endpoint`
+
+Spellings of the target release that `targetVersion` accepts count as that
+release.
+
+It also refuses a `Dagger` version it did not generate, in an
+`entrypoint/dang.toml` beside a remote or hand-written entrypoint, which
+generation replaces.
+
+#14902 does not merge files, so generation refuses to lose settings from the file that
+governs the local entrypoint it replaces: the nearest `dang.toml` from that
+entrypoint's source up to the module root, even when `entrypoint/dang.toml`
+already exists. A module-root file is also refused when a new
+`entrypoint/dang.toml` would shadow it. That covers a differing pin and any
+setting other than the Dagger version. Move the settings to
+`entrypoint/dang.toml`; relative paths are not rebased for you. Generation does
+not read a `dang.toml` above the module, which #14902 also ignores, and leaves it
+alone. The same goes for one that only shares a remote entrypoint's leading path
+segments.
+
+A local entrypoint source that leaves the module directory is refused, as the
+engine refuses it. Fix `source` in `dagger-module.toml` first.
+
+Moving a generated module to `legacyRuntime` removes `entrypoint/dang.toml` only
+when it still says exactly what generation writes. A file that stays keeps its
+contents, and moving back keeps them too as long as its `Dagger` version is the
+target release. Otherwise generation refuses until you update or remove that
+version.
+
 ## Generate a typed client
 
 Record a client for a module in the current scope:
