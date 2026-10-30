@@ -61,7 +61,7 @@ func (n *ModuleNames) ask(params, fields string, variables map[string]any, data 
 		} `json:"node"`
 	}
 	if err := n.naming.Engine.Query(n.ctx, fmt.Sprintf(namingQuery, params, fields), vars, &resp); err != nil {
-		return fmt.Errorf("module names (ModuleSource.naming, which needs dagger v1.0.0-beta.22 or later): %w", err)
+		return fmt.Errorf("module names: %w", err)
 	}
 	if resp.Node == nil || resp.Node.Naming == nil {
 		return fmt.Errorf("module names: %q is not a module source", n.naming.SourceID)

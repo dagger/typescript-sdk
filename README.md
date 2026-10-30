@@ -13,8 +13,9 @@ write.
 Workspace state, module discovery and codegen go through the engine's native
 `Workspace` and `ModuleSource` APIs. Generating a module's entrypoint asks the
 engine how it names the module's own declarations (`ModuleSource.naming`,
-dagger/dagger#14996), which requires an engine at `v1.0.0-beta.22` or newer.
-Module manifests are built with
+dagger/dagger#14996), so this module declares `engineVersion`
+`v1.0.0-beta.22`: install, init and generation all need an engine at that
+release or newer. Module manifests are built with
 [`dagger/sdk-helpers`](https://github.com/dagger/sdk-helpers), the one module
 dependency.
 

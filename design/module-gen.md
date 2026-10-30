@@ -361,7 +361,7 @@ dagger generate ──▶ TypescriptSdk.generateAllModule(ws)          [@generat
                       └─ for each managed TS module (unchanged discovery):
                            stage local dependency closure          # unchanged
                            modSrc = polyfill.moduleSource(path).core
-                           schema = modSrc.introspectionSchemaJSON  # module-facing
+                           schema = modSrc.introspectionSchemaJson  # module-facing
                            name   = modSrc.moduleOriginalName
                            src    = modSrc.sourceSubpath
                            │
@@ -391,7 +391,7 @@ dagger generate ──▶ TypescriptSdk.generateAllModule(ws)          [@generat
 
 Steps 1–4 are ordinary containers that never dial the engine. The one
 exception is naming: the entrypoint generators (`codegen entrypoint`, `codegen
-dang-entrypoint`) run with `experimentalPrivilegedNesting`, because they ask
+dang-entrypoint`) run as nested clients of the session, because they ask
 the engine for the names it gives the module's own declarations, which the
 generated entrypoints select: one `ModuleSource.naming` query
 (dagger/dagger#14996) for the module the engine loads, whose ID the SDK hands
