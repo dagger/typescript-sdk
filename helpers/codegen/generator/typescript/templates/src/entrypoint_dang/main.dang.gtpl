@@ -58,9 +58,10 @@ type Entrypoint implements ModuleEntrypoint {
   from into the module context, which is what the container below mounts and
   what the call's cache key covers. `callDigest` is the engine's identifier for
   this call, passed to the dispatcher so a nested call it makes can be keyed on
-  it. `DAGGER_CLIENT_VERSION` is the engine release the module's bindings are
-  generated for: the engine ignores it today, and a later one serves the module
-  process that release's view.
+  it. `DAGGER_CLIENT_VERSION` declares the engine release the module's bindings
+  are generated for. The `dang.toml` beside this program is a separate channel:
+  an engine carrying dagger/dagger#14902 takes the entrypoint's view from its
+  Dagger version, and the module process uses that view by default.
   """
   pub call(
     receiverType: String!,

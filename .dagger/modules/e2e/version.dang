@@ -8,13 +8,12 @@ the engine it ran on.
 type VersionChecks {
   """
   A scope's core should be the library's own file, byte for byte, under either
-  layout and in a client-only scope. The shared engine these checks run on is
-  not the release the bundle is built for, so equality here is what shows the
-  engine plays no part in the core.
+  layout and in a client-only scope. The core comes from the bundle, so equality
+  should hold on any engine, and on one of another release it shows the engine
+  plays no part.
 
   The generated entrypoint declares that same release on the exec that starts
-  the module process. The engine ignores the variable today; a later one serves
-  the process that release's view.
+  the module process.
   """
   coreFromBundleCheck(ws: Workspace!): Void @check {
     let core = ws.file("/library/src/core/client.gen.ts").contents
@@ -112,6 +111,271 @@ type VersionChecks {
     }
 
     null
+  }
+
+  """
+  A generated entrypoint's dang.toml should name the release its process
+  declares, keep what it does not own, and refuse what it would otherwise lose.
+
+  This reads what generation writes, which does not depend on the engine running
+  it, so it establishes nothing about either value's effect at run time. Selecting
+  an API view from the file takes dagger/dagger#14902, still open; reading the
+  variable takes dagger/dagger#14881, released in v1.0.0-beta.22.
+  """
+  dangConfigCheck(ws: Workspace!): Void @check {
+    let root = Fixtures.out + "/version-dang"
+    let path = root + "/module"
+    let name = "version-dang"
+    let leaf = path + "/entrypoint/dang.toml"
+    let release = typescriptSdk.bundleEngineVersion
+
+    let fresh = Gen.scope(ws, path, name, template: "empty", legacyRuntime: false)
+    let settled = ws.withChanges(fresh)
+    Asserts.assert(dangValue(settled, leaf, ["dang"]) == "\"2.1\"", "a generated dang.toml should declare language 2.1")
+    Asserts.assert(
+      dangValue(settled, leaf, ["imports", "Dagger", "dagger"]) == "\"" + release + "\"",
+      "a generated dang.toml should name the release the bundle is built for",
+    )
+    Asserts.stringContains(
+      settled.file("/" + path + "/entrypoint/main.dang").contents,
+      ".withEnvVariable(\"DAGGER_CLIENT_VERSION\", \"" + release + "\")",
+      "the process should declare the release dang.toml names",
+    )
+
+    let again = Gen.scope(settled, path, name, legacyRuntime: false)
+    Asserts.assert(
+      again.isEmpty,
+      "a second generation should write nothing, got added [" + again.addedPaths.join(", ") +
+        "], modified [" + again.modifiedPaths.join(", ") + "]",
+    )
+    Asserts.untouched(again, leaf, "a second generation should leave dang.toml alone")
+
+    let scoped = settled.withWorkdir(path)
+    let generated = typescriptSdk(legacyRuntime: false, skipGenerateFilename: "")
+      .generateScope(scoped, isModule: true, name: name, clients: [])
+    Asserts.assert(generated.cwd == scoped.cwd, "generation changed cwd")
+
+    let customized = "# dropped when rendered\ndang = \"2.1\"\n\n[imports.Dagger]\ndagger = true\nservice = [\"./bin/dagger\", \"session\"]\n\n[imports.Lib]\npath = \"./lib\"\n"
+    let owned = settled.withNewFile("/" + leaf, customized)
+    let replaced = owned.withChanges(Gen.scope(owned, path, name, legacyRuntime: false))
+    Asserts.assert(
+      dangValue(replaced, leaf, ["imports", "Dagger", "dagger"]) == "\"" + release + "\"",
+      "an owned dagger = true should become the release",
+    )
+    Asserts.assert(dangValue(replaced, leaf, ["imports", "Lib", "path"]) == "\"./lib\"", "another import should survive")
+    Asserts.assert(dangValue(replaced, leaf, ["imports", "Dagger", "service"]) != "null", "an import's other settings should survive")
+    Asserts.stringNotContains(replaced.file("/" + leaf).contents, "# dropped", "rendering through TOML drops comments")
+    Asserts.assert(Gen.scope(replaced, path, name, legacyRuntime: false).isEmpty, "a replaced dang.toml should settle")
+
+    let older = settled.withNewFile("/" + leaf, "[imports.Dagger]\ndagger = \"v1.0.0-beta.19\"\n")
+    Asserts.assert(
+      dangValue(older.withChanges(Gen.scope(older, path, name, legacyRuntime: false)), leaf, ["imports", "Dagger", "dagger"]) == "\"" + release + "\"",
+      "an owned older pin should become the release",
+    )
+
+    assertDangConflict(settled, path, name, "dang = \"2.0\"\n", "declares Dang language 2.0")
+    assertDangConflict(settled, path, name, "[imports.Dagger]\npath = \"./dagger\"\n", "gives the Dagger import a `path`")
+    assertDangConflict(settled, path, name, "[imports.Dagger]\nendpoint = \"http://localhost:8080\"\n", "has an endpoint")
+    assertDangConflict(settled, path, name, "[imports.Engine]\ndagger = \"v1.0.0-beta.19\"\n", "pins import Engine to v1.0.0-beta.19")
+    assertDangConflict(settled, path, name, "dang = \"2.2\"\n", "declares Dang language 2.2")
+    assertDangConflict(settled, path, name, "[imports.Engine]\ndagger = \"" + release + "+???\"\n", "pins import Engine to " + release + "+???")
+    assertDangConflict(settled, path, name, "[imports.Engine]\ndagger = \"" + release + "\"\nendpoint = \"http://localhost:8080\"\n", "import Engine has an endpoint")
+
+    let spelled = settled.withNewFile(
+      "/" + leaf,
+      "[imports.Dagger]\ndagger = true\n\n[imports.Remote]\ndagger = true\nendpoint = \"http://localhost:8080\"\n\n[imports.Engine]\ndagger = \"" + release.trimPrefix("v") + "+build\"\n",
+    )
+    let respelled = spelled.withChanges(Gen.scope(spelled, path, name, legacyRuntime: false))
+    Asserts.assert(dangValue(respelled, leaf, ["imports", "Engine", "dagger"]) == "\"" + release.trimPrefix("v") + "+build\"", "an alias spelling the release should be kept as written")
+    Asserts.assert(dangValue(respelled, leaf, ["imports", "Remote", "endpoint"]) == "\"http://localhost:8080\"", "an unversioned alias should keep its endpoint")
+
+    let bothRoot = path + "/dang.toml"
+    let both = settled.withNewFile("/" + bothRoot, "[imports.Dagger]\ndagger = \"v1.0.0-beta.19\"\n")
+    Asserts.untouched(Gen.scope(both, path, name, legacyRuntime: false), bothRoot, "a module-root dang.toml a leaf already shadows should be left alone")
+
+    let manifest = path + "/dagger-module.toml"
+    let remote = settled.withNewFile(
+      "/" + manifest,
+      "name = \"" + name + "\"\n\n[entrypoint]\n  kind = \"dang\"\n  source = \"github.com/dagger/sdk-helpers/entrypoint@main\"\n",
+    )
+    let unowned = [
+      remote,
+      settled.withNewFile("/" + path + "/entrypoint/main.dang", "type Entrypoint {}\n"),
+    ]
+    unowned.each { input =>
+      ["[imports.Dagger]\ndagger = \"v1.0.0-beta.19\"\n", "[imports.Dagger]\ndagger = true\n"].each { pin =>
+        let failure = Gen.failure(Gen.scope(input.withNewFile("/" + leaf, pin), path, name, legacyRuntime: false))
+        Asserts.stringContains(failure, "was not generated by this SDK", "an unowned Dagger version should be refused, got: " + failure)
+      }
+    }
+
+    let commented = settled.withNewFile(
+      "/" + manifest,
+      "name = \"" + name + "\"\n\n[entrypoint]\n  kind = \"dang\"\n  # source = \"./entrypoint\"\n  source = \"github.com/dagger/sdk-helpers/entrypoint@main\"\n",
+    ).withNewFile("/" + leaf, "[imports.Dagger]\ndagger = \"v1.0.0-beta.19\"\n")
+    let commentedFailure = Gen.failure(Gen.scope(commented, path, name, legacyRuntime: false))
+    Asserts.stringContains(commentedFailure, "was not generated by this SDK", "a commented-out source should not make an entrypoint owned, got: " + commentedFailure)
+
+    let literal = settled.withNewFile(
+      "/" + manifest,
+      "name = \"" + name + "\"\n\n[entrypoint]\n  kind = \"dang\"\n  source = './entrypoint'\n",
+    ).withNewFile("/" + leaf, "[imports.Dagger]\ndagger = \"v1.0.0-beta.19\"\n")
+    Asserts.assert(
+      dangValue(literal.withChanges(Gen.scope(literal, path, name, legacyRuntime: false)), leaf, ["imports", "Dagger", "dagger"]) == "\"" + release + "\"",
+      "a literal-string source should still make an entrypoint owned",
+    )
+
+    let custom = settled
+      .withNewFile("/" + manifest, "name = \"" + name + "\"\n\n[entrypoint]\n  kind = \"dang\"\n  source = \"./custom\"\n")
+      .withNewFile("/" + path + "/custom/main.dang", "type Entrypoint {}\n")
+    let customPin = Gen.failure(Gen.scope(custom.withNewFile("/" + path + "/custom/dang.toml", "[imports.Dagger]\ndagger = \"v1.0.0-beta.19\"\n"), path, name, legacyRuntime: false))
+    Asserts.stringContains(customPin, "was not generated by this SDK", "a custom entrypoint's pin should be refused, got: " + customPin)
+    let customSettings = Gen.failure(Gen.scope(custom.withNewFile("/" + path + "/custom/dang.toml", "[imports.Lib]\npath = \"../lib\"\n"), path, name, legacyRuntime: false))
+    Asserts.stringContains(customSettings, "would replace the settings in", "a custom entrypoint's settings should be refused, got: " + customSettings)
+
+    let customRootPin = Gen.failure(Gen.scope(custom.withNewFile("/" + path + "/dang.toml", "[imports.Dagger]\ndagger = \"v1.0.0-beta.19\"\n"), path, name, legacyRuntime: false))
+    Asserts.stringContains(customRootPin, path + "/dang.toml", "the module root's pin governs a custom entrypoint whatever sits at the new path, got: " + customRootPin)
+    let customRootSettings = Gen.failure(Gen.scope(custom.withNewFile("/" + path + "/dang.toml", "[imports.Lib]\npath = \"./lib\"\n"), path, name, legacyRuntime: false))
+    Asserts.stringContains(customRootSettings, "would replace the settings in " + path + "/dang.toml", "the module root's settings govern a custom entrypoint whatever sits at the new path, got: " + customRootSettings)
+
+    let reentrant = custom
+      .withNewFile("/" + manifest, "name = \"" + name + "\"\n\n[entrypoint]\n  kind = \"dang\"\n  source = \"./custom/../custom2\"\n")
+      .withNewFile("/" + path + "/custom2/main.dang", "type Entrypoint {}\n")
+      .withNewFile("/" + path + "/custom2/dang.toml", "[imports.Lib]\npath = \"../lib\"\n")
+    let reentrantFailure = Gen.failure(Gen.scope(reentrant, path, name, legacyRuntime: false))
+    Asserts.stringContains(reentrantFailure, "would replace the settings in " + path + "/custom2/dang.toml", "a source that cleans to a path in the module should be followed, got: " + reentrantFailure)
+
+    let escaping = settled.withNewFile("/" + manifest, "name = \"" + name + "\"\n\n[entrypoint]\n  kind = \"dang\"\n  source = \"./custom/../../outside\"\n")
+    let escapingFailure = Gen.failure(Gen.scope(escaping, path, name, legacyRuntime: false))
+    Asserts.stringContains(escapingFailure, "escapes the module directory", "a source leaving the module should be refused, got: " + escapingFailure)
+
+    let collision = remote.withNewFile("/" + path + "/github.com/dang.toml", "[imports.Dagger]\ndagger = \"v1.0.0-beta.19\"\n")
+    let unrelated = Gen.scope(collision, path, name, legacyRuntime: false)
+    Asserts.stringContains(collision.withChanges(unrelated).file("/" + manifest).contents, "source = \"./entrypoint\"", "a remote entrypoint should still be replaced beside a local path sharing its segments")
+    Asserts.untouched(unrelated, path + "/github.com/dang.toml", "a dang.toml that only shares a remote source's segments should be left alone")
+
+    assertSourceConfigRefused(settled, path, name, "custom.v1[0]", "custom.v1[0]")
+    assertSourceConfigRefused(settled, path, name, "./custom.v1[0]", "custom.v1[0]")
+    assertSourceConfigRefused(settled, path, name, "custom.v1[0]^", "custom.v1[0]^")
+    assertSourceConfigRefused(settled, path, name, "./custom.v1[0]^", "custom.v1[0]^")
+    assertSourceConfigRefused(settled, path, name, "^custom.v1[0]", "^custom.v1[0]")
+    assertSourceConfigRefused(settled, path, name, "./^custom.v1[0]", "^custom.v1[0]")
+    assertSourceConfigRefused(settled, path, name, "custom{2}.v1[0]", "custom{2}.v1[0]")
+    assertSourceConfigRefused(settled, path, name, "./custom|v1[0]", "custom|v1[0]")
+    let bareRoot = directory.asWorkspace
+    assertSourceConfigRefused(bareRoot, ".", name, " custom.v1[0]", " custom.v1[0]")
+    assertSourceConfigRefused(bareRoot, ".", name, "./ custom.v1[0]", " custom.v1[0]")
+    assertSourceConfigRefused(bareRoot, ".", name, "custom.v1[0] ", "custom.v1[0] ")
+    assertSourceConfigRefused(settled, path, name, "custom.v1", "custom.v1")
+    let dotted = sourcedEntrypoint(settled, path, name, "custom.v1", "custom.v1")
+      .withNewFile("/" + path + "/custom.v1/dang.toml", "[imports.Dagger]\ndagger = \"" + release + "\"\n")
+    Asserts.stringContains(
+      dotted.withChanges(Gen.scope(dotted, path, name, legacyRuntime: false)).file("/" + manifest).contents,
+      "source = \"./entrypoint\"",
+      "a dotted local source whose dang.toml loses nothing should be replaced",
+    )
+
+    let handwritten = settled
+      .withNewFile("/" + path + "/entrypoint/main.dang", "type Entrypoint {}\n")
+      .withNewFile("/" + leaf, "[imports.Lib]\npath = \"./lib\"\n")
+    Asserts.assert(
+      dangValue(handwritten.withChanges(Gen.scope(handwritten, path, name, legacyRuntime: false)), leaf, ["imports", "Lib", "path"]) == "\"./lib\"",
+      "a hand-written entrypoint's unrelated settings should survive",
+    )
+
+    let adopted = remote.withNewFile("/" + leaf, "[imports.Lib]\npath = \"./lib\"\n")
+    let local = adopted.withChanges(Gen.scope(adopted, path, name, legacyRuntime: false))
+    Asserts.stringContains(local.file("/" + manifest).contents, "source = \"./entrypoint\"", "a remote entrypoint should still be replaced")
+    Asserts.assert(dangValue(local, leaf, ["imports", "Lib", "path"]) == "\"./lib\"", "an unowned file's other settings should survive")
+    Asserts.assert(
+      dangValue(local, leaf, ["imports", "Dagger", "dagger"]) == "\"" + release + "\"",
+      "an unowned file with no Dagger import should gain one",
+    )
+
+    let bare = path + "-bare"
+    let bareName = name + "-bare"
+    let moduleRoot = bare + "/dang.toml"
+    let shadowed = Gen.failure(Gen.scope(
+      ws.withNewFile("/" + moduleRoot, "[imports.Lib]\npath = \"./lib\"\n"),
+      bare, bareName, template: "empty", legacyRuntime: false,
+    ))
+    Asserts.stringContains(shadowed, "would replace the settings in", "shadowing a module-root setting should be refused, got: " + shadowed)
+    let shadowedPin = Gen.failure(Gen.scope(
+      ws.withNewFile("/" + moduleRoot, "[imports.Dagger]\ndagger = \"v1.0.0-beta.19\"\n"),
+      bare, bareName, template: "empty", legacyRuntime: false,
+    ))
+    Asserts.stringContains(shadowedPin, "was not generated by this SDK", "shadowing a module-root pin should be refused, got: " + shadowedPin)
+
+    let above = root + "/dang.toml"
+    let ancestors = ws
+      .withNewFile("/" + above, "[imports.Dagger]\ndagger = \"v1.0.0-beta.19\"\n")
+      .withNewFile("/" + moduleRoot, "[imports.Dagger]\ndagger = true\n")
+    let nearer = Gen.scope(ancestors, bare, bareName, template: "empty", legacyRuntime: false)
+    Asserts.added(nearer, bare + "/entrypoint/dang.toml")
+    Asserts.untouched(nearer, above, "a dang.toml above the module should be left alone")
+    Asserts.untouched(nearer, moduleRoot, "a dang.toml at the module root should be left alone")
+
+    let customizedOwned = settled.withNewFile("/" + leaf, customized)
+    let kept = customizedOwned.withChanges(Gen.scope(customizedOwned, path, name, legacyRuntime: true))
+    Asserts.assert(dangValue(kept, leaf, ["imports", "Lib", "path"]) == "\"./lib\"", "a customized dang.toml should survive pruning")
+    Asserts.assert(kept.directory("/" + path).exists("entrypoint/main.dang") == false, "the generated program should go")
+    let unownedDefault = settled.withNewFile("/" + path + "/entrypoint/main.dang", "type Entrypoint {}\n")
+    Asserts.assert(
+      unownedDefault.withChanges(Gen.scope(unownedDefault, path, name, legacyRuntime: true)).directory("/" + path).exists("entrypoint/dang.toml"),
+      "a dang.toml beside an entrypoint this SDK did not generate should survive pruning",
+    )
+    let blockedBack = Gen.failure(Gen.scope(kept, path, name, legacyRuntime: false))
+    Asserts.stringContains(blockedBack, "was not generated by this SDK", "a kept dang.toml with another Dagger version should be refused, got: " + blockedBack)
+    let keptTarget = replaced.withChanges(Gen.scope(replaced, path, name, legacyRuntime: true))
+    let returned = keptTarget.withChanges(Gen.scope(keptTarget, path, name, legacyRuntime: false))
+    Asserts.assert(dangValue(returned, leaf, ["imports", "Lib", "path"]) == "\"./lib\"", "settings should survive a round trip through a [runtime]")
+    let pruned = settled.withChanges(Gen.scope(settled, path, name, legacyRuntime: true))
+    Asserts.assert(pruned.directory("/" + path).exists("entrypoint") == false, "a dang.toml generation wrote should go with its program")
+
+    null
+  }
+
+  """
+  Generation over a module's entrypoint/dang.toml should refuse these contents.
+  """
+  let assertDangConflict(ws: Workspace!, path: String!, name: String!, contents: String!, want: String!): Void {
+    let failure = Gen.failure(Gen.scope(ws.withNewFile("/" + path + "/entrypoint/dang.toml", contents), path, name, legacyRuntime: false))
+    Asserts.stringContains(failure, want, "a conflicting dang.toml should be refused, got: " + failure)
+    null
+  }
+
+  """
+  A module whose manifest selects a local entrypoint at `source`, kept in `dir`.
+  """
+  let sourcedEntrypoint(ws: Workspace!, path: String!, name: String!, source: String!, dir: String!): Workspace! {
+    ws
+      .withNewFile("/" + path + "/dagger-module.toml", "name = \"" + name + "\"\n\n[entrypoint]\n  kind = \"dang\"\n  source = \"" + source + "\"\n")
+      .withNewFile("/" + path + "/" + dir + "/main.dang", "type Entrypoint {}\n")
+  }
+
+  """
+  A pin and an unrelated setting beside that entrypoint should both be refused,
+  since generation replaces it.
+  """
+  let assertSourceConfigRefused(ws: Workspace!, path: String!, name: String!, source: String!, dir: String!): Void {
+    let module = sourcedEntrypoint(ws, path, name, source, dir)
+    let config = if (path == ".") { dir + "/dang.toml" } else { path + "/" + dir + "/dang.toml" }
+    let pin = Gen.failure(Gen.scope(module.withNewFile("/" + config, "[imports.Dagger]\ndagger = \"v1.0.0-beta.19\"\n"), path, name, legacyRuntime: false))
+    Asserts.stringContains(pin, config + " sets the Dagger import", source + "'s pin should be refused, got: " + pin)
+    let settings = Gen.failure(Gen.scope(module.withNewFile("/" + config, "[imports.Lib]\npath = \"../lib\"\n"), path, name, legacyRuntime: false))
+    Asserts.stringContains(settings, "would replace the settings in " + config, source + "'s settings should be refused, got: " + settings)
+    null
+  }
+
+  """
+  A value in a dang.toml as raw JSON, or "null" when the path holds none.
+  """
+  let dangValue(ws: Workspace!, file: String!, path: [String!]!): String! {
+    let value = Dagger.json.withContents(JSON.encode(TOML.decode(ws.file("/" + file).contents)) :: Dagger.JSON!)
+    path.reduce(toString(value.contents)) { raw, key =>
+      let current = Dagger.json.withContents(raw :: Dagger.JSON!)
+      if (current.fields.contains(key)) { toString(current.field([key]).contents) } else { "null" }
+    }
   }
 
   """
