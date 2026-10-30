@@ -51,6 +51,13 @@ func (g *TypeScriptGenerator) GenerateDangEntrypoint(ctx context.Context) (*gene
 		return nil, fmt.Errorf("parse typedef json: %w", err)
 	}
 
+	// Which object carries the constructor follows which the engine takes for
+	// the main one.
+	names, err := templates.LoadModuleNames(ctx, cfg.Naming, &module)
+	if err != nil {
+		return nil, err
+	}
+
 	tmpl := templates.NewDangEntrypoint(&module, templates.DangEntrypointOptions{
 		ModuleName:            cfg.ModuleName,
 		Runtime:               cfg.Runtime,
@@ -62,6 +69,7 @@ func (g *TypeScriptGenerator) GenerateDangEntrypoint(ctx context.Context) (*gene
 		DispatchFile:          cfg.DispatchFile,
 		TSConfigPath:          cfg.TSConfigPath,
 		Include:               cfg.Include,
+		Names:                 names,
 	})
 
 	var buf bytes.Buffer

@@ -23,6 +23,10 @@ const LoaderImportPath = "clients/loader.gen.js"
 // the templates only need to handle the structural layout (loops,
 // conditionals, function bodies).
 func EntrypointTemplateFuncs(module *TypedefModule, opts EntrypointOptions) template.FuncMap {
+	if opts.Names == nil {
+		// Nothing answered: rendering a name of the module's fails.
+		opts.Names = &ModuleNames{}
+	}
 	c := &entrypointFuncCtx{module: module, opts: opts}
 	return template.FuncMap{
 		"jsString":             jsString,
@@ -47,6 +51,7 @@ func EntrypointTemplateFuncs(module *TypedefModule, opts EntrypointOptions) temp
 		"argCoercionLine":      c.argCoercionLine,
 		"hasDefault":           hasDefault,
 		"engineIfaceTypeName":  c.engineIfaceTypeName,
+		"ifaceFieldName":       c.ifaceFieldName,
 		"plannedImports":       c.plannedImports,
 		"isVariadic":           func(a *TypedefArgument) bool { return a.IsVariadic },
 		"propFieldName":        propFieldName,
@@ -478,12 +483,21 @@ func (c *entrypointFuncCtx) argCoercionLine(arg *TypedefArgument) string {
 	)
 }
 
-// engineIfaceTypeName returns "<Module><Iface>" — the namespaced GraphQL type
-// name under which a module interface is registered in the schema. The iface
-// wrapper uses it with node(id:) (via Context.selectNode) to instantiate from
-// its engine-side ID.
-func (c *entrypointFuncCtx) engineIfaceTypeName(iface *TypedefInterface) string {
-	return pascalize(c.module.Name) + iface.Name
+// engineIfaceTypeName returns the namespaced GraphQL type name under which a
+// module interface is registered in the schema: the name the engine gives it
+// (ModuleNaming.typeNames). The iface wrapper uses it with node(id:) (via
+// Context.selectNode) to instantiate from its engine-side ID, as an inline
+// fragment, so a name the engine doesn't use selects a type that isn't there.
+func (c *entrypointFuncCtx) engineIfaceTypeName(iface *TypedefInterface) (string, error) {
+	return c.opts.Names.typeName(iface.Name)
+}
+
+// ifaceFieldName returns the schema name of a function or argument of one of
+// the module's own interfaces, which a call through the interface selects:
+// the engine's name for it (ModuleNaming.fieldNames). The TS method keeps the
+// name the user declared.
+func (c *entrypointFuncCtx) ifaceFieldName(name string) (string, error) {
+	return c.opts.Names.fieldName(name)
 }
 
 // plannedImports returns an ordered slice of import lines to emit. Encodes

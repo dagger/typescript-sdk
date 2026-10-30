@@ -16,9 +16,12 @@
 //	                 `[entrypoint]` table, from the same typedef JSON.
 //
 // Generation is engine-free: the schema and the bound module's metadata are
-// supplied as files, so no session is opened. `codegen introspect` is the one
-// exception — it dumps the session schema the library bindings are generated
-// from, over plain HTTP, and only runs in this repo's own generate step.
+// supplied as files, so no session is opened. There are two exceptions.
+// `codegen introspect` dumps the session schema the library bindings are
+// generated from, over plain HTTP, and only runs in this repo's own generate
+// step. `codegen entrypoint` and `codegen dang-entrypoint` ask the session's
+// engine how it names the module's own declarations (ModuleSource.naming), in
+// one query, so they run as nested clients.
 package main
 
 import (
@@ -32,6 +35,7 @@ import (
 	"codegen/generator"
 	typescriptgenerator "codegen/generator/typescript"
 	"codegen/introspection"
+	"codegen/session"
 )
 
 func main() {
@@ -112,12 +116,17 @@ func runEntrypoint(args []string) error {
 		sourceDir    = fs.String("source-dir", "src", "the module's source directory, relative to its root")
 		dispatch     = fs.Bool("dispatch", false, "render the manifest-v2 dispatcher (stdin/stdout, no register) instead of the legacy entrypoint")
 		loaderImport = fs.String("loader-import", "", "where the entrypoint imports the object loader from, relative to the module root (default clients/loader.gen.js)")
+		sourceIDPath = fs.String("module-source-id-file", "", moduleSourceIDUsage)
 	)
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
 	if *typedefPath == "" {
 		return fmt.Errorf("--typedef-json-path is required")
+	}
+	naming, err := moduleNaming(*sourceIDPath)
+	if err != nil {
+		return err
 	}
 
 	// The default output filename follows the mode, so --dispatch alone writes
@@ -137,6 +146,7 @@ func runEntrypoint(args []string) error {
 			SourceDir:        *sourceDir,
 			DispatchMode:     *dispatch,
 			LoaderImportPath: *loaderImport,
+			Naming:           naming,
 		},
 	}
 	gen := &typescriptgenerator.TypeScriptGenerator{Config: cfg}
@@ -171,6 +181,7 @@ func runDangEntrypoint(args []string) error {
 		clientVer    = fs.String("client-version", "", "engine release the module's bindings are generated for, as vX.Y.Z[-pre]; declared to the engine when a call starts the module")
 		dispatchFile = fs.String("dispatch-file", typescriptgenerator.DefaultDispatchFile, "dispatcher call() execs, relative to the module directory")
 		tsconfigPath = fs.String("tsconfig", "tsconfig.json", "tsconfig tsx loads, relative to the module directory (node only)")
+		sourceIDPath = fs.String("module-source-id-file", "", moduleSourceIDUsage)
 	)
 	var includes []string
 	fs.Func("include", `workspace-relative path outside the module directory the module builds with, "!"-prefixed to exclude (repeatable)`, func(v string) error {
@@ -196,6 +207,10 @@ func runDangEntrypoint(args []string) error {
 	if err != nil {
 		return err
 	}
+	naming, err := moduleNaming(*sourceIDPath)
+	if err != nil {
+		return err
+	}
 
 	cfg := generator.Config{
 		OutputDir: *outputDir,
@@ -212,6 +227,7 @@ func runDangEntrypoint(args []string) error {
 			DispatchFile:          *dispatchFile,
 			TSConfigPath:          *tsconfigPath,
 			Include:               includes,
+			Naming:                naming,
 		},
 	}
 	gen := &typescriptgenerator.TypeScriptGenerator{Config: cfg}
@@ -227,6 +243,28 @@ func runDangEntrypoint(args []string) error {
 	}
 
 	return nil
+}
+
+const moduleSourceIDUsage = "file holding the ID of the module source the entrypoint is generated for, " +
+	"whose ModuleSource.naming the engine of the session is asked"
+
+// moduleNaming is where the entrypoint generators ask how the engine names
+// the module's own declarations: the module source whose ID is in path, over
+// the session the command runs nested in. The ID comes in a file because it
+// can outgrow an exec argument.
+func moduleNaming(path string) (generator.ModuleNaming, error) {
+	if path == "" {
+		return generator.ModuleNaming{}, fmt.Errorf("--module-source-id-file is required")
+	}
+	id, err := os.ReadFile(path)
+	if err != nil {
+		return generator.ModuleNaming{}, fmt.Errorf("read module source id: %w", err)
+	}
+	engine, err := session.FromEnv()
+	if err != nil {
+		return generator.ModuleNaming{}, err
+	}
+	return generator.ModuleNaming{Engine: engine, SourceID: strings.TrimSpace(string(id))}, nil
 }
 
 // parsePackageManager splits the `name[@version]` spelling the Node ecosystem

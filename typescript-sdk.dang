@@ -150,6 +150,14 @@ type TypescriptSdk {
 
   So the beta.18 the docs and the generated entrypoint's header still name is
   correct and deliberate, not a reference this bump forgot to move.
+
+  Generating one is another matter: it needs **v1.0.0-beta.22** or later, the
+  first release serving `ModuleSource.naming` (dagger/dagger#14996), which the
+  entrypoint generators ask how the engine names the module's own
+  declarations. A module the engine names by its identifier naming rules (one
+  declaring v1.0.0-beta.22 or later) needs such an engine to load on too: an
+  older one would name it by strcase, and not by the names its entrypoints
+  select.
   """
   bundleEngineVersion: String! {
     tsBundle.file("engine-version.txt").contents.trimSuffix("\n")
@@ -1624,15 +1632,27 @@ type TypescriptSdk {
       .contents
   }
 
-  let entrypointCodegen(typedef: String!): Container! {
-    codegenBuilder.withNewFile("/typedef.json", typedef)
+  """
+  Run an entrypoint generator over the module's typedef, at /typedef.json.
+
+  The generators ask the engine how it names the module's own declarations,
+  which the generated entrypoints select: ModuleSource.naming of `source`, the
+  module the engine loads, whose ID they read from /module-source.id (an ID can
+  outgrow an exec argument). So they run as nested clients of the session,
+  which views up to v1.0.0-beta.14, this module's among them, don't do by
+  default.
+  """
+  let entrypointGenerated(typedef: String!, source: ModuleSource!, args: [String!]!): Container! {
+    codegenBuilder
+      .withNewFile("/typedef.json", typedef)
+      .withNewFile("/module-source.id", source.id)
+      .withExec(args + ["--module-source-id-file", "/module-source.id"], experimentalPrivilegedNesting: true)
   }
 
-  let generateModuleEntrypoint(typedef: String!): File! {
+  let generateModuleEntrypoint(typedef: String!, source: ModuleSource!): File! {
     # The embedded layout ships the loader inside sdk/, beside the clients the
     # runtime mounts with it, so the entrypoint imports it from there.
-    entrypointCodegen(typedef)
-      .withExec([
+    entrypointGenerated(typedef, source, [
         "codegen", "entrypoint",
         "--typedef-json-path", "/typedef.json",
         "--output", "/out",
@@ -1651,13 +1671,12 @@ type TypescriptSdk {
   __dagger.entrypoint.ts the builtin runtime execs — the two are the same half
   of two different loading paths, and a module is on one of them.
   """
-  let generateModuleDispatcher(typedef: String!): File! {
+  let generateModuleDispatcher(typedef: String!, source: ModuleSource!): File! {
     # The dispatcher serves nothing: each generated client serves its own module
     # before the first query that reaches it — a `dag.<module>()` call through
     # the client's served context, or a received value loaded through the loader,
     # which sits under clients/ beside the packages it imports.
-    entrypointCodegen(typedef)
-      .withExec([
+    entrypointGenerated(typedef, source, [
         "codegen", "entrypoint", "--dispatch",
         "--typedef-json-path", "/typedef.json",
         "--output", "/out",
@@ -1682,6 +1701,7 @@ type TypescriptSdk {
   """
   let generateDangEntrypoint(
     typedef: String!,
+    source: ModuleSource!,
     moduleName: String!,
     sourcePath: String!,
     rt: Runtime!,
@@ -1689,8 +1709,7 @@ type TypescriptSdk {
     image: String!,
     includes: [String!]!,
   ): File! {
-    entrypointCodegen(typedef)
-      .withExec([
+    entrypointGenerated(typedef, source, [
         "codegen", "dang-entrypoint",
         "--typedef-json-path", "/typedef.json",
         "--output", "/out",
@@ -1734,7 +1753,7 @@ type TypescriptSdk {
   module's own source imports, whichever way it is loaded.
   """
   let moduleDirectory(
-    schemaJSON: String!,
+    moduleSource: ModuleSource!,
     moduleName: String!,
     sourcePath: String!,
     source: Directory!,
@@ -1747,7 +1766,7 @@ type TypescriptSdk {
     includes: [String!]!,
     includeTree: Directory!,
   ): Directory! {
-    let bindings = generateModuleBindings(schemaJSON, moduleName, targets, repoURL, sourcePath)
+    let bindings = generateModuleBindings(moduleSource.introspectionSchemaJSON.contents, moduleName, targets, repoURL, sourcePath)
     # The embedded layout's sdk/ carries the client files and the loader flat
     # beside client.gen.ts: sdk/ is the one directory the builtin runtime mounts
     # into node_modules, and it cannot be told to mount anything else.
@@ -1768,15 +1787,15 @@ type TypescriptSdk {
       directory
         .withDirectory("clients", withClientPackageManifests(clients, clientNames))
         .withDirectory("clients/dagger", corePackage(bindings))
-        .withFile(dispatchFile, generateModuleDispatcher(typedef))
+        .withFile(dispatchFile, generateModuleDispatcher(typedef, moduleSource))
         .withFile(
           dangEntrypointDir + "/" + dangEntrypointFile,
-          generateDangEntrypoint(typedef, moduleName, sourcePath, runtime, packageManager, image, includes),
+          generateDangEntrypoint(typedef, moduleSource, moduleName, sourcePath, runtime, packageManager, image, includes),
         )
     } else {
       directory
         .withDirectory("sdk", sdk)
-        .withFile(legacyEntrypointFile, generateModuleEntrypoint(typedef))
+        .withFile(legacyEntrypointFile, generateModuleEntrypoint(typedef, moduleSource))
     }
 
     # The config the module's source resolves its clients through. Entrypoint:
@@ -1924,7 +1943,11 @@ type TypescriptSdk {
     let includes = if (legacyRuntime) { [] } else { importedResources(ws, sourcePath) }
 
     moduleDirectory(
-      ws.moduleSource("/" + scope).introspectionSchemaJSON.contents,
+      # The module the engine loads, as the engine sees it: an `[entrypoint]`
+      # one is staged with its final manifest already. Its schema is what the
+      # bindings are generated from, and its naming what the entrypoints
+      # select.
+      ws.moduleSource("/" + scope),
       name,
       sourcePath,
       ws.directory("/" + sourcePrefix + "src"),

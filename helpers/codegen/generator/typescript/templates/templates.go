@@ -98,4 +98,8 @@ type EntrypointOptions struct {
 	// LoaderImportPath overrides where the entrypoint imports the object loader
 	// from, relative to the module root (empty = clients/loader.gen.js).
 	LoaderImportPath string
+
+	// Names are the engine's names for the module's own declarations, which
+	// calls through its interfaces select (LoadModuleNames).
+	Names *ModuleNames
 }

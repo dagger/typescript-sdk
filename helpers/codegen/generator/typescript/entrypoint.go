@@ -48,12 +48,20 @@ func (g *TypeScriptGenerator) GenerateEntrypoint(ctx context.Context) (*generato
 		}
 	}
 
+	// Calls through the module's own interfaces select the names the engine
+	// gives the module's declarations.
+	names, err := templates.LoadModuleNames(ctx, cfg.Naming, &module)
+	if err != nil {
+		return nil, err
+	}
+
 	tmpl := templates.NewEntrypoint(&module, templates.EntrypointOptions{
 		SDKImportPath:    cfg.SDKImportPath,
 		ModuleRoot:       cfg.ModuleRoot,
 		SourceDir:        cfg.SourceDir,
 		DispatchMode:     cfg.DispatchMode,
 		LoaderImportPath: cfg.LoaderImportPath,
+		Names:            names,
 	})
 
 	topLevel := "entrypoint"

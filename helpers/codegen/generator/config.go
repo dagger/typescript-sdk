@@ -1,6 +1,9 @@
 package generator
 
-import "strings"
+import (
+	"context"
+	"strings"
+)
 
 // Config drives one codegen run. ModuleConfig covers both a module's own
 // bindings and a standalone client scope — they render the same client files
@@ -154,6 +157,28 @@ type EntrypointGeneratorConfig struct {
 	// embedded [runtime] layout passes sdk/loader.gen.js, since its loader ships
 	// inside the library directory.
 	LoaderImportPath string
+
+	// Naming is where the names of the module's own declarations come from,
+	// which calls through its interfaces select.
+	Naming ModuleNaming
+}
+
+// Engine runs GraphQL queries against the engine: the session codegen runs
+// in as a nested client.
+type Engine interface {
+	// Query runs query with variables and decodes the response's data into
+	// data. GraphQL errors are returned as an error.
+	Query(ctx context.Context, query string, variables map[string]any, data any) error
+}
+
+// ModuleNaming is how the entrypoint generators learn the names the engine
+// gives the module's own declarations: ModuleSource.naming of the source with
+// ID SourceID, asked through Engine. The engine answers by the rules of the
+// version it names the module by, whichever side of the identifier-casing cut
+// that is, so the generators predict none of them.
+type ModuleNaming struct {
+	Engine   Engine
+	SourceID string
 }
 
 // Specific configuration for generating the Dang module entrypoint — the program
@@ -213,4 +238,9 @@ type DangEntrypointGeneratorConfig struct {
 	// module's code imports. A "!"-prefixed entry excludes. They are rebased to
 	// module-relative for the reads the generated `sources` member makes.
 	Include []string
+
+	// Naming is where the names of the module's own declarations come from:
+	// which object the engine takes for the main one decides which carries
+	// the constructor.
+	Naming ModuleNaming
 }

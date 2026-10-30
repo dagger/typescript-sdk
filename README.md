@@ -11,8 +11,10 @@ workspace bookkeeping, and its builtin TypeScript runtime executes what we
 write.
 
 Workspace state, module discovery and codegen go through the engine's native
-`Workspace` and `ModuleSource` APIs, which requires an engine at
-`v1.0.0-beta.11` or newer. Module manifests are built with
+`Workspace` and `ModuleSource` APIs. Generating a module's entrypoint asks the
+engine how it names the module's own declarations (`ModuleSource.naming`,
+dagger/dagger#14996), which requires an engine at `v1.0.0-beta.22` or newer.
+Module manifests are built with
 [`dagger/sdk-helpers`](https://github.com/dagger/sdk-helpers), the one module
 dependency.
 
@@ -116,9 +118,10 @@ otherwise — matching where the engine reads it from.
 `--legacy-runtime` picks the loading path, and a module is on one of them: by
 default it declares an `[entrypoint]` and carries `entrypoint/main.dang` plus
 the `__dagger.dispatch.ts` that program runs, which needs an engine carrying
-[dagger/dagger#14038][manifest-v2] — `v1.0.0-beta.15` or newer. Pass the flag
-for an older engine and the module declares a `[runtime]` with the
-`__dagger.entrypoint.ts` that runtime execs instead.
+[dagger/dagger#14038][manifest-v2] — `v1.0.0-beta.15` or newer to load. Pass
+the flag and the module declares a `[runtime]` with the
+`__dagger.entrypoint.ts` that runtime execs instead. Generating either needs
+`v1.0.0-beta.22` or newer.
 
 An existing module moves between the two on its next generation: set
 `legacyRuntime` in the scope's settings in `dagger.toml` and run `dagger
