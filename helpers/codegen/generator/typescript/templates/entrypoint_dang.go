@@ -300,27 +300,10 @@ func (c *dangFuncCtx) dangObjectEntry(obj *TypedefObject) string {
 // whichever object of an entrypoint module carries one for its main object, so
 // the choice is this generator's: the object the engine would take for the
 // main one by name in a module whose runtime registers its objects
-// (ModuleNaming.mainObject). Failing that, the object whose name pascalizes
-// like the scanner's PascalCase of the module's name, which is how it was
-// chosen before, so that a module whose main object only that rule found
-// keeps its constructor. One object at most either way.
+// (ModuleNaming.mainObject). GenerateDangEntrypoint fails before rendering a
+// module with objects but no such one.
 func (c *dangFuncCtx) isMainObject(obj *TypedefObject) bool {
-	return obj.Name == c.mainObjectName()
-}
-
-// mainObjectName is the name of the object isMainObject picks, or "".
-func (c *dangFuncCtx) mainObjectName() string {
-	if c.opts.Names != nil {
-		if main := c.opts.Names.MainObject(); c.module.Objects[main] != nil {
-			return main
-		}
-	}
-	for _, name := range sortedObjectKeys(c.module.Objects) {
-		if pascalize(name) == pascalize(c.module.Name) {
-			return name
-		}
-	}
-	return ""
+	return c.opts.Names != nil && obj.Name == c.opts.Names.MainObject()
 }
 
 func (c *dangFuncCtx) dangEnumEntry(e *TypedefEnum) string {

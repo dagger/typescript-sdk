@@ -152,21 +152,42 @@ func constructed(main string) []string {
 // The main object, the one the generated entrypoint gives a constructor, is
 // the one the engine takes for it (ModuleNaming.mainObject): K8sTools for
 // k8s-tools, as this SDK's templates name the class, which was left without
-// one. When the engine takes none, the one whose name pascalizes like the
-// scanner's PascalCase of the module's name gets it, as before.
+// one; MY2Go for my2go, by the engine's flat match.
 func TestGenerateDangEntrypointMainObjectNames(t *testing.T) {
 	for _, test := range []struct {
 		typedefName string
 		classes     []string
 		mainObject  string
-		want        []string
 	}{
-		{"K8STools", []string{"K8sTools", "Tools"}, "K8sTools", []string{"K8sTools"}},
-		{"GithubTools", []string{"GitHubTools", "Tools"}, "GitHubTools", []string{"GitHubTools"}},
-		{"K8STools", []string{"K8STools", "Tools"}, "", []string{"K8STools"}},
-		{"GithubTools", []string{"GitHubTools", "Tools"}, "", nil},
+		{"K8STools", []string{"K8sTools", "Tools"}, "K8sTools"},
+		{"GithubTools", []string{"GitHubTools", "Tools"}, "GitHubTools"},
+		{"My2Go", []string{"MY2Go", "Go"}, "MY2Go"},
 	} {
 		got := renderDangNaming(t, writeTypedef(t, test.typedefName, test.classes...), &namingtest.Engine{MainObject: test.mainObject})
-		require.Equal(t, test.want, constructed(got), "%s %v", test.typedefName, test.classes)
+		require.Equal(t, []string{test.mainObject}, constructed(got), "%s %v", test.typedefName, test.classes)
 	}
+}
+
+// A module whose objects the engine takes none of for the main one fails
+// generation: it would load with no constructor, and not surface. That
+// includes K8STools in k8s-tools named by strcase, which the scanner's
+// PascalCase of the module's name used to pick (strcase spells the module
+// K8sTools, and the legacy rules have no flat match).
+func TestGenerateDangEntrypointWithoutMainObject(t *testing.T) {
+	gen := &TypeScriptGenerator{Config: generator.Config{
+		DangEntrypointConfig: &generator.DangEntrypointGeneratorConfig{
+			TypedefJSONPath: writeTypedef(t, "K8STools", "K8STools", "Tools"),
+			ModuleName:      "k8s-tools",
+			Runtime:         "node",
+			ModulePath:      ".",
+			ClientVersion:   "v1.0.0-beta.20",
+			Naming:          naming(&namingtest.Engine{}),
+		},
+	}}
+	_, err := gen.GenerateDangEntrypoint(context.Background())
+	require.EqualError(t, err, `module "k8s-tools" has no main object: the engine takes none of K8STools, Tools for it (ModuleSource.naming's mainObject: a class whose name the engine's naming rules for the module turn into the same type name as the module's)`)
+
+	// A module that declares no object has none to take.
+	got := renderDangNaming(t, writeTypedef(t, "Empty"), &namingtest.Engine{})
+	require.Empty(t, constructed(got))
 }
