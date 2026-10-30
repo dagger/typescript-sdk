@@ -7,8 +7,6 @@ import (
 	"path/filepath"
 	"strings"
 	"text/template"
-
-	"codegen/identifiers"
 )
 
 // DangEntrypointOptions controls the container recipe baked into the generated
@@ -70,10 +68,10 @@ type DangEntrypointOptions struct {
 	// member resolves in.
 	Include []string
 
-	// Names are formatted by the rules the engine names the module's
-	// declarations by, at the module's effective version. Nil for the legacy
-	// rules. See moduleNamer.
-	Names *identifiers.Names
+	// Names are the engine's names for the module's declarations
+	// (ModuleSource.naming): what decides which object carries the
+	// constructor.
+	Names *ModuleNames
 }
 
 // Pins shared with the engine's built-in TypeScript runtime
@@ -302,9 +300,7 @@ func (c *dangFuncCtx) dangObjectEntry(obj *TypedefObject) string {
 // whichever object of an entrypoint module carries one for its main object, so
 // the choice is this generator's: the object the engine would take for the
 // main one by name in a module whose runtime registers its objects
-// (gqlObjectName(object) == gqlObjectName(module), or a unique flat match under
-// the engine's naming rules), as moduleNamer.isMainObject predicts it at the
-// module's effective version. Failing that, the object whose name pascalizes
+// (ModuleNaming.mainObject). Failing that, the object whose name pascalizes
 // like the scanner's PascalCase of the module's name, which is how it was
 // chosen before, so that a module whose main object only that rule found
 // keeps its constructor. One object at most either way.
@@ -314,24 +310,17 @@ func (c *dangFuncCtx) isMainObject(obj *TypedefObject) bool {
 
 // mainObjectName is the name of the object isMainObject picks, or "".
 func (c *dangFuncCtx) mainObjectName() string {
-	objects := sortedObjectKeys(c.module.Objects)
-	namer := c.namer()
-	for _, name := range objects {
-		if namer.isMainObject(name, objects) {
-			return name
+	if c.opts.Names != nil {
+		if _, ok := c.module.Objects[c.opts.Names.MainObject]; ok {
+			return c.opts.Names.MainObject
 		}
 	}
-	for _, name := range objects {
+	for _, name := range sortedObjectKeys(c.module.Objects) {
 		if pascalize(name) == pascalize(c.module.Name) {
 			return name
 		}
 	}
 	return ""
-}
-
-// namer predicts the engine's names for the module's own declarations.
-func (c *dangFuncCtx) namer() moduleNamer {
-	return moduleNamer{names: c.opts.Names, moduleName: c.opts.ModuleName, typedefName: c.module.Name}
 }
 
 func (c *dangFuncCtx) dangEnumEntry(e *TypedefEnum) string {

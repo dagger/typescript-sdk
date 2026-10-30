@@ -311,9 +311,7 @@ dev-engine client, we dial the current engine with
 
 **Nesting here is fine.** The rule that codegen must not open a nested session
 applies to the hot path — module generation, which every user hits on every
-`dagger generate`. (The entrypoint generators are its one exception, and only
-past the identifier-casing cut: see §5.1.) The packager runs when *we* bump
-the engine, in this repo.
+`dagger generate`. The packager runs when *we* bump the engine, in this repo.
 To keep the boundary sharp, put the introspection query in a small separate
 helper that only dumps JSON (upstream splits it the same way, as
 `cmd/codegen introspect`), so `helpers/codegen` itself stays engine-free and
@@ -389,14 +387,8 @@ dagger generate ──▶ TypescriptSdk.generateAllModule(ws)          [@generat
                    fork.withDirectory(sourcePath, …).changes  ⇒ Changeset
 ```
 
-Steps 1–4 are ordinary containers that never dial the engine. The one
-exception is naming: the entrypoint generators (`codegen entrypoint`, `codegen
-dang-entrypoint`) run with `experimentalPrivilegedNesting`, because for a
-module whose effective version is at or past v1.0.0-beta.22, on an engine
-that is too, they ask the engine for the names it gives the module's
-declarations (`Query.formatIdentifiers`; see `helpers/codegen/identifiers`,
-ported from dagger/go-sdk#90). Below that gate they connect to nothing. The
-bindings generators stay engine-free.
+Steps 1–4 are ordinary containers. Nothing dials the engine; no
+`experimentalPrivilegedNesting` anywhere.
 
 ### 5.2 Where the introspection JSON comes from
 

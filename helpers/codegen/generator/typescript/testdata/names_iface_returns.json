@@ -1,0 +1,9 @@
+{
+  "typeNames": { "names": ["Greeter", "Speaker"], "formatted": ["IfacesGreeter", "IfacesSpeaker"] },
+  "fieldNames": {
+    "names": ["chain", "ctr", "ctrs", "say", "speaker", "widget"],
+    "formatted": ["chain", "ctr", "ctrs", "say", "speaker", "widget"]
+  },
+  "enumMemberNames": { "names": [], "formatted": [] },
+  "mainObject": "Ifaces"
+}

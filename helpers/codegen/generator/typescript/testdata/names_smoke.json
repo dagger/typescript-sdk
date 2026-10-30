@@ -1,0 +1,6 @@
+{
+  "typeNames": { "names": ["Greeter"], "formatted": ["SmokeGreeter"] },
+  "fieldNames": { "names": ["greet", "name"], "formatted": ["greet", "name"] },
+  "enumMemberNames": { "names": [], "formatted": [] },
+  "mainObject": "Smoke"
+}

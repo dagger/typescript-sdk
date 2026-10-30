@@ -483,19 +483,19 @@ func (c *entrypointFuncCtx) argCoercionLine(arg *TypedefArgument) string {
 
 // engineIfaceTypeName returns the namespaced GraphQL type name under which a
 // module interface is registered in the schema: the name the engine gives it
-// (moduleNamer.namespaceObject). The iface wrapper uses it with node(id:)
+// (ModuleNames.typeName). The iface wrapper uses it with node(id:)
 // (via Context.selectNode) to instantiate from its engine-side ID, as an
 // inline fragment, so a misprediction selects a type that doesn't exist.
 func (c *entrypointFuncCtx) engineIfaceTypeName(iface *TypedefInterface) string {
-	return c.namer().namespaceObject(iface.Name)
+	return c.names().typeName(iface.Name)
 }
 
 // ifaceFieldName returns the schema name of a function or argument of one of
 // the module's own interfaces, which a call through the interface selects:
-// the engine's name for it (moduleNamer.fieldName). The TS method keeps the
+// the engine's name for it (ModuleNames.fieldName). The TS method keeps the
 // name the user declared.
 func (c *entrypointFuncCtx) ifaceFieldName(name string) string {
-	return c.namer().fieldName(name)
+	return c.names().fieldName(name)
 }
 
 // ifaceEnumMetadata renders the statement that marks a call's arguments of
@@ -559,13 +559,13 @@ func (c *entrypointFuncCtx) ownEnum(t *TypedefType) (*TypedefEnum, bool) {
 }
 
 // enumMap renders a JS object literal between an enum's values and the
-// engine's names for its members (moduleNamer.enumMemberName): value to name
+// engine's names for its members (ModuleNames.enumMemberName): value to name
 // with toName, name to value otherwise. Sorted by member, for stable output.
 func (c *entrypointFuncCtx) enumMap(e *TypedefEnum, toName bool) string {
 	entries := make([]string, 0, len(e.Values))
 	for _, key := range sortedEnumValueKeys(e.Values) {
 		v := e.Values[key]
-		name := c.namer().enumMemberName(v.Name)
+		name := c.names().enumMemberName(v.Name)
 		if toName {
 			entries = append(entries, fmt.Sprintf("%s: %s", jsString(v.Value), jsString(name)))
 		} else {
@@ -575,9 +575,13 @@ func (c *entrypointFuncCtx) enumMap(e *TypedefEnum, toName bool) string {
 	return "{ " + strings.Join(entries, ", ") + " }"
 }
 
-// namer predicts the engine's names for the module's own declarations.
-func (c *entrypointFuncCtx) namer() moduleNamer {
-	return moduleNamer{names: c.opts.Names, moduleName: c.opts.ModuleName, typedefName: c.module.Name}
+// names are the engine's names for the module's own declarations; none
+// answered when rendered without them.
+func (c *entrypointFuncCtx) names() *ModuleNames {
+	if c.opts.Names == nil {
+		c.opts.Names = &ModuleNames{}
+	}
+	return c.opts.Names
 }
 
 // plannedImports returns an ordered slice of import lines to emit. Encodes

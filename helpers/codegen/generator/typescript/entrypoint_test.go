@@ -25,6 +25,7 @@ func TestGenerateEntrypoint(t *testing.T) {
 	gen := &TypeScriptGenerator{Config: generator.Config{
 		EntrypointConfig: &generator.EntrypointGeneratorConfig{
 			TypedefJSONPath: "testdata/typedef_smoke.json",
+			NamesJSONPath:   "testdata/names_smoke.json",
 			ModuleRoot:      "/work",
 			SDKImportPath:   "@dagger.io/dagger",
 			SourceDir:       "src",
@@ -58,6 +59,7 @@ func TestGenerateEntrypointIfaceReturns(t *testing.T) {
 	gen := &TypeScriptGenerator{Config: generator.Config{
 		EntrypointConfig: &generator.EntrypointGeneratorConfig{
 			TypedefJSONPath: "testdata/typedef_iface_returns.json",
+			NamesJSONPath:   "testdata/names_iface_returns.json",
 			ModuleRoot:      "/work",
 			SDKImportPath:   "@dagger.io/dagger",
 			SourceDir:       "src",
@@ -102,6 +104,7 @@ func TestGenerateEntrypointInterfaceReturnGuard(t *testing.T) {
 			gen := &TypeScriptGenerator{Config: generator.Config{
 				EntrypointConfig: &generator.EntrypointGeneratorConfig{
 					TypedefJSONPath: "testdata/typedef_iface_returns.json",
+					NamesJSONPath:   "testdata/names_iface_returns.json",
 					ModuleRoot:      "/work",
 					SDKImportPath:   "@dagger.io/dagger",
 					SourceDir:       "src",
@@ -139,6 +142,7 @@ func TestGenerateEntrypointDispatch(t *testing.T) {
 	gen := &TypeScriptGenerator{Config: generator.Config{
 		EntrypointConfig: &generator.EntrypointGeneratorConfig{
 			TypedefJSONPath: "testdata/typedef_smoke.json",
+			NamesJSONPath:   "testdata/names_smoke.json",
 			ModuleRoot:      "/work",
 			SDKImportPath:   "@dagger.io/dagger",
 			SourceDir:       "src",
@@ -172,6 +176,7 @@ func TestGenerateEntrypointDispatchDropsRegister(t *testing.T) {
 	gen := &TypeScriptGenerator{Config: generator.Config{
 		EntrypointConfig: &generator.EntrypointGeneratorConfig{
 			TypedefJSONPath: "testdata/typedef_smoke.json",
+			NamesJSONPath:   "testdata/names_smoke.json",
 			ModuleRoot:      "/work",
 			SDKImportPath:   "@dagger.io/dagger",
 			SourceDir:       "src",
@@ -233,6 +238,7 @@ func TestGenerateEntrypointDispatchDoesNotServe(t *testing.T) {
 	gen := &TypeScriptGenerator{Config: generator.Config{
 		EntrypointConfig: &generator.EntrypointGeneratorConfig{
 			TypedefJSONPath: "testdata/typedef_smoke.json",
+			NamesJSONPath:   "testdata/names_smoke.json",
 			ModuleRoot:      "/work",
 			SDKImportPath:   "@dagger.io/dagger",
 			SourceDir:       "src",
@@ -262,6 +268,7 @@ func TestGenerateEntrypointDispatchReportsErrors(t *testing.T) {
 	gen := &TypeScriptGenerator{Config: generator.Config{
 		EntrypointConfig: &generator.EntrypointGeneratorConfig{
 			TypedefJSONPath: "testdata/typedef_smoke.json",
+			NamesJSONPath:   "testdata/names_smoke.json",
 			ModuleRoot:      "/work",
 			SDKImportPath:   "@dagger.io/dagger",
 			SourceDir:       "src",

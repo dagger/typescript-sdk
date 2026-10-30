@@ -1,10 +1,6 @@
 package generator
 
-import (
-	"strings"
-
-	"codegen/identifiers"
-)
+import "strings"
 
 // Config drives one codegen run. ModuleConfig covers both a module's own
 // bindings and a standalone client scope — they render the same client files
@@ -159,16 +155,10 @@ type EntrypointGeneratorConfig struct {
 	// inside the library directory.
 	LoaderImportPath string
 
-	// ModuleName is the module's name as the engine knows it, which it
-	// namespaces the module's types with. The typedef carries only the
-	// scanner's PascalCase of it. Empty uses the typedef's.
-	ModuleName string
-
-	// Names are formatted by the rules the engine names the module's
-	// declarations by, at the module's effective version (see package
-	// identifiers): the names calls through the module's own interfaces
-	// select. Nil for the legacy rules.
-	Names *identifiers.Names
+	// NamesJSONPath is the path to the engine's names for the module's
+	// declarations, as the SDK got them from ModuleSource.naming: the names
+	// calls through the module's own interfaces select.
+	NamesJSONPath string
 }
 
 // Specific configuration for generating the Dang module entrypoint — the program
@@ -229,8 +219,8 @@ type DangEntrypointGeneratorConfig struct {
 	// module-relative for the reads the generated `sources` member makes.
 	Include []string
 
-	// Names are formatted by the rules the engine names the module's
-	// declarations by, at the module's effective version: what decides which
-	// object carries the constructor. Nil for the legacy rules.
-	Names *identifiers.Names
+	// NamesJSONPath is the path to the engine's names for the module's
+	// declarations (see EntrypointGeneratorConfig.NamesJSONPath): what decides
+	// which object carries the constructor.
+	NamesJSONPath string
 }

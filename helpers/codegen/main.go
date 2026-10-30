@@ -18,17 +18,12 @@
 // Generation is engine-free: the schema and the bound module's metadata are
 // supplied as files, so no session is opened. `codegen introspect` is the one
 // exception — it dumps the session schema the library bindings are generated
-// from, over plain HTTP, and only runs in this repo's own generate step. The
-// other is naming: past identifiers.CasingVersion, `codegen entrypoint` and
-// `codegen dang-entrypoint` ask the session's engine for the names it gives
-// the module's declarations (Query.formatIdentifiers), at the version passed
-// as --module-version, so they run as nested clients.
+// from, over plain HTTP, and only runs in this repo's own generate step.
 package main
 
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"flag"
 	"fmt"
 	"os"
@@ -36,7 +31,6 @@ import (
 
 	"codegen/generator"
 	typescriptgenerator "codegen/generator/typescript"
-	"codegen/identifiers"
 	"codegen/introspection"
 )
 
@@ -118,20 +112,13 @@ func runEntrypoint(args []string) error {
 		sourceDir    = fs.String("source-dir", "src", "the module's source directory, relative to its root")
 		dispatch     = fs.Bool("dispatch", false, "render the manifest-v2 dispatcher (stdin/stdout, no register) instead of the legacy entrypoint")
 		loaderImport = fs.String("loader-import", "", "where the entrypoint imports the object loader from, relative to the module root (default clients/loader.gen.js)")
-		moduleName   = fs.String("module-name", "", "the module's name as the engine knows it, which it namespaces the module's types with (default: the typedef's)")
-		moduleVer    = fs.String("module-version", "", moduleVersionUsage)
+		namesPath    = fs.String("names-json-path", "", namesJSONUsage)
 	)
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
 	if *typedefPath == "" {
 		return fmt.Errorf("--typedef-json-path is required")
-	}
-
-	ctx := context.Background()
-	names, err := moduleNames(ctx, *moduleVer)
-	if err != nil {
-		return err
 	}
 
 	// The default output filename follows the mode, so --dispatch alone writes
@@ -151,12 +138,12 @@ func runEntrypoint(args []string) error {
 			SourceDir:        *sourceDir,
 			DispatchMode:     *dispatch,
 			LoaderImportPath: *loaderImport,
-			ModuleName:       *moduleName,
-			Names:            names,
+			NamesJSONPath:    *namesPath,
 		},
 	}
 	gen := &typescriptgenerator.TypeScriptGenerator{Config: cfg}
 
+	ctx := context.Background()
 	state, err := gen.GenerateEntrypoint(ctx)
 	if err != nil {
 		return fmt.Errorf("generate entrypoint: %w", err)
@@ -186,7 +173,7 @@ func runDangEntrypoint(args []string) error {
 		clientVer    = fs.String("client-version", "", "engine release the module's bindings are generated for, as vX.Y.Z[-pre]; declared to the engine when a call starts the module")
 		dispatchFile = fs.String("dispatch-file", typescriptgenerator.DefaultDispatchFile, "dispatcher call() execs, relative to the module directory")
 		tsconfigPath = fs.String("tsconfig", "tsconfig.json", "tsconfig tsx loads, relative to the module directory (node only)")
-		moduleVer    = fs.String("module-version", "", moduleVersionUsage)
+		namesPath    = fs.String("names-json-path", "", namesJSONUsage)
 	)
 	var includes []string
 	fs.Func("include", `workspace-relative path outside the module directory the module builds with, "!"-prefixed to exclude (repeatable)`, func(v string) error {
@@ -213,12 +200,6 @@ func runDangEntrypoint(args []string) error {
 		return err
 	}
 
-	ctx := context.Background()
-	names, err := moduleNames(ctx, *moduleVer)
-	if err != nil {
-		return err
-	}
-
 	cfg := generator.Config{
 		OutputDir: *outputDir,
 		DangEntrypointConfig: &generator.DangEntrypointGeneratorConfig{
@@ -234,11 +215,12 @@ func runDangEntrypoint(args []string) error {
 			DispatchFile:          *dispatchFile,
 			TSConfigPath:          *tsconfigPath,
 			Include:               includes,
-			Names:                 names,
+			NamesJSONPath:         *namesPath,
 		},
 	}
 	gen := &typescriptgenerator.TypeScriptGenerator{Config: cfg}
 
+	ctx := context.Background()
 	state, err := gen.GenerateDangEntrypoint(ctx)
 	if err != nil {
 		return fmt.Errorf("generate dang entrypoint: %w", err)
@@ -251,43 +233,8 @@ func runDangEntrypoint(args []string) error {
 	return nil
 }
 
-// moduleVersionErrorPrefix marks a --module-version that holds why the caller
-// couldn't read the module's version rather than the version: "error: <reason>".
-const moduleVersionErrorPrefix = "error: "
-
-const moduleVersionUsage = "engine version the engine names the module's declarations by: its effective version " +
-	"(empty: the legacy rules, without asking the engine); \"" + moduleVersionErrorPrefix +
-	"<reason>\" when the caller couldn't read it"
-
-// connector reaches the engine that names identifiers: the session the
-// codegen exec runs nested in. A variable so tests can stand a fake in.
-var connector = identifiers.SessionConnector
-
-// moduleNames returns the names the engine gives the module's declarations,
-// at moduleVersion, the module's effective version as the caller read it off
-// the module the engine loads (ModuleSource.engineVersion); nil for the legacy
-// rules (see identifiers.Connector.Names). A version past the cut with no
-// session to ask is an error: rendering it by the legacy rules would predict
-// names the engine may not use.
-//
-// A version the caller could not read is passed as "error: <reason>". That
-// fails only on an engine that names modules by their version: an older
-// engine names every module by strcase, so the legacy rules are right
-// whatever the module declares.
-func moduleNames(ctx context.Context, moduleVersion string) (*identifiers.Names, error) {
-	c := connector()
-	if reason, ok := strings.CutPrefix(moduleVersion, moduleVersionErrorPrefix); ok {
-		applies, err := c.EngineApplies(ctx)
-		if err != nil {
-			return nil, err
-		}
-		if applies {
-			return nil, fmt.Errorf("the engine names the module by the version it declares, which couldn't be read: %w", errors.New(reason))
-		}
-		return nil, nil
-	}
-	return c.Names(ctx, moduleVersion)
-}
+const namesJSONUsage = "path to the names the engine gives the module's declarations, as the SDK got them " +
+	"from ModuleSource.naming"
 
 // parsePackageManager splits the `name[@version]` spelling the Node ecosystem
 // uses for `packageManager`, and the SDK passes through unchanged. An empty spec

@@ -6,7 +6,6 @@ import (
 	"text/template"
 
 	"codegen/generator"
-	"codegen/identifiers"
 	"codegen/introspection"
 )
 
@@ -100,15 +99,8 @@ type EntrypointOptions struct {
 	// from, relative to the module root (empty = clients/loader.gen.js).
 	LoaderImportPath string
 
-	// ModuleName is the module's name as the engine knows it (naming-app), which
-	// it namespaces the module's types with. The typedef only carries the
-	// scanner's PascalCase of it (NamingApp), which loses where the words are
-	// cut (k8s-tools and K8STools, my2go and My2Go). Empty uses the typedef's.
-	ModuleName string
-
-	// Names are formatted by the rules the engine names the module's
-	// declarations by, at the module's effective version: the names calls
-	// through the module's own interfaces select. Nil for the legacy rules,
-	// which keep the entrypoint as it always was. See moduleNamer.
-	Names *identifiers.Names
+	// Names are the engine's names for the module's declarations
+	// (ModuleSource.naming): the names calls through the module's own
+	// interfaces select.
+	Names *ModuleNames
 }

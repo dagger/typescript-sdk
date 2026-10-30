@@ -48,14 +48,20 @@ func (g *TypeScriptGenerator) GenerateEntrypoint(ctx context.Context) (*generato
 		}
 	}
 
+	// Calls through the module's own interfaces select the names the engine
+	// gives the module's declarations.
+	names, err := templates.LoadModuleNames(cfg.NamesJSONPath)
+	if err != nil {
+		return nil, err
+	}
+
 	tmpl := templates.NewEntrypoint(&module, templates.EntrypointOptions{
 		SDKImportPath:    cfg.SDKImportPath,
 		ModuleRoot:       cfg.ModuleRoot,
 		SourceDir:        cfg.SourceDir,
 		DispatchMode:     cfg.DispatchMode,
 		LoaderImportPath: cfg.LoaderImportPath,
-		ModuleName:       cfg.ModuleName,
-		Names:            cfg.Names,
+		Names:            names,
 	})
 
 	topLevel := "entrypoint"
@@ -63,17 +69,12 @@ func (g *TypeScriptGenerator) GenerateEntrypoint(ctx context.Context) (*generato
 		topLevel = "dispatch_entrypoint"
 	}
 
-	// Calls through the module's own interfaces select the names the engine
-	// gives the module's declarations, which are looked up while rendering
-	// and formatted in batches (identifiers.Names.Run); prefetched, a render
-	// usually needs one round trip. With the legacy rules this renders once.
-	templates.PrefetchModuleNames(&module, cfg.ModuleName, cfg.Names)
 	var buf bytes.Buffer
-	if err := cfg.Names.Run(ctx, func() error {
-		buf.Reset()
-		return tmpl.ExecuteTemplate(&buf, topLevel, &module)
-	}); err != nil {
+	if err := tmpl.ExecuteTemplate(&buf, topLevel, &module); err != nil {
 		return nil, fmt.Errorf("render entrypoint: %w", err)
+	}
+	if err := names.Unanswered(); err != nil {
+		return nil, err
 	}
 
 	mfs := memfs.New()

@@ -229,6 +229,7 @@ func TestGenerateEntrypoint_LoadsLoaderForSideEffect(t *testing.T) {
 			gen := &TypeScriptGenerator{Config: generator.Config{
 				EntrypointConfig: &generator.EntrypointGeneratorConfig{
 					TypedefJSONPath: "testdata/typedef_smoke.json",
+					NamesJSONPath:   "testdata/names_smoke.json",
 					ModuleRoot:      "/work",
 					SDKImportPath:   "@dagger.io/dagger",
 					SourceDir:       "src",
