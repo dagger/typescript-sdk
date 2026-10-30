@@ -7,4 +7,4 @@ engineVersion = "v1.0.0-0"
 [[dependencies]]
   name = "engine-dev"
   source = "github.com/dagger/dagger/.dagger/modules/engine-dev@main"
-  pin = "14c1942ee201f304e721acbb60196c4e61188923"
+  pin = "a7a2e64e853be92728f05aad9dc07bebe63c7448"

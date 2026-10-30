@@ -26,7 +26,7 @@ committed `bundle/`, and the Go generator all move together or not at all.
 
 ## The target release has moved ahead of the tag
 
-`typescript-sdk.dang`'s `bundleEngineVersion` is `v1.0.0-beta.20`, and the tag
+`typescript-sdk.dang`'s `bundleEngineVersion` is `v1.0.0-beta.21`, and the tag
 above is still beta.11. That is a deliberate separation of two facts the rule
 above had treated as one: where the sources were copied *from*, and which engine
 release the bundle is paired *with*.
@@ -40,7 +40,12 @@ only way to stop ~70 nested checks starting at once. beta.17, beta.18 and now
 beta.20 each moved for the same plain reason: that was the current release, and
 a pairing one release behind puts `packager:library-bindings/stale` red on
 whatever engine people actually run. beta.19 was never paired with; beta.20
-supersedes it and the step is taken in one go.
+supersedes it and the step is taken in one go. beta.21 moved for the same reason.
+
+beta.22 is released, and the pairing deliberately stays on beta.21 ahead of the
+identifier-casing cut, whose release is not decided. beta.22's published schema
+differs from beta.21's, so `packager:library-bindings/stale` holds on a beta.21
+engine, the `engine-dev` pin, and is not expected to hold on a beta.22 one.
 
 Those two are not free to move apart: `packager:library-bindings/stale`
 regenerates `src/core/client.gen.ts` from the *running* engine's core schema, so
@@ -54,13 +59,13 @@ beta.18, the release actually superseded, not against beta.17.
 
 The sources did not move either time, because nothing required them to:
 
-- `src/core/client.gen.ts` is regenerated here, not vendored, and
-  `packager:library-bindings/stale` is green inside a beta.20 engine — so the
-  bindings half of the pairing is already beta.20's.
+- `src/core/client.gen.ts` is regenerated here, not vendored, and regenerating
+  it against a beta.21 engine writes nothing — so the bindings half of the
+  pairing is already beta.21's.
 - `runtimes:{node,bun,deno}-runs-check` load and run modules built from the
   committed `bundle/` in that same engine.
 
-So this is vendoring lag, not a broken pairing: upstream's beta.12–beta.20
+So this is vendoring lag, not a broken pairing: upstream's beta.12–beta.21
 changes to the runtime sources (introspector, decorators, registry,
 `compute_query`, `provisioning/default.ts`'s `CLI_VERSION`) are improvements
 this repo has not taken, and several of those files carry local work that a
@@ -91,6 +96,10 @@ in-place rewrites of existing declarations, the largest being
 module calls, so a module built against the previous bundle still runs on
 beta.20. The rebuilt bundle grew ~25.4 KB in total (core.js +8.6 KB, core.d.ts
 +10.0 KB, introspector.js +6.8 KB).
+
+beta.20 → beta.21 changes no bindings: `docs/docs-graphql/schema.graphqls` and
+`sdk/typescript/src/api/client.gen.ts` are the same blobs at both tags, and
+`packager:library-bindings` wrote nothing. Only the recorded release moves.
 
 ## What was left behind
 

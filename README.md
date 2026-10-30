@@ -140,7 +140,7 @@ is what runs today.
 ### The engine release a module targets
 
 Each release of this SDK targets one engine release: the one its library bundle
-is built for, `v1.0.0-beta.20` today. A module's core bindings, the
+is built for, `v1.0.0-beta.21` today. A module's core bindings, the
 `client.gen.ts` in its `sdk/` or `clients/dagger/`, are the library's own copy,
 generated for that release, and the library tells the session it starts to serve
 that release. So the core follows the SDK release, not the engine: updating the
