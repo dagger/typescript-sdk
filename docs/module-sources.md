@@ -76,8 +76,9 @@ member, and declaring it is what gets a `types` and a `call` with no workspace
 argument — so on an older engine the module does not load at all, and Dang's
 interface check reports the workspace argument as missing.
 
-Generating a module needs **dagger v1.0.0-beta.22 or later**: the SDK asks the
-engine how it names the module's own declarations (`ModuleSource.naming`),
+Generating a module needs **dagger v1.0.0-beta.22 or later**, the version the
+SDK module itself declares: the SDK asks the engine how it names the module's
+own declarations (`ModuleSource.naming`),
 which the generated entrypoint selects when the module calls itself through
 one of its interfaces. A module that declares v1.0.0-beta.22 or later is named
 by the engine's identifier naming rules, and needs such an engine to load on
