@@ -23,9 +23,10 @@ func naming(engine *namingtest.Engine) generator.ModuleNaming {
 // v1.0.0-beta.22 does for a module named by its identifier naming rules.
 func namingAppEngine() *namingtest.Engine {
 	return &namingtest.Engine{
-		TypeNames:  map[string]string{"HttpFetcher": "NamingAppHTTPFetcher"},
-		FieldNames: map[string]string{"getURL": "getUrl", "path": "path", "arch": "arch"},
-		MainObject: "NamingApp",
+		TypeNames:       map[string]string{"HttpFetcher": "NamingAppHTTPFetcher"},
+		FieldNames:      map[string]string{"getURL": "getUrl", "path": "path", "arch": "arch", "archs": "archs", "want": "want"},
+		EnumMemberNames: map[string]string{"Amd64": "AMD64", "Arm64": "ARM64"},
+		MainObject:      "NamingApp",
 	}
 }
 
@@ -34,9 +35,10 @@ func namingAppEngine() *namingtest.Engine {
 // named by strcase, which the goldens were rendered with.
 func smokeNaming() generator.ModuleNaming {
 	return naming(&namingtest.Engine{
-		TypeNames:  map[string]string{"Greeter": "SmokeGreeter"},
-		FieldNames: map[string]string{"greet": "greet", "name": "name"},
-		MainObject: "Smoke",
+		TypeNames:       map[string]string{"Greeter": "SmokeGreeter"},
+		FieldNames:      map[string]string{"greet": "greet", "name": "name"},
+		EnumMemberNames: map[string]string{"Loud": "LOUD", "Quiet": "QUIET"},
+		MainObject:      "Smoke",
 	})
 }
 
@@ -81,6 +83,15 @@ func TestGenerateEntrypointInterfaceNames(t *testing.T) {
 		require.Contains(t, got, `this._ctx.select("getUrl", __args)`)
 		require.Contains(t, got, "async getURL(path: any, arch: any)")
 		require.Equal(t, 1, engine.Queries())
+
+		// An argument of the module's own enum is sent as the engine's name
+		// for the member, and a result turned back into the TS value.
+		require.Contains(t, got, `__args.__metadata = { "arch": { is_enum: true, value_to_name: (v: string) => ({ "amd64": "AMD64", "arm64": "ARM64" } as Record<string, string>)[v] ?? v } }`)
+		require.Contains(t, got, `const __name = await this._ctx.select("arch", __args).execute<any>()
+    return ({ "AMD64": "amd64", "ARM64": "arm64" } as Record<string, string>)[__name] ?? __name`)
+		// Lists of them too, element by element, and a null as it is.
+		require.Contains(t, got, `__args.__metadata = { "want": { is_enum: true, value_to_name: (vs: string[]) => vs == null ? vs : vs.map((v) => ({ "amd64": "AMD64", "arm64": "ARM64" } as Record<string, string>)[v] ?? v) } }`)
+		require.Contains(t, got, `return __name == null ? __name : (__name as string[]).map((__m) => ({ "AMD64": "amd64", "ARM64": "arm64" } as Record<string, string>)[__m] ?? __m)`)
 	}
 }
 

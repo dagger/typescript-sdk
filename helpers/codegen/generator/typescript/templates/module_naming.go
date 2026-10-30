@@ -12,13 +12,14 @@ import (
 
 // ModuleNames are the schema names the engine gives the module's own
 // declarations: the names the generated entrypoints select when they call the
-// module through its own interfaces, and which object the engine takes for the
-// main one. They come from the engine (ModuleSource.naming), which names a
-// module by the rules of the version it names it by: the engine's identifier
-// naming rules from v1.0.0-beta.22 on, strcase before it. Nothing here
-// predicts a name: one the entrypoint spelled differently than the engine
-// would break the module at run time (a fragment on a type that doesn't
-// exist, a field that isn't there).
+// module through its own interfaces, the enum members they send and receive,
+// and which object the engine takes for the main one. They come from the
+// engine (ModuleSource.naming), which names a module by the rules of the
+// version it names it by: the engine's identifier naming rules from
+// v1.0.0-beta.22 on, strcase before it. Nothing here predicts a name: one the
+// entrypoint spelled differently than the engine would break the module at run
+// time (a fragment on a type that doesn't exist, a field that isn't there, an
+// unknown enum member).
 //
 // Every name the module declares that an entrypoint selects is asked for up
 // front, in one query (LoadModuleNames). A name looked up that wasn't is asked
@@ -27,8 +28,9 @@ type ModuleNames struct {
 	ctx    context.Context
 	naming generator.ModuleNaming
 
-	typeNames  map[string]string
-	fieldNames map[string]string
+	typeNames       map[string]string
+	fieldNames      map[string]string
+	enumMemberNames map[string]string
 	// mainObject is the object the engine takes for the main one, or "".
 	mainObject string
 }
@@ -69,15 +71,22 @@ func (n *ModuleNames) ask(params, fields string, variables map[string]any, data 
 
 // LoadModuleNames asks the engine, in one query, for the names of every
 // declaration of module the entrypoints select: its interfaces, their
-// functions and arguments, and which of its objects is the main one. Without
-// a module source to ask about, nothing is asked: a module that selects none
-// of its own names renders the same, and one that does fails to.
+// functions and arguments, the members of its enums, and which of its objects
+// is the main one. Without a module source to ask about, nothing is asked: a
+// module that selects none of its own names renders the same, and one that
+// does fails to.
 func LoadModuleNames(ctx context.Context, naming generator.ModuleNaming, module *TypedefModule) (*ModuleNames, error) {
-	n := &ModuleNames{ctx: ctx, naming: naming, typeNames: map[string]string{}, fieldNames: map[string]string{}}
+	n := &ModuleNames{
+		ctx:             ctx,
+		naming:          naming,
+		typeNames:       map[string]string{},
+		fieldNames:      map[string]string{},
+		enumMemberNames: map[string]string{},
+	}
 	if naming.Engine == nil {
 		return n, nil
 	}
-	types, fields := []string{}, []string{}
+	types, fields, members := []string{}, []string{}, []string{}
 	for _, iface := range module.Interfaces {
 		types = append(types, iface.Name)
 		for _, fn := range iface.Functions {
@@ -87,19 +96,25 @@ func LoadModuleNames(ctx context.Context, naming generator.ModuleNaming, module 
 			}
 		}
 	}
-	types, fields = sortedUnique(types), sortedUnique(fields)
+	for _, enum := range module.Enums {
+		for _, v := range enum.Values {
+			members = append(members, v.Name)
+		}
+	}
+	types, fields, members = sortedUnique(types), sortedUnique(fields), sortedUnique(members)
 	// The engine takes the first candidate that matches, so they go in the
 	// order the entrypoint registers the objects in.
 	objects := sortedObjectKeys(module.Objects)
 	var answers struct {
-		TypeNames  []string `json:"typeNames"`
-		FieldNames []string `json:"fieldNames"`
-		MainObject *string  `json:"mainObject"`
+		TypeNames       []string `json:"typeNames"`
+		FieldNames      []string `json:"fieldNames"`
+		EnumMemberNames []string `json:"enumMemberNames"`
+		MainObject      *string  `json:"mainObject"`
 	}
 	if err := n.ask(
-		", $types: [String!]!, $fields: [String!]!, $objects: [String!]!",
-		"typeNames(names: $types)\n        fieldNames(names: $fields)\n        mainObject(candidates: $objects)",
-		map[string]any{"types": types, "fields": fields, "objects": objects},
+		", $types: [String!]!, $fields: [String!]!, $members: [String!]!, $objects: [String!]!",
+		"typeNames(names: $types)\n        fieldNames(names: $fields)\n        enumMemberNames(names: $members)\n        mainObject(candidates: $objects)",
+		map[string]any{"types": types, "fields": fields, "members": members, "objects": objects},
 		&answers,
 	); err != nil {
 		return nil, err
@@ -108,6 +123,9 @@ func LoadModuleNames(ctx context.Context, naming generator.ModuleNaming, module 
 		return nil, err
 	}
 	if err := zip(n.fieldNames, fields, answers.FieldNames); err != nil {
+		return nil, err
+	}
+	if err := zip(n.enumMemberNames, members, answers.EnumMemberNames); err != nil {
 		return nil, err
 	}
 	if answers.MainObject != nil {
@@ -142,6 +160,12 @@ func (n *ModuleNames) typeName(name string) (string, error) {
 // module's interfaces (ModuleNaming.fieldNames).
 func (n *ModuleNames) fieldName(name string) (string, error) {
 	return n.lookup("fieldNames", n.fieldNames, name)
+}
+
+// enumMemberName is the schema name of a member of one of the module's enums
+// (ModuleNaming.enumMemberNames).
+func (n *ModuleNames) enumMemberName(name string) (string, error) {
+	return n.lookup("enumMemberNames", n.enumMemberNames, name)
 }
 
 // MainObject is the object the engine takes for the module's main one
