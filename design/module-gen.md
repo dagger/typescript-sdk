@@ -397,8 +397,9 @@ one `ModuleSource.naming` query (dagger/dagger#14996) for the module the engine
 loads, whose ID the SDK hands them. The engine answers by the rules of the
 version it names the module by, on either side of the identifier-casing cut, so
 codegen predicts no name. The bindings generators (`codegen module`, `client`,
-`library`) style the TypeScript identifiers they make from schema names, enum
-members' keys and the client import aliases, through one
+`library`) style the TypeScript identifiers they make from schema names (enum
+members' keys, enum converter functions, `<Parent><Field>Opts` types and the
+client import aliases) through one
 `Query.formatIdentifiers` query (PASCAL, acronyms in capitals, at the schema's
 version), as the Go SDK styles its names.
 
@@ -666,8 +667,8 @@ Settled by the constraints above:
   than upstream's plan of dialing the engine from inside the codegen container.
 - **Naming is the exception, on purpose.** The entrypoints select the
   engine's names for the module's own declarations (`ModuleSource.naming`),
-  and the bindings style their enum keys and import aliases by the engine's
-  rules (`formatIdentifiers`).
+  and the bindings style the identifiers they derive from schema names by the
+  engine's rules (`formatIdentifiers`).
   Asking in dang and handing the answers over would mean reading the names
   out of `typedef.json` and the schema in dang as well — the typedef's
   declarations are keyed by name, so that needs `JSON.decode` into `Map`, which

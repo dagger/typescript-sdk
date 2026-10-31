@@ -129,6 +129,11 @@ var Styles = map[string]string{
 	"TCP": "TCP", "UDP": "UDP", "VALUE": "Value",
 	"Gzip": "Gzip", "Zstd": "Zstd", "EStarGZ": "EStarGZ", "Uncompressed": "Uncompressed",
 	"GZIP": "Gzip", "ZSTD": "Zstd", "ESTARGZ": "Estargz", "UNCOMPRESSED": "Uncompressed",
+	// Enums, which their converter functions are named after.
+	"ImageLayerCompression": "ImageLayerCompression", "Mode": "Mode", "NetworkProtocol": "NetworkProtocol",
+	// Fields with optional arguments, which their options types are named after.
+	"apply": "Apply", "bytes": "Bytes", "directory": "Directory", "exec": "Exec",
+	"foo": "Foo", "myDep": "MyDep", "workdir": "Workdir",
 }
 
 // strings is a list variable, as the generators pass it or as it comes off

@@ -46,6 +46,7 @@ func enumSchema() *introspection.Schema {
 // left out when the core file ships as it is.
 func TestGenerate_StylesEnumKeysThroughTheEngine(t *testing.T) {
 	engine := &namingtest.Engine{Pascal: map[string]string{
+		"NetworkProtocol": "NetworkProtocol", "AppMode": "AppMode",
 		"TCP": "TCP", "UDP": "UDP", "http_only": "HTTPOnly", "grpc": "GRPC", "app": "App",
 	}}
 	state, err := generate(context.Background(), generator.Config{
@@ -66,7 +67,7 @@ func TestGenerate_StylesEnumKeysThroughTheEngine(t *testing.T) {
 	// With the library's core shipped as it is, only the module's are styled.
 	coreFile := filepath.Join(t.TempDir(), "client.gen.ts")
 	require.NoError(t, os.WriteFile(coreFile, []byte("// the library's core\n"), 0o600))
-	engine = &namingtest.Engine{Pascal: map[string]string{"http_only": "HTTPOnly", "grpc": "GRPC", "app": "App"}}
+	engine = &namingtest.Engine{Pascal: map[string]string{"AppMode": "AppMode", "http_only": "HTTPOnly", "grpc": "GRPC", "app": "App"}}
 	_, err = generate(context.Background(), generator.Config{
 		Engine:       engine,
 		ModuleConfig: &generator.ModuleGeneratorConfig{ModuleName: "app", EmitLoader: true, CoreFile: coreFile},
@@ -88,6 +89,30 @@ func TestGenerate_FailsOnAnUnstyledName(t *testing.T) {
 		ModuleConfig: &generator.ModuleGeneratorConfig{ModuleName: "app"},
 	}, ClientGenFile, enumSchema(), "v1.0.0-beta.20")
 	require.ErrorContains(t, err, `identifiers: no engine to style`)
+}
+
+// A field's options type is named by the engine's styling of the field, its
+// declaration and its uses alike.
+func TestGenerate_StylesOptsTypesThroughTheEngine(t *testing.T) {
+	boolean := &introspection.TypeRef{Kind: introspection.TypeKindScalar, Name: "Boolean"}
+	str := &introspection.TypeRef{Kind: introspection.TypeKindNonNull, OfType: &introspection.TypeRef{Kind: introspection.TypeKindScalar, Name: "String"}}
+	schema := &introspection.Schema{Types: introspection.Types{
+		{Kind: introspection.TypeKindObject, Name: "Query"},
+		{Kind: introspection.TypeKindObject, Name: "File", Fields: []*introspection.Field{
+			{Name: "asJson", TypeRef: str, Args: introspection.InputValues{{Name: "pretty", TypeRef: boolean}}},
+		}},
+	}}
+	schema.QueryType.Name = "Query"
+	generator.SetSchemaParents(schema)
+
+	engine := &namingtest.Engine{Pascal: map[string]string{"asJson": "AsJSON"}}
+	state, err := generate(context.Background(), generator.Config{Engine: engine}, ClientGenFile, schema, "v1.0.0-beta.22")
+	require.NoError(t, err)
+	require.Equal(t, 1, engine.Queries())
+
+	core := readOverlay(t, state, "client.gen.ts")
+	require.Contains(t, core, "export type FileAsJSONOpts = {")
+	require.Contains(t, core, "opts?: FileAsJSONOpts")
 }
 
 // A name looked up that wasn't styled up front is styled directly.

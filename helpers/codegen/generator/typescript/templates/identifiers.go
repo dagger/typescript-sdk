@@ -11,10 +11,12 @@ import (
 
 // Identifiers are the engine's styling of the identifiers the bindings
 // generate from schema names (Query.formatIdentifiers): an enum member's key,
-// and the alias a generated file imports a module client under. TypeScript
-// writes both in PascalCase; acronyms are in capitals, like the schema's own
-// type names the same bindings expose (HTTPClient), so a member TCP is
-// NetworkProtocol.TCP. The engine styles them by the naming dictionary of the
+// an enum's converter functions (<Enum>ValueToName), a field's options type
+// (<Parent><Field>Opts), and the alias a generated file imports a module
+// client under. TypeScript writes them in PascalCase; acronyms are in
+// capitals, like the schema's own type names the same bindings expose
+// (HTTPClient), so a member TCP is NetworkProtocol.TCP and asJson's options
+// are FileAsJSONOpts. The engine styles them by the naming dictionary of the
 // schema's version, and nothing here predicts one.
 //
 // Every name the schema gives is styled up front, in one query
@@ -33,8 +35,9 @@ const formatIdentifiersQuery = `query FormatIdentifiers($names: [String!]!, $ver
 }`
 
 // LoadIdentifiers styles, in one query through engine, every name of schema
-// the bindings generate an identifier from: its enum members, and the file
-// names of the modules it splits into their own clients. version is the
+// the bindings generate an identifier from: its enums and their members, the
+// fields with optional arguments, and the file names of the modules it splits
+// into their own clients. version is the
 // schema's, whose naming dictionary the engine styles them by; empty leaves
 // it to the engine's own. A nil schema styles each name as it is looked up.
 func LoadIdentifiers(ctx context.Context, engine generator.Engine, version string, schema *introspection.Schema) (*Identifiers, error) {
@@ -44,8 +47,16 @@ func LoadIdentifiers(ctx context.Context, engine generator.Engine, version strin
 	}
 	var names []string
 	for _, t := range schema.Types {
+		if t.Kind == introspection.TypeKindEnum {
+			names = append(names, t.Name)
+		}
 		for _, v := range t.EnumValues {
 			names = append(names, v.Name)
+		}
+		for _, f := range t.Fields {
+			if slices.ContainsFunc(f.Args, func(a introspection.InputValue) bool { return a.IsOptional() }) {
+				names = append(names, f.Name)
+			}
 		}
 	}
 	for _, module := range schema.DependencyNames() {

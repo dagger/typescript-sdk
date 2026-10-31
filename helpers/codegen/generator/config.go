@@ -26,8 +26,8 @@ type Config struct {
 	DangEntrypointConfig *DangEntrypointGeneratorConfig
 
 	// Engine is the session the bindings generators style the identifiers
-	// they generate through (Query.formatIdentifiers): enum members' keys and
-	// the import aliases of the module clients.
+	// they generate through (Query.formatIdentifiers): enum members' keys, enum
+	// converters, options types and the import aliases of the module clients.
 	Engine Engine
 }
 
