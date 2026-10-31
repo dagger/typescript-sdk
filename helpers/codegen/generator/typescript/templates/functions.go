@@ -296,46 +296,13 @@ func (funcs typescriptTemplateFuncs) fieldExpectedIDType(field introspection.Fie
 	return ""
 }
 
-// pascalCase converts a type name to PascalCase. strcase.ToCamel mishandles
-// runs of consecutive uppercase letters (e.g. "LLMContentBlockKind" ->
-// "LlmcontentBlockKind"), which would make the generated enum converter
-// definitions (named via PascalCase) diverge from their raw-named call sites
-// and fail to type-check, so use a custom implementation that preserves
-// configured acronyms.
-func (funcs typescriptTemplateFuncs) pascalCase(name string) string {
-	return toPascalCase(name)
-}
-
-var (
-	reUpperToUpperLower = regexp.MustCompile(`([A-Z]+)([A-Z][a-z])`)
-	reLowerToUpper      = regexp.MustCompile(`([a-z0-9])([A-Z])`)
-)
-
-// pascalCaseAcronyms lists tokens that render in a fixed canonical form instead
-// of being title-cased, so acronym names round-trip consistently: the "llm"
-// field and the schema's LLM* types both render as "LLM" (mirroring the Go
-// SDK's strcase.ConfigureAcronym("LLM", "LLM")). Keyed by the uppercased token.
-var pascalCaseAcronyms = map[string]string{
-	"LLM": "LLM",
-}
-
-func toPascalCase(s string) string {
-	// Insert word boundaries: "LLMContent" -> "LLM_Content", "blockKind" -> "block_Kind"
-	s = reUpperToUpperLower.ReplaceAllString(s, `${1}_${2}`)
-	s = reLowerToUpper.ReplaceAllString(s, `${1}_${2}`)
-
-	parts := strings.Split(s, "_")
-	for i, p := range parts {
-		if len(p) == 0 {
-			continue
-		}
-		if acr, ok := pascalCaseAcronyms[strings.ToUpper(p)]; ok {
-			parts[i] = acr
-			continue
-		}
-		parts[i] = strings.ToUpper(p[:1]) + strings.ToLower(p[1:])
-	}
-	return strings.Join(parts, "")
+// pascalCase is the engine's PascalCase styling of a schema name (Identifiers),
+// for the identifiers the bindings derive from one: a field's
+// `<Parent><Field>Opts` type and an enum's `<Enum>ValueToName`/`NameToValue`
+// converters. Their declarations, imports and call sites all spell them
+// through it, so they cannot disagree.
+func (funcs typescriptTemplateFuncs) pascalCase(name string) (string, error) {
+	return funcs.ids.Pascal(name)
 }
 
 // solve checks if a field is solvable.
@@ -946,9 +913,9 @@ func (funcs typescriptTemplateFuncs) siblingImportSpec(owner string) string {
 // file -> core, so no ESM cycle; a sibling value import is only ever
 // dereferenced inside a method body, after both files have evaluated, so a
 // mutual reference between two modules is safe too.
-func (funcs typescriptTemplateFuncs) clientImports(fileTypes []*introspection.Type, selfName string) []ClientImport {
+func (funcs typescriptTemplateFuncs) clientImports(fileTypes []*introspection.Type, selfName string) ([]ClientImport, error) {
 	if funcs.fullSchema == nil {
-		return nil
+		return nil, nil
 	}
 
 	referenced := funcs.collectReferencedNames(fileTypes)
@@ -1015,7 +982,7 @@ func (funcs typescriptTemplateFuncs) clientImports(fileTypes []*introspection.Ty
 	// (NameToValue for enum return values, ValueToName for enum arguments) so
 	// the import is never unused. A converter is declared beside its enum, in
 	// the enum owner's file.
-	addEnumConverters := func(ref *introspection.TypeRef, suffix string) {
+	addEnumConverters := func(ref *introspection.TypeRef, suffix string) error {
 		for ; ref != nil; ref = ref.OfType {
 			if ref.Name == "" {
 				continue
@@ -1028,14 +995,23 @@ func (funcs typescriptTemplateFuncs) clientImports(fileTypes []*introspection.Ty
 			if spec == "" {
 				continue
 			}
-			groupFor(spec).values[funcs.pascalCase(t.Name)+suffix] = struct{}{}
+			name, err := funcs.pascalCase(t.Name)
+			if err != nil {
+				return err
+			}
+			groupFor(spec).values[name+suffix] = struct{}{}
 		}
+		return nil
 	}
 	for _, t := range fileTypes {
 		for _, f := range t.Fields {
-			addEnumConverters(f.TypeRef, "NameToValue")
+			if err := addEnumConverters(f.TypeRef, "NameToValue"); err != nil {
+				return nil, err
+			}
 			for _, a := range f.Args {
-				addEnumConverters(a.TypeRef, "ValueToName")
+				if err := addEnumConverters(a.TypeRef, "ValueToName"); err != nil {
+					return nil, err
+				}
 			}
 		}
 	}
@@ -1060,7 +1036,7 @@ func (funcs typescriptTemplateFuncs) clientImports(fileTypes []*introspection.Ty
 			Types:  sortedNames(g.types),
 		})
 	}
-	return out
+	return out, nil
 }
 
 func sortedNames(set map[string]struct{}) []string {
@@ -1276,8 +1252,12 @@ func (funcs typescriptTemplateFuncs) compatFile() string {
 
 // compatOptsName is the options type a root field's optional arguments render
 // as, declared beside the field's own Client in the module's client file.
-func (funcs typescriptTemplateFuncs) compatOptsName(field *introspection.Field) string {
-	return generator.QueryStructClientName + funcs.pascalCase(field.Name) + "Opts"
+func (funcs typescriptTemplateFuncs) compatOptsName(field *introspection.Field) (string, error) {
+	name, err := funcs.pascalCase(field.Name)
+	if err != nil {
+		return "", err
+	}
+	return generator.QueryStructClientName + name + "Opts", nil
 }
 
 // compatImports plans the compat shim's type imports: everything the re-attached
@@ -1311,7 +1291,11 @@ func (funcs typescriptTemplateFuncs) compatImports() ([]ClientImport, error) {
 		signatures := make([]*introspection.Field, 0, len(client.Fields))
 		for _, field := range client.Fields {
 			if len(funcs.getOptionalArgs(field.Args)) > 0 {
-				add(client.From, funcs.compatOptsName(field))
+				name, err := funcs.compatOptsName(field)
+				if err != nil {
+					return nil, err
+				}
+				add(client.From, name)
 			}
 			trimmed := *field
 			trimmed.Args = funcs.getRequiredArgs(field.Args)

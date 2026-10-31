@@ -19,9 +19,10 @@
 // supplied as files. What it asks the engine is how to name things, over the
 // session the command runs nested in. The bindings generators (`module`,
 // `client`, `library`) style the identifiers they generate from schema names,
-// enum keys and client import aliases, through Query.formatIdentifiers, in one
-// query. `codegen entrypoint` and `codegen dang-entrypoint` ask how the engine
-// names the module's own declarations (ModuleSource.naming), in one query.
+// enum keys, enum converters, options types and client import aliases, through
+// Query.formatIdentifiers, in one query. `codegen entrypoint` and `codegen
+// dang-entrypoint` ask how the engine names the module's own declarations
+// (ModuleSource.naming), in one query.
 // `codegen introspect` dumps the session schema the library bindings are
 // generated from, and only runs in this repo's own generate step.
 package main

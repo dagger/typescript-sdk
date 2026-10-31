@@ -256,8 +256,9 @@ neither is pinned to the module's own engine version:
    passed as `--introspection-json-path`. (Naming is the exception: the
    entrypoint generators ask the engine how it names the module's own
    declarations, `ModuleSource.naming`, which follows the module's version,
-   not the bindings'; and the bindings generators style enum keys and import
-   aliases through `formatIdentifiers` at the schema's version.)
+   not the bindings'; and the bindings generators style the identifiers they
+   derive from schema names through `formatIdentifiers` at the schema's
+   version.)
 
 So the pinned `typescript-sdk` version only has to *load* on the new engine, which
 forward compatibility already gives. It reads that engine's schema and emits
