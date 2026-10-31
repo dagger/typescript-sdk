@@ -250,13 +250,14 @@ neither is pinned to the module's own engine version:
 1. **The schema is introspected from the engine running the generate** —
    `moduleSource.clientSchemaIntrospectionJSON`, a live query against that engine.
    Run the generate on the new engine and you get the new schema.
-2. **Codegen is engine-free.** It takes that JSON and emits files in a container
-   with no engine attached — "it turns an introspection schema into generated
+2. **Codegen asks the engine nothing but names.** It takes that JSON and emits
+   files in a container — "it turns an introspection schema into generated
    bindings" (`typescript-sdk.dang:822`); the JSON is written to `/schema.json` and
-   passed as `--introspection-json-path`. (The entrypoint generators are the
-   exception: they ask the engine how it names the module's own declarations,
-   `ModuleSource.naming`. That follows the module's version, not the
-   bindings'.)
+   passed as `--introspection-json-path`. (Naming is the exception: the
+   entrypoint generators ask the engine how it names the module's own
+   declarations, `ModuleSource.naming`, which follows the module's version,
+   not the bindings'; and the bindings generators style enum keys and import
+   aliases through `formatIdentifiers` at the schema's version.)
 
 So the pinned `typescript-sdk` version only has to *load* on the new engine, which
 forward compatibility already gives. It reads that engine's schema and emits

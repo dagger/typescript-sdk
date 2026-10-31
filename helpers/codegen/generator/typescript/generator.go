@@ -45,15 +45,15 @@ type TypeScriptGenerator struct {
 // GenerateModule generates a scope's client bindings — a module's own or a
 // standalone client's: one core client.gen.ts plus one <module>.gen.ts per
 // module. Layout follows Config.ModuleConfig (EmitLoader / FlatClients).
-func (g *TypeScriptGenerator) GenerateModule(_ context.Context, schema *introspection.Schema, schemaVersion string) (*generator.GeneratedState, error) {
-	return generate(g.Config, ClientGenFile, schema, schemaVersion)
+func (g *TypeScriptGenerator) GenerateModule(ctx context.Context, schema *introspection.Schema, schemaVersion string) (*generator.GeneratedState, error) {
+	return generate(ctx, g.Config, ClientGenFile, schema, schemaVersion)
 }
 
-func (g *TypeScriptGenerator) GenerateLibrary(_ context.Context, schema *introspection.Schema, schemaVersion string) (*generator.GeneratedState, error) {
-	return generate(g.Config, ClientGenFile, schema, schemaVersion)
+func (g *TypeScriptGenerator) GenerateLibrary(ctx context.Context, schema *introspection.Schema, schemaVersion string) (*generator.GeneratedState, error) {
+	return generate(ctx, g.Config, ClientGenFile, schema, schemaVersion)
 }
 
-func generate(config generator.Config, target string, schema *introspection.Schema, schemaVersion string) (*generator.GeneratedState, error) {
+func generate(ctx context.Context, config generator.Config, target string, schema *introspection.Schema, schemaVersion string) (*generator.GeneratedState, error) {
 	generator.SetSchema(schema)
 
 	sort.SliceStable(schema.Types, func(i, j int) bool {
@@ -130,8 +130,17 @@ func generate(config generator.Config, target string, schema *introspection.Sche
 
 	// The template funcs always get the full schema so the module-splitting
 	// helpers can enumerate modules regardless of which (possibly filtered)
-	// schema a given file is rendered from.
-	tmpl := templates.New(schemaVersion, schema, "", config)
+	// schema a given file is rendered from. The identifiers are styled for the
+	// files rendered here: the core's too, unless it ships as it is.
+	styled := schema
+	if config.ModuleConfig != nil && config.ModuleConfig.CoreFile != "" {
+		styled = schema.Include(splitModules...)
+	}
+	ids, err := templates.LoadIdentifiers(ctx, config.Engine, schemaVersion, styled)
+	if err != nil {
+		return nil, err
+	}
+	tmpl := templates.New(schemaVersion, schema, "", config, ids)
 
 	mfs := memfs.New()
 

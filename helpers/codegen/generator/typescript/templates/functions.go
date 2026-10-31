@@ -23,18 +23,24 @@ func TypescriptTemplateFuncs(
 	fullSchema *introspection.Schema,
 	selfModule string,
 	cfg generator.Config,
+	ids *Identifiers,
 ) template.FuncMap {
 	return typescriptTemplateFuncs{
 		cfg:           cfg,
 		schemaVersion: schemaVersion,
 		fullSchema:    fullSchema,
 		selfModule:    selfModule,
+		ids:           ids,
 	}.FuncMap()
 }
 
 type typescriptTemplateFuncs struct {
 	schemaVersion string
 	cfg           generator.Config
+
+	// ids is the engine's styling of the identifiers generated from schema
+	// names (enum keys, client import aliases).
+	ids *Identifiers
 
 	// fullSchema is the complete, unfiltered schema (all dependency types
 	// included). The per-file render data may carry a filtered schema (the
@@ -512,13 +518,10 @@ var jsKeywords = map[string]struct{}{
 	"namespace": {},
 }
 
-// formatEnum formats a GraphQL enum into a TS equivalent
-// formatEnum names an enum member. It uses the same PascalCase rule as the rest
-// of the generator rather than strcase.ToCamel, which mangles consecutive
-// capitals ("EStarGZ" -> "EstarGz" instead of "EStarGz") and would leave a
-// module's bindings incompatible with code written against the engine's.
-func (funcs typescriptTemplateFuncs) formatEnum(s string) string {
-	return toPascalCase(s)
+// formatEnum is an enum member's key: the engine's PascalCase styling of its
+// name (Identifiers).
+func (funcs typescriptTemplateFuncs) formatEnum(s string) (string, error) {
+	return funcs.ids.Pascal(s)
 }
 
 // isArgOptional checks if some arg are optional.
@@ -585,18 +588,30 @@ func (funcs typescriptTemplateFuncs) sortInputFields(s []introspection.InputValu
 	return s
 }
 
-func (funcs typescriptTemplateFuncs) sortEnumFields(s []introspection.EnumValue) []introspection.EnumValue {
+// sortEnumFields orders an enum's members by key, keeping one member per key:
+// a view that serves a member under two names the engine styles alike would
+// otherwise declare the key twice.
+func (funcs typescriptTemplateFuncs) sortEnumFields(s []introspection.EnumValue) ([]introspection.EnumValue, error) {
+	keys := map[string]string{}
+	for _, v := range s {
+		key, err := funcs.formatEnum(v.Name)
+		if err != nil {
+			return nil, err
+		}
+		keys[v.Name] = key
+	}
+
 	copy := slices.Clone(s)
 
 	slices.SortStableFunc(copy, func(x, y introspection.EnumValue) int {
-		return cmp.Compare(strcase.ToCamel(x.Name), strcase.ToCamel(y.Name))
+		return cmp.Compare(keys[x.Name], keys[y.Name])
 	})
 
 	copy = slices.CompactFunc(copy, func(x, y introspection.EnumValue) bool {
-		return strcase.ToCamel(x.Name) == strcase.ToCamel(y.Name)
+		return keys[x.Name] == keys[y.Name]
 	})
 
-	return copy
+	return copy, nil
 }
 
 func (funcs typescriptTemplateFuncs) extractEnumValue(enum introspection.EnumValue) string {
@@ -605,14 +620,23 @@ func (funcs typescriptTemplateFuncs) extractEnumValue(enum introspection.EnumVal
 
 // groupEnumByValue returns a list of lists of enums, grouped by similar enum value.
 //
-// Additionally, enum names within a single value are removed (which would
-// result in duplicate codegen).
-func (funcs typescriptTemplateFuncs) groupEnumByValue(s []introspection.EnumValue) [][]introspection.EnumValue {
+// Additionally, enum names within a single value that share a key are removed
+// (which would result in duplicate codegen).
+func (funcs typescriptTemplateFuncs) groupEnumByValue(s []introspection.EnumValue) ([][]introspection.EnumValue, error) {
+	keys := map[string]string{}
+	for _, v := range s {
+		key, err := funcs.formatEnum(v.Name)
+		if err != nil {
+			return nil, err
+		}
+		keys[v.Name] = key
+	}
+
 	m := map[string][]introspection.EnumValue{}
 	for _, v := range s {
 		value := cmp.Or(v.Directives.EnumValue(), v.Name)
 		if !slices.ContainsFunc(m[value], func(other introspection.EnumValue) bool {
-			return strcase.ToCamel(v.Name) == strcase.ToCamel(other.Name)
+			return keys[v.Name] == keys[other.Name]
 		}) {
 			m[value] = append(m[value], v)
 		}
@@ -627,7 +651,7 @@ func (funcs typescriptTemplateFuncs) groupEnumByValue(s []introspection.EnumValu
 		}
 	}
 
-	return result
+	return result, nil
 }
 
 func (funcs typescriptTemplateFuncs) argsHaveDescription(values introspection.InputValues) bool {
@@ -1097,9 +1121,9 @@ func (funcs typescriptTemplateFuncs) clientFileSpec(owner string) string {
 // itself at run time. Listed here they would name whatever the engine serves at
 // generation, and a core type the engine gained since the library was built
 // would put a class in the map that the library beside it does not export.
-func (funcs typescriptTemplateFuncs) loaderFiles() []LoaderFile {
+func (funcs typescriptTemplateFuncs) loaderFiles() ([]LoaderFile, error) {
 	if funcs.fullSchema == nil {
-		return nil
+		return nil, nil
 	}
 
 	byOwner := map[string][]LoaderEntry{}
@@ -1129,13 +1153,28 @@ func (funcs typescriptTemplateFuncs) loaderFiles() []LoaderFile {
 		sort.Slice(entries, func(a, b int) bool { return entries[a].TypeName < entries[b].TypeName })
 		// "__core" is the library's alias, so a module named "core"
 		// ("__modCore") cannot collide with it.
+		alias, err := funcs.clientAlias("__mod", owner)
+		if err != nil {
+			return nil, err
+		}
 		out = append(out, LoaderFile{
-			Alias:   "__mod" + strcase.ToCamel(funcs.depFileName(owner)),
+			Alias:   alias,
 			From:    funcs.clientFileSpec(owner),
 			Entries: entries,
 		})
 	}
-	return out
+	return out, nil
+}
+
+// clientAlias is the local name a generated file imports a module's client
+// under: prefix, then the engine's PascalCase styling of the module's file
+// name (Identifiers).
+func (funcs typescriptTemplateFuncs) clientAlias(prefix, module string) (string, error) {
+	name, err := funcs.ids.Pascal(funcs.depFileName(module))
+	if err != nil {
+		return "", err
+	}
+	return prefix + name, nil
 }
 
 // CompatClient is one module client the compat shim puts back on the core
@@ -1170,9 +1209,9 @@ type CompatClient struct {
 //
 // A module left with no installable field is dropped entirely: there is nothing
 // to attach, so its dag is not imported either.
-func (funcs typescriptTemplateFuncs) compatClients() []CompatClient {
+func (funcs typescriptTemplateFuncs) compatClients() ([]CompatClient, error) {
 	if funcs.fullSchema == nil {
-		return nil
+		return nil, nil
 	}
 
 	coreFields := funcs.coreRootFieldNames()
@@ -1196,15 +1235,19 @@ func (funcs typescriptTemplateFuncs) compatClients() []CompatClient {
 		if len(fields) == 0 {
 			continue
 		}
+		alias, err := funcs.clientAlias("__dag", module)
+		if err != nil {
+			return nil, err
+		}
 		out = append(out, CompatClient{
 			Module:   module,
 			Package:  "@dagger.io/" + funcs.depFileName(module),
 			From:     funcs.clientFileSpec(module),
-			DagAlias: "__dag" + strcase.ToCamel(funcs.depFileName(module)),
+			DagAlias: alias,
 			Fields:   fields,
 		})
 	}
-	return out
+	return out, nil
 }
 
 // coreRootFieldNames returns the root fields core declares itself — the ones
@@ -1244,10 +1287,10 @@ func (funcs typescriptTemplateFuncs) compatOptsName(field *introspection.Field) 
 // signatures and installs delegating methods — so every name here appears in a
 // type position, and a type-only import cannot add a runtime edge to a client
 // the shim is already importing a value from.
-func (funcs typescriptTemplateFuncs) compatImports() []ClientImport {
-	clients := funcs.compatClients()
-	if len(clients) == 0 {
-		return nil
+func (funcs typescriptTemplateFuncs) compatImports() ([]ClientImport, error) {
+	clients, err := funcs.compatClients()
+	if err != nil || len(clients) == 0 {
+		return nil, err
 	}
 
 	coreSpec := funcs.coreImportSpec()
@@ -1314,7 +1357,7 @@ func (funcs typescriptTemplateFuncs) compatImports() []ClientImport {
 	for _, spec := range specs {
 		out = append(out, ClientImport{From: spec, Types: sortedNames(groups[spec])})
 	}
-	return out
+	return out, nil
 }
 
 // rootClientType returns the extendable root type (Query) among the file's

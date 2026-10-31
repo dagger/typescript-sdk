@@ -1241,9 +1241,10 @@ type TypescriptSdk {
 
   """
   Container with the TypeScript bindings generator compiled and on PATH.
-  Engine-free: it turns an introspection schema into generated bindings, either
-  for a module (`codegen module`) or for a standalone client bound to one
-  (`codegen client`).
+  It turns an introspection schema into generated bindings, either for a module
+  (`codegen module`) or for a standalone client bound to one (`codegen
+  client`), asking the engine only how to style the identifiers it generates
+  (formatIdentifiers), as a nested client.
   """
   let codegenBuilder: Container! {
     goHelper("codegen")
@@ -1301,7 +1302,8 @@ type TypescriptSdk {
   the same shape for code outside the module; what still separates the two is
   where they live and how they resolve the runtime, not what they contain.
 
-  Engine-free: the schemas arrive as data, so this is a plain container exec.
+  The schemas arrive as data; the exec asks the engine only how to style the
+  identifiers it generates.
   """
   let generateModuleBindings(schemaJSON: String!, moduleName: String!, targets: [ClientTarget!]!, repoURL: String!, sourcePath: String!): Directory! {
     let base = codegenBuilder.withNewFile("/schema.json", schemaJSON).withFile("/core.ts", coreBindings)
