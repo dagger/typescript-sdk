@@ -4459,7 +4459,7 @@ declare function IdentifierWordKindNameToValue(name: string): IdentifierWordKind
  * Compression algorithm to use for image layers.
  */
 declare enum ImageLayerCompression {
-    EStarGz = "EStarGZ",
+    EStarGZ = "EStarGZ",
     Estargz = "EStarGZ",
     Gzip = "Gzip",
     Uncompressed = "Uncompressed",
@@ -4481,8 +4481,8 @@ declare function ImageLayerCompressionNameToValue(name: string): ImageLayerCompr
 declare enum ImageMediaTypes {
     Docker = "DockerMediaTypes",
     DockerMediaTypes = "DockerMediaTypes",
-    Oci = "OCIMediaTypes",
-    OciMediaTypes = "OCIMediaTypes"
+    OCI = "OCIMediaTypes",
+    OCIMediaTypes = "OCIMediaTypes"
 }
 /**
  * Utility function to convert a ImageMediaTypes value to its name so
@@ -4851,8 +4851,8 @@ declare function ModuleSourceKindNameToValue(name: string): ModuleSourceKind;
  * Transport layer network protocol associated to a port.
  */
 declare enum NetworkProtocol {
-    Tcp = "TCP",
-    Udp = "UDP"
+    TCP = "TCP",
+    UDP = "UDP"
 }
 /**
  * Utility function to convert a NetworkProtocol value to its name so
@@ -5119,8 +5119,8 @@ type ClientSshfsVolumeOpts = {
  * Transport protocol to use for registry operations.
  */
 declare enum RegistryProtocol {
-    Http = "HTTP",
-    Https = "HTTPS"
+    HTTP = "HTTP",
+    HTTPS = "HTTPS"
 }
 /**
  * Utility function to convert a RegistryProtocol value to its name so
