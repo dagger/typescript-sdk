@@ -98790,7 +98790,7 @@ function IdentifierWordKindNameToValue(name) {
 }
 function ImageLayerCompressionValueToName(value) {
   switch (value) {
-    case "EStarGZ" /* EStarGz */:
+    case "EStarGZ" /* EStarGZ */:
       return "EStarGZ";
     case "Gzip" /* Gzip */:
       return "Gzip";
@@ -98806,7 +98806,7 @@ function ImageMediaTypesValueToName(value) {
   switch (value) {
     case "DockerMediaTypes" /* Docker */:
       return "DOCKER";
-    case "OCIMediaTypes" /* Oci */:
+    case "OCIMediaTypes" /* OCI */:
       return "OCI";
     default:
       return value;
@@ -98882,9 +98882,9 @@ function ModuleSourceKindNameToValue(name) {
 }
 function NetworkProtocolValueToName(value) {
   switch (value) {
-    case "TCP" /* Tcp */:
+    case "TCP" /* TCP */:
       return "TCP";
-    case "UDP" /* Udp */:
+    case "UDP" /* UDP */:
       return "UDP";
     default:
       return value;
@@ -98893,9 +98893,9 @@ function NetworkProtocolValueToName(value) {
 function NetworkProtocolNameToValue(name) {
   switch (name) {
     case "TCP":
-      return "TCP" /* Tcp */;
+      return "TCP" /* TCP */;
     case "UDP":
-      return "UDP" /* Udp */;
+      return "UDP" /* UDP */;
     default:
       return name;
   }
@@ -98912,9 +98912,9 @@ function PatchConflictValueToName(value) {
 }
 function RegistryProtocolValueToName(value) {
   switch (value) {
-    case "HTTP" /* Http */:
+    case "HTTP" /* HTTP */:
       return "HTTP";
-    case "HTTPS" /* Https */:
+    case "HTTPS" /* HTTPS */:
       return "HTTPS";
     default:
       return value;

@@ -23,6 +23,10 @@ const LoaderImportPath = "clients/loader.gen.js"
 // the templates only need to handle the structural layout (loops,
 // conditionals, function bodies).
 func EntrypointTemplateFuncs(module *TypedefModule, opts EntrypointOptions) template.FuncMap {
+	if opts.Names == nil {
+		// Nothing answered: rendering a name of the module's fails.
+		opts.Names = &ModuleNames{}
+	}
 	c := &entrypointFuncCtx{module: module, opts: opts}
 	return template.FuncMap{
 		"jsString":             jsString,
@@ -47,6 +51,9 @@ func EntrypointTemplateFuncs(module *TypedefModule, opts EntrypointOptions) temp
 		"argCoercionLine":      c.argCoercionLine,
 		"hasDefault":           hasDefault,
 		"engineIfaceTypeName":  c.engineIfaceTypeName,
+		"ifaceFieldName":       c.ifaceFieldName,
+		"ifaceEnumMetadata":    c.ifaceEnumMetadata,
+		"ifaceEnumResult":      c.ifaceEnumResult,
 		"plannedImports":       c.plannedImports,
 		"isVariadic":           func(a *TypedefArgument) bool { return a.IsVariadic },
 		"propFieldName":        propFieldName,
@@ -478,12 +485,114 @@ func (c *entrypointFuncCtx) argCoercionLine(arg *TypedefArgument) string {
 	)
 }
 
-// engineIfaceTypeName returns "<Module><Iface>" — the namespaced GraphQL type
-// name under which a module interface is registered in the schema. The iface
-// wrapper uses it with node(id:) (via Context.selectNode) to instantiate from
-// its engine-side ID.
-func (c *entrypointFuncCtx) engineIfaceTypeName(iface *TypedefInterface) string {
-	return pascalize(c.module.Name) + iface.Name
+// engineIfaceTypeName returns the namespaced GraphQL type name under which a
+// module interface is registered in the schema: the name the engine gives it
+// (ModuleNaming.typeNames). The iface wrapper uses it with node(id:) (via
+// Context.selectNode) to instantiate from its engine-side ID, as an inline
+// fragment, so a name the engine doesn't use selects a type that isn't there.
+func (c *entrypointFuncCtx) engineIfaceTypeName(iface *TypedefInterface) (string, error) {
+	return c.opts.Names.typeName(iface.Name)
+}
+
+// ifaceFieldName returns the schema name of a function or argument of one of
+// the module's own interfaces, which a call through the interface selects:
+// the engine's name for it (ModuleNaming.fieldNames). The TS method keeps the
+// name the user declared.
+func (c *entrypointFuncCtx) ifaceFieldName(name string) (string, error) {
+	return c.opts.Names.fieldName(name)
+}
+
+// ifaceEnumMetadata renders the statement that marks a call's arguments of
+// the module's own enums (or lists of them) as enums, for a call through one
+// of the module's own interfaces, or "" when it has none. An enum argument
+// goes over the wire as the engine's name for the member, unquoted, and the
+// user passes the TS enum's value: the query builder converts one to the
+// other through this metadata, keyed by the argument's wire name, as the
+// generated clients' own methods do. A value no member has is sent as it is,
+// for the engine to refuse.
+func (c *entrypointFuncCtx) ifaceEnumMetadata(fn *TypedefFunction) (string, error) {
+	var entries []string
+	for _, arg := range fn.Arguments {
+		e, list := c.ownEnum(arg.Type)
+		if e == nil {
+			continue
+		}
+		toName, err := c.enumMap(e, true)
+		if err != nil {
+			return "", err
+		}
+		convert := fmt.Sprintf("(v: string) => (%s as Record<string, string>)[v] ?? v", toName)
+		if list {
+			convert = fmt.Sprintf("(vs: string[]) => vs == null ? vs : vs.map((v) => (%s as Record<string, string>)[v] ?? v)", toName)
+		}
+		field, err := c.ifaceFieldName(arg.Name)
+		if err != nil {
+			return "", err
+		}
+		entries = append(entries, fmt.Sprintf("%s: { is_enum: true, value_to_name: %s }", jsString(field), convert))
+	}
+	if len(entries) == 0 {
+		return "", nil
+	}
+	return "__args.__metadata = { " + strings.Join(entries, ", ") + " }", nil
+}
+
+// ifaceEnumResult renders the expression that turns the engine's name for a
+// member of one of the module's own enums (or a list of them), as a call
+// through an interface returns it, back into the TS enum's value; or "" when
+// t is no such enum. A name no member has, and a null, are returned as they
+// are.
+func (c *entrypointFuncCtx) ifaceEnumResult(expr string, t *TypedefType) (string, error) {
+	e, list := c.ownEnum(t)
+	if e == nil {
+		return "", nil
+	}
+	toValue, err := c.enumMap(e, false)
+	if err != nil {
+		return "", err
+	}
+	if list {
+		return fmt.Sprintf("%s == null ? %s : (%s as string[]).map((__m) => (%s as Record<string, string>)[__m] ?? __m)", expr, expr, expr, toValue), nil
+	}
+	return fmt.Sprintf("(%s as Record<string, string>)[%s] ?? %s", toValue, expr, expr), nil
+}
+
+// ownEnum returns the module's own enum t is, or is a list of, and whether
+// it is a list; nil when t is neither.
+func (c *entrypointFuncCtx) ownEnum(t *TypedefType) (*TypedefEnum, bool) {
+	list := false
+	if t != nil && t.Kind == KindList {
+		t, list = t.TypeDef, true
+	}
+	if t == nil || t.Kind != KindEnum {
+		return nil, false
+	}
+	e, ok := c.module.Enums[t.Name]
+	if !ok {
+		return nil, false
+	}
+	return e, list
+}
+
+// enumMap renders a JS object literal between an enum's values and the
+// engine's names for its members (ModuleNaming.enumMemberNames): value to
+// name with toName, name to value otherwise. Sorted by member, for stable
+// output.
+func (c *entrypointFuncCtx) enumMap(e *TypedefEnum, toName bool) (string, error) {
+	entries := make([]string, 0, len(e.Values))
+	for _, key := range sortedEnumValueKeys(e.Values) {
+		v := e.Values[key]
+		name, err := c.opts.Names.enumMemberName(v.Name)
+		if err != nil {
+			return "", err
+		}
+		if toName {
+			entries = append(entries, fmt.Sprintf("%s: %s", jsString(v.Value), jsString(name)))
+		} else {
+			entries = append(entries, fmt.Sprintf("%s: %s", jsString(name), jsString(v.Value)))
+		}
+	}
+	return "{ " + strings.Join(entries, ", ") + " }", nil
 }
 
 // plannedImports returns an ordered slice of import lines to emit. Encodes

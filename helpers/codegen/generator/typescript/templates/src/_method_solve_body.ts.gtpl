@@ -39,7 +39,7 @@ The dot is an introspection.Field. */ -}}
 	{{- if gt (len $enums) 0 }}
 	const metadata = {
 	    {{- range $v := $enums }}
-	    {{ $v.Name | FormatName -}}: { is_enum: true, value_to_name: {{ $v | GetInputEnumValueType }}ValueToName },
+	    {{ $v.Name | FormatName -}}: { is_enum: true, value_to_name: {{ $v | GetInputEnumValueType | PascalCase }}ValueToName },
 	    {{- end }}
 	}
 {{ "" -}}
@@ -92,10 +92,10 @@ The dot is an introspection.Field. */ -}}
     return response.map((r) => new {{ . | FormatReturnType | ToSingleType | FormatProtected | FormatName }}(ctx.copy().selectNode(r.id, "{{ . | FormatReturnType | ToSingleType | FormatProtected }}")))
           {{- end }}
         {{- else if and .TypeRef.IsList (IsListOfEnum .TypeRef) -}}
-    return response.map((r) => {{ . | FormatReturnType | ToSingleType }}NameToValue(r))
+    return response.map((r) => {{ . | FormatReturnType | ToSingleType | PascalCase }}NameToValue(r))
         {{- else if .TypeRef.IsEnum }}
         {{- /* If it's an Enum, we receive the member name so we must convert it to the actual value */ -}}
-    return {{ $promiseRetType }}NameToValue(response)
+    return {{ $promiseRetType | PascalCase }}NameToValue(response)
         {{- else }}
     return response
         {{- end }}

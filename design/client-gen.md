@@ -12,7 +12,9 @@ We want this `.dang` SDK module to generate the client itself, driven by a new
 `@generate` method (`generateAllClient`) the engine dispatches — mirroring the
 existing `generateAll` for modules. The SDK receives everything it needs as
 plain data inputs (introspection JSON, dependency list) and runs codegen in an
-ordinary container, so it **never opens a nested engine query** of its own.
+ordinary container, so it **never opens a nested engine query** of its own —
+except to style the identifiers it generates (`formatIdentifiers`, see
+`module-gen.md` §5.1).
 
 Three new product constraints:
 

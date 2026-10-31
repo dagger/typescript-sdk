@@ -2,11 +2,15 @@ package typescriptgenerator
 
 import (
 	"bytes"
+	"cmp"
 	"context"
 	"encoding/json"
 	"fmt"
+	"maps"
 	"os"
 	"path"
+	"slices"
+	"strings"
 
 	"github.com/psanford/memfs"
 
@@ -51,6 +55,18 @@ func (g *TypeScriptGenerator) GenerateDangEntrypoint(ctx context.Context) (*gene
 		return nil, fmt.Errorf("parse typedef json: %w", err)
 	}
 
+	// Which object carries the constructor is the one the engine takes for the
+	// main one. A module with objects but none of them the main one has no
+	// constructor to declare, and wouldn't surface: say so instead.
+	names, err := templates.LoadModuleNames(ctx, cfg.Naming, &module)
+	if err != nil {
+		return nil, err
+	}
+	if main := names.MainObject(); len(module.Objects) > 0 && module.Objects[main] == nil {
+		return nil, fmt.Errorf("module %q has no main object: the engine takes none of %s for it (ModuleSource.naming's mainObject: a class whose name the engine's naming rules for the module turn into the same type name as the module's)",
+			cmp.Or(cfg.ModuleName, module.Name), strings.Join(slices.Sorted(maps.Keys(module.Objects)), ", "))
+	}
+
 	tmpl := templates.NewDangEntrypoint(&module, templates.DangEntrypointOptions{
 		ModuleName:            cfg.ModuleName,
 		Runtime:               cfg.Runtime,
@@ -62,6 +78,7 @@ func (g *TypeScriptGenerator) GenerateDangEntrypoint(ctx context.Context) (*gene
 		DispatchFile:          cfg.DispatchFile,
 		TSConfigPath:          cfg.TSConfigPath,
 		Include:               cfg.Include,
+		Names:                 names,
 	})
 
 	var buf bytes.Buffer

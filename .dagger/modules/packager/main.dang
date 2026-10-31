@@ -25,13 +25,14 @@ type Packager {
 
   The schema comes from the session rather than from a module: a plain session
   serves no modules, so introspecting it yields the core API alone — which is
-  exactly what a library binds. That one step is why this opens a nested
-  session; rendering the bindings from the resulting JSON does not.
+  exactly what a library binds. Rendering the bindings from the resulting JSON
+  runs nested too: the engine styles the enum keys they generate
+  (formatIdentifiers).
   """
   libraryBindings(ws: Workspace!): Changeset! @generate {
     let bindings = codegen(ws)
       .withExec(["codegen", "introspect", "--output", "/schema.json"], experimentalPrivilegedNesting: true)
-      .withExec(["codegen", "library", "--introspection-json-path", "/schema.json", "--output", "/out"])
+      .withExec(["codegen", "library", "--introspection-json-path", "/schema.json", "--output", "/out"], experimentalPrivilegedNesting: true)
       .directory("/out")
 
     # Stage over the directory's existing contents, not in place of them:

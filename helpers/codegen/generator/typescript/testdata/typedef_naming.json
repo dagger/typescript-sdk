@@ -1,0 +1,118 @@
+{
+  "name": "NamingApp",
+  "objects": {
+    "NamingApp": {
+      "isCollection": false,
+      "name": "NamingApp",
+      "kind": "class",
+      "isExported": true,
+      "isDefaultExport": false,
+      "description": "",
+      "location": { "filepath": "/work/src/index.ts", "line": 20, "column": 1 },
+      "methods": {
+        "fetch": {
+          "isCollectionGet": false,
+          "name": "fetch",
+          "description": "",
+          "isCheck": false,
+          "isGenerator": false,
+          "isUp": false,
+          "isAgent": false,
+          "isNullable": false,
+          "returnType": { "kind": "STRING_KIND" },
+          "arguments": [
+            { "name": "fetcher", "type": { "kind": "INTERFACE_KIND", "name": "HttpFetcher" }, "isVariadic": false, "isNullable": false, "isOptional": false },
+            { "name": "path", "type": { "kind": "STRING_KIND" }, "isVariadic": false, "isNullable": false, "isOptional": false }
+          ]
+        }
+      },
+      "properties": {}
+    },
+    "HttpClient": {
+      "isCollection": false,
+      "name": "HttpClient",
+      "kind": "class",
+      "isExported": true,
+      "isDefaultExport": false,
+      "description": "",
+      "location": { "filepath": "/work/src/index.ts", "line": 8, "column": 1 },
+      "methods": {
+        "getURL": {
+          "isCollectionGet": false,
+          "name": "getURL",
+          "description": "",
+          "isCheck": false,
+          "isGenerator": false,
+          "isUp": false,
+          "isAgent": false,
+          "isNullable": false,
+          "returnType": { "kind": "STRING_KIND" },
+          "arguments": [
+            { "name": "path", "type": { "kind": "STRING_KIND" }, "isVariadic": false, "isNullable": false, "isOptional": false },
+            { "name": "arch", "type": { "kind": "ENUM_KIND", "name": "Arch" }, "isVariadic": false, "isNullable": false, "isOptional": false }
+          ]
+        }
+      },
+      "properties": {}
+    }
+  },
+  "enums": {
+    "Arch": {
+      "name": "Arch",
+      "description": "",
+      "values": {
+        "Arm64": { "name": "Arm64", "value": "arm64", "description": "" },
+        "Amd64": { "name": "Amd64", "value": "amd64", "description": "" }
+      }
+    }
+  },
+  "interfaces": {
+    "HttpFetcher": {
+      "name": "HttpFetcher",
+      "description": "",
+      "functions": {
+        "archs": {
+          "isCollectionGet": false,
+          "name": "archs",
+          "description": "",
+          "isCheck": false,
+          "isGenerator": false,
+          "isUp": false,
+          "isAgent": false,
+          "isNullable": true,
+          "returnType": { "kind": "LIST_KIND", "typeDef": { "kind": "ENUM_KIND", "name": "Arch" } },
+          "arguments": [
+            { "name": "want", "type": { "kind": "LIST_KIND", "typeDef": { "kind": "ENUM_KIND", "name": "Arch" } }, "isVariadic": false, "isNullable": true, "isOptional": true }
+          ]
+        },
+        "arch": {
+          "isCollectionGet": false,
+          "name": "arch",
+          "description": "",
+          "isCheck": false,
+          "isGenerator": false,
+          "isUp": false,
+          "isAgent": false,
+          "isNullable": false,
+          "returnType": { "kind": "ENUM_KIND", "name": "Arch" },
+          "arguments": []
+        },
+        "getURL": {
+          "isCollectionGet": false,
+          "name": "getURL",
+          "description": "",
+          "isCheck": false,
+          "isGenerator": false,
+          "isUp": false,
+          "isAgent": false,
+          "isNullable": false,
+          "returnType": { "kind": "STRING_KIND" },
+          "arguments": [
+            { "name": "path", "type": { "kind": "STRING_KIND" }, "isVariadic": false, "isNullable": false, "isOptional": false },
+            { "name": "arch", "type": { "kind": "ENUM_KIND", "name": "Arch" }, "isVariadic": false, "isNullable": false, "isOptional": false }
+          ]
+        }
+      }
+    }
+  }
+}

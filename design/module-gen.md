@@ -311,11 +311,13 @@ dev-engine client, we dial the current engine with
 
 **Nesting here is fine.** The rule that codegen must not open a nested session
 applies to the hot path — module generation, which every user hits on every
-`dagger generate`. The packager runs when *we* bump the engine, in this repo.
+`dagger generate`. (Naming is its one exception: see §5.1.) The packager runs
+when *we* bump the engine, in this repo.
 To keep the boundary sharp, put the introspection query in a small separate
 helper that only dumps JSON (upstream splits it the same way, as
-`cmd/codegen introspect`), so `helpers/codegen` itself stays engine-free and
-`library` mode keeps taking `--introspection-json-path`.
+`cmd/codegen introspect`), so the rest of `helpers/codegen` asks the engine
+nothing but names (§5.1) and `library` mode keeps taking
+`--introspection-json-path`.
 
 One sequencing note: upstream regenerates `src/api/client.gen.ts` continuously
 (its git log is a stream of `regen` commits, and it moves with schema changes
@@ -359,11 +361,11 @@ dagger generate ──▶ TypescriptSdk.generateAllModule(ws)          [@generat
                       └─ for each managed TS module (unchanged discovery):
                            stage local dependency closure          # unchanged
                            modSrc = polyfill.moduleSource(path).core
-                           schema = modSrc.introspectionSchemaJSON  # module-facing
+                           schema = modSrc.introspectionSchemaJson  # module-facing
                            name   = modSrc.moduleOriginalName
                            src    = modSrc.sourceSubpath
                            │
-                           ├─ 1. codegen container (Go helper, engine-free)
+                           ├─ 1. codegen container (Go helper; styles names via the engine)
                            │     codegen module --introspection-json-path … \
                            │                    --module-name <name> --output /out
                            │   ⇒ client.gen.ts (+ <dep>.gen.ts)
@@ -375,8 +377,8 @@ dagger generate ──▶ TypescriptSdk.generateAllModule(ws)          [@generat
                            ├─ 3. entrypoint (two execs)
                            │     bun introspector.js <name> src sdk/client.gen.ts
                            │       ⇒ typedef.json
-                           │     codegen entrypoint --typedef-json-path … --output /out
-                           │       ⇒ __dagger.entrypoint.ts
+                           │     codegen entrypoint --typedef-json-path … --module-source-id-file … --output /out
+                           │       ⇒ __dagger.entrypoint.ts   (nested: asks ModuleSource.naming)
                            │
                            ├─ 4. config-updater
                            │     module-package-json / module-tsconfig
@@ -387,8 +389,19 @@ dagger generate ──▶ TypescriptSdk.generateAllModule(ws)          [@generat
                    fork.withDirectory(sourcePath, …).changes  ⇒ Changeset
 ```
 
-Steps 1–4 are ordinary containers. Nothing dials the engine; no
-`experimentalPrivilegedNesting` anywhere.
+Steps 1–4 are ordinary containers that ask the engine nothing but names. The
+entrypoint generators (`codegen entrypoint`, `codegen dang-entrypoint`) run as
+nested clients of the session, because they ask the engine for the names it
+gives the module's own declarations, which the generated entrypoints select:
+one `ModuleSource.naming` query (dagger/dagger#14996) for the module the engine
+loads, whose ID the SDK hands them. The engine answers by the rules of the
+version it names the module by, on either side of the identifier-casing cut, so
+codegen predicts no name. The bindings generators (`codegen module`, `client`,
+`library`) style the TypeScript identifiers they make from schema names (enum
+members' keys, enum converter functions, `<Parent><Field>Opts` types and the
+client import aliases) through one
+`Query.formatIdentifiers` query (PASCAL, acronyms in capitals, at the schema's
+version), as the Go SDK styles its names.
 
 ### 5.2 Where the introspection JSON comes from
 
@@ -420,7 +433,7 @@ Two practical notes:
   `Codegen` receives deps-only today and so do we. If self-calls land later, the
   merge is `dag.schema(deps).merge(ownTypes, name).contents`
   (`core/schema/schematool.go`, gated `v1.0.0-0`) — callable from dang, so the
-  codegen container still never dials the engine.
+  codegen container still asks the engine for nothing but names.
 
 ### 5.3 dang surface
 
@@ -461,7 +474,7 @@ sharing one flag set and one overlay writer:
 ```
 codegen client     --introspection-json-path … --client-meta-path … --output …
 codegen module     --introspection-json-path … --module-name … --output …
-codegen entrypoint --typedef-json-path … --output … [--sdk-import …] [--source-dir …]
+codegen entrypoint --typedef-json-path … --module-source-id-file … --output … [--sdk-import …] [--source-dir …]
 codegen library    --introspection-json-path … --output …          # §4.2, when we own the source
 ```
 
@@ -650,8 +663,20 @@ Settled by the constraints above:
 - **Self-calls stay out of scope** (they are not implemented upstream either).
   When they land, the merge (`dag.schema(deps).merge(ownTypes, name).contents`)
   can be done **in dang** and the merged JSON handed to the container — so the
-  codegen helper stays engine-free. That is strictly nicer than upstream's plan
-  of dialing the engine from inside the codegen container.
+  codegen helper asks the engine for nothing but names. That is strictly nicer
+  than upstream's plan of dialing the engine from inside the codegen container.
+- **Naming is the exception, on purpose.** The entrypoints select the
+  engine's names for the module's own declarations (`ModuleSource.naming`),
+  and the bindings style the identifiers they derive from schema names by the
+  engine's rules (`formatIdentifiers`).
+  Asking in dang and handing the answers over would mean reading the names
+  out of `typedef.json` and the schema in dang as well — the typedef's
+  declarations are keyed by name, so that needs `JSON.decode` into `Map`, which
+  no dang release has yet — and shipping a names file whose list has to match
+  what the templates look up. Codegen already has both parsed, so it asks in
+  one query each over a nested session, as the Go SDK's generators do
+  (dagger/go-sdk#90), and a name it looks up that it didn't ask about is asked
+  directly rather than guessed.
 
 Decided 2026-08-07:
 
@@ -710,6 +735,9 @@ late):
    byte-for-byte**~~ — **yes**, once the generator was synced with the engine
    it targets (§7 Phase 3). It did not before: enum members were miscased,
    `arguments` went unescaped, and the entrypoint carried no source maps.
+   Since then the enum keys are the engine's own styling (formatIdentifiers),
+   which differs from upstream's (`NetworkProtocol.TCP`, not `Tcp`), so that
+   no longer holds for them.
 3. ~~**Is `bun build` output reproducible enough**~~ — **yes, but only once
    pinned properly.** With the image pinned by digest and both lockfiles
    committed, a second packager run over an unchanged tree reports no changes.

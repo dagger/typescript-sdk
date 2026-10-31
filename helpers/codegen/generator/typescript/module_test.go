@@ -57,7 +57,7 @@ func moduleSchema(t *testing.T) *introspection.Schema {
 // bundled library sitting next to them.
 func TestGenerateModule_Layout(t *testing.T) {
 	gen := &TypeScriptGenerator{Config: generator.Config{
-		ModuleConfig: &generator.ModuleGeneratorConfig{ModuleName: "app", EmitLoader: true},
+		Engine: styling(), ModuleConfig: &generator.ModuleGeneratorConfig{ModuleName: "app", EmitLoader: true},
 	}}
 
 	state, err := gen.GenerateModule(context.Background(), moduleSchema(t), "v0.21.0")
@@ -105,7 +105,7 @@ func TestGenerateModule_SourceMapPathEscapesToWorkspaceRoot(t *testing.T) {
 	// The packaged layout: ci/app/clients/<module>/<module>.gen.ts, four hops
 	// below the root the filenames are recorded against.
 	packaged := &TypeScriptGenerator{Config: generator.Config{
-		ModuleConfig: &generator.ModuleGeneratorConfig{
+		Engine: styling(), ModuleConfig: &generator.ModuleGeneratorConfig{
 			ModuleName:      "app",
 			ClientsDir:      "ci/app/clients",
 			PackagedClients: true,
@@ -121,7 +121,7 @@ func TestGenerateModule_SourceMapPathEscapesToWorkspaceRoot(t *testing.T) {
 	// The embedded layout writes the clients flat into the module's sdk/, one
 	// level less deep.
 	flat := &TypeScriptGenerator{Config: generator.Config{
-		ModuleConfig: &generator.ModuleGeneratorConfig{
+		Engine: styling(), ModuleConfig: &generator.ModuleGeneratorConfig{
 			ModuleName:  "app",
 			ClientsDir:  "ci/app/sdk",
 			FlatClients: true,
@@ -142,10 +142,10 @@ func TestGenerateModule_SourceMapPathEscapesToWorkspaceRoot(t *testing.T) {
 func TestGenerateLibrary_RendersTheCoreAModuleShips(t *testing.T) {
 	schema := moduleSchema(t)
 
-	lib, err := (&TypeScriptGenerator{Config: generator.Config{}}).GenerateLibrary(context.Background(), schema, "v0.21.0")
+	lib, err := (&TypeScriptGenerator{Config: generator.Config{Engine: styling()}}).GenerateLibrary(context.Background(), schema, "v0.21.0")
 	require.NoError(t, err)
 	mod, err := (&TypeScriptGenerator{Config: generator.Config{
-		ModuleConfig: &generator.ModuleGeneratorConfig{ModuleName: "app", EmitLoader: true},
+		Engine: styling(), ModuleConfig: &generator.ModuleGeneratorConfig{ModuleName: "app", EmitLoader: true},
 	}}).GenerateModule(context.Background(), schema, "v0.21.0")
 	require.NoError(t, err)
 
@@ -163,7 +163,7 @@ func TestGenerateModule_ShipsCoreFile(t *testing.T) {
 	require.NoError(t, os.WriteFile(coreFile, []byte("// the library's core\n"), 0o600))
 
 	gen := &TypeScriptGenerator{Config: generator.Config{
-		ModuleConfig: &generator.ModuleGeneratorConfig{ModuleName: "app", EmitLoader: true, CoreFile: coreFile},
+		Engine: styling(), ModuleConfig: &generator.ModuleGeneratorConfig{ModuleName: "app", EmitLoader: true, CoreFile: coreFile},
 	}}
 	state, err := gen.GenerateModule(context.Background(), moduleSchema(t), "v0.21.0")
 	require.NoError(t, err)
@@ -177,7 +177,7 @@ func TestGenerateModule_ShipsCoreFile(t *testing.T) {
 // flat per-module clients reaching the runtime through the package.
 func TestGenerateClient_Converges(t *testing.T) {
 	gen := &TypeScriptGenerator{Config: generator.Config{
-		ModuleConfig: &generator.ModuleGeneratorConfig{
+		Engine: styling(), ModuleConfig: &generator.ModuleGeneratorConfig{
 			FlatClients:  true,
 			BoundModules: []generator.BoundModule{{Name: "gendep", Kind: generator.ModuleKindDir, Path: ".dagger/modules/gendep"}},
 		},

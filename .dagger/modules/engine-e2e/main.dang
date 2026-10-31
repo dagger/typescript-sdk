@@ -12,11 +12,14 @@ type EngineE2e {
   generated-file check went red again as soon as anyone merged upstream. Bump it
   with `dagger module update engine-dev`, deliberately.
 
-  It is pinned at a release tag's commit, not an arbitrary main revision, and
-  the release has to be `typescriptSdk.bundleEngineVersion`: the suite this
-  engine runs includes `packager:library-bindings/stale`, which regenerates the
+  It is pinned at dagger/dagger#14996 (naming/module-source-naming), the first
+  engine serving ModuleSource.naming, which generating a module needs; no
+  release carries it yet. Normally the pin is a release tag's commit, and the
+  release has to be `typescriptSdk.bundleEngineVersion`: the suite this engine
+  runs includes `packager:library-bindings/stale`, which regenerates the
   library's bindings from this engine's core schema and compares them with the
-  committed file. Moving one without the other turns that check red.
+  committed file. Moving one without the other turns that check red, so it is
+  red here until the bundle pairs with a release carrying #14996.
   """
   let engineCommit(ws: Workspace!): String! {
     let dependency = ws.moduleSource("/.dagger/modules/engine-e2e").dependencies.{{moduleName, pin}}
