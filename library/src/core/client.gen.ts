@@ -279,7 +279,7 @@ export function AgentStateNameToValue(name: string): AgentState {
       return name as AgentState
   }
 }
-export type ArtifactUriOpts = {
+export type ArtifactURIOpts = {
   /**
    * Prefix the workspace's Git address and commit: dag://<workspace>@<commit>:<path>. Fails if the artifact has no workspace, or its workspace has no Git address.
    */
@@ -3587,7 +3587,7 @@ export type ClientGitOpts = {
   experimentalServiceHost?: Service
 }
 
-export type ClientHttpOpts = {
+export type ClientHTTPOpts = {
   /**
    * File name to use for the file. Defaults to the last part of the URL.
    */
@@ -3671,7 +3671,7 @@ export type ClientServeModuleOpts = {
   refPin?: string
 }
 
-export type ClientSshfsVolumeOpts = {
+export type ClientSSHFSVolumeOpts = {
   /**
    * known_hosts material used to verify the remote host key. Required unless insecureSkipHostKeyCheck is true.
    */
@@ -4415,7 +4415,7 @@ export type WorkspaceWithResetOpts = {
   hard?: boolean
 }
 
-export type WorkspaceWithSdkOpts = {
+export type WorkspaceWithSDKOpts = {
   /**
    * Override name for the installed SDK entry.
    */
@@ -4501,7 +4501,7 @@ export type WorkspaceWithoutModuleOpts = {
   here?: boolean
 }
 
-export type WorkspaceWithoutSdkOpts = {
+export type WorkspaceWithoutSDKOpts = {
   /**
    * Write to the workspace config directory at the workspace cwd.
    */
@@ -5499,7 +5499,7 @@ export class Artifact extends BaseClient {
    * @param opts.typeAssertion Include the artifact type in the scheme: dag+container://.
    */
   uri = async (
-    opts?: ArtifactUriOpts): Promise<string> => {
+    opts?: ArtifactURIOpts): Promise<string> => {
     if (this._uri) {
       return this._uri
     }
@@ -19111,7 +19111,7 @@ export class Client extends BaseClient {
    * @param opts.authHeader Secret used to populate the Authorization HTTP header
    * @param opts.experimentalServiceHost A service which must be started before the URL is fetched.
    */
-  http = (url: string, opts?: ClientHttpOpts): File => {
+  http = (url: string, opts?: ClientHTTPOpts): File => {
 
     const ctx = this._ctx.select(
       "http",
@@ -19357,7 +19357,7 @@ export class Client extends BaseClient {
    * @param opts.insecureSkipHostKeyCheck Disable SSH host key verification. This is insecure and must be explicitly opted into.
    * @param opts.experimentalServiceHost Service to use as the SSHFS network endpoint while verifying the original host key.
    */
-  sshfsVolume = (endpoint: string, privateKey: Secret, opts?: ClientSshfsVolumeOpts): Volume => {
+  sshfsVolume = (endpoint: string, privateKey: Secret, opts?: ClientSSHFSVolumeOpts): Volume => {
 
     const ctx = this._ctx.select(
       "sshfsVolume",
@@ -22103,7 +22103,7 @@ export class Workspace extends BaseClient {
    * @param opts.here Write to the workspace config directory at the workspace cwd.
    * @param opts.asSdkName Optional override for the SDK name conventionally derived from the installed module name.
    */
-  withSDK = (ref: string, opts?: WorkspaceWithSdkOpts): Workspace => {
+  withSDK = (ref: string, opts?: WorkspaceWithSDKOpts): Workspace => {
 
     const ctx = this._ctx.select(
       "withSDK",
@@ -22340,7 +22340,7 @@ export class Workspace extends BaseClient {
    * @param name Name of the installed SDK entry to remove.
    * @param opts.here Write to the workspace config directory at the workspace cwd.
    */
-  withoutSDK = (name: string, opts?: WorkspaceWithoutSdkOpts): Workspace => {
+  withoutSDK = (name: string, opts?: WorkspaceWithoutSDKOpts): Workspace => {
 
     const ctx = this._ctx.select(
       "withoutSDK",
