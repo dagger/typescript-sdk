@@ -99016,7 +99016,7 @@ function IdentifierWordKindNameToValue(name) {
 }
 var ImageLayerCompression;
 ((ImageLayerCompression2) => {
-  ImageLayerCompression2["EStarGz"] = "EStarGZ";
+  ImageLayerCompression2["EStarGZ"] = "EStarGZ";
   ImageLayerCompression2["Estargz"] = "EStarGZ";
   ImageLayerCompression2["Gzip"] = "Gzip";
   ImageLayerCompression2["Uncompressed"] = "Uncompressed";
@@ -99024,7 +99024,7 @@ var ImageLayerCompression;
 })(ImageLayerCompression ||= {});
 function ImageLayerCompressionValueToName(value) {
   switch (value) {
-    case "EStarGZ" /* EStarGz */:
+    case "EStarGZ" /* EStarGZ */:
       return "EStarGZ";
     case "Gzip" /* Gzip */:
       return "Gzip";
@@ -99039,7 +99039,7 @@ function ImageLayerCompressionValueToName(value) {
 function ImageLayerCompressionNameToValue(name) {
   switch (name) {
     case "EStarGZ":
-      return "EStarGZ" /* EStarGz */;
+      return "EStarGZ" /* EStarGZ */;
     case "Gzip":
       return "Gzip" /* Gzip */;
     case "Uncompressed":
@@ -99054,14 +99054,14 @@ var ImageMediaTypes;
 ((ImageMediaTypes2) => {
   ImageMediaTypes2["Docker"] = "DockerMediaTypes";
   ImageMediaTypes2["DockerMediaTypes"] = "DockerMediaTypes";
-  ImageMediaTypes2["Oci"] = "OCIMediaTypes";
-  ImageMediaTypes2["OciMediaTypes"] = "OCIMediaTypes";
+  ImageMediaTypes2["OCI"] = "OCIMediaTypes";
+  ImageMediaTypes2["OCIMediaTypes"] = "OCIMediaTypes";
 })(ImageMediaTypes ||= {});
 function ImageMediaTypesValueToName(value) {
   switch (value) {
     case "DockerMediaTypes" /* Docker */:
       return "DOCKER";
-    case "OCIMediaTypes" /* Oci */:
+    case "OCIMediaTypes" /* OCI */:
       return "OCI";
     default:
       return value;
@@ -99072,7 +99072,7 @@ function ImageMediaTypesNameToValue(name) {
     case "DOCKER":
       return "DockerMediaTypes" /* Docker */;
     case "OCI":
-      return "OCIMediaTypes" /* Oci */;
+      return "OCIMediaTypes" /* OCI */;
     default:
       return name;
   }
@@ -99242,14 +99242,14 @@ function ModuleSourceKindNameToValue(name) {
 }
 var NetworkProtocol;
 ((NetworkProtocol2) => {
-  NetworkProtocol2["Tcp"] = "TCP";
-  NetworkProtocol2["Udp"] = "UDP";
+  NetworkProtocol2["TCP"] = "TCP";
+  NetworkProtocol2["UDP"] = "UDP";
 })(NetworkProtocol ||= {});
 function NetworkProtocolValueToName(value) {
   switch (value) {
-    case "TCP" /* Tcp */:
+    case "TCP" /* TCP */:
       return "TCP";
-    case "UDP" /* Udp */:
+    case "UDP" /* UDP */:
       return "UDP";
     default:
       return value;
@@ -99258,9 +99258,9 @@ function NetworkProtocolValueToName(value) {
 function NetworkProtocolNameToValue(name) {
   switch (name) {
     case "TCP":
-      return "TCP" /* Tcp */;
+      return "TCP" /* TCP */;
     case "UDP":
-      return "UDP" /* Udp */;
+      return "UDP" /* UDP */;
     default:
       return name;
   }
@@ -99292,14 +99292,14 @@ function PatchConflictNameToValue(name) {
 }
 var RegistryProtocol;
 ((RegistryProtocol2) => {
-  RegistryProtocol2["Http"] = "HTTP";
-  RegistryProtocol2["Https"] = "HTTPS";
+  RegistryProtocol2["HTTP"] = "HTTP";
+  RegistryProtocol2["HTTPS"] = "HTTPS";
 })(RegistryProtocol ||= {});
 function RegistryProtocolValueToName(value) {
   switch (value) {
-    case "HTTP" /* Http */:
+    case "HTTP" /* HTTP */:
       return "HTTP";
-    case "HTTPS" /* Https */:
+    case "HTTPS" /* HTTPS */:
       return "HTTPS";
     default:
       return value;
@@ -99308,9 +99308,9 @@ function RegistryProtocolValueToName(value) {
 function RegistryProtocolNameToValue(name) {
   switch (name) {
     case "HTTP":
-      return "HTTP" /* Http */;
+      return "HTTP" /* HTTP */;
     case "HTTPS":
-      return "HTTPS" /* Https */;
+      return "HTTPS" /* HTTPS */;
     default:
       return name;
   }

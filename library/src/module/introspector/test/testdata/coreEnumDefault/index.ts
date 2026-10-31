@@ -5,7 +5,7 @@ import { func, object } from "../../../../decorators.js"
 export class CoreEnumDefault {
   @func()
   defaultProto(
-    proto: NetworkProtocol = NetworkProtocol.Udp,
+    proto: NetworkProtocol = NetworkProtocol.UDP,
   ): NetworkProtocol {
     return proto
   }
