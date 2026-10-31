@@ -24,6 +24,11 @@ type Config struct {
 	// DangEntrypointConfig is the specific config to generate the Dang module
 	// entrypoint the engine loads under a manifest `[entrypoint]` table.
 	DangEntrypointConfig *DangEntrypointGeneratorConfig
+
+	// Engine is the session the bindings generators style the identifiers
+	// they generate through (Query.formatIdentifiers): enum members' keys and
+	// the import aliases of the module clients.
+	Engine Engine
 }
 
 // ModuleGeneratorConfig drives a scope's client generation — the same for a

@@ -15,13 +15,15 @@
 //	codegen dang-entrypoint — the Dang program the engine loads under a manifest
 //	                 `[entrypoint]` table, from the same typedef JSON.
 //
-// Generation is engine-free: the schema and the bound module's metadata are
-// supplied as files, so no session is opened. There are two exceptions.
+// Generation works from files: the schema and the bound module's metadata are
+// supplied as files. What it asks the engine is how to name things, over the
+// session the command runs nested in. The bindings generators (`module`,
+// `client`, `library`) style the identifiers they generate from schema names,
+// enum keys and client import aliases, through Query.formatIdentifiers, in one
+// query. `codegen entrypoint` and `codegen dang-entrypoint` ask how the engine
+// names the module's own declarations (ModuleSource.naming), in one query.
 // `codegen introspect` dumps the session schema the library bindings are
-// generated from, over plain HTTP, and only runs in this repo's own generate
-// step. `codegen entrypoint` and `codegen dang-entrypoint` ask the session's
-// engine how it names the module's own declarations (ModuleSource.naming), in
-// one query, so they run as nested clients.
+// generated from, and only runs in this repo's own generate step.
 package main
 
 import (
@@ -267,6 +269,22 @@ func moduleNaming(path string) (generator.ModuleNaming, error) {
 	return generator.ModuleNaming{Engine: engine, SourceID: strings.TrimSpace(string(id))}, nil
 }
 
+// bindingsEngine is the session the bindings generators style identifiers
+// through (Query.formatIdentifiers). Outside one, it fails the first query
+// with why, so a run that styles nothing still renders.
+func bindingsEngine() generator.Engine {
+	engine, err := session.FromEnv()
+	if err != nil {
+		return noSession{err}
+	}
+	return engine
+}
+
+// noSession is the engine of a command run outside a Dagger session.
+type noSession struct{ err error }
+
+func (s noSession) Query(context.Context, string, map[string]any, any) error { return s.err }
+
 // parsePackageManager splits the `name[@version]` spelling the Node ecosystem
 // uses for `packageManager`, and the SDK passes through unchanged. An empty spec
 // leaves the choice to the generator, which falls back to the runtime's own.
@@ -330,7 +348,7 @@ func runLibrary(args []string) error {
 	return generateFromSchema(
 		"library bindings",
 		*introspectionPath,
-		generator.Config{OutputDir: *outputDir},
+		generator.Config{OutputDir: *outputDir, Engine: bindingsEngine()},
 		(*typescriptgenerator.TypeScriptGenerator).GenerateLibrary,
 	)
 }
@@ -387,6 +405,7 @@ func runModule(args []string) error {
 
 	gen := &typescriptgenerator.TypeScriptGenerator{Config: generator.Config{
 		OutputDir: *outputDir,
+		Engine:    bindingsEngine(),
 		ModuleConfig: &generator.ModuleGeneratorConfig{
 			ModuleName:      *moduleName,
 			BoundModules:    bound,
@@ -518,6 +537,7 @@ func runClient(args []string) error {
 
 	gen := &typescriptgenerator.TypeScriptGenerator{Config: generator.Config{
 		OutputDir: *outputDir,
+		Engine:    bindingsEngine(),
 		ModuleConfig: &generator.ModuleGeneratorConfig{
 			BoundModules:    bound,
 			FlatClients:     true,

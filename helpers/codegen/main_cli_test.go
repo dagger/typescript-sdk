@@ -152,10 +152,28 @@ func TestRunDispatch(t *testing.T) {
 	}
 }
 
+// nestIn runs the command under test nested in a session served by engine.
+func nestIn(t *testing.T, engine *namingtest.Engine) {
+	t.Helper()
+	server := httptest.NewServer(engine)
+	t.Cleanup(server.Close)
+	t.Setenv("DAGGER_SESSION_PORT", strings.TrimPrefix(server.URL, "http://127.0.0.1:"))
+	t.Setenv("DAGGER_SESSION_TOKEN", "token")
+}
+
+// styling is the session the bindings generators style identifiers through.
+func styling(t *testing.T) *namingtest.Engine {
+	t.Helper()
+	engine := &namingtest.Engine{Pascal: namingtest.Styles}
+	nestIn(t, engine)
+	return engine
+}
+
 // TestRunModule covers the module subcommand end to end, including the overlay
 // writing the result to disk — the step every generator finishes with and which
 // no other test exercises.
 func TestRunModule(t *testing.T) {
+	styling(t)
 	dir := t.TempDir()
 	out := filepath.Join(dir, "out")
 
@@ -175,6 +193,7 @@ func TestRunModule(t *testing.T) {
 }
 
 func TestRunClient(t *testing.T) {
+	styling(t)
 	dir := t.TempDir()
 	out := filepath.Join(dir, "out")
 	meta := writeFile(t, dir, "meta.json", `{
@@ -213,6 +232,7 @@ func TestRunClient(t *testing.T) {
 // TestRunClientServesEveryTarget covers a scope with several modules: one shared
 // core file, and each module rendered as its own client serving its own source.
 func TestRunClientServesEveryTarget(t *testing.T) {
+	engine := styling(t)
 	dir := t.TempDir()
 	out := filepath.Join(dir, "out")
 	meta := writeFile(t, dir, "meta.json", `{
@@ -253,6 +273,18 @@ func TestRunClientServesEveryTarget(t *testing.T) {
 	payments, err := os.ReadFile(filepath.Join(out, "payments.gen.ts"))
 	require.NoError(t, err)
 	require.Contains(t, string(payments), `await __dag.serveModule("github.com/acme/payments@main", { refPin: "deadbeef" })`)
+
+	// The identifiers are styled over the session, in one query.
+	require.Equal(t, 1, engine.Queries())
+
+	// Outside a session there is no engine to style them, and generation says
+	// so.
+	t.Setenv("DAGGER_SESSION_PORT", "")
+	require.ErrorContains(t, run([]string{
+		"client",
+		"--client-meta-path", meta,
+		"--output", out,
+	}), "no Dagger session")
 }
 
 // TestRunClientDropsWorkspaceSourceMapURLs covers a workspace loaded by address,
@@ -265,6 +297,7 @@ func TestRunClientServesEveryTarget(t *testing.T) {
 // repository whose name merely extends the workspace's.
 func TestRunClientDropsWorkspaceSourceMapURLs(t *testing.T) {
 	const commit = "d5fd9309bc53fe1f580a1faffacd73ef3d8c27e4"
+	styling(t)
 
 	dir := t.TempDir()
 	out := filepath.Join(dir, "out")
@@ -334,6 +367,7 @@ func TestRunClientRejectsUnservableModule(t *testing.T) {
 }
 
 func TestRunLibrary(t *testing.T) {
+	styling(t)
 	dir := t.TempDir()
 	out := filepath.Join(dir, "out")
 
@@ -377,10 +411,7 @@ func TestRunEntrypoint(t *testing.T) {
 	// The generator asks the session's engine how it names the module, about
 	// the module source whose ID it is given.
 	engine := &namingtest.Engine{SourceID: "module-source-id", MainObject: "App"}
-	server := httptest.NewServer(engine)
-	t.Cleanup(server.Close)
-	t.Setenv("DAGGER_SESSION_PORT", strings.TrimPrefix(server.URL, "http://127.0.0.1:"))
-	t.Setenv("DAGGER_SESSION_TOKEN", "token")
+	nestIn(t, engine)
 	sourceID := writeFile(t, dir, "module-source.id", "module-source-id\n")
 
 	require.ErrorContains(t, run([]string{

@@ -22,12 +22,14 @@ var srcs embed.FS
 // template funcs so the dependency-splitting helpers can enumerate deps even
 // when an individual file is rendered from a filtered schema. selfModule is the
 // name of the module being generated for (its own types stay in client.gen.ts;
-// only dependencies are split out).
+// only dependencies are split out). ids styles the identifiers the bindings
+// generate from schema names (LoadIdentifiers).
 func New(
 	schemaVersion string,
 	fullSchema *introspection.Schema,
 	selfModule string,
 	cfg generator.Config,
+	ids *Identifiers,
 ) *template.Template {
 	topLevelTemplate := "api"
 	templateDeps := []string{
@@ -43,7 +45,7 @@ func New(
 		fileNames = append(fileNames, fmt.Sprintf("src/%s.ts.gtpl", tmpl))
 	}
 
-	funcs := TypescriptTemplateFuncs(schemaVersion, fullSchema, selfModule, cfg)
+	funcs := TypescriptTemplateFuncs(schemaVersion, fullSchema, selfModule, cfg, ids)
 	tmpl := template.Must(template.New(topLevelTemplate).Funcs(funcs).ParseFS(srcs, fileNames...))
 	return tmpl
 }
