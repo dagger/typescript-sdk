@@ -1,5 +1,5 @@
 name = "runtime-yarn-berry"
-engineVersion = "v1.0.0-beta.20"
+engineVersion = "v1.0.0-beta.21"
 
 [runtime]
   source = "typescript"

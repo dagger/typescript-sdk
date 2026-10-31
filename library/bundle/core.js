@@ -96758,7 +96758,7 @@ var init_index_min = __esm(() => {
 });
 
 // src/session/provisioning/engineVersion.ts
-var ENGINE_VERSION = "v1.0.0-beta.20";
+var ENGINE_VERSION = "v1.0.0-beta.21";
 
 // src/session/provisioning/bin.ts
 import * as crypto2 from "crypto";
