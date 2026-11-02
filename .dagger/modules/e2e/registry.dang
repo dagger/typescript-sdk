@@ -20,7 +20,7 @@ type LocalRegistry {
 
   It is what the storage volume is keyed on, so a version already present under a
   given key was published from the same bytes. That is what makes the volume safe to
-  outlive a run, and it is why `publish.sh` can treat "already published" as
+  outlive a run, and it is why `withPublished` can treat "already published" as
   ordinary rather than exceptional.
 
   It also carries a label that nothing publishes, naming the consumer. Content alone
@@ -113,23 +113,28 @@ type LocalRegistry {
   Chained rather than called side by side: publishing is a side effect on the
   service, and two containers that only share a service binding have no ordering
   between them — an install could be resolved before the publish it needs ran.
-  `id` only has to be unique within one chain; it names the directory the tarball
-  is packed from.
+  `pkg.id` only has to be unique within one chain; it names the directory the
+  tarball is packed from.
   """
   let withPublished(
     from: Container!,
-    pkg: Directory!,
-    id: String!,
-    distTag: String! = "",
+    pkg: PublishedPackage!,
+    distTag: String! = "latest",
   ): Container! {
-    let staged = "/publish/" + id
+    let staged = "/publish/" + pkg.id
 
     from
-      .withFile("/publish.sh", currentModule.source.file("publish.sh"))
-      .withEnvVariable("DIST_TAG", distTag)
-      .withDirectory(staged, pkg)
+      .withDirectory(staged, pkg.dir)
       .withWorkdir(staged)
-      .withExec(["sh", "/publish.sh"])
+      # The volume is keyed on content and outlives a run, so the same bytes are
+      # often already there and a 409 is ordinary rather than exceptional.
+      .withExec(["npm", "publish", "--tag", distTag], expect: ANY)
+      # Published or conflicted, the version has to be resolvable now. Decided by
+      # asking the registry rather than by matching an error string: npm, the
+      # registry and the proxy all word a 409 differently, and a check that greps
+      # for one of them passes for the wrong reason when the wording moves.
+      # `--prefer-online` because packing left npm holding its own metadata.
+      .withExec(["npm", "view", pkg.name + "@" + pkg.version, "version", "--prefer-online"])
       .withWorkdir("/work")
   }
 
@@ -139,21 +144,23 @@ type LocalRegistry {
   let withPublishedAll(
     from: Container!,
     pkgs: [PublishedPackage!]!,
-    distTag: String! = "",
+    distTag: String! = "latest",
   ): Container! {
     pkgs.reduce(from) { chain, pkg =>
-      withPublished(chain, pkg.dir, pkg.id, distTag: distTag)
+      withPublished(chain, pkg, distTag: distTag)
     }
   }
 }
 
 """
-One package staged for publishing: its contents, and a name for the directory it
-is packed from.
+One package staged for publishing: its contents, a name for the directory it is
+packed from, and the `name@version` the registry will know it by.
 """
 type PublishedPackage {
   let dir: Directory!
   let id: String!
+  let name: String!
+  let version: String!
 }
 
 """
@@ -286,9 +293,24 @@ type RegistryChecks {
   """
   let denoInstall(ws: Workspace!, label: String!, exempt: Boolean!): String! {
     let pkgs = [
-      PublishedPackage(dir: bundleEntryPackage(ws, "1.0.0"), id: "core"),
-      PublishedPackage(dir: probePackage("probe-writer", "1.0.0", writerSource), id: "writer"),
-      PublishedPackage(dir: probePackage("probe-reader", "1.0.0", readerSource), id: "reader"),
+      PublishedPackage(
+        dir: bundleEntryPackage(ws, "1.0.0"),
+        id: "core",
+        name: "@dagger.io/dagger",
+        version: "1.0.0",
+      ),
+      PublishedPackage(
+        dir: probePackage("probe-writer", "1.0.0", writerSource),
+        id: "writer",
+        name: "probe-writer",
+        version: "1.0.0",
+      ),
+      PublishedPackage(
+        dir: probePackage("probe-reader", "1.0.0", readerSource),
+        id: "reader",
+        name: "probe-reader",
+        version: "1.0.0",
+      ),
     ]
     let reg = LocalRegistry(content: staged(label, pkgs))
 
@@ -371,71 +393,113 @@ type RegistryChecks {
     let withReleased = reg.withPublishedAll(runtimeClient(reg, "node"), released)
     let withStaged = reg.withPublishedAll(withReleased, staging, distTag: "next")
 
-    let out = withStaged
+    let app = withStaged
       # No dependencies declared: every install below is driven from the command
       # line, so what resolves is the tag under test rather than a pinned range.
       .withNewFile("/work/package.json", "{ \"type\": \"module\" }\n")
       .withNewFile(compiledProbe, layersProbeSource)
-      .withExec(["sh", "-c", rehearsalScript])
-      .stdout
+      .withExec(["mkdir", "-p", observations])
+
+    # `latest` starts on 1.0.0. The storage volume outlives a run on purpose, so
+    # without this the preconditions would be whatever the last rehearsal flipped.
+    let preconditioned = withLatestAt(app, "1.0.0")
+      .withExec(["npm", "cache", "clean", "--force"])
+
+    let viewed = withRecordedVersion(preconditioned, "@dagger.io/session", as: "latest-before")
+    let viewedNext = withRecordedVersion(viewed, "@dagger.io/session@next", as: "next-before")
+
+    let smoked = viewedNext
+      .withExec([
+        "npm",
+        "install",
+        "@dagger.io/core@next",
+        "@dagger.io/module@next",
+        "@dagger.io/telemetry@next",
+      ])
+      .withExec(["node", compiledProbe], redirectStdout: observations + "/next-smoke")
+
+    let flipped = withLatestAt(smoked, "2.0.0")
+      .withExec(["rm", "-rf", "node_modules", "package-lock.json"])
+      .withExec(["npm", "cache", "clean", "--force"])
+
+    let rehearsed = withRecordedVersion(flipped, "@dagger.io/session", as: "latest-after")
+      .withExec(["npm", "install", "@dagger.io/core", "@dagger.io/module", "@dagger.io/telemetry"])
+      .withExec(["node", compiledProbe], redirectStdout: observations + "/latest-smoke")
+
+    let latestBefore = rehearsed.file(observations + "/latest-before").contents
+    let nextBefore = rehearsed.file(observations + "/next-before").contents
+    let nextSmoke = rehearsed.file(observations + "/next-smoke").contents
+    let latestAfter = rehearsed.file(observations + "/latest-after").contents
+    let latestSmoke = rehearsed.file(observations + "/latest-smoke").contents
 
     Asserts.stringContains(
-      out,
-      "staged: latest 1.0.0 next 2.0.0",
+      latestBefore,
+      "1.0.0",
       "publishing 2.0.0 under `next` must leave `latest` on 1.0.0 — otherwise " +
-        "the flip is not the user-visible step. Got: " + out,
+        "the flip is not the user-visible step. Got: " + latestBefore,
     )
     Asserts.stringContains(
-      out,
-      "next smoke: core object",
+      nextBefore,
+      "2.0.0",
+      "`next` should resolve to the staged version from a cold cache, so that it " +
+        "is the registry answering rather than npm's metadata. Got: " + nextBefore,
+    )
+    Asserts.stringContains(
+      nextSmoke,
+      "core object",
       "the staged version should install and import before anything is " +
-        "flipped — that is what gates the flip. Got: " + out,
+        "flipped — that is what gates the flip. Got: " + nextSmoke,
     )
     Asserts.stringContains(
-      out,
-      "flipped: 2.0.0",
+      latestAfter,
+      "2.0.0",
       "after dist-tag add, a plain install should resolve the new version. " +
-        "Got: " + out,
+        "Got: " + latestAfter,
     )
     Asserts.stringContains(
-      out,
-      "latest smoke: core object",
-      "and import it. Got: " + out,
+      latestSmoke,
+      "core object",
+      "and import it. Got: " + latestSmoke,
     )
 
     null
   }
 
   """
-  The rehearsal, as one exec: the registry has to stay up across all of it, and a
-  dist tag is state on the service rather than on any container.
+  Where the rehearsal keeps what it observed.
 
-  It sets `latest` to 1.0.0 first. The storage volume outlives a run on purpose,
-  so without that the preconditions would be whatever the last rehearsal flipped.
+  In files rather than read off `.stdout`, because only the last exec's output
+  comes back. Branching a read off the middle of the chain is not an option
+  either: a dist tag is state on the service rather than on any container, so a
+  branch would see whatever the registry held whenever it happened to run, not
+  what it held at that point in the sequence.
+  """
+  let observations: String! = "/observed"
 
-  `--prefer-online` after a cache clean is what makes the resolve steps mean
+  """
+  Point `latest` at one version of every layer, one step per package.
+
+  Every built layer, not just the three that ship on their own: the rehearsal
+  publishes all four, and it reads `latest` off `session` — the one the installs
+  below reach only transitively.
+  """
+  let withLatestAt(from: Container!, version: String!): Container! {
+    packager.builtLayers.reduce(from) { chain, layer =>
+      chain.withExec(["npm", "dist-tag", "add", "@dagger.io/" + layer + "@" + version, "latest"])
+    }
+  }
+
+  """
+  Record what one spec resolves to, into `observations`.
+
+  `--prefer-online` after a cache clean is what makes a resolve step mean
   something: npm would otherwise answer a `view` from metadata it already had.
   """
-  let rehearsalScript: String! {
-    "set -e\n" +
-      "for p in core module session telemetry; do\n" +
-      "  npm dist-tag add @dagger.io/$p@1.0.0 latest >/dev/null 2>&1\n" +
-      "done\n" +
-      "npm cache clean --force >/dev/null 2>&1\n" +
-      "echo \"staged: latest $(npm view @dagger.io/session version --prefer-online)" +
-      " next $(npm view @dagger.io/session@next version --prefer-online)\"\n" +
-      "npm install @dagger.io/core@next @dagger.io/module@next " +
-      "@dagger.io/telemetry@next >/dev/null 2>&1\n" +
-      "echo \"next smoke: $(node /work/probe.js | tr '\\n' ' ')\"\n" +
-      "for p in core module session telemetry; do\n" +
-      "  npm dist-tag add @dagger.io/$p@2.0.0 latest >/dev/null 2>&1\n" +
-      "done\n" +
-      "rm -rf node_modules package-lock.json\n" +
-      "npm cache clean --force >/dev/null 2>&1\n" +
-      "echo \"flipped: $(npm view @dagger.io/session version --prefer-online)\"\n" +
-      "npm install @dagger.io/core @dagger.io/module @dagger.io/telemetry " +
-      ">/dev/null 2>&1\n" +
-      "echo \"latest smoke: $(node /work/probe.js | tr '\\n' ' ')\"\n"
+  let withRecordedVersion(from: Container!, spec: String!, as: String!): Container! {
+    from.withExec(
+      ["npm", "view", spec, "version", "--prefer-online"],
+      redirectStdout: observations + "/" + as,
+    )
   }
 
   """
@@ -464,6 +528,8 @@ type RegistryChecks {
       PublishedPackage(
         dir: packager.publishablePackage(ws, layer, version: version),
         id: layer + "-" + version,
+        name: "@dagger.io/" + layer,
+        version: version,
       )
     }
   }
@@ -533,7 +599,14 @@ type RegistryChecks {
   node gets two lines because it has two answers: bare node, and node through tsx.
   """
   let loadProbe(ws: Workspace!, runtime: String!): String! {
-    let pkgs = [PublishedPackage(dir: corePackage(ws, "1.0.0"), id: "core")]
+    let pkgs = [
+      PublishedPackage(
+        dir: corePackage(ws, "1.0.0"),
+        id: "core",
+        name: "@dagger.io/dagger",
+        version: "1.0.0",
+      ),
+    ]
     let reg = LocalRegistry(content: staged("source-" + runtime, pkgs))
 
     reg
@@ -710,10 +783,20 @@ type RegistryChecks {
     coreB: Directory!,
   ): String! {
     let pkgs = [
-      PublishedPackage(dir: coreA, id: "core-a"),
-      PublishedPackage(dir: coreB, id: "core-b"),
-      PublishedPackage(dir: probePackage("probe-writer", "1.0.0", writerSource), id: "writer"),
-      PublishedPackage(dir: probePackage("probe-reader", "2.0.0", readerSource), id: "reader"),
+      PublishedPackage(dir: coreA, id: "core-a", name: "@dagger.io/dagger", version: "1.0.0"),
+      PublishedPackage(dir: coreB, id: "core-b", name: "@dagger.io/dagger", version: "2.0.0"),
+      PublishedPackage(
+        dir: probePackage("probe-writer", "1.0.0", writerSource),
+        id: "writer",
+        name: "probe-writer",
+        version: "1.0.0",
+      ),
+      PublishedPackage(
+        dir: probePackage("probe-reader", "2.0.0", readerSource),
+        id: "reader",
+        name: "probe-reader",
+        version: "1.0.0",
+      ),
     ]
     let reg = LocalRegistry(content: staged(label, pkgs))
 
