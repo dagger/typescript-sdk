@@ -14,7 +14,7 @@ Workspace state, module discovery and codegen go through the engine's native
 `Workspace` and `ModuleSource` APIs. Generating a module's entrypoint asks the
 engine how it names the module's own declarations (`ModuleSource.naming`,
 dagger/dagger#14996), so this module declares `engineVersion`
-`v1.0.0-beta.22`: install, init and generation all need an engine at that
+`v1.0.0-beta.25`: install, init and generation all need an engine at that
 release or newer. Module manifests are built with
 [`dagger/sdk-helpers`](https://github.com/dagger/sdk-helpers), the one module
 dependency.
@@ -122,7 +122,7 @@ the `__dagger.dispatch.ts` that program runs, which needs an engine carrying
 [dagger/dagger#14038][manifest-v2] — `v1.0.0-beta.15` or newer to load. Pass
 the flag and the module declares a `[runtime]` with the
 `__dagger.entrypoint.ts` that runtime execs instead. Generating either needs
-`v1.0.0-beta.22` or newer.
+`v1.0.0-beta.25` or newer.
 
 An existing module moves between the two on its next generation: set
 `legacyRuntime` in the scope's settings in `dagger.toml` and run `dagger
