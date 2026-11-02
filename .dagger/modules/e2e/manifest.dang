@@ -83,13 +83,17 @@ type ManifestChecks {
   The only `[entrypoint]` a module keeps is the generated one. A manifest that
   names a remote entrypoint source is rewritten to the generated entrypoint at
   generation, so a module always runs on the entrypoint this SDK wrote for it.
+
+  The remote source is python-sdk's shared Dang entrypoint, pinned to a commit
+  of its main: a real directory, because the engine resolves it when it loads
+  the module source, to read the dang.toml it may hold.
   """
   remoteEntrypointReplacedCheck(ws: Workspace!): Void @check {
     let path = Fixtures.out + "/manifest-remote-entrypoint"
     let input = ws
       .withNewFile(
         "/" + path + "/dagger-module.toml",
-        "name = \"manifest-remote-entrypoint\"\n\n[entrypoint]\n  kind = \"dang\"\n  source = \"github.com/dagger/sdk-helpers/entrypoint@main\"\n",
+        "name = \"manifest-remote-entrypoint\"\n\n[entrypoint]\n  kind = \"dang\"\n  source = \"github.com/dagger/python-sdk/entrypoint@eff8fc5056e7aef825caf381290e53c4e885a6d1\"\n",
       )
       .withNewFile(
         "/" + path + "/src/index.ts",
