@@ -400,7 +400,7 @@ codegen predicts no name. The bindings generators (`codegen module`, `client`,
 `library`) style the TypeScript identifiers they make from schema names (enum
 members' keys, enum converter functions, `<Parent><Field>Opts` types and the
 client import aliases) through one
-`Query.formatIdentifiers` query (PASCAL, acronyms in capitals, at the schema's
+`Query.naming(version:).formatIdentifiers` query (PASCAL, acronyms in capitals, at the schema's
 version), as the Go SDK styles its names.
 
 ### 5.2 Where the introspection JSON comes from

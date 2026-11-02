@@ -20,7 +20,7 @@
 // session the command runs nested in. The bindings generators (`module`,
 // `client`, `library`) style the identifiers they generate from schema names,
 // enum keys, enum converters, options types and client import aliases, through
-// Query.formatIdentifiers, in one query. `codegen entrypoint` and `codegen
+// Naming.formatIdentifiers, in one query. `codegen entrypoint` and `codegen
 // dang-entrypoint` ask how the engine names the module's own declarations
 // (ModuleSource.naming), in one query.
 // `codegen introspect` dumps the session schema the library bindings are
@@ -271,7 +271,7 @@ func moduleNaming(path string) (generator.ModuleNaming, error) {
 }
 
 // bindingsEngine is the session the bindings generators style identifiers
-// through (Query.formatIdentifiers). Outside one, it fails the first query
+// through (Naming.formatIdentifiers). Outside one, it fails the first query
 // with why, so a run that styles nothing still renders.
 func bindingsEngine() generator.Engine {
 	engine, err := session.FromEnv()

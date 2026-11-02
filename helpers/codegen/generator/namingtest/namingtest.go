@@ -1,7 +1,7 @@
 // Package namingtest is a fake engine for testing the generators, which ask
 // the engine how it names a module's own declarations (ModuleSource.naming),
 // and how it styles the identifiers the bindings generate
-// (Query.formatIdentifiers). It answers from tables, and fails on a name they
+// (Naming.formatIdentifiers). It answers from tables, and fails on a name they
 // don't have, as the engine fails on a name it can't parse.
 package namingtest
 
@@ -50,9 +50,10 @@ func (e *Engine) Versions() []any {
 // selection is a field of ModuleNaming selected with its list variable.
 var selection = regexp.MustCompile(`(\w+)\((?:names|candidates): \$(\w+)\)`)
 
-// formatIdentifiers is the selection of Query.formatIdentifiers in the
-// casing and acronym style the fake styles in.
-var formatIdentifiers = regexp.MustCompile(`formatIdentifiers\(names: \$names, casing: PASCAL, acronyms: UPPERCASE, version: \$version\)`)
+// formatIdentifiers is the selection of Naming.formatIdentifiers, at the
+// version Query.naming is asked for, in the casing and acronym style the fake
+// styles in.
+var formatIdentifiers = regexp.MustCompile(`naming\(version: \$version\) \{\s*formatIdentifiers\(names: \$names, casing: PASCAL, acronyms: UPPERCASE\)`)
 
 // Query implements generator.Engine.
 func (e *Engine) Query(_ context.Context, query string, variables map[string]any, data any) error {
@@ -110,7 +111,7 @@ func (e *Engine) format(variables map[string]any, data any) error {
 		}
 		answers[i] = answer
 	}
-	resp, err := json.Marshal(map[string]any{"formatIdentifiers": answers})
+	resp, err := json.Marshal(map[string]any{"naming": map[string]any{"formatIdentifiers": answers}})
 	if err != nil {
 		return err
 	}

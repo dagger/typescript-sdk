@@ -10,7 +10,7 @@ import (
 )
 
 // Identifiers are the engine's styling of the identifiers the bindings
-// generate from schema names (Query.formatIdentifiers): an enum member's key,
+// generate from schema names (Naming.formatIdentifiers): an enum member's key,
 // an enum's converter functions (<Enum>ValueToName), a field's options type
 // (<Parent><Field>Opts), and the alias a generated file imports a module
 // client under. TypeScript writes them in PascalCase; acronyms are in
@@ -31,7 +31,9 @@ type Identifiers struct {
 
 // formatIdentifiersQuery styles names in PascalCase with acronyms in capitals.
 const formatIdentifiersQuery = `query FormatIdentifiers($names: [String!]!, $version: String) {
-  formatIdentifiers(names: $names, casing: PASCAL, acronyms: UPPERCASE, version: $version)
+  naming(version: $version) {
+    formatIdentifiers(names: $names, casing: PASCAL, acronyms: UPPERCASE)
+  }
 }`
 
 // LoadIdentifiers styles, in one query through engine, every name of schema
@@ -82,16 +84,19 @@ func (ids *Identifiers) format(names []string) error {
 		vars["version"] = ids.version
 	}
 	var resp struct {
-		FormatIdentifiers []string `json:"formatIdentifiers"`
+		Naming struct {
+			FormatIdentifiers []string `json:"formatIdentifiers"`
+		} `json:"naming"`
 	}
 	if err := ids.engine.Query(ids.ctx, formatIdentifiersQuery, vars, &resp); err != nil {
 		return fmt.Errorf("identifiers: %w", err)
 	}
-	if len(resp.FormatIdentifiers) != len(names) {
-		return fmt.Errorf("identifiers: %d answers for %d names", len(resp.FormatIdentifiers), len(names))
+	styled := resp.Naming.FormatIdentifiers
+	if len(styled) != len(names) {
+		return fmt.Errorf("identifiers: %d answers for %d names", len(styled), len(names))
 	}
 	for i, name := range names {
-		ids.pascal[name] = resp.FormatIdentifiers[i]
+		ids.pascal[name] = styled[i]
 	}
 	return nil
 }
