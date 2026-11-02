@@ -35917,7 +35917,7 @@ var init_index_min = __esm(() => {
 });
 
 // src/session/dist/provisioning/engineVersion.js
-var ENGINE_VERSION = "v1.0.0-beta.20";
+var ENGINE_VERSION = "v1.0.0-beta.23";
 
 // src/session/dist/provisioning/bin.js
 import * as crypto2 from "crypto";
@@ -101072,42 +101072,6 @@ class ArtifactPath extends BaseClient {
   };
 }
 
-class ArtifactResult extends BaseClient {
-  _id = undefined;
-  constructor(ctx, _id) {
-    super(ctx);
-    this._id = _id;
-  }
-  id = async () => {
-    if (this._id) {
-      return this._id;
-    }
-    const ctx = this._ctx.select("id");
-    const response = await ctx.execute();
-    return response;
-  };
-  artifact = () => {
-    const ctx = this._ctx.select("artifact");
-    return new Artifact(ctx);
-  };
-  error = async () => {
-    const ctx = this._ctx.select("error").select("id");
-    const response = await ctx.execute();
-    if (response === null) {
-      return null;
-    }
-    return new Error2(ctx.copy().selectNode(response, "Error"));
-  };
-  value = async () => {
-    const ctx = this._ctx.select("value").select("id");
-    const response = await ctx.execute();
-    if (response === null) {
-      return null;
-    }
-    return new _NodeClient(ctx.copy().selectNode(response, "Node"));
-  };
-}
-
 class Artifacts extends BaseClient {
   _id = undefined;
   _uri = undefined;
@@ -101236,15 +101200,6 @@ class Artifacts extends BaseClient {
     const ctx = this._ctx.select("uri");
     const response = await ctx.execute();
     return response;
-  };
-  values = async (opts) => {
-    const ctx = this._ctx.select("values", { ...opts }).select("id");
-    const response = await ctx.execute();
-    return response.map((r2) => new ArtifactResult(ctx.copy().selectNode(r2.id, "ArtifactResult")));
-  };
-  withArtifacts = (artifacts) => {
-    const ctx = this._ctx.select("withArtifacts", { artifacts });
-    return new Artifacts(ctx);
   };
   withoutUri = (uri) => {
     const ctx = this._ctx.select("withoutUri", { uri });
@@ -101467,14 +101422,6 @@ class CollectionTypeDef extends BaseClient {
     const ctx = this._ctx.select("id");
     const response = await ctx.execute();
     return response;
-  };
-  batchType = async () => {
-    const ctx = this._ctx.select("batchType").select("id");
-    const response = await ctx.execute();
-    if (response === null) {
-      return null;
-    }
-    return new TypeDef(ctx.copy().selectNode(response, "TypeDef"));
   };
   keyType = () => {
     const ctx = this._ctx.select("keyType");
@@ -101911,6 +101858,10 @@ class Container extends BaseClient {
   };
   withMountedFile = (path8, source, opts) => {
     const ctx = this._ctx.select("withMountedFile", { path: path8, source, ...opts });
+    return new Container(ctx);
+  };
+  withMountedFiles = (path8, sources, opts) => {
+    const ctx = this._ctx.select("withMountedFiles", { path: path8, sources, ...opts });
     return new Container(ctx);
   };
   withMountedSecret = (path8, source, opts) => {
@@ -103101,6 +103052,10 @@ class File3 extends BaseClient {
     const ctx = this._ctx.select("export", { path: path8, ...opts });
     const response = await ctx.execute();
     return response;
+  };
+  extract = (opts) => {
+    const ctx = this._ctx.select("extract", { ...opts });
+    return new Directory(ctx);
   };
   name = async () => {
     if (this._name) {
