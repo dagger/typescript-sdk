@@ -98,4 +98,10 @@ type EntrypointOptions struct {
 	// LoaderImportPath overrides where the entrypoint imports the object loader
 	// from, relative to the module root (empty = clients/loader.gen.js).
 	LoaderImportPath string
+
+	// OutputDir is the directory the generated file is written to, relative to
+	// the module root (empty or "." = the root itself). Every other path here is
+	// module-root-relative, but a relative import resolves from the importing
+	// file, so the dispatcher under entrypoint/ needs them rebased.
+	OutputDir string
 }

@@ -99,11 +99,11 @@ const (
 	dangContextDir = "/workspace"
 )
 
-// DefaultDispatchFile is the filename of the generated dispatcher the Dang
-// entrypoint's call() execs. It sits beside the legacy __dagger.entrypoint.ts
-// rather than replacing it, so a module keeps working on an engine that still
-// loads it through the built-in runtime.
-const DefaultDispatchFile = "__dagger.dispatch.ts"
+// DefaultDispatchFile is the path, relative to the module root, of the generated
+// dispatcher the Dang entrypoint's call() execs. It lives beside the main.dang
+// that execs it: the two are one artifact of one scan, and the module root is
+// the user's directory, not a place to leave files they never open.
+const DefaultDispatchFile = "entrypoint/__dagger.dispatch.ts"
 
 // Indentation of the generated Dang, baked here rather than in the template:
 // the shape is fixed, and rendering whole chains in Go keeps the output stable

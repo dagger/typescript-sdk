@@ -40,3 +40,16 @@ func TestFormatMemberName(t *testing.T) {
 	require.Equal(t, "function_", funcs.formatMemberName("Function"))
 	require.Equal(t, "", funcs.formatMemberName(""))
 }
+
+// TestFromOutputDir covers the case the goldens do not: a module whose code
+// imports from outside its own directory (the `include` feature) records a
+// source path that already climbs, and the dispatcher's own depth has to be
+// added to it rather than replace it.
+func TestFromOutputDir(t *testing.T) {
+	require.Equal(t, "./clients/loader.gen.js", fromOutputDir("", "clients/loader.gen.js"))
+	require.Equal(t, "./clients/loader.gen.js", fromOutputDir(".", "clients/loader.gen.js"))
+	require.Equal(t, "../src/index", fromOutputDir("entrypoint", "src/index"))
+	require.Equal(t, "../src/index", fromOutputDir("entrypoint", "./src/index"))
+	require.Equal(t, "../../shared/lib", fromOutputDir("entrypoint", "../shared/lib"))
+	require.Equal(t, "../../src/index", fromOutputDir("a/b", "src/index"))
+}

@@ -126,7 +126,7 @@ type Entrypoint implements ModuleEntrypoint {
       runtime
         .withEnvVariable("DAGGER_MODULE_CALL_DIGEST", callDigest ?? "")
         .withEnvVariable("DAGGER_CLIENT_VERSION", "v1.0.0-beta.20")
-        .withExec(["tsx", "--no-deprecation", "--tsconfig", "tsconfig.json", "__dagger.dispatch.ts", "engine-call"], stdin: request)
+        .withExec(["tsx", "--no-deprecation", "--tsconfig", "tsconfig.json", "entrypoint/__dagger.dispatch.ts", "engine-call"], stdin: request)
         .stdout,
     ) :: DispatchReply!
     let failure = reply.error
@@ -205,8 +205,8 @@ type Entrypoint implements ModuleEntrypoint {
   """
   let requireGenerated: Void {
     let dir = currentModule.source
-    if (dir.exists("__dagger.dispatch.ts") == false) {
-      raise "module \"Smoke\" cannot run: the generated file \"__dagger.dispatch.ts\" is missing. Run `dagger generate` and commit what it writes."
+    if (dir.exists("entrypoint/__dagger.dispatch.ts") == false) {
+      raise "module \"Smoke\" cannot run: the generated file \"entrypoint/__dagger.dispatch.ts\" is missing. Run `dagger generate` and commit what it writes."
     } else if (dir.exists("clients/loader.gen.ts") == false) {
       raise "module \"Smoke\" cannot run: the generated file \"clients/loader.gen.ts\" is missing. Run `dagger generate` and commit what it writes."
     } else if (dir.exists("clients/dagger/index.ts") == false) {

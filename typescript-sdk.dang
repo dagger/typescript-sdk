@@ -43,10 +43,10 @@ type TypescriptSdk {
   carrying dagger/dagger#14038 reads an `[entrypoint]` table.
 
   The setting selects the whole loading path, not just the manifest: an
-  entrypoint module gets an `[entrypoint]` manifest, entrypoint/main.dang and
-  the __dagger.dispatch.ts that program shells out to, while a `[runtime]`
-  module gets none of those and keeps the __dagger.entrypoint.ts its runtime
-  execs. No module is generated with both halves.
+  entrypoint module gets an `[entrypoint]` manifest and an entrypoint/ holding
+  both halves of that path — main.dang and the __dagger.dispatch.ts it shells
+  out to — while a `[runtime]` module gets none of it and keeps the
+  __dagger.entrypoint.ts its runtime execs. No module is generated with both.
 
   An existing module moves between the two on its next generation, and the
   manifest is rewritten to match. Onto an entrypoint, it comes out with an
@@ -57,9 +57,9 @@ type TypescriptSdk {
   are derived from what its code imports. Back onto a `[runtime]`, it is
   written fresh: `engineVersion` pinned to the release this
   SDK ships for, `[[dependencies]]` rebuilt from the scope's clients, and the
-  other path's files — entrypoint/, __dagger.dispatch.ts, the clients/ packages
-  — removed. A `source` or `include` the original `[runtime]` manifest carried
-  is not restored.
+  other path's files — entrypoint/ and the clients/ packages — removed. A
+  `source` or `include` the original `[runtime]` manifest carried is not
+  restored.
 
   A scope's clients still work under an entrypoint. With no `[[dependencies]]`
   to declare them in, each generated client serves its own module into the
@@ -168,8 +168,8 @@ type TypescriptSdk {
   let dangEntrypointDir: String! = "entrypoint"
 
   """
-  The one file that directory holds: the generated Dang program the engine
-  loads. Named because pruning has to know what it owns in there.
+  The generated Dang program the engine loads out of that directory. Named
+  because pruning has to know what it owns in there.
   """
   let dangEntrypointFile: String! = "main.dang"
 
@@ -190,8 +190,14 @@ type TypescriptSdk {
   declares an `[entrypoint]`: nothing else loads it, and a copy left behind in a
   `[runtime]` module sits beside __dagger.entrypoint.ts under a name close
   enough to invite editing the wrong one.
+
+  Written inside dangEntrypointDir, beside the main.dang that execs it — the two
+  are one artifact of one scan, and a module root is the user's directory. The
+  name is the same one it had at the root, which is what lets pruning use it
+  both ways: what to take out of entrypoint/, and the stale copy to remove from
+  the root of a module generated before it moved.
   """
-  let dispatchFile: String! = "__dagger.dispatch.ts"
+  let dispatchFileName: String! = "__dagger.dispatch.ts"
 
   """
   Starter used by init when none is named.
@@ -1666,7 +1672,7 @@ type TypescriptSdk {
         "--module-root", "/work",
         "--source-dir", "src",
       ])
-      .file("/out/" + dispatchFile)
+      .file("/out/" + dangEntrypointDir + "/" + dispatchFileName)
   }
 
   """
@@ -1730,8 +1736,8 @@ type TypescriptSdk {
 
   Which dispatch file that is comes from the `legacyRuntime` setting, because a
   module is loaded one way or the other and never both: an `[entrypoint]` module
-  gets entrypoint/main.dang and the __dagger.dispatch.ts it shells out to, a
-  `[runtime]` module gets the __dagger.entrypoint.ts that runtime execs. sdk/
+  gets entrypoint/, holding main.dang and the __dagger.dispatch.ts it shells out
+  to, a `[runtime]` module the __dagger.entrypoint.ts that runtime execs. sdk/
   and clients/ are common to both — the library and the per-module bindings the
   module's own source imports, whichever way it is loaded.
   """
@@ -1770,7 +1776,7 @@ type TypescriptSdk {
       directory
         .withDirectory("clients", withClientPackageManifests(clients, clientNames))
         .withDirectory("clients/dagger", corePackage(bindings))
-        .withFile(dispatchFile, generateModuleDispatcher(typedef))
+        .withFile(dangEntrypointDir + "/" + dispatchFileName, generateModuleDispatcher(typedef))
         .withFile(
           dangEntrypointDir + "/" + dangEntrypointFile,
           generateDangEntrypoint(typedef, moduleName, sourcePath, runtime, packageManager, image, includes),
@@ -2203,33 +2209,38 @@ type TypescriptSdk {
   Writing stops on its own — moduleDirectory renders one path's files, not both
   — but writing is all that stops. A module generated under the other setting
   keeps what is already on disk: a legacy __dagger.entrypoint.ts beside a real
-  dispatcher with almost the same name, or a dispatcher and an entrypoint/
-  carrying a whole call recipe that nothing loads. Deleting is explicit here for
-  the same reason stale bindings are: what is no longer generated is not removed
-  by not generating it.
+  entrypoint/, or an entrypoint/ carrying a whole call recipe that nothing
+  loads. Deleting is explicit here for the same reason stale bindings are: what
+  is no longer generated is not removed by not generating it.
 
-  entrypoint/ holds the generated Dang program and nothing else, so the
-  directory goes with it — but by emptying it, not wholesale: a file the user
-  put in there is still theirs, and taking the directory whole took it along
-  (issue #87).
+  entrypoint/ holds what this SDK generates for that path and nothing else, so
+  the directory goes with it — but by emptying it, not wholesale: a file the
+  user put in there is still theirs, and taking the directory whole took it
+  along (issue #87).
+
+  The dispatcher at the module *root* is neither path's: that is where it was
+  written before it moved in beside the main.dang that execs it, and a copy left
+  there still resolves and still type-checks, so nothing would ever tell the
+  user it is dead. It goes under either setting.
   """
   let prunedInactiveDispatch(ws: Workspace!, sourcePath: String!): Workspace! {
     let existing = existingDir(ws, sourcePath)
     let prefix = if (sourcePath == ".") { "/" } else { "/" + sourcePath + "/" }
 
+    let withoutMoved = if (existing.exists(dispatchFileName)) {
+      ws.withoutFile(prefix + dispatchFileName)
+    } else {
+      ws
+    }
+
     if (legacyRuntime == false) {
       if (existing.exists(legacyEntrypointFile)) {
-        ws.withoutFile(prefix + legacyEntrypointFile)
+        withoutMoved.withoutFile(prefix + legacyEntrypointFile)
       } else {
-        ws
+        withoutMoved
       }
     } else {
-      let withoutDispatcher = if (existing.exists(dispatchFile)) {
-        ws.withoutFile(prefix + dispatchFile)
-      } else {
-        ws
-      }
-      prunedFiles(withoutDispatcher, scopeFile(sourcePath, dangEntrypointDir), [dangEntrypointFile])
+      prunedFiles(withoutMoved, scopeFile(sourcePath, dangEntrypointDir), [dangEntrypointFile, dispatchFileName])
     }
   }
 

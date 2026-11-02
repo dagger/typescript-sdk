@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"maps"
+	"path"
 	"path/filepath"
 	"slices"
 	"sort"
@@ -513,12 +514,13 @@ func (c *entrypointFuncCtx) plannedImports() []importLine {
 	if c.opts.LoaderImportPath != "" {
 		loaderImport = c.opts.LoaderImportPath
 	}
+	loaderImport = fromOutputDir(c.opts.OutputDir, loaderImport)
 	// Side-effect import as well as the named one, because the named one is not
 	// always used: a module with no object-typed argument, field or return never
 	// calls __loadCoreObject, and a type-stripping loader drops an unused named
 	// import outright. The loader is also what evaluates the compat shim that
 	// restores pre-1.0 `dag.<module>()`, so it has to be loaded either way.
-	lines = append(lines, importLine{From: "./" + loaderImport, Names: []string{"__loadObject as __loadCoreObject"}, SideEffect: true})
+	lines = append(lines, importLine{From: loaderImport, Names: []string{"__loadObject as __loadCoreObject"}, SideEffect: true})
 	lines = append(lines, importLine{From: sdk + "/telemetry", Namespace: "* as telemetry"})
 
 	// Group user imports by file path, deduping side-effect-only files.
@@ -589,17 +591,29 @@ func userImportPath(obj *TypedefObject, opts EntrypointOptions) (string, error) 
 				break
 			}
 		}
-		rel = filepath.ToSlash(rel)
-		if !strings.HasPrefix(rel, ".") {
-			rel = "./" + rel
-		}
-		return rel, nil
+		return fromOutputDir(opts.OutputDir, filepath.ToSlash(rel)), nil
 	}
 	src := opts.SourceDir
 	if src == "" {
 		src = "src"
 	}
-	return "./" + src + "/index", nil
+	return fromOutputDir(opts.OutputDir, src+"/index"), nil
+}
+
+// fromOutputDir rebases a module-root-relative import onto the directory the
+// generated file is written to, because a relative specifier resolves from the
+// importing file: the dispatcher under entrypoint/ reaches its loader and the
+// user's source through "../", the root entrypoint through "./".
+func fromOutputDir(outputDir, p string) string {
+	up := ""
+	if outputDir != "" && outputDir != "." {
+		up = strings.Repeat("../", strings.Count(path.Clean(outputDir), "/")+1)
+	}
+	p = path.Join(up, p)
+	if !strings.HasPrefix(p, ".") {
+		p = "./" + p
+	}
+	return p
 }
 
 // ---- shared helpers -------------------------------------------------------

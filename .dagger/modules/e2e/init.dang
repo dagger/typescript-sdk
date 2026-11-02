@@ -46,7 +46,7 @@ type InitChecks {
     # reads, so there is never a second dispatcher to wonder about.
     Asserts.notAdded(
       defaultChanges,
-      defaultPath + "/__dagger.dispatch.ts",
+      defaultPath + "/entrypoint/__dagger.dispatch.ts",
       "a [runtime] module should not get the entrypoint's dispatcher",
     )
     Asserts.notAdded(

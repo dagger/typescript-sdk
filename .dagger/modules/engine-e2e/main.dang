@@ -142,8 +142,8 @@ type EngineE2e {
       .withExec(["test", "-f", modulePath + "/src/index.ts"])
       .withExec(["test", "-f", modulePath + "/sdk/client.gen.ts"])
       .withExec(["test", "-f", modulePath + "/__dagger.entrypoint.ts"])
-      # A [runtime] module gets nothing of the manifest-v2 loading path.
-      .withExec(["test", "!", "-e", modulePath + "/__dagger.dispatch.ts"])
+      # A [runtime] module gets nothing of the manifest-v2 loading path, which is
+      # all of it: the Dang program and the dispatcher it execs both live in here.
       .withExec(["test", "!", "-e", modulePath + "/entrypoint"])
 
     # The whole scope entry, because the engine reserializes dagger.toml from
