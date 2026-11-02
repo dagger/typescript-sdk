@@ -1,0 +1,12 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "composite": true,
+    "rootDir": ".",
+    "outDir": "./dist"
+  },
+  // The introspector is generation-time, reaches above this layer, and is
+  // published nowhere — the root project compiles it for the bundle instead.
+  "include": ["decorators.ts", "registry.ts", "index.ts"],
+  "references": [{ "path": "../session" }]
+}

@@ -1,4 +1,5 @@
-import { collection, delta, field, func, get, keys, object, CollectionDelta } from "../../../../../index.js"
+import { collection, delta, field, func, get, keys, object } from "../../../../decorators.js"
+import { CollectionDelta } from "../../../../../core/client.gen.js"
 
 @object()
 export class Item {

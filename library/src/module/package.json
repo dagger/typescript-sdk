@@ -1,0 +1,25 @@
+{
+  "name": "@dagger.io/module",
+  "version": "0.0.0",
+  "author": "hello@dagger.io",
+  "license": "Apache-2.0",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist/"
+  ],
+  "engines": {
+    "node": ">=20"
+  },
+  "dependencies": {
+    "@dagger.io/session": "0.0.0",
+    "reflect-metadata": "^0.2.2"
+  }
+}

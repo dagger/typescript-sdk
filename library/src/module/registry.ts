@@ -4,8 +4,7 @@
 // @emitDecoratorMetadata
 import "reflect-metadata"
 
-import { UnknownDaggerError } from "../session/errors/index.js"
-import { shared } from "../session/shared.js"
+import { shared, UnknownDaggerError } from "@dagger.io/session"
 
 export type Class = { new (...args: any[]): any }
 
