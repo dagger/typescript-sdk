@@ -20,7 +20,7 @@ func naming(engine *namingtest.Engine) generator.ModuleNaming {
 }
 
 // namingAppEngine answers for testdata/typedef_naming.json as the engine at
-// v1.0.0-beta.22 does for a module named by its identifier naming rules.
+// v1.0.0-beta.25 does for a module named by its identifier naming rules.
 func namingAppEngine() *namingtest.Engine {
 	return &namingtest.Engine{
 		TypeNames:       map[string]string{"HttpFetcher": "NamingAppHTTPFetcher"},

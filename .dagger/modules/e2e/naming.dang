@@ -10,7 +10,7 @@ type NamingChecks {
 
   """
   The fixture generated as an entrypoint module. With pinned, the entrypoint's
-  dang.toml declares v1.0.0-beta.22, and the engine names the module by its
+  dang.toml declares v1.0.0-beta.25, and the engine names the module by its
   identifier naming rules; without one, by v1.0.0-beta.20, strcase.
   """
   generated(ws: Workspace!, pinned: Boolean! = false): Directory! {
@@ -25,7 +25,7 @@ type NamingChecks {
   let generatedScope(ws: Workspace!, pinned: Boolean!): Workspace! {
     let module = ws.directory("/" + fixture)
     let source = if (pinned) {
-      module.withNewFile("entrypoint/dang.toml", "[imports.Dagger]\ndagger = \"v1.0.0-beta.22\"\n")
+      module.withNewFile("entrypoint/dang.toml", "[imports.Dagger]\ndagger = \"v1.0.0-beta.25\"\n")
     } else { module }
     typescriptSdk(legacyRuntime: false, skipGenerateFilename: "").generateScope(
       ws: directory.withDirectory("naming-app", source).asWorkspace.withWorkdir("naming-app"),
