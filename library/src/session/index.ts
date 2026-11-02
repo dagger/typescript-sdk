@@ -4,9 +4,10 @@
  *
  * `core` and `module` reach this through the package specifier rather than a
  * relative path, which is what lets them be published separately. Inside this
- * repo that specifier resolves to this file through `tsconfig.json`'s `paths`,
- * so there is no build step between editing a layer and typechecking its
- * consumers. See design/package-split.md.
+ * repo npm workspaces symlink that specifier here and `exports` points it at
+ * `dist/`, so a consumer typechecks against built declarations and `tsc -b`
+ * has to run first. Resolving to source instead was tried and rejected; see
+ * design/package-split.md.
  */
 export * from "./errors/index.js"
 

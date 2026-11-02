@@ -15,8 +15,9 @@ type Packager {
   """
   Directory holding the library's own generated bindings, relative to
   libraryPath. They reach the runtime through @dagger.io/session — the package
-  they will be published alongside — which tsconfig paths resolve to
-  src/session/index.ts, so nothing has to be rewritten at packaging time.
+  they will be published alongside — a specifier that resolves through the
+  workspace symlink here and through the registry once published, so nothing
+  has to be rewritten at packaging time.
   """
   let bindingsPath: String! = "src/core"
 
