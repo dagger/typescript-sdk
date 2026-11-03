@@ -54,6 +54,11 @@ const main = async () => {
       }
       if (Date.now() >= deadline) {
         console.error(`${name}@${version} is not served by ${base} after ${timeoutMs}ms`)
+        // Staging tolerates a failed publish so a release can resume, which means
+        // a publish that failed outright lands here instead of there. EOTP is the
+        // one to look for: npm demands a one-time password unless the token is an
+        // automation token, and those are the only kind that bypass 2FA.
+        console.error("if it was never published, the `npm publish` step above says why")
         process.exit(1)
       }
       await sleep(wait)

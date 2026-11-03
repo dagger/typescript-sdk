@@ -466,6 +466,58 @@ type RegistryChecks {
   }
 
   """
+  The packager's `release` command, run end to end against a local registry.
+
+  That command is what will publish these packages for real, so what is worth
+  checking is the command itself rather than a transcription of its steps. The
+  rehearsal above asks a different question — whether the two-phase *shape*
+  protects a consumer across an upgrade — and answers it without the command,
+  which is why both exist.
+
+  The token is minted here rather than taken from the host: a module is an SDK
+  client, and the engine denies those access to host session attachables, so a
+  `cmd://` or `env://` secret fails at the first exec that reads it. `setSecret`
+  is in-engine and works. Its value is irrelevant anyway — this verdaccio accepts
+  anonymous publishes, and npm only insists that *some* token be configured.
+  """
+  releaseCommandCheck(ws: Workspace!): Void @check {
+    let version = "3.0.0"
+    let reg = LocalRegistry(content: staged("release-command", layerPackages(ws, version: version)))
+
+    let report = packager.release(
+      ws,
+      version,
+      setSecret("release-command-check-token", "e2e"),
+      registry: reg.url,
+      registryService: reg.service,
+      registryAlias: reg.alias,
+    )
+
+    packager.publishedLayers.each { layer =>
+      Asserts.stringContains(
+        report,
+        "@dagger.io/" + layer,
+        "release should report every layer it published. Got: " + report,
+      )
+    }
+
+    Asserts.stringContains(
+      report,
+      "latest: " + version,
+      "release should have moved `latest` onto the version it staged — that is " +
+        "the only user-visible step, and the whole point of the command. Got: " +
+        report,
+    )
+    Asserts.stringContains(
+      report,
+      "next: " + version,
+      "and left `next` on it too, since that is where it was staged. Got: " + report,
+    )
+
+    null
+  }
+
+  """
   Where the rehearsal keeps what it observed.
 
   In files rather than read off `.stdout`, because only the last exec's output
