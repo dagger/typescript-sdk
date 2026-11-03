@@ -248,7 +248,11 @@ type Packager {
         # part that matters. Nothing is lost by it either — the design forbids
         # mutating a published version, so a conflict means "already staged", and
         # await-published below is what decides whether that is actually true.
-        .withExec(["npm", "publish", "--tag", "next"], expect: ANY)
+        # --access public because these are scoped names and npm defaults a scope
+        # to restricted. Without it the first publish of each either fails or
+        # quietly creates a private package. No local registry can catch this:
+        # verdaccio ignores the flag entirely.
+        .withExec(["npm", "publish", "--tag", "next", "--access", "public"], expect: ANY)
     }
 
     let verified = staged
