@@ -393,9 +393,11 @@ Steps 1–4 are ordinary containers that ask the engine nothing but names. The
 entrypoint generators (`codegen entrypoint`, `codegen dang-entrypoint`) run as
 nested clients of the session, because they ask the engine for the names it
 gives the module's own declarations, which the generated entrypoints select:
-one `ModuleSource.naming` query (dagger/dagger#14996) for the module the engine
-loads, whose ID the SDK hands them. The engine answers by the rules of the
-version it names the module by, on either side of the identifier-casing cut, so
+one `Query.naming(version:).module(name:, originalName:)` query
+(dagger/dagger#14996). The SDK reads `version`, `name` and `originalName` from
+`source.naming` on the same final-staged module source the engine loads and
+passes those strings to codegen, not a source ID. The engine answers by the
+rules of that naming version, on either side of the identifier-casing cut, so
 codegen predicts no name. The bindings generators (`codegen module`, `client`,
 `library`) style the TypeScript identifiers they make from schema names (enum
 members' keys, enum converter functions, `<Parent><Field>Opts` types and the
