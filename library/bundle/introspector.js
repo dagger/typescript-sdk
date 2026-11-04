@@ -35917,7 +35917,7 @@ var init_index_min = __esm(() => {
 });
 
 // src/session/dist/provisioning/engineVersion.js
-var ENGINE_VERSION = "v1.0.0-beta.24";
+var ENGINE_VERSION = "v1.0.0-beta.25";
 
 // src/session/dist/provisioning/bin.js
 import * as crypto2 from "crypto";
