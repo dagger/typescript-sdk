@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"path"
 
 	"github.com/psanford/memfs"
 
@@ -54,6 +55,7 @@ func (g *TypeScriptGenerator) GenerateEntrypoint(ctx context.Context) (*generato
 		SourceDir:        cfg.SourceDir,
 		DispatchMode:     cfg.DispatchMode,
 		LoaderImportPath: cfg.LoaderImportPath,
+		OutputDir:        path.Dir(outFile),
 	})
 
 	topLevel := "entrypoint"
@@ -67,6 +69,11 @@ func (g *TypeScriptGenerator) GenerateEntrypoint(ctx context.Context) (*generato
 	}
 
 	mfs := memfs.New()
+	if dir := path.Dir(outFile); dir != "." {
+		if err := mfs.MkdirAll(dir, 0o755); err != nil {
+			return nil, fmt.Errorf("create %q in overlay: %w", dir, err)
+		}
+	}
 	if err := mfs.WriteFile(outFile, buf.Bytes(), 0o644); err != nil {
 		return nil, fmt.Errorf("write entrypoint to overlay: %w", err)
 	}

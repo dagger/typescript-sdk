@@ -201,7 +201,7 @@ type DangEntrypointGeneratorConfig struct {
 	ClientVersion string
 
 	// DispatchFile is the dispatcher call() execs, relative to the module
-	// directory. Defaults to "__dagger.dispatch.ts".
+	// directory. Defaults to "entrypoint/__dagger.dispatch.ts".
 	DispatchFile string
 
 	// TSConfigPath is the tsconfig tsx loads, relative to the module directory.

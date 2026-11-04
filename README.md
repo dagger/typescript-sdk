@@ -114,8 +114,9 @@ devDependencies along with the rest — Yarn Berry has no `--prod` of its own.
 otherwise — matching where the engine reads it from.
 
 `--legacy-runtime` picks the loading path, and a module is on one of them: by
-default it declares an `[entrypoint]` and carries `entrypoint/main.dang` plus
-the `__dagger.dispatch.ts` that program runs, which needs an engine carrying
+default it declares an `[entrypoint]` and carries an `entrypoint/` directory
+holding `main.dang` plus the `__dagger.dispatch.ts` that program runs, which
+needs an engine carrying
 [dagger/dagger#14038][manifest-v2] — `v1.0.0-beta.15` or newer. Pass the flag
 for an older engine and the module declares a `[runtime]` with the
 `__dagger.entrypoint.ts` that runtime execs instead.
@@ -126,8 +127,8 @@ generate`. Onto an entrypoint, the manifest drops `engineVersion`, `source`,
 `include` and `[[dependencies]]` with the `[runtime]` they hang off. Back onto a
 runtime, the manifest is written fresh — `engineVersion` pinned to the release
 this SDK ships for, `[[dependencies]]` rebuilt from the scope's clients — and
-`entrypoint/`, `__dagger.dispatch.ts` and the `clients/` packages are removed. A
-`source` or `include` the original manifest carried is not restored.
+`entrypoint/` and the `clients/` packages are removed. A `source` or `include`
+the original manifest carried is not restored.
 
 Pass it on a current engine too, for now: #14038 gates the entrypoint path on a
 `manifestVersion` that the manifest builder has no field for, so an

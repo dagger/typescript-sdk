@@ -104,17 +104,17 @@ func TestGenerateDangEntrypointRuntimes(t *testing.T) {
 		{
 			runtime: "node",
 			image:   "node:24.13.1-alpine@sha256:",
-			exec:    `["tsx", "--no-deprecation", "--tsconfig", "tsconfig.json", "__dagger.dispatch.ts", "engine-call"]`,
+			exec:    `["tsx", "--no-deprecation", "--tsconfig", "tsconfig.json", "entrypoint/__dagger.dispatch.ts", "engine-call"]`,
 		},
 		{
 			runtime: "bun",
 			image:   "oven/bun:1.3.0-alpine@sha256:",
-			exec:    `["bun", "run", "__dagger.dispatch.ts", "engine-call"]`,
+			exec:    `["bun", "run", "entrypoint/__dagger.dispatch.ts", "engine-call"]`,
 		},
 		{
 			runtime: "deno",
 			image:   "denoland/deno:alpine-2.5.0@sha256:",
-			exec:    `["deno", "run", "-q", "-A", "__dagger.dispatch.ts", "engine-call"]`,
+			exec:    `["deno", "run", "-q", "-A", "entrypoint/__dagger.dispatch.ts", "engine-call"]`,
 		},
 	} {
 		t.Run(tc.runtime, func(t *testing.T) {
@@ -593,7 +593,7 @@ func TestGenerateDangEntrypointGuardsGeneratedFiles(t *testing.T) {
 
 			// Every file the recipe mounts or execs.
 			for _, f := range append([]string{
-				"__dagger.dispatch.ts", "clients/loader.gen.ts",
+				"entrypoint/__dagger.dispatch.ts", "clients/loader.gen.ts",
 				"clients/dagger/index.ts", "clients/dagger/client.gen.ts", "clients/dagger/core.js",
 			}, tc.wants...) {
 				require.Contains(t, got, `dir.exists("`+f+`")`)
