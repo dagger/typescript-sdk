@@ -974,7 +974,7 @@ type TypescriptSdk {
   A dang.toml's configuration with the generated entrypoint's language and
   Dagger version set.
   """
-  let dangConfigWithTarget(config: SdkHelpersDangConfig!): SdkHelpersDangConfig! {
+  let dangConfigWithTarget(config: SDKHelpersDangConfig!): SDKHelpersDangConfig! {
     config
       .withVersion(dangLanguage)
       .withDaggerImport(name: dangDaggerImport, version: bundleEngineVersion)
@@ -1002,7 +1002,7 @@ type TypescriptSdk {
   withDaggerImport drops a `path` from an import of the same name, and it checks
   an endpoint against a version only on that one import.
   """
-  let checkedDangConfig(file: File!, path: String!, name: String!): SdkHelpersDangConfig! {
+  let checkedDangConfig(file: File!, path: String!, name: String!): SDKHelpersDangConfig! {
     let config = sdkHelpers.dangConfig(loadToml: file)
     if (config.version != dangLanguage) {
       raise "module \"" + name + "\": " + path + " declares Dang language " + config.version +
@@ -1042,7 +1042,7 @@ type TypescriptSdk {
   `refuseUnpinned` also refuses `dagger = true`: rewriting that file loses it,
   while a nearer generated file only narrows it.
   """
-  let refuseDisagreeingPin(config: SdkHelpersDangConfig!, path: String!, name: String!, refuseUnpinned: Boolean!): Void {
+  let refuseDisagreeingPin(config: SDKHelpersDangConfig!, path: String!, name: String!, refuseUnpinned: Boolean!): Void {
     let disagreeing = config.daggerImports.{{name, version}}
       .filter { i => i.name == dangDaggerImport }
       .map { i => i.version ?? "true" }
@@ -2241,9 +2241,9 @@ type TypescriptSdk {
 
     moduleDirectory(
       # The module the engine loads, as the engine sees it: an `[entrypoint]`
-      # one is staged with its final manifest already. Its schema is what the
-      # bindings are generated from, and its naming what the entrypoints
-      # select.
+      # one is staged with its final manifest and generated dang.toml already.
+      # Its schema is what the bindings are generated from, and its naming
+      # what the entrypoints select; do not substitute the SDK's engine floor.
       ws.moduleSource("/" + scope),
       name,
       sourcePath,

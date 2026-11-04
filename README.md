@@ -172,6 +172,13 @@ generated program also declares that release in `DAGGER_CLIENT_VERSION`. Languag
 separately needs the Dang implementation at v2.2.0 or later, so older standalone
 Dang tooling may reject the file.
 
+The config is written before codegen reads the served module source's
+`naming.version`, `name` and `originalName`. Those strings, not a source ID,
+reach `Naming.module` in the generator. The SDK's engine floor is beta.26,
+while the library target and generated import remain beta.24: generated
+entrypoint naming is therefore still pre-cut. Post-cut generation waits for
+the library pairing bump; unit tests exercise both naming versions now.
+
 The two values reach the engine separately:
 
 - `DAGGER_CLIENT_VERSION`: `v1.0.0-beta.22` reads it, through

@@ -70,8 +70,8 @@ directory, and a `paths` target is truncated at its first glob so a nested
 
 ## Requirements
 
-A generated module needs **dagger v1.0.0-beta.18 or later**, which is what it
-pins, whether or not it declares anything. Every module returns a `sources`
+A generated module's entrypoint contract needs **dagger v1.0.0-beta.18 or
+later**, whether or not it declares anything. Every module returns a `sources`
 member, and declaring it is what gets a `types` and a `call` with no workspace
 argument — so on an older engine the module does not load at all, and Dang's
 interface check reports the workspace argument as missing.
@@ -83,3 +83,9 @@ which the generated entrypoint selects when the module calls itself through
 one of its interfaces. A module that declares v1.0.0-beta.26 or later is named
 by the engine's identifier naming rules, and needs such an engine to load on
 as well.
+
+Generation writes `entrypoint/dang.toml` at the bundle's target (currently
+beta.24) before taking that source's resolved naming context. The SDK's
+beta.26 engine floor does not replace that naming version. Both a new
+entrypoint and an SDK-owned config upgraded to the bundle target therefore
+use pre-cut module names until the library pairing advances.
