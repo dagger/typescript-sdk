@@ -65,7 +65,7 @@ type E2e {
   """
   Checks for the names the engine gives a module's declarations, which the
   generated entrypoints select. They need an engine serving
-  ModuleSource.naming, v1.0.0-beta.25 or later.
+  ModuleSource.naming, v1.0.0-beta.26 or later.
   """
   naming: NamingChecks! {
     NamingChecks

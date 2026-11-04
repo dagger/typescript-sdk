@@ -106,7 +106,7 @@ func TestGenerate_StylesOptsTypesThroughTheEngine(t *testing.T) {
 	generator.SetSchemaParents(schema)
 
 	engine := &namingtest.Engine{Pascal: map[string]string{"asJson": "AsJSON"}}
-	state, err := generate(context.Background(), generator.Config{Engine: engine}, ClientGenFile, schema, "v1.0.0-beta.25")
+	state, err := generate(context.Background(), generator.Config{Engine: engine}, ClientGenFile, schema, "v1.0.0-beta.26")
 	require.NoError(t, err)
 	require.Equal(t, 1, engine.Queries())
 

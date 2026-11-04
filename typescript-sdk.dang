@@ -154,10 +154,10 @@ type TypescriptSdk {
   correct and deliberate, not a reference this bump forgot to move.
 
   Generating one is another matter: this SDK module declares
-  **v1.0.0-beta.25**, the first release serving `ModuleSource.naming`
+  **v1.0.0-beta.26**, the first release serving `ModuleSource.naming`
   (dagger/dagger#14996), which the entrypoint generators ask how the engine
   names the module's own declarations. A module the engine names by its
-  identifier naming rules (one declaring v1.0.0-beta.25 or later) needs such an
+  identifier naming rules (one declaring v1.0.0-beta.26 or later) needs such an
   engine to load on too: an older one would name it by strcase, and not by the
   names its entrypoints select.
   """

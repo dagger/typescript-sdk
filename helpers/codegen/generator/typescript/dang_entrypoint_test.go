@@ -527,7 +527,7 @@ func TestGenerateDangEntrypointDeclaresClientVersion(t *testing.T) {
 		DangEntrypointConfig: &generator.DangEntrypointGeneratorConfig{
 			TypedefJSONPath: "testdata/typedef_smoke.json",
 			Naming:          smokeNaming(),
-			ClientVersion:   "v1.0.0-beta.25",
+			ClientVersion:   "v1.0.0-beta.26",
 			Runtime:         "node",
 			ModulePath:      ".",
 		},
@@ -539,7 +539,7 @@ func TestGenerateDangEntrypointDeclaresClientVersion(t *testing.T) {
 
 	require.Contains(t, got, strings.Join([]string{
 		`        .withEnvVariable("DAGGER_MODULE_CALL_DIGEST", callDigest ?? "")`,
-		`        .withEnvVariable("DAGGER_CLIENT_VERSION", "v1.0.0-beta.25")`,
+		`        .withEnvVariable("DAGGER_CLIENT_VERSION", "v1.0.0-beta.26")`,
 		`        .withExec(`,
 	}, "\n"))
 }

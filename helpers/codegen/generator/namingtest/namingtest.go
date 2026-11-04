@@ -120,7 +120,7 @@ func (e *Engine) format(variables map[string]any, data any) error {
 
 // Styles are the engine's PascalCase styling, acronyms in capitals, of the
 // names the generators' test schemas generate identifiers from: what a
-// v1.0.0-beta.25 engine's formatIdentifiers answered for them, at every
+// v1.0.0-beta.26 engine's formatIdentifiers answered for them, at every
 // version the tests ask at.
 var Styles = map[string]string{
 	// Module file names, which the client import aliases are made from.

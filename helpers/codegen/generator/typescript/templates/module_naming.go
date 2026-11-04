@@ -16,7 +16,7 @@ import (
 // and which object the engine takes for the main one. They come from the
 // engine (ModuleSource.naming), which names a module by the rules of the
 // version it names it by: the engine's identifier naming rules from
-// v1.0.0-beta.25 on, strcase before it. Nothing here predicts a name: one the
+// v1.0.0-beta.26 on, strcase before it. Nothing here predicts a name: one the
 // entrypoint spelled differently than the engine would break the module at run
 // time (a fragment on a type that doesn't exist, a field that isn't there, an
 // unknown enum member).
