@@ -176,14 +176,16 @@ type Engine interface {
 	Query(ctx context.Context, query string, variables map[string]any, data any) error
 }
 
-// ModuleNaming is how the entrypoint generators learn the names the engine
-// gives the module's own declarations: ModuleSource.naming of the source with
-// ID SourceID, asked through Engine. The engine answers by the rules of the
-// version it names the module by, whichever side of the identifier-casing cut
-// that is, so the generators predict none of them.
+// ModuleNaming is the naming context of the source the engine serves. The
+// caller reads these strings from that source's ModuleSource.naming; the
+// generators recreate it with Naming.module through Engine. Version is the
+// module's naming version, not the running engine or generated core version.
+// Name and OriginalName differ when a module is loaded under an alias.
 type ModuleNaming struct {
-	Engine   Engine
-	SourceID string
+	Engine       Engine
+	Version      string
+	Name         string
+	OriginalName string
 }
 
 // Specific configuration for generating the Dang module entrypoint — the program

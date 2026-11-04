@@ -1,7 +1,7 @@
 // Package session is the Dagger session a codegen command runs in: the
 // engine's GraphQL endpoint, which the engine provides to a command it runs as
 // a nested client. The entrypoint generators use it to ask how the engine
-// names the module's own declarations (ModuleSource.naming).
+// names the module's own declarations (Naming.module).
 package session
 
 import (

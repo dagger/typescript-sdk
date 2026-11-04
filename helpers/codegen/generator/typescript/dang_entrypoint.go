@@ -63,7 +63,7 @@ func (g *TypeScriptGenerator) GenerateDangEntrypoint(ctx context.Context) (*gene
 		return nil, err
 	}
 	if main := names.MainObject(); len(module.Objects) > 0 && module.Objects[main] == nil {
-		return nil, fmt.Errorf("module %q has no main object: the engine takes none of %s for it (ModuleSource.naming's mainObject: a class whose name the engine's naming rules for the module turn into the same type name as the module's)",
+		return nil, fmt.Errorf("module %q has no main object: the engine takes none of %s for it (Naming.module's mainObject: a class whose name the engine's naming rules for the module turn into the same type name as the module's)",
 			cmp.Or(cfg.ModuleName, module.Name), strings.Join(slices.Sorted(maps.Keys(module.Objects)), ", "))
 	}
 

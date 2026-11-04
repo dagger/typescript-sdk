@@ -377,8 +377,8 @@ dagger generate ──▶ TypescriptSdk.generateAllModule(ws)          [@generat
                            ├─ 3. entrypoint (two execs)
                            │     bun introspector.js <name> src sdk/client.gen.ts
                            │       ⇒ typedef.json
-                           │     codegen entrypoint --typedef-json-path … --module-source-id-file … --output /out
-                           │       ⇒ __dagger.entrypoint.ts   (nested: asks ModuleSource.naming)
+                           │     codegen entrypoint --typedef-json-path … --naming-version … --module-name … --module-original-name … --output /out
+                           │       ⇒ __dagger.entrypoint.ts   (nested: asks Naming.module with the served source's naming strings)
                            │
                            ├─ 4. config-updater
                            │     module-package-json / module-tsconfig
@@ -474,7 +474,7 @@ sharing one flag set and one overlay writer:
 ```
 codegen client     --introspection-json-path … --client-meta-path … --output …
 codegen module     --introspection-json-path … --module-name … --output …
-codegen entrypoint --typedef-json-path … --module-source-id-file … --output … [--sdk-import …] [--source-dir …]
+codegen entrypoint --typedef-json-path … --naming-version … --module-name … --module-original-name … --output … [--sdk-import …] [--source-dir …]
 codegen library    --introspection-json-path … --output …          # §4.2, when we own the source
 ```
 

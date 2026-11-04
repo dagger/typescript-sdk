@@ -1,5 +1,5 @@
 // Package namingtest is a fake engine for testing the generators, which ask
-// the engine how it names a module's own declarations (ModuleSource.naming),
+// the engine how it names a module's own declarations (Naming.module),
 // and how it styles the identifiers the bindings generate
 // (Naming.formatIdentifiers). It answers from tables, and fails on a name they
 // don't have, as the engine fails on a name it can't parse.
@@ -14,10 +14,10 @@ import (
 	"sync"
 )
 
-// Engine answers ModuleSource.naming queries from its tables, for the module
-// source with ID SourceID, and formatIdentifiers queries from Pascal.
+// Engine answers Naming.module queries from its tables, for the supplied
+// naming version and module identity, and formatIdentifiers from Pascal.
 type Engine struct {
-	SourceID string
+	Version, Name, OriginalName string
 	// TypeNames, FieldNames and EnumMemberNames map a declared name to the
 	// engine's name for it.
 	TypeNames, FieldNames, EnumMemberNames map[string]string
@@ -50,6 +50,9 @@ func (e *Engine) Versions() []any {
 // selection is a field of ModuleNaming selected with its list variable.
 var selection = regexp.MustCompile(`(\w+)\((?:names|candidates): \$(\w+)\)`)
 
+var moduleNaming = regexp.MustCompile(`naming\(version: \$version\) \{\s*module\(name: \$name, originalName: \$originalName\) \{`)
+var nodeQuery = regexp.MustCompile(`\bnode\s*\(`)
+
 // formatIdentifiers is the selection of Naming.formatIdentifiers, at the
 // version Query.naming is asked for, in the casing and acronym style the fake
 // styles in.
@@ -63,8 +66,14 @@ func (e *Engine) Query(_ context.Context, query string, variables map[string]any
 	if formatIdentifiers.MatchString(query) {
 		return e.format(variables, data)
 	}
-	if variables["id"] != e.SourceID {
-		return json.Unmarshal([]byte(`{"node": null}`), data)
+	if !moduleNaming.MatchString(query) || nodeQuery.MatchString(query) {
+		return fmt.Errorf("fake engine: expected Naming.module query without node IDs")
+	}
+	if _, hasID := variables["id"]; hasID {
+		return fmt.Errorf("fake engine: naming query must not carry a source ID")
+	}
+	if variables["version"] != e.Version || variables["name"] != e.Name || variables["originalName"] != e.OriginalName {
+		return fmt.Errorf("fake engine: unexpected module naming context: %v", variables)
 	}
 	naming := map[string]any{}
 	for _, m := range selection.FindAllStringSubmatch(query, -1) {
@@ -90,7 +99,7 @@ func (e *Engine) Query(_ context.Context, query string, variables map[string]any
 			naming[field] = answers
 		}
 	}
-	resp, err := json.Marshal(map[string]any{"node": map[string]any{"naming": naming}})
+	resp, err := json.Marshal(map[string]any{"naming": map[string]any{"module": naming}})
 	if err != nil {
 		return err
 	}

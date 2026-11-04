@@ -1932,16 +1932,20 @@ type TypescriptSdk {
   """
   Run an entrypoint generator over the module's typedef, at /typedef.json.
 
-  The generators ask the engine how it names the module's own declarations,
-  which the generated entrypoints select: ModuleSource.naming of `source`, the
-  module the engine loads, whose ID they read from /module-source.id (an ID can
-  outgrow an exec argument), as nested clients of the session.
+  The generators ask the engine how it names the module's own declarations.
+  Read the naming version and both module names from the same final source
+  the engine loads; pass these plain strings, not its ID, to the nested exec.
+  The generator recreates its naming with Query.naming(version).module.
   """
   let entrypointGenerated(typedef: String!, source: ModuleSource!, args: [String!]!): Container! {
+    let naming = source.naming
     codegenBuilder
       .withNewFile("/typedef.json", typedef)
-      .withNewFile("/module-source.id", source.id)
-      .withExec(args + ["--module-source-id-file", "/module-source.id"])
+      .withExec(args + [
+        "--naming-version", naming.version,
+        "--module-name", naming.name,
+        "--module-original-name", naming.originalName,
+      ])
   }
 
   let generateModuleEntrypoint(typedef: String!, source: ModuleSource!): File! {
@@ -1997,7 +2001,6 @@ type TypescriptSdk {
   let generateDangEntrypoint(
     typedef: String!,
     source: ModuleSource!,
-    moduleName: String!,
     sourcePath: String!,
     rt: Runtime!,
     pkgManager: String!,
@@ -2008,7 +2011,6 @@ type TypescriptSdk {
         "codegen", "dang-entrypoint",
         "--typedef-json-path", "/typedef.json",
         "--output", "/out",
-        "--module-name", moduleName,
         "--runtime", runtimeName(rt),
         "--module-path", sourcePath,
         "--package-manager", pkgManager,
@@ -2085,7 +2087,7 @@ type TypescriptSdk {
         .withFile(dangEntrypointDir + "/" + dispatchFileName, generateModuleDispatcher(typedef, moduleSource))
         .withFile(
           dangEntrypointDir + "/" + dangEntrypointFile,
-          generateDangEntrypoint(typedef, moduleSource, moduleName, sourcePath, runtime, packageManager, image, includes),
+          generateDangEntrypoint(typedef, moduleSource, sourcePath, runtime, packageManager, image, includes),
         )
     } else {
       directory

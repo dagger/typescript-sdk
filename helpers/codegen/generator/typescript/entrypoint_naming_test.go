@@ -13,10 +13,13 @@ import (
 	"codegen/generator/namingtest"
 )
 
-// naming asks engine about the module source with ID "src".
+// naming asks the engine with the served source's version and both names.
 func naming(engine *namingtest.Engine) generator.ModuleNaming {
-	engine.SourceID = "src"
-	return generator.ModuleNaming{Engine: engine, SourceID: "src"}
+	if engine.Version == "" {
+		engine.Version = "v1.0.0-beta.26"
+	}
+	engine.Name, engine.OriginalName = "module-alias", "original-module"
+	return generator.ModuleNaming{Engine: engine, Version: engine.Version, Name: engine.Name, OriginalName: engine.OriginalName}
 }
 
 // namingAppEngine answers for testdata/typedef_naming.json as the engine at
@@ -35,6 +38,7 @@ func namingAppEngine() *namingtest.Engine {
 // named by strcase, which the goldens were rendered with.
 func smokeNaming() generator.ModuleNaming {
 	return naming(&namingtest.Engine{
+		Version:         "v1.0.0-beta.25",
 		TypeNames:       map[string]string{"Greeter": "SmokeGreeter"},
 		FieldNames:      map[string]string{"greet": "greet", "name": "name"},
 		EnumMemberNames: map[string]string{"Loud": "LOUD", "Quiet": "QUIET"},
@@ -44,6 +48,7 @@ func smokeNaming() generator.ModuleNaming {
 
 func ifaceReturnsNaming() generator.ModuleNaming {
 	return naming(&namingtest.Engine{
+		Version:    "v1.0.0-beta.25",
 		TypeNames:  map[string]string{"Greeter": "IfacesGreeter", "Speaker": "IfacesSpeaker"},
 		FieldNames: map[string]string{"chain": "chain", "ctr": "ctr", "ctrs": "ctrs", "say": "say", "speaker": "speaker", "widget": "widget"},
 		MainObject: "Ifaces",
@@ -185,7 +190,7 @@ func TestGenerateDangEntrypointWithoutMainObject(t *testing.T) {
 		},
 	}}
 	_, err := gen.GenerateDangEntrypoint(context.Background())
-	require.EqualError(t, err, `module "k8s-tools" has no main object: the engine takes none of K8STools, Tools for it (ModuleSource.naming's mainObject: a class whose name the engine's naming rules for the module turn into the same type name as the module's)`)
+	require.EqualError(t, err, `module "k8s-tools" has no main object: the engine takes none of K8STools, Tools for it (Naming.module's mainObject: a class whose name the engine's naming rules for the module turn into the same type name as the module's)`)
 
 	// A module that declares no object has none to take.
 	got := renderDangNaming(t, writeTypedef(t, "Empty"), &namingtest.Engine{})

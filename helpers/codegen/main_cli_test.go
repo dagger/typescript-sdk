@@ -385,6 +385,13 @@ func TestRunLibrary(t *testing.T) {
 	require.Contains(t, string(contents), `from "./core.js"`)
 }
 
+func TestModuleNamingNeedsSession(t *testing.T) {
+	t.Setenv("DAGGER_SESSION_PORT", "")
+	t.Setenv("DAGGER_SESSION_TOKEN", "")
+	_, err := moduleNaming("v1.0.0-beta.25", "alias", "original")
+	require.ErrorContains(t, err, "DAGGER_SESSION_PORT")
+}
+
 func TestRunEntrypoint(t *testing.T) {
 	dir := t.TempDir()
 	out := filepath.Join(dir, "out")
@@ -408,29 +415,45 @@ func TestRunEntrypoint(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	// The generator asks the session's engine how it names the module, about
-	// the module source whose ID it is given.
-	engine := &namingtest.Engine{SourceID: "module-source-id", MainObject: "App"}
-	nestIn(t, engine)
-	sourceID := writeFile(t, dir, "module-source.id", "module-source-id\n")
-
-	require.ErrorContains(t, run([]string{
-		"entrypoint",
-		"--typedef-json-path", writeFile(t, dir, "typedef.json", string(typedef)),
-		"--output", out,
-	}), "--module-source-id-file is required")
-
-	require.NoError(t, run([]string{
-		"entrypoint",
-		"--typedef-json-path", writeFile(t, dir, "typedef.json", string(typedef)),
-		"--module-source-id-file", sourceID,
-		"--output", out,
-		"--module-root", "/work",
-	}))
-	require.Equal(t, 1, engine.Queries())
-
-	contents, err := os.ReadFile(filepath.Join(out, "__dagger.entrypoint.ts"))
-	require.NoError(t, err)
-	require.Contains(t, string(contents), `import { App } from "./src/index"`)
-	require.Contains(t, string(contents), `case "hello":`)
+	// Neither renderer loads a source ID. The fake rejects node(id), and
+	// requires the exact naming version and both module names on each query.
+	for _, version := range []string{"v1.0.0-beta.25", "v1.0.0-beta.26"} {
+		for _, command := range []string{"entrypoint", "dang-entrypoint"} {
+			t.Run(command+"/"+version, func(t *testing.T) {
+				engine := &namingtest.Engine{Version: version, Name: "alias", OriginalName: "app", MainObject: "App"}
+				nestIn(t, engine)
+				args := []string{
+					command,
+					"--typedef-json-path", writeFile(t, dir, "typedef.json", string(typedef)),
+					"--output", out,
+				}
+				if command == "dang-entrypoint" {
+					// Core's version is deliberately different from naming's.
+					args = append(args, "--client-version", "v1.0.0-beta.20")
+				} else {
+					args = append(args, "--module-root", "/work")
+				}
+				flags := []string{"--naming-version", version, "--module-name", "alias", "--module-original-name", "app"}
+				for i := 0; i < len(flags); i += 2 {
+					missing := append([]string{}, args...)
+					missing = append(missing, flags[:i]...)
+					missing = append(missing, flags[i+2:]...)
+					require.ErrorContains(t, run(missing), flags[i]+" is required")
+				}
+				require.Equal(t, 0, engine.Queries())
+				require.NoError(t, run(append(args, flags...)))
+				require.Equal(t, 1, engine.Queries())
+				if command == "entrypoint" {
+					contents, err := os.ReadFile(filepath.Join(out, "__dagger.entrypoint.ts"))
+					require.NoError(t, err)
+					require.Contains(t, string(contents), `import { App } from "./src/index"`)
+					require.Contains(t, string(contents), `case "hello":`)
+				} else {
+					contents, err := os.ReadFile(filepath.Join(out, "entrypoint/main.dang"))
+					require.NoError(t, err)
+					require.Contains(t, string(contents), ".withConstructor(")
+				}
+			})
+		}
+	}
 }

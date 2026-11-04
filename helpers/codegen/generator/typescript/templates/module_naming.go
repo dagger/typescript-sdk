@@ -14,7 +14,7 @@ import (
 // declarations: the names the generated entrypoints select when they call the
 // module through its own interfaces, the enum members they send and receive,
 // and which object the engine takes for the main one. They come from the
-// engine (ModuleSource.naming), which names a module by the rules of the
+// engine (Naming.module), which names a module by the rules of the
 // version it names it by: the engine's identifier naming rules from
 // v1.0.0-beta.26 on, strcase before it. Nothing here predicts a name: one the
 // entrypoint spelled differently than the engine would break the module at run
@@ -35,44 +35,42 @@ type ModuleNames struct {
 	mainObject string
 }
 
-// namingQuery selects fields of the naming of the module source with ID $id;
-// the first verb declares the fields' variables, the second selects them.
-const namingQuery = `query ModuleNaming($id: ID!%s) {
-  node(id: $id) {
-    ... on ModuleSource {
-      naming {
-        %s
-      }
+// namingQuery recreates the module naming from the served source's version
+// and names; the first verb declares field variables, the second selects them.
+const namingQuery = `query ModuleNaming($version: String!, $name: String!, $originalName: String!%s) {
+  naming(version: $version) {
+    module(name: $name, originalName: $originalName) {
+      %s
     }
   }
 }`
 
-// ask selects fields of ModuleSource.naming, with their variables declared by
+// ask selects fields of Naming.module, with their variables declared by
 // params, and decodes the selected ModuleNaming into data.
 func (n *ModuleNames) ask(params, fields string, variables map[string]any, data any) error {
-	if n.naming.Engine == nil || n.naming.SourceID == "" {
-		return fmt.Errorf("module names: no module source to ask the engine about")
+	if n.naming.Engine == nil || n.naming.Version == "" || n.naming.Name == "" || n.naming.OriginalName == "" {
+		return fmt.Errorf("module names: no complete naming context to ask the engine about")
 	}
-	vars := map[string]any{"id": n.naming.SourceID}
+	vars := map[string]any{"version": n.naming.Version, "name": n.naming.Name, "originalName": n.naming.OriginalName}
 	maps.Copy(vars, variables)
 	var resp struct {
-		Node *struct {
-			Naming json.RawMessage `json:"naming"`
-		} `json:"node"`
+		Naming *struct {
+			Module json.RawMessage `json:"module"`
+		} `json:"naming"`
 	}
 	if err := n.naming.Engine.Query(n.ctx, fmt.Sprintf(namingQuery, params, fields), vars, &resp); err != nil {
 		return fmt.Errorf("module names: %w", err)
 	}
-	if resp.Node == nil || resp.Node.Naming == nil {
-		return fmt.Errorf("module names: %q is not a module source", n.naming.SourceID)
+	if resp.Naming == nil || len(resp.Naming.Module) == 0 || string(resp.Naming.Module) == "null" {
+		return fmt.Errorf("module names: engine returned no module naming for %q at %q", n.naming.Name, n.naming.Version)
 	}
-	return json.Unmarshal(resp.Node.Naming, data)
+	return json.Unmarshal(resp.Naming.Module, data)
 }
 
 // LoadModuleNames asks the engine, in one query, for the names of every
 // declaration of module the entrypoints select: its interfaces, their
 // functions and arguments, the members of its enums, and which of its objects
-// is the main one. Without a module source to ask about, nothing is asked: a
+// is the main one. Without an engine, nothing is asked: a
 // module that selects none of its own names renders the same, and one that
 // does fails to.
 func LoadModuleNames(ctx context.Context, naming generator.ModuleNaming, module *TypedefModule) (*ModuleNames, error) {

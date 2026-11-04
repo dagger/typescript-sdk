@@ -1,6 +1,8 @@
 package templates
 
 import (
+	"context"
+	"encoding/json"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -9,63 +11,95 @@ import (
 	"codegen/generator/namingtest"
 )
 
-// The names a module's entrypoints select are asked for in one query, and
-// looked up as the engine answered them.
+// Both sides of the cut use exactly the served source's context, including
+// an alias distinct from its original name and the scanned typedef's name.
 func TestLoadModuleNames(t *testing.T) {
-	engine := &namingtest.Engine{
-		SourceID:   "src",
-		TypeNames:  map[string]string{"HttpFetcher": "NamingAppHTTPFetcher"},
-		FieldNames: map[string]string{"getUrl": "getUrl", "path": "path", "E2ETest": "e2eTest"},
-		MainObject: "NamingApp",
+	for _, tc := range []struct{ version, iface, field, member string }{
+		{"v1.0.0-beta.25", "AliasHttpFetcher", "e2Etest", "ARM_64"},
+		{"v1.0.0-beta.26", "AliasHTTPFetcher", "e2eTest", "ARM64"},
+	} {
+		t.Run(tc.version, func(t *testing.T) {
+			engine := &namingtest.Engine{
+				Version: tc.version, Name: "alias", OriginalName: "naming-app",
+				TypeNames:       map[string]string{"HttpFetcher": tc.iface},
+				FieldNames:      map[string]string{"getUrl": "getUrl", "path": "path", "E2ETest": tc.field},
+				EnumMemberNames: map[string]string{"Arm64": tc.member},
+				MainObject:      "NamingApp",
+			}
+			naming := generator.ModuleNaming{Engine: engine, Version: tc.version, Name: "alias", OriginalName: "naming-app"}
+			names, err := LoadModuleNames(t.Context(), naming, namingAppModule())
+			require.NoError(t, err)
+			require.Equal(t, 1, engine.Queries())
+			require.Equal(t, "NamingApp", names.MainObject())
+
+			got, err := names.typeName("HttpFetcher")
+			require.NoError(t, err)
+			require.Equal(t, tc.iface, got)
+			got, err = names.fieldName("getUrl")
+			require.NoError(t, err)
+			require.Equal(t, "getUrl", got)
+			got, err = names.enumMemberName("Arm64")
+			require.NoError(t, err)
+			require.Equal(t, tc.member, got)
+			require.Equal(t, 1, engine.Queries(), "asked up front")
+
+			// A miss uses the same naming context and is cached after one query.
+			for range 2 {
+				got, err = names.fieldName("E2ETest")
+				require.NoError(t, err)
+				require.Equal(t, tc.field, got)
+			}
+			require.Equal(t, 2, engine.Queries())
+			_, err = names.typeName("Unknown")
+			require.ErrorContains(t, err, `can't name "Unknown"`)
+		})
 	}
-	names, err := LoadModuleNames(t.Context(), generator.ModuleNaming{Engine: engine, SourceID: "src"}, namingAppModule())
-	require.NoError(t, err)
-	require.Equal(t, 1, engine.Queries())
-	require.Equal(t, "NamingApp", names.MainObject())
-
-	got, err := names.typeName("HttpFetcher")
-	require.NoError(t, err)
-	require.Equal(t, "NamingAppHTTPFetcher", got)
-	got, err = names.fieldName("getUrl")
-	require.NoError(t, err)
-	require.Equal(t, "getUrl", got)
-	require.Equal(t, 1, engine.Queries(), "asked up front")
-
-	// A name that wasn't asked up front is asked directly, once.
-	for range 2 {
-		got, err = names.fieldName("E2ETest")
-		require.NoError(t, err)
-		require.Equal(t, "e2eTest", got)
-	}
-	require.Equal(t, 2, engine.Queries())
-
-	// A name the engine can't name fails.
-	_, err = names.typeName("Unknown")
-	require.ErrorContains(t, err, `can't name "Unknown"`)
 }
 
-// An engine that can't name what the module declares fails loading, and so
-// does a source the engine doesn't know.
 func TestLoadModuleNamesFails(t *testing.T) {
-	engine := &namingtest.Engine{SourceID: "src"}
-	_, err := LoadModuleNames(t.Context(), generator.ModuleNaming{Engine: engine, SourceID: "src"}, namingAppModule())
+	engine := &namingtest.Engine{Version: "v1.0.0-beta.26", Name: "alias", OriginalName: "naming-app"}
+	naming := generator.ModuleNaming{Engine: engine, Version: engine.Version, Name: engine.Name, OriginalName: engine.OriginalName}
+	_, err := LoadModuleNames(t.Context(), naming, namingAppModule())
 	require.ErrorContains(t, err, `can't name "HttpFetcher"`)
 
-	_, err = LoadModuleNames(t.Context(), generator.ModuleNaming{Engine: engine, SourceID: "other"}, namingAppModule())
-	require.ErrorContains(t, err, `"other" is not a module source`)
+	for _, field := range []string{"version", "name", "originalName"} {
+		missing := naming
+		switch field {
+		case "version":
+			missing.Version = ""
+		case "name":
+			missing.Name = ""
+		case "originalName":
+			missing.OriginalName = ""
+		}
+		_, err := LoadModuleNames(t.Context(), missing, namingAppModule())
+		require.ErrorContains(t, err, "no complete naming context")
+	}
+
+	for _, response := range []string{`{}`, `{"naming":null}`, `{"naming":{}}`, `{"naming":{"module":null}}`} {
+		naming.Engine = namingQueryFunc(func(_ context.Context, _ string, _ map[string]any, data any) error {
+			return json.Unmarshal([]byte(response), data)
+		})
+		_, err := LoadModuleNames(t.Context(), naming, namingAppModule())
+		require.ErrorContains(t, err, "engine returned no module naming")
+	}
 }
 
-// Without a module source nothing is asked, and a name looked up fails.
+type namingQueryFunc func(context.Context, string, map[string]any, any) error
+
+func (f namingQueryFunc) Query(ctx context.Context, query string, variables map[string]any, data any) error {
+	return f(ctx, query, variables, data)
+}
+
+// Without an engine nothing is asked, and a name looked up fails.
 func TestModuleNamesWithoutEngine(t *testing.T) {
 	names, err := LoadModuleNames(t.Context(), generator.ModuleNaming{}, namingAppModule())
 	require.NoError(t, err)
 	require.Empty(t, names.MainObject())
 	_, err = names.typeName("HttpFetcher")
-	require.ErrorContains(t, err, "no module source")
+	require.ErrorContains(t, err, "no complete naming context")
 }
 
-// namingAppModule declares an interface whose name has an acronym, which the
-// engine names differently by its rules than by strcase.
 func namingAppModule() *TypedefModule {
 	str := &TypedefType{Kind: KindString}
 	return &TypedefModule{
@@ -81,6 +115,9 @@ func namingAppModule() *TypedefModule {
 					"getUrl": {Name: "getUrl", ReturnType: str, Arguments: []*TypedefArgument{{Name: "path", Type: str}}},
 				},
 			},
+		},
+		Enums: map[string]*TypedefEnum{
+			"Arch": {Name: "Arch", Values: map[string]*TypedefEnumValue{"Arm64": {Name: "Arm64", Value: "arm64"}}},
 		},
 	}
 }

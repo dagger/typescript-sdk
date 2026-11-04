@@ -22,7 +22,7 @@
 // enum keys, enum converters, options types and client import aliases, through
 // Naming.formatIdentifiers, in one query. `codegen entrypoint` and `codegen
 // dang-entrypoint` ask how the engine names the module's own declarations
-// (ModuleSource.naming), in one query.
+// (Naming.module, from the served source's naming strings), in one query.
 // `codegen introspect` dumps the session schema the library bindings are
 // generated from, and only runs in this repo's own generate step.
 package main
@@ -111,15 +111,17 @@ func run(args []string) error {
 func runEntrypoint(args []string) error {
 	fs := flag.NewFlagSet("entrypoint", flag.ExitOnError)
 	var (
-		typedefPath  = fs.String("typedef-json-path", "", "path to the typedef JSON emitted by the SDK introspector")
-		outputDir    = fs.String("output", ".", "output directory for the generated entrypoint")
-		outputFile   = fs.String("output-file", typescriptgenerator.DefaultEntrypointFile, "filename to write within the output directory")
-		moduleRoot   = fs.String("module-root", "", "absolute path of the module root, used to resolve source-import paths")
-		sdkImport    = fs.String("sdk-import", "@dagger.io/dagger", "bare specifier the entrypoint imports runtime helpers from")
-		sourceDir    = fs.String("source-dir", "src", "the module's source directory, relative to its root")
-		dispatch     = fs.Bool("dispatch", false, "render the manifest-v2 dispatcher (stdin/stdout, no register) instead of the legacy entrypoint")
-		loaderImport = fs.String("loader-import", "", "where the entrypoint imports the object loader from, relative to the module root (default clients/loader.gen.js)")
-		sourceIDPath = fs.String("module-source-id-file", "", moduleSourceIDUsage)
+		typedefPath        = fs.String("typedef-json-path", "", "path to the typedef JSON emitted by the SDK introspector")
+		outputDir          = fs.String("output", ".", "output directory for the generated entrypoint")
+		outputFile         = fs.String("output-file", typescriptgenerator.DefaultEntrypointFile, "filename to write within the output directory")
+		moduleRoot         = fs.String("module-root", "", "absolute path of the module root, used to resolve source-import paths")
+		sdkImport          = fs.String("sdk-import", "@dagger.io/dagger", "bare specifier the entrypoint imports runtime helpers from")
+		sourceDir          = fs.String("source-dir", "src", "the module's source directory, relative to its root")
+		dispatch           = fs.Bool("dispatch", false, "render the manifest-v2 dispatcher (stdin/stdout, no register) instead of the legacy entrypoint")
+		loaderImport       = fs.String("loader-import", "", "where the entrypoint imports the object loader from, relative to the module root (default clients/loader.gen.js)")
+		namingVersion      = fs.String("naming-version", "", namingVersionUsage)
+		moduleName         = fs.String("module-name", "", moduleNameUsage)
+		moduleOriginalName = fs.String("module-original-name", "", moduleOriginalNameUsage)
 	)
 	if err := fs.Parse(args); err != nil {
 		return err
@@ -127,7 +129,7 @@ func runEntrypoint(args []string) error {
 	if *typedefPath == "" {
 		return fmt.Errorf("--typedef-json-path is required")
 	}
-	naming, err := moduleNaming(*sourceIDPath)
+	naming, err := moduleNaming(*namingVersion, *moduleName, *moduleOriginalName)
 	if err != nil {
 		return err
 	}
@@ -173,18 +175,19 @@ func runEntrypoint(args []string) error {
 func runDangEntrypoint(args []string) error {
 	fs := flag.NewFlagSet("dang-entrypoint", flag.ExitOnError)
 	var (
-		typedefPath  = fs.String("typedef-json-path", "", "path to the typedef JSON emitted by the SDK introspector")
-		outputDir    = fs.String("output", ".", "output directory for the generated entrypoint")
-		outputFile   = fs.String("output-file", typescriptgenerator.DefaultDangEntrypointFile, "path to write within the output directory")
-		moduleName   = fs.String("module-name", "", "the module's name, used in the error a missing generated file raises")
-		runtime      = fs.String("runtime", "node", "JS runtime the call() recipe targets: node, bun or deno")
-		modulePath   = fs.String("module-path", ".", "module directory relative to the workspace root, used as the container workdir")
-		packageMgr   = fs.String("package-manager", "", "package manager the call() recipe installs with, as name[@version] (npm, yarn, pnpm, bun, deno)")
-		baseImage    = fs.String("base-image", "", "image the call() recipe builds on; empty keeps the pin for --runtime")
-		clientVer    = fs.String("client-version", "", "engine release the module's bindings are generated for, as vX.Y.Z[-pre]; declared to the engine when a call starts the module")
-		dispatchFile = fs.String("dispatch-file", typescriptgenerator.DefaultDispatchFile, "dispatcher call() execs, relative to the module directory")
-		tsconfigPath = fs.String("tsconfig", "tsconfig.json", "tsconfig tsx loads, relative to the module directory (node only)")
-		sourceIDPath = fs.String("module-source-id-file", "", moduleSourceIDUsage)
+		typedefPath        = fs.String("typedef-json-path", "", "path to the typedef JSON emitted by the SDK introspector")
+		outputDir          = fs.String("output", ".", "output directory for the generated entrypoint")
+		outputFile         = fs.String("output-file", typescriptgenerator.DefaultDangEntrypointFile, "path to write within the output directory")
+		moduleName         = fs.String("module-name", "", moduleNameUsage)
+		runtime            = fs.String("runtime", "node", "JS runtime the call() recipe targets: node, bun or deno")
+		modulePath         = fs.String("module-path", ".", "module directory relative to the workspace root, used as the container workdir")
+		packageMgr         = fs.String("package-manager", "", "package manager the call() recipe installs with, as name[@version] (npm, yarn, pnpm, bun, deno)")
+		baseImage          = fs.String("base-image", "", "image the call() recipe builds on; empty keeps the pin for --runtime")
+		clientVer          = fs.String("client-version", "", "engine release the module's bindings are generated for, as vX.Y.Z[-pre]; declared to the engine when a call starts the module")
+		dispatchFile       = fs.String("dispatch-file", typescriptgenerator.DefaultDispatchFile, "dispatcher call() execs, relative to the module directory")
+		tsconfigPath       = fs.String("tsconfig", "tsconfig.json", "tsconfig tsx loads, relative to the module directory (node only)")
+		namingVersion      = fs.String("naming-version", "", namingVersionUsage)
+		moduleOriginalName = fs.String("module-original-name", "", moduleOriginalNameUsage)
 	)
 	var includes []string
 	fs.Func("include", `workspace-relative path outside the module directory the module builds with, "!"-prefixed to exclude (repeatable)`, func(v string) error {
@@ -210,7 +213,7 @@ func runDangEntrypoint(args []string) error {
 	if err != nil {
 		return err
 	}
-	naming, err := moduleNaming(*sourceIDPath)
+	naming, err := moduleNaming(*namingVersion, *moduleName, *moduleOriginalName)
 	if err != nil {
 		return err
 	}
@@ -248,26 +251,27 @@ func runDangEntrypoint(args []string) error {
 	return nil
 }
 
-const moduleSourceIDUsage = "file holding the ID of the module source the entrypoint is generated for, " +
-	"whose ModuleSource.naming the engine of the session is asked"
+const namingVersionUsage = "version of the naming of the module source the engine serves, not the running engine or generated core version"
+const moduleNameUsage = "module name from the served source's naming"
+const moduleOriginalNameUsage = "original module name from the served source's naming (before an alias)"
 
-// moduleNaming is where the entrypoint generators ask how the engine names
-// the module's own declarations: the module source whose ID is in path, over
-// the session the command runs nested in. The ID comes in a file because it
-// can outgrow an exec argument.
-func moduleNaming(path string) (generator.ModuleNaming, error) {
-	if path == "" {
-		return generator.ModuleNaming{}, fmt.Errorf("--module-source-id-file is required")
-	}
-	id, err := os.ReadFile(path)
-	if err != nil {
-		return generator.ModuleNaming{}, fmt.Errorf("read module source id: %w", err)
+// moduleNaming recreates the served source's naming from plain string inputs
+// over the nested session. No source ID is transported or loaded by codegen.
+func moduleNaming(version, name, originalName string) (generator.ModuleNaming, error) {
+	for _, arg := range []struct{ flag, value string }{
+		{"naming-version", version},
+		{"module-name", name},
+		{"module-original-name", originalName},
+	} {
+		if arg.value == "" {
+			return generator.ModuleNaming{}, fmt.Errorf("--%s is required", arg.flag)
+		}
 	}
 	engine, err := session.FromEnv()
 	if err != nil {
 		return generator.ModuleNaming{}, err
 	}
-	return generator.ModuleNaming{Engine: engine, SourceID: strings.TrimSpace(string(id))}, nil
+	return generator.ModuleNaming{Engine: engine, Version: version, Name: name, OriginalName: originalName}, nil
 }
 
 // bindingsEngine is the session the bindings generators style identifiers
