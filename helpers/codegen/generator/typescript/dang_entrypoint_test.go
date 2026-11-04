@@ -509,9 +509,9 @@ func TestGenerateDangEntrypointImplementsContract(t *testing.T) {
 
 // TestGenerateDangEntrypointDeclaresClientVersion pins how the module process
 // learns which engine release its bindings are generated for: a variable on the
-// exec that starts it, beside the call digest. The engine ignores it today; a
-// later one reads it to serve that release's view, so it has to be there from
-// now on.
+// exec that starts it, beside the call digest. The dang.toml beside the program
+// is a separate channel: an engine carrying dagger/dagger#14902 takes the
+// entrypoint's view from it.
 func TestGenerateDangEntrypointDeclaresClientVersion(t *testing.T) {
 	gen := &TypeScriptGenerator{Config: generator.Config{
 		DangEntrypointConfig: &generator.DangEntrypointGeneratorConfig{
