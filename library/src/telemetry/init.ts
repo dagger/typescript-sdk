@@ -1,10 +1,21 @@
 import { getBooleanFromEnv } from "@opentelemetry/core"
 import { OTLPTraceExporter } from "@opentelemetry/exporter-trace-otlp-proto"
-import { NodeSDK } from "@opentelemetry/sdk-node"
+import {
+  defaultResource,
+  resourceFromAttributes,
+} from "@opentelemetry/resources"
 import {
   BatchSpanProcessor,
   type SpanProcessor,
 } from "@opentelemetry/sdk-trace-base"
+// NodeTracerProvider rather than sdk-node's NodeSDK: the two things used here
+// are a resource and a span processor, and `register()` installs the same
+// AsyncLocalStorage context manager and W3C propagator getContext() reads. The
+// NodeSDK wrapper additionally pulls sdk-metrics, sdk-logs, instrumentation,
+// propagator-jaeger and the gRPC exporter base into bundle/core.js, which every
+// module evaluates on every call — measured at ~14 MiB of RSS per dispatcher,
+// for signals this SDK never emits.
+import { NodeTracerProvider } from "@opentelemetry/sdk-trace-node"
 
 import { LiveProcessor } from "./live_processor.js"
 
@@ -28,7 +39,7 @@ const NEARLY_IMMEDIATE = 100
 export class DaggerOtelConfigurator {
   private is_configured = false
 
-  private sdk?: NodeSDK
+  private provider?: NodeTracerProvider
 
   /**
    * Initialize the Open Telemetry SDK if enabled or not already configured.
@@ -65,22 +76,25 @@ export class DaggerOtelConfigurator {
       })
     }
 
-    // Create the node SDK with the context manager, the resource and the exporter.
-    this.sdk = new NodeSDK({
-      serviceName: SERVICE_NAME,
+    // Merged onto the default resource rather than replacing it, so the
+    // telemetry.sdk.* attributes NodeSDK used to contribute are still reported.
+    this.provider = new NodeTracerProvider({
+      resource: defaultResource().merge(
+        resourceFromAttributes({ "service.name": SERVICE_NAME }),
+      ),
       spanProcessors: [processor],
     })
 
-    // Register the SDK to the OpenTelemetry API
-    this.sdk.start()
+    // Registers the provider, the context manager and the propagator globally.
+    this.provider.register()
   }
 
   /**
-   * Shutdown the Open Telemetry SDK to flush traces and metrics and close the connection.
+   * Shutdown the Open Telemetry SDK to flush traces and close the connection.
    */
   async close() {
-    if (this.sdk) {
-      await this.sdk.shutdown()
+    if (this.provider) {
+      await this.provider.shutdown()
     }
   }
 
