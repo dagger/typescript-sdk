@@ -612,6 +612,43 @@ type Runtimes {
   }
 
   """
+  A module that asks for bun through package.json's `dagger.runtime`, with no
+  bun lockfile, should generate and run on bun.
+
+  Detection used to read the file layout only — deno.json for Deno, a bun
+  lockfile for Bun, otherwise Node — while the engine's builtin runtime reads
+  `dagger.runtime` first and falls back to lockfiles. So a module that only ever
+  pinned bun in package.json was silently generated for Node, and the recipe
+  execs the wrong interpreter: measured at ~4x the resident memory per call,
+  which a check suite pays once per check.
+
+  The fixture carries no lockfile on purpose — that is the whole case — and its
+  own check reads `process.versions.bun`, because the generated tree is
+  byte-identical either way and only the interpreter the recipe execs differs.
+  """
+  entrypointDeclaredBunCheck(ws: Workspace!): Void @check {
+    let path = fixtures + "/declared-bun"
+    let installed = typescriptSdk(legacyRuntime: false, skipGenerateFilename: "")
+      .generateScope(ws.withWorkdir(path), isModule: true, name: "runtime-declared-bun", clients: [])
+      .withWorkdir(".")
+      .withModule(path, name: "runtime-declared-bun")
+
+    # Only `pass` is selected, for the reason entrypointBaseImageCheck gives.
+    let passes = installed.artifacts(include: ["runtime-declared-bun:bun-runtime-check"]).asChecks
+      .{{ pass }}
+      .map { c => c.pass }
+
+    if (passes.length != 1) {
+      raise "expected the fixture's one check, got " + toString(passes.length)
+    }
+    if (passes.filter { p => p }.length != 1) {
+      raise "the module ran on a runtime other than the bun its package.json declares"
+    }
+
+    null
+  }
+
+  """
   A module pinned to a yarn the base image does not ship should install and run.
 
   The node image ships yarn 1 with corepack bundled but not enabled, so yarn 1

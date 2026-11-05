@@ -1,9 +1,20 @@
 package main
 
 import (
+	"strings"
+
 	"github.com/tidwall/gjson"
 	"github.com/tidwall/sjson"
 )
+
+// getRuntime reads "dagger.runtime" from a package.json, as a bare runtime
+// name. The engine's builtin runtime reads the same key and accepts an
+// optional `@version` pin (`bun@1`); that half is dropped, because this SDK
+// pins an image through dagger.baseImage instead. Returns "" when absent.
+func getRuntime(input string) string {
+	name, _, _ := strings.Cut(gjson.Get(input, "dagger.runtime").String(), "@")
+	return name
+}
 
 // getPackageManager reads the top-level "packageManager" field from a
 // package.json. Returns "" when the key is absent.
