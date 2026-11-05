@@ -41,6 +41,18 @@ func TestGetBaseImage(t *testing.T) {
 	require.Equal(t, "", getBaseImage(sampleDenoJSON))
 }
 
+func TestGetRuntime(t *testing.T) {
+	require.Equal(t, "", getRuntime(samplePackageJSON))
+	require.Equal(t, "", getRuntime(configuredPackageJSON))
+	require.Equal(t, "", getRuntime(""))
+	require.Equal(t, "bun", getRuntime(`{"dagger":{"runtime":"bun"}}`))
+	// The engine accepts a version pin here; only the name is ours to read.
+	require.Equal(t, "bun", getRuntime(`{"dagger":{"runtime":"bun@1"}}`))
+	require.Equal(t, "node", getRuntime(`{"dagger":{"runtime":"node@lts"}}`))
+	// Passed through for the caller to reject by name, not silently dropped.
+	require.Equal(t, "cobol", getRuntime(`{"dagger":{"runtime":"cobol"}}`))
+}
+
 func TestSetPackageManagerPreservesData(t *testing.T) {
 	out, err := setPackageManager(samplePackageJSON, "yarn@1.22.22")
 	require.NoError(t, err)

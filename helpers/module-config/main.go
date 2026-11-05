@@ -40,6 +40,9 @@ func run(args []string) error {
 	case "get-base-image":
 		fmt.Print(getBaseImage(input))
 		return nil
+	case "get-runtime":
+		fmt.Print(getRuntime(input))
+		return nil
 	case "set-package-manager":
 		v, err := value(args)
 		if err != nil {

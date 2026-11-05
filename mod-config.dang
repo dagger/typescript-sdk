@@ -104,11 +104,30 @@ type ModConfig {
   }
 
   """
-  The runtime this module uses, detected from the file layout:
-  deno.json -> DENO, bun.lock or bun.lockb -> BUN, otherwise NODE. Mirrors how
-  the engine picks the runtime at module load. Both Bun lockfiles are checked:
-  newer Bun writes the text bun.lock, but pre-existing modules may still carry
-  the binary bun.lockb.
+  The `dagger.runtime` field from package.json, as a bare `node`, `bun` or
+  `deno` — the `@version` pin the engine's builtin runtime also accepts is
+  dropped by the helper. Empty when unset, or when the module has no
+  package.json.
+  """
+  declaredRuntime: String! {
+    if (hasFile(packageJsonPath)) {
+      tool(packageJsonPath).withExec(["module-config", "get-runtime", toolPath]).stdout
+    } else {
+      ""
+    }
+  }
+
+  """
+  The runtime this module uses: package.json's `dagger.runtime` where it is set,
+  otherwise the file layout — bun.lock or bun.lockb -> BUN, deno.json -> DENO,
+  otherwise NODE. Mirrors how the engine picks the runtime at module load
+  (config.go detectRuntime), which reads the declared field first and falls back
+  to lockfiles, so a module that only ever pinned `bun` in package.json is not
+  silently moved onto Node. Both Bun lockfiles are checked: newer Bun writes the
+  text bun.lock, but pre-existing modules may still carry the binary bun.lockb.
+
+  One divergence from the engine, deliberate: it reads `dagger.runtime` ahead of
+  deno.json, while the contradictory-layout raise below comes first here.
   """
   runtime: Runtime! {
     if (runtimeProbe.exists(denoJsonPath)) {
@@ -121,6 +140,14 @@ type ModConfig {
       } else {
         Runtime.DENO
       }
+    } else if (declaredRuntime == "bun") {
+      Runtime.BUN
+    } else if (declaredRuntime == "node") {
+      Runtime.NODE
+    } else if (declaredRuntime == "deno") {
+      Runtime.DENO
+    } else if (declaredRuntime != "") {
+      raise "package.json declares dagger.runtime \"" + declaredRuntime + "\"; expected node, bun or deno"
     } else if (runtimeProbe.exists(bunLockPath) or runtimeProbe.exists(bunLockbPath)) {
       Runtime.BUN
     } else {

@@ -1,0 +1,5 @@
+name = "runtime-declared-bun"
+engineVersion = "v1.0.0-beta.24"
+
+[runtime]
+  source = "typescript"
