@@ -346,7 +346,7 @@ Two facts kept for the publishing side:
   `EUNSUPPORTEDPROTOCOL: Unsupported URL Type "workspace:"`. bun *does* rewrite it
   (`bun pm pack` resolves the version) but only once `bun install` has run, which
   couples publishing to bun. So the manifests pin their siblings as plain versions
-  — `0.0.0`, the placeholder `library/package.json` has always carried — and
+  — the version last released from here, which the tree records — and
   `release-version.cjs` stamps the real version onto both the package and its
   sibling pins when one is built for publishing.
 - **Independent publishing is not the hard part.** `npm publish -w <pkg>` publishes
