@@ -26,7 +26,7 @@ committed `bundle/`, and the Go generator all move together or not at all.
 
 ## The target release has moved ahead of the tag
 
-`typescript-sdk.dang`'s `bundleEngineVersion` is `v1.0.0-beta.24`, and the tag
+`typescript-sdk.dang`'s `bundleEngineVersion` is `v1.0.0-beta.25`, and the tag
 above is still beta.11. That is a deliberate separation of two facts the rule
 above had treated as one: where the sources were copied *from*, and which engine
 release the bundle is paired *with*.
@@ -37,8 +37,8 @@ The pairing first moved to beta.15, because a module now generates an
 check suite runs in — `engine-e2e`'s `engine-dev` pin — which went to the
 oldest release carrying `dagger check --parallel` (dagger/dagger#14459), the
 only way to stop ~70 nested checks starting at once. beta.17, beta.18, beta.20,
-beta.23 and now beta.24 each moved for the same plain reason: that was the
-current release, and a pairing one release behind puts
+beta.23, beta.24 and now beta.25 each moved for the same plain reason: that was
+the current release, and a pairing one release behind puts
 `packager:library-bindings/stale` red on whatever engine people actually run.
 beta.19, beta.21 and beta.22 were never paired with; the current release
 supersedes them and each step is taken in one go.
@@ -56,12 +56,12 @@ beta.18, the release actually superseded, not against beta.17.
 The sources did not move either time, because nothing required them to:
 
 - `src/core/client.gen.ts` is regenerated here, not vendored, and
-  `packager:library-bindings/stale` is green inside a beta.24 engine — so the
-  bindings half of the pairing is already beta.24's.
+  `packager:library-bindings/stale` is green inside a beta.25 engine — so the
+  bindings half of the pairing is already beta.25's.
 - `runtimes:{node,bun,deno}-runs-check` load and run modules built from the
   committed `bundle/` in that same engine.
 
-So this is vendoring lag, not a broken pairing: upstream's beta.12–beta.24
+So this is vendoring lag, not a broken pairing: upstream's beta.12–beta.25
 changes to the runtime sources (introspector, decorators, registry,
 `compute_query`, `provisioning/default.ts`'s `CLI_VERSION`) are improvements
 this repo has not taken, and several of those files carry local work that a
@@ -113,6 +113,16 @@ because what arrives are three arguments on opts types that already existed —
 `FileExtractOpts`. Nothing is removed, so a module built against the beta.23
 bundle still runs on beta.24. `core.js` and `introspector.js` come out byte for
 byte identical and only `core.d.ts` grows, by 2.7 KB — the whole step is types.
+
+beta.24 → beta.25 is the first pairing step with no API delta at all. beta.25's
+core schema is beta.24's, byte for byte: `src/core/client.gen.ts` regenerates
+unchanged inside a beta.25 engine, and `core.d.ts` does not move either. The only
+thing that moves is `ENGINE_VERSION`, which the bundle build copies into
+`engine-version.txt` and compiles into `core.js` and `introspector.js` — one
+embedded string each, net zero bytes. Nothing is removed, so a module built
+against the beta.24 bundle still runs on beta.25. Same shape as beta.20 →
+beta.21, which was never paired with; this one is, because it is the current
+release.
 
 ## What was left behind
 
