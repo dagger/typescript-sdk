@@ -1,10 +1,13 @@
 // Stamp a release version onto a committed package manifest.
 //
-// The manifests under library/src/*/ are committed with version 0.0.0 and pin
-// their siblings at 0.0.0, the same placeholder library/package.json has always
-// carried — nothing in this tree is a release until something cuts one. This is
-// the one step that turns a placeholder into a version, and it moves the sibling
-// pins with it: session and the packages over it only ever ship together.
+// The manifests under library/src/*/ carry the version last released from here,
+// and pin their siblings at it. That is a record, not a promise: what actually
+// ships is whatever a release passes, so this step overwrites both — and it moves
+// the sibling pins with the version, because session and the packages over it
+// only ever ship together.
+//
+// core is the exception: it is published from dagger/dagger at the engine's
+// version, so only its pin on session is meaningful here.
 //
 // Usage: node release-version.cjs <package.json> <out>   (version from $PUBLISH_VERSION)
 const fs = require("fs")

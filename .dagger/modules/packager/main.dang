@@ -180,10 +180,11 @@ type Packager {
 
   The package is what sits in library/src/<layer>: its committed package.json
   and the dist/ its own tsconfig emits. The only thing added is the version. The
-  manifests are committed with 0.0.0 — the placeholder library/package.json has
-  always carried, because nothing in this tree is a release until something cuts
-  one — and release-version.cjs stamps the real one on, moving the sibling pins
-  with it so `session` and the packages over it only ever ship together.
+  manifests carry the version last released from here, and pin their siblings at
+  it, so the tree records what is out rather than a placeholder. It is not what
+  ships: release-version.cjs stamps on whatever a release passes, moving the
+  sibling pins with it so `session` and the packages over it only ever ship
+  together.
   """
   publishablePackage(
     ws: Workspace!,

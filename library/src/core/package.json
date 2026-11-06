@@ -19,6 +19,6 @@
     "node": ">=20"
   },
   "dependencies": {
-    "@dagger.io/session": "0.0.0"
+    "@dagger.io/session": "1.0.0-beta.1"
   }
 }
