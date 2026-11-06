@@ -147,6 +147,7 @@ type Packager {
       .withFile("imports.cjs", currentModule.source.file("imports.cjs"))
       .withFile("audit-imports.cjs", currentModule.source.file("audit-imports.cjs"))
       .withFile("release-version.cjs", currentModule.source.file("release-version.cjs"))
+      .withFile("await-published.cjs", currentModule.source.file("await-published.cjs"))
   }
 
   """
@@ -198,6 +199,150 @@ type Packager {
     directory
       .withDirectory("dist", built.directory(pkg + "/dist"))
       .withFile("package.json", built.file("/manifest.json"))
+  }
+
+  """
+  Release every layer this repo publishes: stage them under `next`, wait for the
+  registry to serve them, import them, and only then move `latest`.
+
+  The ordering is the point, and it is not arbitrary. `npm publish` resolves
+  nothing, so staging cannot fail on a sibling that is not fetchable yet — a
+  release can only break a *consumer*, seconds later. So nothing gates the publish
+  and everything gates the flip: if the wait or the import never passes, `latest`
+  never moves and no consumer saw the version. That is worth the machinery because
+  `npm unpublish` is restricted to 72 hours and refuses outright once anything
+  depends on a version. After that `npm deprecate` is the only recourse.
+
+  `registry` is what makes this rehearsable rather than a thing you run once and
+  hope: point it at a local verdaccio and the whole sequence runs against that.
+  `e2e:registry/release-rehearsal-check` does exactly that, over these same three
+  steps.
+
+  The one case this cannot stage is the **first** publish of a package name. A
+  registry has to give a new package a `latest`, so `--tag next` sets both. There
+  is nothing to stage away from either, since nobody installs a name that did not
+  exist until now. See design/package-split.md.
+
+  `registryService` and `registryAlias` are only for pointing this at a registry
+  running as a Dagger service, which is how the check exercises it; a registry
+  that is reachable on its own needs neither.
+  """
+  release(
+    ws: Workspace!,
+    version: String!,
+    token: Secret!,
+    registry: String! = "https://registry.npmjs.org",
+    registryService: Service = null,
+    registryAlias: String! = "",
+  ): String! {
+    let specs = publishedLayers.map { layer => "@dagger.io/" + layer + "@" + version }
+
+    let client = releaseClient(token, registry, registryService, registryAlias)
+
+    let staged = publishedLayers.reduce(client) { chain, layer =>
+      chain
+        .withDirectory("/publish/" + layer, publishablePackage(ws, layer, version: version))
+        .withWorkdir("/publish/" + layer)
+        # Tolerated so a release is resumable: if the flip failed last time, the
+        # versions are already up and the retry has to get past this to redo the
+        # part that matters. Nothing is lost by it either — the design forbids
+        # mutating a published version, so a conflict means "already staged", and
+        # await-published below is what decides whether that is actually true.
+        # --access public because these are scoped names and npm defaults a scope
+        # to restricted. Without it the first publish of each either fails or
+        # quietly creates a private package. No local registry can catch this:
+        # verdaccio ignores the flag entirely.
+        .withExec(["npm", "publish", "--tag", "next", "--access", "public"], expect: ANY)
+    }
+
+    let verified = staged
+      .withWorkdir("/smoke")
+      .withExec(["node", "/tools/await-published.cjs", registry] + specs)
+      # Packing the tarballs left this npm holding what it just read, so without
+      # this the install is answered from its own cache rather than by the
+      # registry the release is being judged on.
+      .withExec(["npm", "cache", "clean", "--force"])
+      .withExec(["npm", "install", "--no-audit", "--no-fund"] + specs)
+      .withExec(["node", "/smoke/smoke.mjs"])
+
+    let flipped = publishedLayers.reduce(verified) { chain, layer =>
+      chain.withExec(["npm", "dist-tag", "add", "@dagger.io/" + layer + "@" + version, "latest"])
+    }
+
+    let listed = publishedLayers.reduce(flipped) { chain, layer =>
+      chain.withExec(
+        ["npm", "dist-tag", "ls", "@dagger.io/" + layer],
+        redirectStdout: "/tags/" + layer,
+      )
+    }
+
+    publishedLayers.map { layer =>
+      "@dagger.io/" + layer + "\n" + listed.file("/tags/" + layer).contents
+    }.join("\n")
+  }
+
+  """
+  A node container authenticated against the registry, with the smoke test and
+  the tools already in it.
+
+  The token reaches npm as a secret and is never written anywhere: npm expands
+  `${NPM_TOKEN}` in .npmrc itself, so the file holds the name and not the value.
+  """
+  let releaseClient(
+    token: Secret!,
+    registry: String!,
+    registryService: Service,
+    registryAlias: String!,
+  ): Container! {
+    let base = container
+      .from("node:24-alpine")
+      .withoutEntrypoint
+      # HOME explicitly, because .npmrc is looked up under it.
+      .withEnvVariable("HOME", "/root")
+      .withSecretVariable("NPM_TOKEN", token)
+      .withNewFile("/root/.npmrc", releaseNpmrc(registry))
+      .withNewFile("/smoke/package.json", "{ \"type\": \"module\" }\n")
+      .withNewFile("/smoke/smoke.mjs", smokeSource)
+      .withDirectory("/tools", packageTools)
+      .withExec(["mkdir", "-p", "/tags"])
+
+    if (registryService == null) {
+      base
+    } else {
+      base.withServiceBinding(registryAlias, registryService)
+    }
+  }
+
+  """
+  npm's configuration for a release: every resolution through the registry under
+  test, and the auth line keyed on its host the way npm keys it.
+  """
+  let releaseNpmrc(registry: String!): String! {
+    let host = registry.trimPrefix("https://").trimPrefix("http://").trimSuffix("/")
+
+    "registry=" + registry + "\n" +
+      "//" + host + "/:_authToken=${NPM_TOKEN}\n"
+  }
+
+  """
+  Imports every layer released here, from the registry rather than from the tree.
+
+  Deliberately thin. This answers the resolve-and-load question — the one a
+  consumer hits first, and the one `npm publish` cannot answer because it resolves
+  nothing. Whether the library *works* is what the test suite is for, and it ran
+  long before anything was packed.
+  """
+  let smokeSource: String! {
+    "import { Context } from \"@dagger.io/session\"\n" +
+      "import { object } from \"@dagger.io/module\"\n" +
+      "import { getTracer } from \"@dagger.io/telemetry\"\n" +
+      "\n" +
+      "for (const [name, loaded] of Object.entries({ Context, object, getTracer })) {\n" +
+      "  if (typeof loaded !== \"function\") {\n" +
+      "    throw new Error(name + \" did not load: \" + typeof loaded)\n" +
+      "  }\n" +
+      "}\n" +
+      "console.log(\"smoke ok\")\n"
   }
 
   """

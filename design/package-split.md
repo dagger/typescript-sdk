@@ -405,6 +405,21 @@ sources.** The experiments turned up three, and they need different answers:
    --prefer-online` in a fresh container, with backoff — then run a smoke test.
 3. `npm dist-tag add @dagger.io/core@X latest`, then the facade.
 
+`packager:release` is those three steps for the layers this repo publishes:
+
+```
+dagger -m .dagger/modules/packager call release \
+  --version 1.0.0-beta.1 --token env://NPM_TOKEN
+```
+
+It is resumable, because a version already staged is tolerated rather than
+fatal — if a release got as far as publishing and then failed, re-running it
+redoes the part that did not happen. And it only ever flips what it could
+install and import from the registry, so a failed release leaves `latest`
+exactly where it was. Pass `--registry`, plus `--registry-service` and
+`--registry-alias` for a registry running as a service, to rehearse the whole
+thing against a verdaccio instead of npmjs.
+
 **Rehearsed, and one correction.** `e2e:registry:release-rehearsal-check` runs all
 three steps against a real registry with the three published layers: 1.0.0 out the
 ordinary way, 2.0.0 out under `next`, then the flip. `latest 1.0.0 next 2.0.0`
