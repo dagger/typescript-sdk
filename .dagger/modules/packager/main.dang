@@ -252,12 +252,22 @@ type Packager {
         # to restricted. Without it the first publish of each either fails or
         # quietly creates a private package. No local registry can catch this:
         # verdaccio ignores the flag entirely.
-        .withExec(["npm", "publish", "--tag", "next", "--access", "public"], expect: ANY)
+        #
+        # Both streams go to a file because a tolerated exec is a *successful*
+        # span, and a successful span's output is not kept in the trace — so when
+        # the wait below failed, the reason the publish failed was nowhere at all.
+        # await-published replays these on failure.
+        .withExec(
+          ["npm", "publish", "--tag", "next", "--access", "public"],
+          expect: ANY,
+          redirectStdout: publishLogs + "/" + layer + ".out",
+          redirectStderr: publishLogs + "/" + layer + ".err",
+        )
     }
 
     let verified = staged
       .withWorkdir("/smoke")
-      .withExec(["node", "/tools/await-published.cjs", registry] + specs)
+      .withExec(["node", "/tools/await-published.cjs", "--logs", publishLogs, registry] + specs)
       # Packing the tarballs left this npm holding what it just read, so without
       # this the install is answered from its own cache rather than by the
       # registry the release is being judged on.
@@ -304,7 +314,7 @@ type Packager {
       .withNewFile("/smoke/package.json", "{ \"type\": \"module\" }\n")
       .withNewFile("/smoke/smoke.mjs", smokeSource)
       .withDirectory("/tools", packageTools)
-      .withExec(["mkdir", "-p", "/tags"])
+      .withExec(["mkdir", "-p", "/tags", publishLogs])
 
     if (registryService == null) {
       base
@@ -312,6 +322,16 @@ type Packager {
       base.withServiceBinding(registryAlias, registryService)
     }
   }
+
+  """
+  Where each `npm publish` leaves what it said.
+
+  It has to be a file: publishing is tolerated so a release can resume, which
+  makes it a successful span, and a successful span's output does not survive
+  into the trace. The first real release failed with nothing to look at because
+  of that.
+  """
+  let publishLogs: String! = "/publish-logs"
 
   """
   npm's configuration for a release: every resolution through the registry under
