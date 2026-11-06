@@ -9,7 +9,7 @@ type NamingChecks {
   let fixture: String! = Fixtures.root + "/naming/app"
 
   """
-  The fixture generated at the bundle's target (currently pre-cut beta.24).
+  The fixture generated at the bundle's target (currently pre-cut beta.25).
   With pinned, regenerate an SDK-owned entrypoint after giving its config an
   older import; the writer upgrades it before codegen reads the naming.
   Post-cut generation awaits the library bump; unit tests cover both naming

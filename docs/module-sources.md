@@ -85,7 +85,7 @@ by the engine's identifier naming rules, and needs such an engine to load on
 as well.
 
 Generation writes `entrypoint/dang.toml` at the bundle's target (currently
-beta.24) before taking that source's resolved naming context. The SDK's
+beta.25) before taking that source's resolved naming context. The SDK's
 beta.26 engine floor does not replace that naming version. Both a new
 entrypoint and an SDK-owned config upgraded to the bundle target therefore
 use pre-cut module names until the library pairing advances.

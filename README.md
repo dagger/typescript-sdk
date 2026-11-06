@@ -175,7 +175,7 @@ Dang tooling may reject the file.
 The config is written before codegen reads the served module source's
 `naming.version`, `name` and `originalName`. Those strings, not a source ID,
 reach `Naming.module` in the generator. The SDK's engine floor is beta.26,
-while the library target and generated import remain beta.24: generated
+while the library target and generated import remain beta.25: generated
 entrypoint naming is therefore still pre-cut. Post-cut generation waits for
 the library pairing bump; unit tests exercise both naming versions now.
 
