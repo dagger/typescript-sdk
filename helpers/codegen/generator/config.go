@@ -200,6 +200,11 @@ type DangEntrypointGeneratorConfig struct {
 	// starts the module process. Required.
 	ClientVersion string
 
+	// RemoteCoreLib reports that the module resolves @dagger.io/dagger from a
+	// registry rather than from a vendored bundle, so clients/dagger holds the
+	// facade's source and neither client.gen.ts nor core.js exists to require.
+	RemoteCoreLib bool
+
 	// DispatchFile is the dispatcher call() execs, relative to the module
 	// directory. Defaults to "entrypoint/__dagger.dispatch.ts".
 	DispatchFile string

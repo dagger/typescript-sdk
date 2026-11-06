@@ -1,0 +1,17 @@
+{
+  "name": "@dagger.io/dagger",
+  "version": "1.0.0-beta.25",
+  "type": "module",
+  "main": "./index.ts",
+  "types": "./index.ts",
+  "exports": {
+    ".": "./index.ts",
+    "./telemetry": "./telemetry.ts"
+  },
+  "dependencies": {
+    "@dagger.io/core": "1.0.0-beta.25",
+    "@dagger.io/module": "1.0.0-beta.1",
+    "@dagger.io/telemetry": "1.0.0-beta.1",
+    "graphql-request": "^7.4.0"
+  }
+}
