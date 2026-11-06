@@ -107,6 +107,20 @@ type Packager {
       # is whatever the bundle it ships was built to announce.
       .withExec(["sh", "-c",
         "bun -e \"import('./src/session/provisioning/engineVersion.ts').then(m => console.log(m.ENGINE_VERSION))\" > /out/engine-version.txt"])
+      # The facade, as source rather than bundled: for a module that resolves
+      # the layers from a registry, `clients/dagger` is this directory instead
+      # of a 5MB core.js. It is the real src/index.ts and src/connection.ts, not
+      # a copy written by the SDK, so the surface a module sees cannot drift
+      # from the one the library exports.
+      .withExec(["mkdir", "-p", "/out/facade"])
+      .withExec(["cp", "src/index.ts", "src/connection.ts", "/out/facade/"])
+      .withExec(["sh", "-c",
+        "echo 'export { getTracer } from \"@dagger.io/telemetry\"' > /out/facade/telemetry.ts"])
+      .withDirectory("/tools", packageTools)
+      .withExec([
+        "node", "/tools/facade-manifest.cjs",
+        "/out/engine-version.txt", "/out/facade/package.json",
+      ])
       .directory("/out")
 
     # Same overlay as the bindings: the bundle directory also holds the
@@ -148,6 +162,7 @@ type Packager {
       .withFile("audit-imports.cjs", currentModule.source.file("audit-imports.cjs"))
       .withFile("release-version.cjs", currentModule.source.file("release-version.cjs"))
       .withFile("await-published.cjs", currentModule.source.file("await-published.cjs"))
+      .withFile("facade-manifest.cjs", currentModule.source.file("facade-manifest.cjs"))
   }
 
   """
