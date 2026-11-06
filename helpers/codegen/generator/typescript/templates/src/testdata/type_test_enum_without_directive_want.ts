@@ -3,8 +3,8 @@
  * Transport layer network protocol associated to a port.
  */
 export enum NetworkProtocol {
-  Tcp = "TCP",
-  Udp = "UDP",
+  TCP = "TCP",
+  UDP = "UDP",
 }
 
 /**
@@ -13,9 +13,9 @@ export enum NetworkProtocol {
  */
 export function NetworkProtocolValueToName(value: NetworkProtocol): string {
   switch (value) {
-    case NetworkProtocol.Tcp:
+    case NetworkProtocol.TCP:
       return "TCP"
-    case NetworkProtocol.Udp:
+    case NetworkProtocol.UDP:
       return "UDP"
     default:
       return value
@@ -29,9 +29,9 @@ export function NetworkProtocolValueToName(value: NetworkProtocol): string {
 export function NetworkProtocolNameToValue(name: string): NetworkProtocol {
   switch (name) {
     case "TCP":
-      return NetworkProtocol.Tcp
+      return NetworkProtocol.TCP
     case "UDP":
-      return NetworkProtocol.Udp
+      return NetworkProtocol.UDP
     default:
       return name as NetworkProtocol
   }

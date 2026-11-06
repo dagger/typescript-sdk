@@ -1,0 +1,74 @@
+"""
+Generate and call a module whose schema names differ between the engine's
+identifier naming rules and the legacy strcase rules. The generated
+entrypoints select the names the engine gives the module's declarations, as
+ModuleSource.naming answers them for the version the engine names the module
+by: the namespaced interface, and the functions a call through it selects.
+"""
+type NamingChecks {
+  let fixture: String! = Fixtures.root + "/naming/app"
+
+  """
+  The fixture generated at the bundle's target (currently pre-cut beta.25).
+  With pinned, regenerate an SDK-owned entrypoint after giving its config an
+  older import; the writer upgrades it before codegen reads the naming.
+  Post-cut generation awaits the library bump; unit tests cover both naming
+  versions independently of the library target.
+  """
+  generated(ws: Workspace!, pinned: Boolean! = false): Directory! {
+    generatedScope(ws, pinned).withWorkdir(".").directory("/naming-app")
+  }
+
+  """
+  The module is generated in a workspace of its own, so nothing of this
+  repository's configuration is in the way of the dang.toml the engine reads
+  the module's version from.
+  """
+  let generatedScope(ws: Workspace!, pinned: Boolean!): Workspace! {
+    let module = ws.directory("/" + fixture)
+    let sdk = typescriptSdk(legacyRuntime: false, skipGenerateFilename: "")
+    let fresh = sdk.generateScope(
+      ws: directory.withDirectory("naming-app", module).asWorkspace.withWorkdir("naming-app"),
+      isModule: true, name: "naming-app", clients: [],
+    )
+    if (pinned) {
+      let older = fresh.withNewFile("entrypoint/dang.toml", "[imports.Dagger]\ndagger = \"v1.0.0-beta.20\"\n")
+      sdk.generateScope(ws: older, isModule: true, name: "naming-app", clients: [])
+    } else { fresh }
+  }
+
+  """
+  The dispatcher selects the module's schema names at the generated config's
+  version, after both new generation and an owned-config upgrade. Both are
+  currently pre-cut; the module's self-call reaches its namespaced interface.
+  """
+  callsCheck(ws: Workspace!): Void @check {
+    [
+      {{pinned: false, names: ["selectNode(id, \"NamingAppHttpFetcher\")", "select(\"e2Etest\", __args)", "select(\"getUrl\", __args)"]}},
+      {{pinned: true, names: ["selectNode(id, \"NamingAppHttpFetcher\")", "select(\"e2Etest\", __args)", "select(\"getUrl\", __args)"]}},
+    ].each { want =>
+      let label = if (want.pinned) { "the upgraded module" } else { "the new module" }
+      let staged = generatedScope(ws, want.pinned).withWorkdir(".")
+      let target = typescriptSdk.bundleEngineVersion
+      Asserts.stringContains(staged.file("/naming-app/entrypoint/dang.toml").contents,
+        "dagger = \"" + target + "\"", label + "'s config does not declare the bundle target")
+      Asserts.assert(staged.moduleSource("/naming-app").naming.version == target,
+        label + " is not named by the final config's version")
+      Asserts.assert(staged.directory("/naming-app").exists("__dagger.dispatch.ts") == false,
+        label + " kept the old root dispatcher")
+      let dispatcher = staged.file("/naming-app/entrypoint/__dagger.dispatch.ts").contents
+      want.names.each { name =>
+        Asserts.stringContains(dispatcher, name, label + "'s dispatcher lacks " + name)
+      }
+      let outcomes = staged.withModule("naming-app", name: "naming-app")
+        .artifacts(include: ["naming-app:self-call-check"]).asChecks
+        .{{ pass, error.{{ message }} }}
+      Asserts.assert(outcomes.length == 1, label + ": expected the self-call check, got " + toString(outcomes.length))
+      # Selected on `pass` first: reading the message of a check that passed
+      # raises an evaluation error of its own.
+      let failed = outcomes.filter { c => c.pass == false }.map { c => c.error.message }
+      Asserts.assert(failed.length == 0, label + "'s self-call failed: " + failed.join("\n"))
+    }
+    null
+  }
+}

@@ -11,8 +11,11 @@ workspace bookkeeping, and its builtin TypeScript runtime executes what we
 write.
 
 Workspace state, module discovery and codegen go through the engine's native
-`Workspace` and `ModuleSource` APIs, which requires an engine at
-`v1.0.0-beta.11` or newer. Module manifests are built with
+`Workspace` and `ModuleSource` APIs. Generating a module's entrypoint asks the
+engine how it names the module's own declarations (`ModuleSource.naming`,
+dagger/dagger#14996), so this module declares `engineVersion`
+`v1.0.0-beta.26`: install, init and generation all need an engine at that
+release or newer. Module manifests are built with
 [`dagger/sdk-helpers`](https://github.com/dagger/sdk-helpers), the one module
 dependency.
 
@@ -117,9 +120,10 @@ otherwise — matching where the engine reads it from.
 default it declares an `[entrypoint]` and carries an `entrypoint/` directory
 holding `main.dang` plus the `__dagger.dispatch.ts` that program runs, which
 needs an engine carrying
-[dagger/dagger#14038][manifest-v2] — `v1.0.0-beta.15` or newer. Pass the flag
-for an older engine and the module declares a `[runtime]` with the
-`__dagger.entrypoint.ts` that runtime execs instead.
+[dagger/dagger#14038][manifest-v2] — `v1.0.0-beta.15` or newer to load. Pass
+the flag and the module declares a `[runtime]` with the
+`__dagger.entrypoint.ts` that runtime execs instead. Generating either needs
+`v1.0.0-beta.26` or newer.
 
 An existing module moves between the two on its next generation: set
 `legacyRuntime` in the scope's settings in `dagger.toml` and run `dagger
@@ -167,6 +171,13 @@ generated program also declares that release in `DAGGER_CLIENT_VERSION`. Languag
 `2.1` is the language the entrypoint is written in; parsing a versioned import
 separately needs the Dang implementation at v2.2.0 or later, so older standalone
 Dang tooling may reject the file.
+
+The config is written before codegen reads the served module source's
+`naming.version`, `name` and `originalName`. Those strings, not a source ID,
+reach `Naming.module` in the generator. The SDK's engine floor is beta.26,
+while the library target and generated import remain beta.25: generated
+entrypoint naming is therefore still pre-cut. Post-cut generation waits for
+the library pairing bump; unit tests exercise both naming versions now.
 
 The two values reach the engine separately:
 

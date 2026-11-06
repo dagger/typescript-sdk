@@ -2,6 +2,7 @@ package typescriptgenerator
 
 import (
 	"bytes"
+	"context"
 	"testing"
 	"text/template"
 
@@ -87,7 +88,7 @@ func TestClientTemplate_RendersModuleClient(t *testing.T) {
 
 	tmpl := templates.New("v0.21.0", full, "", generator.Config{
 		ModuleConfig: &generator.ModuleGeneratorConfig{ModuleName: "host"},
-	})
+	}, identifiers(t))
 
 	out := renderModuleClientTemplate(t, tmpl, depSchema, "hello")
 
@@ -178,7 +179,7 @@ func TestClientTemplate_ImportsSiblingModuleTypes(t *testing.T) {
 
 	tmpl := templates.New("v0.21.0", full, "", generator.Config{
 		ModuleConfig: &generator.ModuleGeneratorConfig{ModuleName: "host"},
-	})
+	}, identifiers(t))
 
 	out := renderModuleClientTemplate(t, tmpl, depSchema, "hello")
 
@@ -232,7 +233,7 @@ func TestClientTemplate_ImportsRootArgTypes(t *testing.T) {
 
 	tmpl := templates.New("v0.21.0", full, "", generator.Config{
 		ModuleConfig: &generator.ModuleGeneratorConfig{ModuleName: "host"},
-	})
+	}, identifiers(t))
 
 	out := renderModuleClientTemplate(t, tmpl, depSchema, "hello")
 
@@ -268,7 +269,7 @@ func TestClientTemplate_ServesModuleOnUse(t *testing.T) {
 		return schema
 	}
 	tmpl := func() *template.Template {
-		return templates.New("v0.21.0", buildSchema(), "", generator.Config{ModuleConfig: &generator.ModuleGeneratorConfig{ModuleName: "host"}})
+		return templates.New("v0.21.0", buildSchema(), "", generator.Config{ModuleConfig: &generator.ModuleGeneratorConfig{ModuleName: "host"}}, identifiers(t))
 	}
 
 	t.Run("git module serves by ref and pin", func(t *testing.T) {
@@ -326,7 +327,7 @@ func TestHeaderTemplate_KeepsCoreOnly(t *testing.T) {
 
 	tmpl := templates.New("v0.21.0", full, "", generator.Config{
 		ModuleConfig: &generator.ModuleGeneratorConfig{ModuleName: "host"},
-	})
+	}, identifiers(t))
 
 	var b bytes.Buffer
 	require.NoError(t, tmpl.ExecuteTemplate(&b, "header", nil))
@@ -399,7 +400,7 @@ func TestGenerate_SplitsDependencyFiles(t *testing.T) {
 	// that here since this test calls generate() directly.
 	generator.SetSchemaParents(schema)
 
-	state, err := generate(generator.Config{}, ClientGenFile, schema, "v0.21.0")
+	state, err := generate(context.Background(), generator.Config{Engine: styling()}, ClientGenFile, schema, "v0.21.0")
 	require.NoError(t, err)
 
 	core := readOverlay(t, state, "client.gen.ts")
@@ -445,7 +446,8 @@ func TestGenerate_SplitsOwnTypesLikeADependency(t *testing.T) {
 	}
 	generator.SetSchemaParents(schema)
 
-	state, err := generate(generator.Config{
+	state, err := generate(context.Background(), generator.Config{
+		Engine:       styling(),
 		ModuleConfig: &generator.ModuleGeneratorConfig{ModuleName: "app"},
 	}, ClientGenFile, schema, "v0.21.0")
 	require.NoError(t, err)
@@ -481,7 +483,8 @@ func TestGenerate_Module_EmitsLoader(t *testing.T) {
 	}
 	generator.SetSchemaParents(schema)
 
-	state, err := generate(generator.Config{
+	state, err := generate(context.Background(), generator.Config{
+		Engine:       styling(),
 		ModuleConfig: &generator.ModuleGeneratorConfig{ModuleName: "app", EmitLoader: true},
 	}, ClientGenFile, schema, "v0.21.0")
 	require.NoError(t, err)
@@ -522,20 +525,23 @@ func TestGenerate_RejectsReservedModuleNames(t *testing.T) {
 	// A module scope keeps its clients under clients/, apart from the core
 	// client.gen.ts, so "loader" (a sibling of the module files) is the only
 	// reserved name; "client" no longer collides.
-	_, err := generate(generator.Config{
+	_, err := generate(context.Background(), generator.Config{
+		Engine:       styling(),
 		ModuleConfig: &generator.ModuleGeneratorConfig{ModuleName: "app", EmitLoader: true},
 	}, ClientGenFile, buildSchema("loader"), "v0.21.0")
 	require.Error(t, err, `module named "loader" must be rejected in a module scope`)
 	require.ErrorContains(t, err, "loader")
 
-	_, err = generate(generator.Config{
+	_, err = generate(context.Background(), generator.Config{
+		Engine:       styling(),
 		ModuleConfig: &generator.ModuleGeneratorConfig{ModuleName: "app", EmitLoader: true},
 	}, ClientGenFile, buildSchema("client"), "v0.21.0")
 	require.NoError(t, err, `"client" is a directory apart from the module clients now`)
 
 	// A flat standalone client shares its root with the core client.gen.ts, so
 	// "client" is reserved there (and the loader is not emitted, so it isn't).
-	_, err = generate(generator.Config{
+	_, err = generate(context.Background(), generator.Config{
+		Engine:       styling(),
 		ModuleConfig: &generator.ModuleGeneratorConfig{FlatClients: true},
 	}, ClientGenFile, buildSchema("client"), "v0.21.0")
 	require.Error(t, err, `module named "client" must be rejected in a flat client scope`)
@@ -578,7 +584,8 @@ func TestGenerate_Client_SplitsBoundModule(t *testing.T) {
 	}
 	generator.SetSchemaParents(schema)
 
-	state, err := generate(generator.Config{
+	state, err := generate(context.Background(), generator.Config{
+		Engine: styling(),
 		ModuleConfig: &generator.ModuleGeneratorConfig{
 			FlatClients:  true,
 			BoundModules: []generator.BoundModule{{Name: "hello", Kind: "GIT_SOURCE", Ref: "github.com/foo/hello@main", Pin: "abcdef"}},
@@ -670,7 +677,7 @@ func TestClientTemplate_CoreValuesAreValueImported(t *testing.T) {
 
 	tmpl := templates.New("v0.21.0", full, "", generator.Config{
 		ModuleConfig: &generator.ModuleGeneratorConfig{ModuleName: "host"},
-	})
+	}, identifiers(t))
 
 	out := renderModuleClientTemplate(t, tmpl, depSchema, "hello")
 

@@ -82,7 +82,8 @@ func compatSchema(t *testing.T) *introspection.Schema {
 // layout, where it sits flat in sdk/ beside the clients and reaches them
 // through their @dagger.io/<module> specifiers.
 func TestGenerateModule_CompatShim(t *testing.T) {
-	state, err := generate(generator.Config{
+	state, err := generate(context.Background(), generator.Config{
+		Engine:       styling(),
 		ModuleConfig: &generator.ModuleGeneratorConfig{ModuleName: "app", EmitLoader: true, FlatClients: true},
 	}, ClientGenFile, compatSchema(t), "v0.21.0")
 	require.NoError(t, err)
@@ -104,7 +105,8 @@ func TestGenerateModule_CompatShim(t *testing.T) {
 // name, because a client the module has not installed still has to resolve at
 // dispatch time.
 func TestGenerateModule_CompatShimPackaged(t *testing.T) {
-	state, err := generate(generator.Config{
+	state, err := generate(context.Background(), generator.Config{
+		Engine:       styling(),
 		ModuleConfig: &generator.ModuleGeneratorConfig{ModuleName: "app", EmitLoader: true, PackagedClients: true},
 	}, ClientGenFile, compatSchema(t), "v0.21.0")
 	require.NoError(t, err)
@@ -128,7 +130,8 @@ func TestGenerateModule_CompatShimPackaged(t *testing.T) {
 // method on the prototype everything shares — and both stay reachable through
 // the module's own client.
 func TestGenerateModule_CompatShimSkips(t *testing.T) {
-	state, err := generate(generator.Config{
+	state, err := generate(context.Background(), generator.Config{
+		Engine:       styling(),
 		ModuleConfig: &generator.ModuleGeneratorConfig{ModuleName: "app", EmitLoader: true, FlatClients: true},
 	}, ClientGenFile, compatSchema(t), "v0.21.0")
 	require.NoError(t, err)
@@ -169,7 +172,8 @@ func TestGenerateModule_CompatShimOnlyWithClients(t *testing.T) {
 	}
 	generator.SetSchemaParents(coreOnly)
 
-	state, err := generate(generator.Config{
+	state, err := generate(context.Background(), generator.Config{
+		Engine:       styling(),
 		ModuleConfig: &generator.ModuleGeneratorConfig{ModuleName: "app", EmitLoader: true, FlatClients: true},
 	}, ClientGenFile, coreOnly, "v0.21.0")
 	require.NoError(t, err)
@@ -179,7 +183,8 @@ func TestGenerateModule_CompatShimOnlyWithClients(t *testing.T) {
 		"and the loader should not import one")
 
 	// A standalone client scope: clients, but no entrypoint and so no loader.
-	state, err = generate(generator.Config{
+	state, err = generate(context.Background(), generator.Config{
+		Engine:       styling(),
 		ModuleConfig: &generator.ModuleGeneratorConfig{FlatClients: true},
 	}, ClientGenFile, compatSchema(t), "v0.21.0")
 	require.NoError(t, err)
@@ -202,7 +207,8 @@ func TestGenerate_RejectsCompatModuleName(t *testing.T) {
 	}
 	generator.SetSchemaParents(schema)
 
-	_, err := generate(generator.Config{
+	_, err := generate(context.Background(), generator.Config{
+		Engine:       styling(),
 		ModuleConfig: &generator.ModuleGeneratorConfig{ModuleName: "app", EmitLoader: true},
 	}, ClientGenFile, schema, "v0.21.0")
 	require.Error(t, err)
@@ -229,6 +235,7 @@ func TestGenerateEntrypoint_LoadsLoaderForSideEffect(t *testing.T) {
 			gen := &TypeScriptGenerator{Config: generator.Config{
 				EntrypointConfig: &generator.EntrypointGeneratorConfig{
 					TypedefJSONPath: "testdata/typedef_smoke.json",
+					Naming:          smokeNaming(),
 					ModuleRoot:      "/work",
 					SDKImportPath:   "@dagger.io/dagger",
 					SourceDir:       "src",

@@ -279,7 +279,7 @@ export function AgentStateNameToValue(name: string): AgentState {
       return name as AgentState
   }
 }
-export type ArtifactUriOpts = {
+export type ArtifactURIOpts = {
   /**
    * Prefix the workspace's Git address and commit: dag://<workspace>@<commit>:<path>. Fails if the artifact has no workspace, or its workspace has no Git address.
    */
@@ -2776,8 +2776,8 @@ export function IdentifierWordKindNameToValue(name: string): IdentifierWordKind 
  * Compression algorithm to use for image layers.
  */
 export enum ImageLayerCompression {
-  EStarGz = "EStarGZ",
-  Estargz = ImageLayerCompression.EStarGz,
+  EStarGZ = "EStarGZ",
+  Estargz = ImageLayerCompression.EStarGZ,
   Gzip = "Gzip",
   Uncompressed = "Uncompressed",
   Zstd = "Zstd",
@@ -2789,7 +2789,7 @@ export enum ImageLayerCompression {
  */
 export function ImageLayerCompressionValueToName(value: ImageLayerCompression): string {
   switch (value) {
-    case ImageLayerCompression.EStarGz:
+    case ImageLayerCompression.EStarGZ:
       return "EStarGZ"
     case ImageLayerCompression.Gzip:
       return "Gzip"
@@ -2809,7 +2809,7 @@ export function ImageLayerCompressionValueToName(value: ImageLayerCompression): 
 export function ImageLayerCompressionNameToValue(name: string): ImageLayerCompression {
   switch (name) {
     case "EStarGZ":
-      return ImageLayerCompression.EStarGz
+      return ImageLayerCompression.EStarGZ
     case "Gzip":
       return ImageLayerCompression.Gzip
     case "Uncompressed":
@@ -2826,8 +2826,8 @@ export function ImageLayerCompressionNameToValue(name: string): ImageLayerCompre
 export enum ImageMediaTypes {
   Docker = "DockerMediaTypes",
   DockerMediaTypes = ImageMediaTypes.Docker,
-  Oci = "OCIMediaTypes",
-  OciMediaTypes = ImageMediaTypes.Oci,
+  OCI = "OCIMediaTypes",
+  OCIMediaTypes = ImageMediaTypes.OCI,
 }
 
 /**
@@ -2838,7 +2838,7 @@ export function ImageMediaTypesValueToName(value: ImageMediaTypes): string {
   switch (value) {
     case ImageMediaTypes.Docker:
       return "DOCKER"
-    case ImageMediaTypes.Oci:
+    case ImageMediaTypes.OCI:
       return "OCI"
     default:
       return value
@@ -2854,7 +2854,7 @@ export function ImageMediaTypesNameToValue(name: string): ImageMediaTypes {
     case "DOCKER":
       return ImageMediaTypes.Docker
     case "OCI":
-      return ImageMediaTypes.Oci
+      return ImageMediaTypes.OCI
     default:
       return name as ImageMediaTypes
   }
@@ -3400,8 +3400,8 @@ export function ModuleSourceKindNameToValue(name: string): ModuleSourceKind {
  * Transport layer network protocol associated to a port.
  */
 export enum NetworkProtocol {
-  Tcp = "TCP",
-  Udp = "UDP",
+  TCP = "TCP",
+  UDP = "UDP",
 }
 
 /**
@@ -3410,9 +3410,9 @@ export enum NetworkProtocol {
  */
 export function NetworkProtocolValueToName(value: NetworkProtocol): string {
   switch (value) {
-    case NetworkProtocol.Tcp:
+    case NetworkProtocol.TCP:
       return "TCP"
-    case NetworkProtocol.Udp:
+    case NetworkProtocol.UDP:
       return "UDP"
     default:
       return value
@@ -3426,9 +3426,9 @@ export function NetworkProtocolValueToName(value: NetworkProtocol): string {
 export function NetworkProtocolNameToValue(name: string): NetworkProtocol {
   switch (name) {
     case "TCP":
-      return NetworkProtocol.Tcp
+      return NetworkProtocol.TCP
     case "UDP":
-      return NetworkProtocol.Udp
+      return NetworkProtocol.UDP
     default:
       return name as NetworkProtocol
   }
@@ -3637,7 +3637,7 @@ export type ClientGitOpts = {
   experimentalServiceHost?: Service
 }
 
-export type ClientHttpOpts = {
+export type ClientHTTPOpts = {
   /**
    * File name to use for the file. Defaults to the last part of the URL.
    */
@@ -3721,7 +3721,7 @@ export type ClientServeModuleOpts = {
   refPin?: string
 }
 
-export type ClientSshfsVolumeOpts = {
+export type ClientSSHFSVolumeOpts = {
   /**
    * known_hosts material used to verify the remote host key. Required unless insecureSkipHostKeyCheck is true.
    */
@@ -3752,8 +3752,8 @@ export type ClientSshfsVolumeOpts = {
  * Transport protocol to use for registry operations.
  */
 export enum RegistryProtocol {
-  Http = "HTTP",
-  Https = "HTTPS",
+  HTTP = "HTTP",
+  HTTPS = "HTTPS",
 }
 
 /**
@@ -3762,9 +3762,9 @@ export enum RegistryProtocol {
  */
 export function RegistryProtocolValueToName(value: RegistryProtocol): string {
   switch (value) {
-    case RegistryProtocol.Http:
+    case RegistryProtocol.HTTP:
       return "HTTP"
-    case RegistryProtocol.Https:
+    case RegistryProtocol.HTTPS:
       return "HTTPS"
     default:
       return value
@@ -3778,9 +3778,9 @@ export function RegistryProtocolValueToName(value: RegistryProtocol): string {
 export function RegistryProtocolNameToValue(name: string): RegistryProtocol {
   switch (name) {
     case "HTTP":
-      return RegistryProtocol.Http
+      return RegistryProtocol.HTTP
     case "HTTPS":
-      return RegistryProtocol.Https
+      return RegistryProtocol.HTTPS
     default:
       return name as RegistryProtocol
   }
@@ -4470,7 +4470,7 @@ export type WorkspaceWithResetOpts = {
   hard?: boolean
 }
 
-export type WorkspaceWithSdkOpts = {
+export type WorkspaceWithSDKOpts = {
   /**
    * Override name for the installed SDK entry.
    */
@@ -4556,7 +4556,7 @@ export type WorkspaceWithoutModuleOpts = {
   here?: boolean
 }
 
-export type WorkspaceWithoutSdkOpts = {
+export type WorkspaceWithoutSDKOpts = {
   /**
    * Write to the workspace config directory at the workspace cwd.
    */
@@ -5554,7 +5554,7 @@ export class Artifact extends BaseClient {
    * @param opts.typeAssertion Include the artifact type in the scheme: dag+container://.
    */
   uri = async (
-    opts?: ArtifactUriOpts): Promise<string> => {
+    opts?: ArtifactURIOpts): Promise<string> => {
     if (this._uri) {
       return this._uri
     }
@@ -19096,7 +19096,7 @@ export class Client extends BaseClient {
    * @param opts.authHeader Secret used to populate the Authorization HTTP header
    * @param opts.experimentalServiceHost A service which must be started before the URL is fetched.
    */
-  http = (url: string, opts?: ClientHttpOpts): File => {
+  http = (url: string, opts?: ClientHTTPOpts): File => {
 
     const ctx = this._ctx.select(
       "http",
@@ -19343,7 +19343,7 @@ export class Client extends BaseClient {
    * @param opts.experimentalServiceHost Service to use as the SSHFS network endpoint while verifying the original host key.
    * @param opts.followSymlinks Resolve symlinks on the remote host, so they appear as the files and directories they point to. Without it, absolute symlinks and symlinks containing ".." can't be read. With it, creating a symlink in the volume fails.
    */
-  sshfsVolume = (endpoint: string, privateKey: Secret, opts?: ClientSshfsVolumeOpts): Volume => {
+  sshfsVolume = (endpoint: string, privateKey: Secret, opts?: ClientSSHFSVolumeOpts): Volume => {
 
     const ctx = this._ctx.select(
       "sshfsVolume",
@@ -22089,7 +22089,7 @@ export class Workspace extends BaseClient {
    * @param opts.here Write to the workspace config directory at the workspace cwd.
    * @param opts.asSdkName Optional override for the SDK name conventionally derived from the installed module name.
    */
-  withSDK = (ref: string, opts?: WorkspaceWithSdkOpts): Workspace => {
+  withSDK = (ref: string, opts?: WorkspaceWithSDKOpts): Workspace => {
 
     const ctx = this._ctx.select(
       "withSDK",
@@ -22326,7 +22326,7 @@ export class Workspace extends BaseClient {
    * @param name Name of the installed SDK entry to remove.
    * @param opts.here Write to the workspace config directory at the workspace cwd.
    */
-  withoutSDK = (name: string, opts?: WorkspaceWithoutSdkOpts): Workspace => {
+  withoutSDK = (name: string, opts?: WorkspaceWithoutSDKOpts): Workspace => {
 
     const ctx = this._ctx.select(
       "withoutSDK",
