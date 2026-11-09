@@ -147,6 +147,7 @@ func (funcs typescriptTemplateFuncs) FuncMap() template.FuncMap {
 		"CoreFile":            funcs.coreFile,
 		"ClientImports":       funcs.clientImports,
 		"ClientRuntimeImport": funcs.clientRuntimeImport,
+		"ClientCoreImport":    funcs.clientCoreImport,
 		"LoaderFiles":         funcs.loaderFiles,
 		"RootClientType":      funcs.rootClientType,
 		"IsExtendableType":    funcs.isExtendableType,
@@ -891,7 +892,25 @@ func (funcs typescriptTemplateFuncs) clientRuntimeImport() string {
 	if funcs.cfg.ModuleConfig == nil {
 		return "@dagger.io/session"
 	}
+	// With RemoteCoreLib a generated client is an independent package: it names
+	// the published packages it needs rather than reaching the scope's local
+	// facade by path. session exports both Context and BaseClient, so this one
+	// specifier still covers the pair.
+	if funcs.cfg.RemoteCoreLib {
+		return "@dagger.io/session"
+	}
 	return "@dagger.io/dagger"
+}
+
+// clientCoreImport is where a *packaged* client file imports core types and
+// values from. It differs from coreImportSpec because the compat shim is not a
+// package: it sits flat in clients/ and resolves through the module's own
+// dependency on the facade, which stays either way.
+func (funcs typescriptTemplateFuncs) clientCoreImport() string {
+	if funcs.cfg.ModuleConfig != nil && funcs.cfg.RemoteCoreLib {
+		return "@dagger.io/core"
+	}
+	return funcs.coreImportSpec()
 }
 
 // coreImportSpec is where a client file imports core types and values from: the
@@ -932,7 +951,7 @@ func (funcs typescriptTemplateFuncs) clientImports(fileTypes []*introspection.Ty
 	referenced := funcs.collectReferencedNames(fileTypes)
 	funcs.addLegacyIDRefs(fileTypes, referenced)
 
-	coreSpec := funcs.coreImportSpec()
+	coreSpec := funcs.clientCoreImport()
 	type group struct {
 		values map[string]struct{}
 		types  map[string]struct{}

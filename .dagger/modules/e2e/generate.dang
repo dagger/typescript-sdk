@@ -2163,4 +2163,110 @@ type GenerateChecks {
 
     null
   }
+
+  """
+  With `remoteCoreLib`, a scope's clients/dagger is the facade's source over the
+  published packages instead of the vendored bundle.
+
+  The bundle is ~5MB of core.js and declarations, copied per scope. This asserts
+  the opt-in writes the other shape: four source files, a manifest pinning the
+  versions this bundle was built against, and no bundle at all — plus that the
+  entrypoint stops demanding files that are correctly absent, which is the part
+  that would refuse to run an otherwise valid module.
+
+  The default is asserted alongside, because the whole point of the setting is
+  that nothing moves until someone asks.
+  """
+  remoteCoreLibCheck(ws: Workspace!): Void @check {
+    let remotePath = fixtures.out + "/remote-core-lib"
+    let bundledPath = fixtures.out + "/remote-core-lib-default"
+
+    let remote = Gen.scope(ws, remotePath, "remote-core-lib", legacyRuntime: false, remoteCoreLib: true)
+    let bundled = Gen.scope(ws, bundledPath, "remote-core-lib-default", legacyRuntime: false)
+
+    ["index.ts", "telemetry.ts", "package.json"].each { name =>
+      Asserts.added(remote, remotePath + "/clients/dagger/" + name)
+    }
+    Asserts.notAdded(remote, remotePath + "/clients/dagger/core.js", "the bundle should not be copied in")
+    Asserts.notAdded(remote, remotePath + "/clients/dagger/core.d.ts", "nor its declarations")
+    Asserts.notAdded(
+      remote,
+      remotePath + "/clients/dagger/client.gen.ts",
+      "nor the bindings: @dagger.io/core carries them",
+    )
+
+    let manifest = remote.layer.file(remotePath + "/clients/dagger/package.json").contents
+    Asserts.stringContains(
+      manifest,
+      "\"@dagger.io/core\": \"" + typescriptSdk().bundleEngineVersion.trimPrefix("v") + "\"",
+      "core should be pinned at the engine release this bundle announces. Got: " + manifest,
+    )
+
+    # The facade declares every package it imports, session and connect
+    # included. It re-exports from session in three places, and `connection`
+    # comes from connect — an undeclared transitive import is what Deno
+    # refuses, and npm hides it by hoisting, so only this notices.
+    ["core", "session", "connect", "module", "telemetry"].each { layer =>
+      Asserts.stringContains(
+        manifest,
+        "\"@dagger.io/" + layer + "\":",
+        "the facade should declare @dagger.io/" + layer + ". Got: " + manifest,
+      )
+    }
+
+    let entrypoint = remote.layer.file(remotePath + "/entrypoint/main.dang").contents
+    Asserts.stringNotContains(
+      entrypoint,
+      "clients/dagger/core.js",
+      "the entrypoint must not require a bundle the scope does not carry",
+    )
+
+    # A generated client is an independent package: it names what it imports
+    # rather than reaching the scope's facade by path.
+    let clientPath = fixtures.out + "/remote-core-lib-client"
+    let clients = [ws.moduleSource("/" + fixtures.clientModule)]
+    let withClient = Gen.scope(
+      ws,
+      clientPath,
+      "remote-core-lib-client",
+      template: "empty",
+      legacyRuntime: false,
+      remoteCoreLib: true,
+      clients: clients,
+    )
+    let clientTree = ws.withChanges(withClient).directory("/" + clientPath)
+    # The fixture's client generates under this name; the sibling check above
+    # asserts the same path.
+    let clientName = "client-app"
+    let clientManifest = clientTree.file("clients/" + clientName + "/package.json").contents
+    Asserts.stringNotContains(
+      clientManifest,
+      "file:../dagger",
+      "an independent client should not reach the local facade. Got: " + clientManifest,
+    )
+    ["core", "session"].each { layer =>
+      Asserts.stringContains(
+        clientManifest,
+        "\"@dagger.io/" + layer + "\":",
+        "it should name @dagger.io/" + layer + " instead. Got: " + clientManifest,
+      )
+    }
+    let clientSource = clientTree.file("clients/" + clientName + "/" + clientName + ".gen.ts").contents
+    Asserts.stringContains(
+      clientSource,
+      "from \"@dagger.io/session\"",
+      "Context and BaseClient come from session. Got: " + clientSource,
+    )
+    Asserts.stringNotContains(
+      clientSource,
+      "from \"@dagger.io/dagger\"",
+      "and nothing from the facade. Got: " + clientSource,
+    )
+
+    # The default, unchanged: still the vendored bundle.
+    Asserts.added(bundled, bundledPath + "/clients/dagger/core.js")
+    Asserts.added(bundled, bundledPath + "/clients/dagger/client.gen.ts")
+
+    null
+  }
 }

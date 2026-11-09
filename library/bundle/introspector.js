@@ -99939,7 +99939,7 @@ async function withTracing(fct) {
     await close();
   }
 }
-// src/connection.ts
+// src/connect/connection.ts
 async function connection(fct, cfg = {}) {
   await withTracing(() => withSession(fct, cfg));
 }

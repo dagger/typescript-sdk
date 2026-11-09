@@ -14,7 +14,7 @@ export * from "@dagger.io/session"
 // is what keeps the OpenTelemetry SDK out of a bare client's closure. `connect`
 // hands the callback a typed `Client` and so lives with the bindings, the same
 // split as the Go SDK's dagger.Connect vs core.NewQuery.
-export { connection } from "./connection.js"
+export { connection } from "@dagger.io/connect"
 // `BaseClient` is the one name two of those packages both export: the generated
 // bindings re-export it for consumers that used to import it from
 // `client.gen.js`, and `session` owns the class itself. Two star exports of one

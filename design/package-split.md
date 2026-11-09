@@ -902,7 +902,30 @@ and the pre-v1 tree gets moved for nothing.
 *Then back here:*
 
 5. **Switch generation**: `clients/dagger` → registry ranges, with the
-   local-generation fallback for dev engines.
+   local-generation fallback for dev engines. *Available, off by default:* the
+   `remoteCoreLib` setting makes a scope's `clients/dagger` the facade's own
+   source over published `@dagger.io/{core,module,telemetry}` instead of ~5MB of
+   vendored `core.js` — 16K against 5.2M, measured on a generated module that
+   installs and runs. The facade source and its manifest come out of
+   `library/bundle/facade/`, assembled by the packager from `src/index.ts` and
+   `src/connection.ts` so the surface a module sees cannot drift from what the
+   library exports. Versions are pinned, not ranged: core at the engine release
+   the bundle announces, the other three at their committed manifests.
+
+   **A generated client becomes an independent package** under the same setting:
+   it names `@dagger.io/core` and `@dagger.io/session` rather than reaching the
+   scope's facade by `file:../dagger`. Both, because its runtime lives in two
+   places — `Context` and `BaseClient` in `session`, `dag` and every core type
+   in `core`. Measured: one deduped copy of each, and a module calling through
+   such a client works. `loader.gen.ts` and `compat.gen.ts` keep the facade
+   specifier; they sit flat in `clients/` and are module-internal, so the
+   module's own dependency already covers them.
+
+   It stays opt-in because the fallback is the unsolved half. The pins are what
+   this bundle was built against, so an engine whose `core` was never published
+   has nothing to resolve, and there is no check for that short of asking a
+   registry. Carrying the bundle is the only thing that always works, so it
+   remains the default. `e2e:generate/remote-core-lib-check` holds both shapes.
 6. **Shed the bundle.** `core.js` stops shipping; only the introspector remains.
 
 ## What I did not verify

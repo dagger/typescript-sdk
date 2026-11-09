@@ -68,6 +68,22 @@ type TypescriptSdk {
   legacyRuntime: Boolean! = false
 
   """
+  Resolve the library from a registry instead of carrying it.
+
+  A scope's clients/dagger is the prebuilt bundle today: ~5MB of core.js and
+  its declarations, vendored per scope. Set this and it becomes the facade's
+  own four source files, depending on the published @dagger.io/{core,module,
+  telemetry} — which is the same package surface, a hundredth of the size, and
+  shared between scopes by the resolver rather than copied.
+
+  Off by default, and deliberately: the versions pinned are the ones this
+  bundle was built against, so an engine whose core was never published has
+  nothing to resolve. Until that has an answer, carrying the bundle is the only
+  thing that always works. See design/package-split.md, step 5.
+  """
+  remoteCoreLib: Boolean! = false
+
+  """
   packageManager pin for package.json, as `name@version` or just `name`. Empty
   writes no field. Node only; Bun and Deno bundle their own.
   """
@@ -527,11 +543,18 @@ type TypescriptSdk {
   bundle plus the scope's own core bindings, completed into a real npm package.
   Every scope carries its own copy — one resolution context, one core — and
   every other package in the scope's clients/ depends on it by file:../dagger.
-  It stands in for a published @dagger.io/dagger; the swap later is a specifier
-  change, nothing regenerates.
+  It stands in for a published @dagger.io/dagger. With `remoteCoreLib` it is
+  instead the facade's own source over the published layers — the bundle's
+  facade/, assembled by the packager so the surface cannot drift from what the
+  library exports — and the bindings are not copied in at all, because
+  @dagger.io/core carries them.
   """
   let corePackage(bindings: Directory!): Directory! {
-    moduleSdkDirectory(bindings).withNewFile("package.json", corePackageJSON)
+    if (remoteCoreLib) {
+      tsBundle.directory("facade")
+    } else {
+      moduleSdkDirectory(bindings).withNewFile("package.json", corePackageJSON)
+    }
   }
 
   """
@@ -1564,6 +1587,28 @@ type TypescriptSdk {
   let coreBundleFiles: [String!]! = ["core.js", "core.d.ts", "index.ts", "telemetry.ts"]
 
   """
+  The @dagger.io/session release this bundle was built against, read from the
+  facade's manifest so there is one source for it: the packager pins it there
+  from the committed layer manifest, and a client that names session has to
+  name the same one the facade does or a scope resolves two of them.
+  """
+  let sessionVersion: String! {
+    let pinned = tsBundle.file("facade/package.json").contents
+      .split("\"@dagger.io/session\": \"")
+      .dropFirst(1)
+      .join("")
+      .split("\"")
+    pinned.takeFirst(1).join("")
+  }
+
+  """
+  The same set for a remoteCoreLib scope: the facade's source instead of the
+  bundle. Two files, not three — `connection` moved into @dagger.io/connect, so
+  the facade imports it rather than carrying it.
+  """
+  let facadeFiles: [String!]! = ["index.ts", "telemetry.ts"]
+
+  """
   A file from the prebuilt library this SDK ships, so callers can tell what a
   generated module was built against.
   """
@@ -1617,7 +1662,9 @@ type TypescriptSdk {
         "--workspace-repo-url", repoURL,
         "--clients-dir", clientsDir,
         "--core-file", "/core.ts",
-      ] + clientMetaArgs + layoutArgs)
+      ]
+        + (if (remoteCoreLib) { ["--remote-core-lib"] } else { [] })
+        + clientMetaArgs + layoutArgs)
       .directory("/out")
   }
 
@@ -1995,7 +2042,9 @@ type TypescriptSdk {
         "--package-manager", pkgManager,
         "--base-image", image,
         "--client-version", bundleEngineVersion,
-      ] + includes.reduce([]) { acc, path => acc + ["--include", path] })
+      ]
+        + (if (remoteCoreLib) { ["--remote-core-lib"] } else { [] })
+        + includes.reduce([]) { acc, path => acc + ["--include", path] })
       .file("/out/entrypoint/main.dang")
   }
 
@@ -2410,7 +2459,11 @@ type TypescriptSdk {
     let libraries = rendered
       .filter { path => path == "client.gen.ts" or path.trimSuffix("/client.gen.ts") != path }
       .map { path => path.trimSuffix("client.gen.ts") }
-    let library = ["package.json"] + coreBundleFiles
+    let library = if (remoteCoreLib) {
+      ["package.json"] + facadeFiles
+    } else {
+      ["package.json"] + coreBundleFiles
+    }
     let bundle = files.filter { path =>
       libraries.filter { prefix => library.filter { name => prefix + name == path }.length > 0 }.length > 0
     }
@@ -2862,7 +2915,21 @@ type TypescriptSdk {
   placeholder npm requires for a file: dependency to resolve at all.
   """
   let clientPackageJSON(name: String!, modules: [String!]!): String! {
-    let deps = ["  \"@dagger.io/dagger\": \"file:../dagger\""] +
+    # With remoteCoreLib a client is an independent package: it names the
+    # published packages it imports rather than reaching the scope's local
+    # facade by path. Both, because the two halves of its runtime live apart —
+    # `Context` and `BaseClient` in session, `dag` and every core type in core.
+    # Siblings stay relative either way: they are generated beside it, and no
+    # registry has them.
+    let runtimeDeps = if (remoteCoreLib) {
+      [
+        "  \"@dagger.io/core\": \"" + bundleEngineVersion.trimPrefix("v") + "\"",
+        "  \"@dagger.io/session\": \"" + sessionVersion + "\"",
+      ]
+    } else {
+      ["  \"@dagger.io/dagger\": \"file:../dagger\""]
+    }
+    let deps = runtimeDeps +
       modules
         .filter { sibling => sibling != name }
         .map { sibling => "  \"@dagger.io/" + sibling + "\": \"file:../" + sibling + "\"" }

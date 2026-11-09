@@ -30,6 +30,11 @@ type DangEntrypointOptions struct {
 	// workspace root.
 	ModulePath string
 
+	// RemoteCoreLib reports that clients/dagger is the facade's source over
+	// published packages rather than the vendored bundle, so client.gen.ts and
+	// core.js are not there to require.
+	RemoteCoreLib bool
+
 	// PackageManager installs the module's dependencies: "npm", "yarn" or
 	// "pnpm" under node, "bun" or "deno" under their own runtimes. Empty falls
 	// back to the runtime's own manager, which is the only one its base image
@@ -737,8 +742,12 @@ func (c *dangFuncCtx) dangRequiredFiles() []string {
 		c.dispatchFile(),
 		"clients/loader.gen.ts",
 		"clients/dagger/index.ts",
-		"clients/dagger/client.gen.ts",
-		"clients/dagger/core.js",
+	}
+	// The bundle only exists when the module carries it. With registry clients
+	// the bindings come from @dagger.io/core, so requiring them here would
+	// refuse to run a module that is correctly generated.
+	if !c.opts.RemoteCoreLib {
+		files = append(files, "clients/dagger/client.gen.ts", "clients/dagger/core.js")
 	}
 	switch c.opts.Runtime {
 	case "deno":

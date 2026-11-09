@@ -21,6 +21,12 @@ type Config struct {
 	// DangEntrypointConfig is the specific config to generate the Dang module
 	// entrypoint the engine loads under a manifest `[entrypoint]` table.
 	DangEntrypointConfig *DangEntrypointGeneratorConfig
+
+	// RemoteCoreLib reports that the scope resolves the library from a registry
+	// rather than from a vendored bundle. A generated client is then an
+	// independent package, naming @dagger.io/core and @dagger.io/session
+	// instead of reaching the scope's local facade by path.
+	RemoteCoreLib bool
 }
 
 // ModuleGeneratorConfig drives a scope's client generation — the same for a
@@ -199,6 +205,11 @@ type DangEntrypointGeneratorConfig struct {
 	// for, as a `v`-prefixed semver. The recipe declares it on the exec that
 	// starts the module process. Required.
 	ClientVersion string
+
+	// RemoteCoreLib reports that the module resolves @dagger.io/dagger from a
+	// registry rather than from a vendored bundle, so clients/dagger holds the
+	// facade's source and neither client.gen.ts nor core.js exists to require.
+	RemoteCoreLib bool
 
 	// DispatchFile is the dispatcher call() execs, relative to the module
 	// directory. Defaults to "entrypoint/__dagger.dispatch.ts".

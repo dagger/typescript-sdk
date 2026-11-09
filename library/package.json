@@ -19,6 +19,7 @@
   "workspaces": [
     "src/session",
     "src/core",
+    "src/connect",
     "src/module",
     "src/telemetry"
   ],

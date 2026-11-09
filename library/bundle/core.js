@@ -107955,7 +107955,7 @@ async function connect(cb, config = {}) {
     return await cb(client);
   });
 }
-// src/connection.ts
+// src/connect/dist/connection.js
 async function connection(fct, cfg = {}) {
   await withTracing(() => withSession(fct, cfg));
 }

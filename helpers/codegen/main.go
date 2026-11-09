@@ -160,17 +160,18 @@ func runEntrypoint(args []string) error {
 func runDangEntrypoint(args []string) error {
 	fs := flag.NewFlagSet("dang-entrypoint", flag.ExitOnError)
 	var (
-		typedefPath  = fs.String("typedef-json-path", "", "path to the typedef JSON emitted by the SDK introspector")
-		outputDir    = fs.String("output", ".", "output directory for the generated entrypoint")
-		outputFile   = fs.String("output-file", typescriptgenerator.DefaultDangEntrypointFile, "path to write within the output directory")
-		moduleName   = fs.String("module-name", "", "the module's name, used in the error a missing generated file raises")
-		runtime      = fs.String("runtime", "node", "JS runtime the call() recipe targets: node, bun or deno")
-		modulePath   = fs.String("module-path", ".", "module directory relative to the workspace root, used as the container workdir")
-		packageMgr   = fs.String("package-manager", "", "package manager the call() recipe installs with, as name[@version] (npm, yarn, pnpm, bun, deno)")
-		baseImage    = fs.String("base-image", "", "image the call() recipe builds on; empty keeps the pin for --runtime")
-		clientVer    = fs.String("client-version", "", "engine release the module's bindings are generated for, as vX.Y.Z[-pre]; declared to the engine when a call starts the module")
-		dispatchFile = fs.String("dispatch-file", typescriptgenerator.DefaultDispatchFile, "dispatcher call() execs, relative to the module directory")
-		tsconfigPath = fs.String("tsconfig", "tsconfig.json", "tsconfig tsx loads, relative to the module directory (node only)")
+		typedefPath   = fs.String("typedef-json-path", "", "path to the typedef JSON emitted by the SDK introspector")
+		outputDir     = fs.String("output", ".", "output directory for the generated entrypoint")
+		outputFile    = fs.String("output-file", typescriptgenerator.DefaultDangEntrypointFile, "path to write within the output directory")
+		moduleName    = fs.String("module-name", "", "the module's name, used in the error a missing generated file raises")
+		runtime       = fs.String("runtime", "node", "JS runtime the call() recipe targets: node, bun or deno")
+		modulePath    = fs.String("module-path", ".", "module directory relative to the workspace root, used as the container workdir")
+		packageMgr    = fs.String("package-manager", "", "package manager the call() recipe installs with, as name[@version] (npm, yarn, pnpm, bun, deno)")
+		baseImage     = fs.String("base-image", "", "image the call() recipe builds on; empty keeps the pin for --runtime")
+		clientVer     = fs.String("client-version", "", "engine release the module's bindings are generated for, as vX.Y.Z[-pre]; declared to the engine when a call starts the module")
+		dispatchFile  = fs.String("dispatch-file", typescriptgenerator.DefaultDispatchFile, "dispatcher call() execs, relative to the module directory")
+		tsconfigPath  = fs.String("tsconfig", "tsconfig.json", "tsconfig tsx loads, relative to the module directory (node only)")
+		remoteCoreLib = fs.Bool("remote-core-lib", false, "the module resolves @dagger.io/dagger from a registry, so clients/dagger carries no bundle")
 	)
 	var includes []string
 	fs.Func("include", `workspace-relative path outside the module directory the module builds with, "!"-prefixed to exclude (repeatable)`, func(v string) error {
@@ -211,6 +212,7 @@ func runDangEntrypoint(args []string) error {
 			ClientVersion:         *clientVer,
 			DispatchFile:          *dispatchFile,
 			TSConfigPath:          *tsconfigPath,
+			RemoteCoreLib:         *remoteCoreLib,
 			Include:               includes,
 		},
 	}
@@ -305,6 +307,7 @@ func runModule(args []string) error {
 		clientMetaPath    = fs.String("client-meta-path", "", "path to the client meta JSON whose modules are folded into these bindings")
 		outputDir         = fs.String("output", ".", "output directory for the generated bindings")
 		packaged          = fs.Bool("packaged-clients", false, "nest each client in its own clients/<module>/<module>.gen.ts package directory; the loader imports them relatively")
+		remoteLib         = fs.Bool("remote-core-lib", false, "the scope resolves the library from a registry, so each client names @dagger.io/core and @dagger.io/session instead of the local facade")
 		flat              = fs.Bool("flat-clients", false, "write the client files and the loader beside client.gen.ts in the output root, for the embedded [runtime] layout that ships them inside sdk/")
 		repoURL           = fs.String("workspace-repo-url", "", "Git repository the workspace was loaded from; source-map URLs into it are dropped for the module-relative filename")
 		clientsDir        = fs.String("clients-dir", "", "workspace-relative directory the generated client files land in; source-map filenames are rebased against it")
@@ -348,7 +351,8 @@ func runModule(args []string) error {
 	schema.StripSourceMapURLs(*repoURL)
 
 	gen := &typescriptgenerator.TypeScriptGenerator{Config: generator.Config{
-		OutputDir: *outputDir,
+		OutputDir:     *outputDir,
+		RemoteCoreLib: *remoteLib,
 		ModuleConfig: &generator.ModuleGeneratorConfig{
 			ModuleName:      *moduleName,
 			BoundModules:    bound,
