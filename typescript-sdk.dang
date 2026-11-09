@@ -1587,6 +1587,21 @@ type TypescriptSdk {
   let coreBundleFiles: [String!]! = ["core.js", "core.d.ts", "index.ts", "telemetry.ts"]
 
   """
+  The @dagger.io/session release this bundle was built against, read from the
+  facade's manifest so there is one source for it: the packager pins it there
+  from the committed layer manifest, and a client that names session has to
+  name the same one the facade does or a scope resolves two of them.
+  """
+  let sessionVersion: String! {
+    let pinned = tsBundle.file("facade/package.json").contents
+      .split("\"@dagger.io/session\": \"")
+      .dropFirst(1)
+      .join("")
+      .split("\"")
+    pinned.takeFirst(1).join("")
+  }
+
+  """
   The same set for a remoteCoreLib scope: the facade's source instead of the
   bundle. `connection.ts` is here and not above because it is the one part of
   the facade the bundle inlines into core.js rather than shipping as a file.
@@ -1647,7 +1662,9 @@ type TypescriptSdk {
         "--workspace-repo-url", repoURL,
         "--clients-dir", clientsDir,
         "--core-file", "/core.ts",
-      ] + clientMetaArgs + layoutArgs)
+      ]
+        + (if (remoteCoreLib) { ["--remote-core-lib"] } else { [] })
+        + clientMetaArgs + layoutArgs)
       .directory("/out")
   }
 
@@ -2898,7 +2915,21 @@ type TypescriptSdk {
   placeholder npm requires for a file: dependency to resolve at all.
   """
   let clientPackageJSON(name: String!, modules: [String!]!): String! {
-    let deps = ["  \"@dagger.io/dagger\": \"file:../dagger\""] +
+    # With remoteCoreLib a client is an independent package: it names the
+    # published packages it imports rather than reaching the scope's local
+    # facade by path. Both, because the two halves of its runtime live apart —
+    # `Context` and `BaseClient` in session, `dag` and every core type in core.
+    # Siblings stay relative either way: they are generated beside it, and no
+    # registry has them.
+    let runtimeDeps = if (remoteCoreLib) {
+      [
+        "  \"@dagger.io/core\": \"" + bundleEngineVersion.trimPrefix("v") + "\"",
+        "  \"@dagger.io/session\": \"" + sessionVersion + "\"",
+      ]
+    } else {
+      ["  \"@dagger.io/dagger\": \"file:../dagger\""]
+    }
+    let deps = runtimeDeps +
       modules
         .filter { sibling => sibling != name }
         .map { sibling => "  \"@dagger.io/" + sibling + "\": \"file:../" + sibling + "\"" }

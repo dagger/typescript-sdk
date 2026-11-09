@@ -912,6 +912,15 @@ and the pre-v1 tree gets moved for nothing.
    library exports. Versions are pinned, not ranged: core at the engine release
    the bundle announces, the other three at their committed manifests.
 
+   **A generated client becomes an independent package** under the same setting:
+   it names `@dagger.io/core` and `@dagger.io/session` rather than reaching the
+   scope's facade by `file:../dagger`. Both, because its runtime lives in two
+   places — `Context` and `BaseClient` in `session`, `dag` and every core type
+   in `core`. Measured: one deduped copy of each, and a module calling through
+   such a client works. `loader.gen.ts` and `compat.gen.ts` keep the facade
+   specifier; they sit flat in `clients/` and are module-internal, so the
+   module's own dependency already covers them.
+
    It stays opt-in because the fallback is the unsolved half. The pins are what
    this bundle was built against, so an engine whose `core` was never published
    has nothing to resolve, and there is no check for that short of asking a

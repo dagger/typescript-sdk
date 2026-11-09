@@ -307,6 +307,7 @@ func runModule(args []string) error {
 		clientMetaPath    = fs.String("client-meta-path", "", "path to the client meta JSON whose modules are folded into these bindings")
 		outputDir         = fs.String("output", ".", "output directory for the generated bindings")
 		packaged          = fs.Bool("packaged-clients", false, "nest each client in its own clients/<module>/<module>.gen.ts package directory; the loader imports them relatively")
+		remoteLib         = fs.Bool("remote-core-lib", false, "the scope resolves the library from a registry, so each client names @dagger.io/core and @dagger.io/session instead of the local facade")
 		flat              = fs.Bool("flat-clients", false, "write the client files and the loader beside client.gen.ts in the output root, for the embedded [runtime] layout that ships them inside sdk/")
 		repoURL           = fs.String("workspace-repo-url", "", "Git repository the workspace was loaded from; source-map URLs into it are dropped for the module-relative filename")
 		clientsDir        = fs.String("clients-dir", "", "workspace-relative directory the generated client files land in; source-map filenames are rebased against it")
@@ -350,7 +351,8 @@ func runModule(args []string) error {
 	schema.StripSourceMapURLs(*repoURL)
 
 	gen := &typescriptgenerator.TypeScriptGenerator{Config: generator.Config{
-		OutputDir: *outputDir,
+		OutputDir:     *outputDir,
+		RemoteCoreLib: *remoteLib,
 		ModuleConfig: &generator.ModuleGeneratorConfig{
 			ModuleName:      *moduleName,
 			BoundModules:    bound,

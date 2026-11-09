@@ -21,6 +21,12 @@ type Config struct {
 	// DangEntrypointConfig is the specific config to generate the Dang module
 	// entrypoint the engine loads under a manifest `[entrypoint]` table.
 	DangEntrypointConfig *DangEntrypointGeneratorConfig
+
+	// RemoteCoreLib reports that the scope resolves the library from a registry
+	// rather than from a vendored bundle. A generated client is then an
+	// independent package, naming @dagger.io/core and @dagger.io/session
+	// instead of reaching the scope's local facade by path.
+	RemoteCoreLib bool
 }
 
 // ModuleGeneratorConfig drives a scope's client generation — the same for a
