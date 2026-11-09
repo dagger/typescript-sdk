@@ -37,6 +37,8 @@ const manifest = {
     // Declared, not left to hoisting: index.ts re-exports from session
     // directly, and an undeclared transitive import is what Deno refuses.
     "@dagger.io/session": layerVersion("session"),
+    // `connection` lives here now rather than in the facade's own source.
+    "@dagger.io/connect": layerVersion("connect"),
     "@dagger.io/module": layerVersion("module"),
     "@dagger.io/telemetry": layerVersion("telemetry"),
     // The facade re-exports GraphQLClient, which is the only thing it needs

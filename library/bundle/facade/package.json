@@ -11,6 +11,7 @@
   "dependencies": {
     "@dagger.io/core": "1.0.0-beta.25",
     "@dagger.io/session": "1.0.0-beta.1",
+    "@dagger.io/connect": "1.0.0-beta.1",
     "@dagger.io/module": "1.0.0-beta.1",
     "@dagger.io/telemetry": "1.0.0-beta.1",
     "graphql-request": "^7.4.0"

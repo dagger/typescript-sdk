@@ -32,6 +32,14 @@
         "ts-node": "^10.9.2",
       },
     },
+    "src/connect": {
+      "name": "@dagger.io/connect",
+      "version": "1.0.0-beta.1",
+      "dependencies": {
+        "@dagger.io/session": "1.0.0-beta.1",
+        "@dagger.io/telemetry": "1.0.0-beta.1",
+      },
+    },
     "src/core": {
       "name": "@dagger.io/core",
       "version": "0.0.0",
@@ -41,7 +49,7 @@
     },
     "src/module": {
       "name": "@dagger.io/module",
-      "version": "0.0.0",
+      "version": "1.0.0-beta.1",
       "dependencies": {
         "@dagger.io/session": "0.0.0",
         "reflect-metadata": "^0.2.2",
@@ -49,12 +57,13 @@
     },
     "src/session": {
       "name": "@dagger.io/session",
-      "version": "0.0.0",
+      "version": "1.0.0-beta.1",
       "dependencies": {
         "@opentelemetry/api": "^1.9.1",
         "adm-zip": "^0.6.0",
         "env-paths": "^4.0.0",
         "execa": "^9.6.1",
+        "graphql": "^16.14.2",
         "graphql-request": "^7.4.0",
         "node-color-log": "^14.0.0",
         "node-fetch": "^3.3.2",
@@ -63,7 +72,7 @@
     },
     "src/telemetry": {
       "name": "@dagger.io/telemetry",
-      "version": "0.0.0",
+      "version": "1.0.0-beta.1",
       "dependencies": {
         "@opentelemetry/api": "^1.9.1",
         "@opentelemetry/core": "^2.8.0",
@@ -84,6 +93,8 @@
     "@babel/helper-validator-identifier": ["@babel/helper-validator-identifier@7.28.5", "", {}, "sha512-qSs4ifwzKJSV39ucNjsvc6WVHs6b7S03sOh2OcHF9UHfVPqWWALUsNUVzhSBiItjRZoLHx7nIarVjqKVusUZ1Q=="],
 
     "@cspotcode/source-map-support": ["@cspotcode/source-map-support@https://registry.npmjs.org/@cspotcode/source-map-support/-/source-map-support-0.8.1.tgz", { "dependencies": { "@jridgewell/trace-mapping": "0.3.9" } }, "sha512-IchNf6dN4tHoMFIn/7OE8LWZ19Y6q/67Bmf6vnGREv8RSbBVb9LPJxEcnwrcwX6ixSvaiGoomAUvu4YSxXrVgw=="],
+
+    "@dagger.io/connect": ["@dagger.io/connect@workspace:src/connect"],
 
     "@dagger.io/core": ["@dagger.io/core@workspace:src/core"],
 

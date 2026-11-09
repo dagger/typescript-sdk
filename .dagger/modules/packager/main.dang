@@ -70,7 +70,7 @@ type Packager {
       # the workspace symlinks to each layer's dist/ — so the layers are built
       # before anything bundles them. tsc -b follows the project references, so
       # session comes first without being named.
-      .withExec(["bun", "x", "tsc", "-b", "src/core", "src/module", "src/telemetry"])
+      .withExec(["bun", "x", "tsc", "-b", "src/core", "src/connect", "src/module", "src/telemetry"])
       .withExec(["bun", "build", "./src/index.ts", "--external=typescript", "--target=node", "--outfile", "/out/core.js"])
       # `bun x`, not a global tsc: the declarations we ship have to come from the
       # compiler the lockfile pins, the same one typescript-version.txt records
@@ -109,11 +109,12 @@ type Packager {
         "bun -e \"import('./src/session/provisioning/engineVersion.ts').then(m => console.log(m.ENGINE_VERSION))\" > /out/engine-version.txt"])
       # The facade, as source rather than bundled: for a module that resolves
       # the layers from a registry, `clients/dagger` is this directory instead
-      # of a 5MB core.js. It is the real src/index.ts and src/connection.ts, not
-      # a copy written by the SDK, so the surface a module sees cannot drift
-      # from the one the library exports.
+      # of a 5MB core.js. It is the real src/index.ts, not a copy written by the
+      # SDK, so the surface a module sees cannot drift from the one the library
+      # exports. `connection` is no longer among its files: it moved into
+      # @dagger.io/connect, which the facade now imports like any other layer.
       .withExec(["mkdir", "-p", "/out/facade"])
-      .withExec(["cp", "src/index.ts", "src/connection.ts", "/out/facade/"])
+      .withExec(["cp", "src/index.ts", "/out/facade/"])
       .withExec(["sh", "-c",
         "echo 'export { getTracer } from \"@dagger.io/telemetry\"' > /out/facade/telemetry.ts"])
       .withDirectory("/tools", packageTools)
@@ -149,7 +150,7 @@ type Packager {
       .withDirectory("/src", ws.directory("/" + libraryPath))
       .withWorkdir("/src")
       .withExec(["bun", "install", "--frozen-lockfile"])
-      .withExec(["bun", "x", "tsc", "-b", "src/core", "src/module", "src/telemetry"])
+      .withExec(["bun", "x", "tsc", "-b", "src/core", "src/connect", "src/module", "src/telemetry"])
   }
 
   """
@@ -173,7 +174,7 @@ type Packager {
   repo's. It is still built here, because the facade and the bundle import it.
   """
   publishedLayers: [String!]! {
-    ["session", "module", "telemetry"]
+    ["session", "connect", "module", "telemetry"]
   }
 
   """
@@ -187,7 +188,7 @@ type Packager {
   check noticed.
   """
   builtLayers: [String!]! {
-    ["session", "core", "module", "telemetry"]
+    ["session", "core", "connect", "module", "telemetry"]
   }
 
   """
@@ -554,7 +555,7 @@ type Packager {
       .withExec(["bun", "install"])
       # The specs scan fixtures that reach the facade, and the facade resolves
       # the layers through their dist/ — see libraryBundle.
-      .withExec(["bun", "x", "tsc", "-b", "src/core", "src/module", "src/telemetry"])
+      .withExec(["bun", "x", "tsc", "-b", "src/core", "src/connect", "src/module", "src/telemetry"])
       .withExec(["bun", "run", "--bun", "mocha"])
       .sync
 

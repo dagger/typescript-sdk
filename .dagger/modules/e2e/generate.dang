@@ -2184,7 +2184,7 @@ type GenerateChecks {
     let remote = Gen.scope(ws, remotePath, "remote-core-lib", legacyRuntime: false, remoteCoreLib: true)
     let bundled = Gen.scope(ws, bundledPath, "remote-core-lib-default", legacyRuntime: false)
 
-    ["index.ts", "connection.ts", "telemetry.ts", "package.json"].each { name =>
+    ["index.ts", "telemetry.ts", "package.json"].each { name =>
       Asserts.added(remote, remotePath + "/clients/dagger/" + name)
     }
     Asserts.notAdded(remote, remotePath + "/clients/dagger/core.js", "the bundle should not be copied in")
@@ -2202,11 +2202,11 @@ type GenerateChecks {
       "core should be pinned at the engine release this bundle announces. Got: " + manifest,
     )
 
-    # The facade declares every package it imports, session included. It
-    # re-exports from session in three places, and an undeclared transitive
-    # import is what Deno refuses — npm hides it by hoisting, so only this
-    # notices.
-    ["core", "session", "module", "telemetry"].each { layer =>
+    # The facade declares every package it imports, session and connect
+    # included. It re-exports from session in three places, and `connection`
+    # comes from connect — an undeclared transitive import is what Deno
+    # refuses, and npm hides it by hoisting, so only this notices.
+    ["core", "session", "connect", "module", "telemetry"].each { layer =>
       Asserts.stringContains(
         manifest,
         "\"@dagger.io/" + layer + "\":",

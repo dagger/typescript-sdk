@@ -1603,10 +1603,10 @@ type TypescriptSdk {
 
   """
   The same set for a remoteCoreLib scope: the facade's source instead of the
-  bundle. `connection.ts` is here and not above because it is the one part of
-  the facade the bundle inlines into core.js rather than shipping as a file.
+  bundle. Two files, not three — `connection` moved into @dagger.io/connect, so
+  the facade imports it rather than carrying it.
   """
-  let facadeFiles: [String!]! = ["index.ts", "connection.ts", "telemetry.ts"]
+  let facadeFiles: [String!]! = ["index.ts", "telemetry.ts"]
 
   """
   A file from the prebuilt library this SDK ships, so callers can tell what a
