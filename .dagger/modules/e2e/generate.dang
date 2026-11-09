@@ -2165,6 +2165,111 @@ type GenerateChecks {
   }
 
   """
+  Without the aggregated client a scope imports each package by its own name,
+  and with `globalClient` it gets the facade and the compat shim back.
+
+  The default is the interesting half: no clients/dagger at all, no
+  compat.gen.ts, and every generated file naming the package that owns what it
+  imports — the dispatcher taking Context from session, connection from connect,
+  getRegisteredClass from module, the core namespace from core. The module's own
+  manifest has to declare all of them, because Deno refuses an undeclared
+  transitive import and npm only hides one.
+  """
+  globalClientCheck(ws: Workspace!): Void @check {
+    let splitPath = fixtures.out + "/no-global-client"
+    let globalPath = fixtures.out + "/with-global-client"
+    let clients = [ws.moduleSource("/" + fixtures.clientModule)]
+
+    let split = Gen.scope(
+      ws, splitPath, "no-global-client",
+      template: "empty", legacyRuntime: false, remoteCoreLib: true, clients: clients,
+    )
+    let global = Gen.scope(
+      ws, globalPath, "with-global-client",
+      template: "empty", legacyRuntime: false, remoteCoreLib: true, globalClient: true,
+      clients: clients,
+    )
+
+    Asserts.notAdded(split, splitPath + "/clients/dagger/index.ts", "no facade without the global client")
+    Asserts.notAdded(split, splitPath + "/clients/compat.gen.ts", "and no compat shim to re-attach to it")
+    Asserts.added(global, globalPath + "/clients/dagger/index.ts")
+    Asserts.added(global, globalPath + "/clients/compat.gen.ts")
+
+    let splitTree = ws.withChanges(split).directory("/" + splitPath)
+    let manifest = splitTree.file("package.json").contents
+    ["core", "session", "connect", "module", "telemetry"].each { layer =>
+      Asserts.stringContains(
+        manifest,
+        "\"@dagger.io/" + layer + "\":",
+        "the module should declare @dagger.io/" + layer + " itself. Got: " + manifest,
+      )
+    }
+    Asserts.stringNotContains(
+      manifest,
+      "@dagger.io/dagger",
+      "and not the facade it does not have. Got: " + manifest,
+    )
+
+    let dispatcher = splitTree.file("entrypoint/__dagger.dispatch.ts").contents
+    ["session", "connect", "module", "telemetry"].each { layer =>
+      Asserts.stringContains(
+        dispatcher,
+        "from \"@dagger.io/" + layer + "\"",
+        "the dispatcher should import from @dagger.io/" + layer + ". Got: " + dispatcher,
+      )
+    }
+    Asserts.stringNotContains(
+      dispatcher,
+      "@dagger.io/dagger",
+      "and nothing from the facade. Got: " + dispatcher,
+    )
+
+    # A generated client is an independent package: it names what it imports
+    # rather than reaching the scope's facade by path.
+    let clientTree = splitTree
+    # The fixture's client generates under this name; the sibling check above
+    # asserts the same path.
+    let clientName = "client-app"
+    let clientManifest = clientTree.file("clients/" + clientName + "/package.json").contents
+    Asserts.stringNotContains(
+      clientManifest,
+      "file:../dagger",
+      "an independent client should not reach the local facade. Got: " + clientManifest,
+    )
+    ["core", "session"].each { layer =>
+      Asserts.stringContains(
+        clientManifest,
+        "\"@dagger.io/" + layer + "\":",
+        "it should name @dagger.io/" + layer + " instead. Got: " + clientManifest,
+      )
+    }
+    let clientSource = clientTree.file("clients/" + clientName + "/" + clientName + ".gen.ts").contents
+    Asserts.stringContains(
+      clientSource,
+      "from \"@dagger.io/session\"",
+      "Context and BaseClient come from session. Got: " + clientSource,
+    )
+    Asserts.stringNotContains(
+      clientSource,
+      "from \"@dagger.io/dagger\"",
+      "and nothing from the facade. Got: " + clientSource,
+    )
+
+    Asserts.stringContains(
+      splitTree.file("src/index.ts").contents,
+      "from \"@dagger.io/module\"",
+      "a module author writes the decorators from module, not the facade",
+    )
+    Asserts.stringContains(
+      ws.withChanges(global).directory("/" + globalPath).file("src/index.ts").contents,
+      "from \"@dagger.io/dagger\"",
+      "and from the facade when there is one",
+    )
+
+    null
+  }
+
+  """
   With `remoteCoreLib`, a scope's clients/dagger is the facade's source over the
   published packages instead of the vendored bundle.
 
@@ -2181,8 +2286,17 @@ type GenerateChecks {
     let remotePath = fixtures.out + "/remote-core-lib"
     let bundledPath = fixtures.out + "/remote-core-lib-default"
 
-    let remote = Gen.scope(ws, remotePath, "remote-core-lib", legacyRuntime: false, remoteCoreLib: true)
+    # globalClient because this is about what the facade *contains*; whether a
+    # scope gets one at all is globalClientCheck's question.
+    let remote = Gen.scope(
+      ws, remotePath, "remote-core-lib",
+      legacyRuntime: false, remoteCoreLib: true, globalClient: true,
+    )
     let bundled = Gen.scope(ws, bundledPath, "remote-core-lib-default", legacyRuntime: false)
+
+    # The default, unchanged: still the vendored bundle.
+    Asserts.added(bundled, bundledPath + "/clients/dagger/core.js")
+    Asserts.added(bundled, bundledPath + "/clients/dagger/client.gen.ts")
 
     ["index.ts", "telemetry.ts", "package.json"].each { name =>
       Asserts.added(remote, remotePath + "/clients/dagger/" + name)
@@ -2230,52 +2344,6 @@ type GenerateChecks {
       "clients/dagger/core.js",
       "the entrypoint must not require a bundle the scope does not carry",
     )
-
-    # A generated client is an independent package: it names what it imports
-    # rather than reaching the scope's facade by path.
-    let clientPath = fixtures.out + "/remote-core-lib-client"
-    let clients = [ws.moduleSource("/" + fixtures.clientModule)]
-    let withClient = Gen.scope(
-      ws,
-      clientPath,
-      "remote-core-lib-client",
-      template: "empty",
-      legacyRuntime: false,
-      remoteCoreLib: true,
-      clients: clients,
-    )
-    let clientTree = ws.withChanges(withClient).directory("/" + clientPath)
-    # The fixture's client generates under this name; the sibling check above
-    # asserts the same path.
-    let clientName = "client-app"
-    let clientManifest = clientTree.file("clients/" + clientName + "/package.json").contents
-    Asserts.stringNotContains(
-      clientManifest,
-      "file:../dagger",
-      "an independent client should not reach the local facade. Got: " + clientManifest,
-    )
-    ["core", "session"].each { layer =>
-      Asserts.stringContains(
-        clientManifest,
-        "\"@dagger.io/" + layer + "\":",
-        "it should name @dagger.io/" + layer + " instead. Got: " + clientManifest,
-      )
-    }
-    let clientSource = clientTree.file("clients/" + clientName + "/" + clientName + ".gen.ts").contents
-    Asserts.stringContains(
-      clientSource,
-      "from \"@dagger.io/session\"",
-      "Context and BaseClient come from session. Got: " + clientSource,
-    )
-    Asserts.stringNotContains(
-      clientSource,
-      "from \"@dagger.io/dagger\"",
-      "and nothing from the facade. Got: " + clientSource,
-    )
-
-    # The default, unchanged: still the vendored bundle.
-    Asserts.added(bundled, bundledPath + "/clients/dagger/core.js")
-    Asserts.added(bundled, bundledPath + "/clients/dagger/client.gen.ts")
 
     null
   }

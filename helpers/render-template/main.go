@@ -19,15 +19,25 @@ func main() {
 }
 
 func run(args []string) error {
-	if len(args) != 3 {
-		return fmt.Errorf("usage: render-template MODULE_NAME TEMPLATE_DIR OUT_DIR")
+	if len(args) < 3 || len(args) > 4 {
+		return fmt.Errorf("usage: render-template MODULE_NAME TEMPLATE_DIR OUT_DIR [--split-clients]")
 	}
 
 	moduleName := args[0]
 	templateDir := args[1]
 	outDir := args[2]
+	// A string rather than a bool because the data is a map[string]string; the
+	// empty value is what a template's `if` treats as false.
+	splitClients := ""
+	if len(args) == 4 {
+		if args[3] != "--split-clients" {
+			return fmt.Errorf("unknown flag %q (expected --split-clients)", args[3])
+		}
+		splitClients = "1"
+	}
 	data := map[string]string{
-		"ModuleName": strcase.ToCamel(moduleName),
+		"ModuleName":   strcase.ToCamel(moduleName),
+		"SplitClients": splitClients,
 	}
 
 	return filepath.WalkDir(templateDir, func(path string, entry os.DirEntry, err error) error {

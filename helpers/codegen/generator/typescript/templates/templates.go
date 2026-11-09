@@ -88,6 +88,12 @@ type EntrypointOptions struct {
 	// (defaults to "src").
 	SourceDir string
 
+	// SplitRuntimeImports makes the dispatcher name each published package it
+	// needs rather than the aggregated @dagger.io/dagger: Context from session,
+	// connection from connect, getRegisteredClass from module, the core types
+	// from core. Set when the scope has no facade to import.
+	SplitRuntimeImports bool
+
 	// DispatchMode renders the manifest-v2 dispatcher rather than the legacy
 	// entrypoint. The two differ only in how they talk to the engine: the
 	// dispatcher reads one JSON request on stdin and writes one JSON result on

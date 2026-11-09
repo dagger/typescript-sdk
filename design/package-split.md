@@ -921,6 +921,16 @@ and the pre-v1 tree gets moved for nothing.
    specifier; they sit flat in `clients/` and are module-internal, so the
    module's own dependency already covers them.
 
+   **The facade is optional under it.** `globalClient` decides whether a scope
+   also gets `clients/dagger` and `compat.gen.ts`; without it a scope imports
+   `dag` and the core types from `@dagger.io/core`, the decorators from
+   `@dagger.io/module`, each dependency from `@dagger.io/<name>`, and declares
+   all five layers in its own `package.json`. It is implied when `remoteCoreLib`
+   is off, because then the facade *is* the library. A Deno scope cannot drop it
+   yet: its imports resolve through `deno.json`, which still maps `@dagger.io/*`
+   to vendored paths, so the combination is refused rather than written broken.
+   `e2e:generate/global-client-check` holds both shapes.
+
    It stays opt-in because the fallback is the unsolved half. The pins are what
    this bundle was built against, so an engine whose `core` was never published
    has nothing to resolve, and there is no check for that short of asking a

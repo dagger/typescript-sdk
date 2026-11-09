@@ -84,6 +84,87 @@ type TypescriptSdk {
   remoteCoreLib: Boolean! = false
 
   """
+  Generate the aggregated `@dagger.io/dagger` client as well.
+
+  Without it a scope imports what it uses: `dag` and the core types from
+  `@dagger.io/core`, the decorators from `@dagger.io/module`, each dependency
+  from `@dagger.io/<name>`. With it, a scope also gets `clients/dagger` — a
+  facade re-exporting all of them — and `compat.gen.ts`, which re-attaches every
+  client's root fields to the core `dag` so pre-1.0 `dag.<module>()` keeps
+  working.
+
+  Implied when `remoteCoreLib` is off, because then the facade *is* the library:
+  it carries the bundle, and there is nothing published to import instead.
+  """
+  globalClient: Boolean! = false
+
+  """
+  Whether this scope gets the aggregated client, which is the setting unless
+  there is no alternative to it.
+  """
+  let aggregatedClient: Boolean! {
+    globalClient or (remoteCoreLib == false)
+  }
+
+  """
+  The codegen flag that drops the facade, for the calls that take it. Spelled as
+  the opt-out there so codegen's own default stays the shape it always had.
+  """
+  let splitClientArgs: [String!]! {
+    if (aggregatedClient) { [] } else { ["--split-clients"] }
+  }
+
+  """
+  The same for the two entrypoint generators, which phrase it as the imports
+  rather than the clients: with no facade they name each package instead, and
+  stop requiring one.
+  """
+  let splitRuntimeArgs: [String!]! {
+    if (aggregatedClient) { [] } else { ["--split-runtime-imports"] }
+  }
+
+  """
+  The facade as a directory to place, or nothing when the scope has no
+  aggregated client. An empty directory rather than a branch at each of the two
+  placement sites, which are otherwise identical chains.
+  """
+  let corePackageOrEmpty(bindings: Directory!): Directory! {
+    if (aggregatedClient) { corePackage(bindings) } else { directory }
+  }
+
+  """
+  The library packages a scope declares for itself when it has no facade.
+
+  Not a guess at what the user imports: these are what the *generated* files
+  import. The dispatcher takes Context from session, connection from connect and
+  getRegisteredClass from module; the loader takes the core namespace; the
+  telemetry namespace comes from telemetry. Declared rather than left to
+  hoisting, because Deno refuses an undeclared transitive import.
+
+  Each is spelled `version:` so config-updater writes a registry dependency
+  instead of a path, at whatever the facade pins — one source for the versions,
+  so a scope cannot end up resolving two of anything.
+  """
+  let libraryDepPairs: [String!]! {
+    if (aggregatedClient) {
+      []
+    } else {
+      ["core", "session", "connect", "module", "telemetry"].map { layer =>
+        layer + "=version:" + facadePin(layer)
+      }
+    }
+  }
+
+  """
+  Where the facade sits for a scope that has one, and nothing when it does not —
+  config-updater reads "-" as "no vendored core", which also prunes the file:
+  dependency an earlier layout left behind.
+  """
+  let coreRelOrNone: String! {
+    if (aggregatedClient) { "./clients/dagger" } else { "-" }
+  }
+
+  """
   packageManager pin for package.json, as `name@version` or just `name`. Empty
   writes no field. Node only; Bun and Deno bundle their own.
   """
@@ -1455,7 +1536,7 @@ type TypescriptSdk {
       .withExec(["go", "build", "-o", "/usr/local/bin/render-template", "."])
       .withDirectory("/template", currentModule.source.directory("templates/" + template))
       .withDirectory("/existing", existing)
-      .withExec(["render-template", name, "/template", "/rendered"])
+      .withExec(["render-template", name, "/template", "/rendered"] + splitClientArgs)
 
     let withConfig = if (runtime == Runtime.NODE) {
       builder
@@ -1670,7 +1751,7 @@ type TypescriptSdk {
         "--core-file", "/core.ts",
       ]
         + (if (remoteCoreLib) { ["--remote-core-lib"] } else { [] })
-        + clientMetaArgs + layoutArgs)
+        + splitClientArgs + clientMetaArgs + layoutArgs)
       .directory("/out")
   }
 
@@ -2011,7 +2092,7 @@ type TypescriptSdk {
         "--output", "/out",
         "--module-root", "/work",
         "--source-dir", "src",
-      ])
+      ] + splitRuntimeArgs)
       .file("/out/" + dangEntrypointDir + "/" + dispatchFileName)
   }
 
@@ -2050,6 +2131,7 @@ type TypescriptSdk {
         "--client-version", bundleEngineVersion,
       ]
         + (if (remoteCoreLib) { ["--remote-core-lib"] } else { [] })
+        + splitRuntimeArgs
         + includes.reduce([]) { acc, path => acc + ["--include", path] })
       .file("/out/entrypoint/main.dang")
   }
@@ -2117,7 +2199,7 @@ type TypescriptSdk {
     let base = if (legacyRuntime == false) {
       directory
         .withDirectory("clients", withClientPackageManifests(clients, clientNames))
-        .withDirectory("clients/dagger", corePackage(bindings))
+        .withDirectory("clients/dagger", corePackageOrEmpty(bindings))
         .withFile(dangEntrypointDir + "/" + dispatchFileName, generateModuleDispatcher(typedef))
         .withFile(
           dangEntrypointDir + "/" + dangEntrypointFile,
@@ -2192,6 +2274,17 @@ type TypescriptSdk {
       .withDirectory("/out", directory)
     let clientPairs = clientNames.map { name => name + "=./clients/" + name }
 
+    # Deno resolves @dagger.io/* through its import map rather than node_modules,
+    # and the map is written with paths to the vendored packages. A scope with no
+    # facade needs `npm:` specifiers there instead, which is not wired — so refuse
+    # rather than write a deno.json that resolves nothing.
+    if (runtime == Runtime.DENO and aggregatedClient == false) {
+      raise "a Deno scope cannot drop the aggregated client yet: its imports " +
+        "resolve through deno.json, which still maps @dagger.io/* to vendored " +
+        "paths rather than to the published packages. Set globalClient = true " +
+        "in the scope's settings, or use node or bun."
+    } else { null }
+
     if (runtime == Runtime.DENO) {
       # Deno resolves through its import map, so under an entrypoint the map
       # points at the packages: core at ./clients/dagger, each client in its
@@ -2213,7 +2306,7 @@ type TypescriptSdk {
       # through node_modules after an install, so the tsconfig carries no path
       # alias at all — "-" writes none and removes one an earlier layout left.
       configUpdater
-        .withExec(["config-updater", "shared-deps", "/existing/package.json", "/out/package.json", "./clients/dagger"] + clientPairs)
+        .withExec(["config-updater", "shared-deps", "/existing/package.json", "/out/package.json", coreRelOrNone] + libraryDepPairs + clientPairs)
         .withExec(["config-updater", "tsconfig", "/existing/tsconfig.json", "/out/tsconfig.json", "-", "clients"])
         .directory("/out")
     } else {
@@ -2714,7 +2807,7 @@ type TypescriptSdk {
         generated
           .withoutDirectory("clients")
           .withDirectory("clients", withClientPackageManifests(clients, clientNames))
-          .withDirectory("clients/dagger", corePackage(bindings))
+          .withDirectory("clients/dagger", corePackageOrEmpty(bindings))
           .withDirectory(".", moduleConfigDirectory(existing, rt, aliasModules, clientNames))
       } else {
         generated

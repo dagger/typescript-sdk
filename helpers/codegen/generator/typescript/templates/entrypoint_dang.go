@@ -35,6 +35,10 @@ type DangEntrypointOptions struct {
 	// core.js are not there to require.
 	RemoteCoreLib bool
 
+	// SplitRuntimeImports reports that there is no clients/dagger at all, so
+	// even its index.ts is not there to require.
+	SplitRuntimeImports bool
+
 	// PackageManager installs the module's dependencies: "npm", "yarn" or
 	// "pnpm" under node, "bun" or "deno" under their own runtimes. Empty falls
 	// back to the runtime's own manager, which is the only one its base image
@@ -741,7 +745,10 @@ func (c *dangFuncCtx) dangRequiredFiles() []string {
 	files := []string{
 		c.dispatchFile(),
 		"clients/loader.gen.ts",
-		"clients/dagger/index.ts",
+	}
+	// clients/dagger only exists with the aggregated client.
+	if !c.opts.SplitRuntimeImports {
+		files = append(files, "clients/dagger/index.ts")
 	}
 	// The bundle only exists when the module carries it. With registry clients
 	// the bindings come from @dagger.io/core, so requiring them here would

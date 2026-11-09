@@ -207,7 +207,11 @@ func generate(config generator.Config, target string, schema *introspection.Sche
 		// pre-1.0 `dag.<module>()` source. A scope with no module client has
 		// nothing to re-attach, and a standalone client has no loader to
 		// evaluate the shim, so neither gets one.
-		if len(splitModules) > 0 {
+		//
+		// Nor does a scope without the aggregated client: there is no shared
+		// `dag` to re-attach them to once every client is imported by its own
+		// name.
+		if len(splitModules) > 0 && !config.SplitClients {
 			compatTarget := filepath.Join(moduleDir, CompatGenFile)
 			if err := renderTemplate(mfs, tmpl, "compat", compatTarget, depFileData{
 				Schema:        schema,
