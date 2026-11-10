@@ -2266,6 +2266,35 @@ type GenerateChecks {
       "and from the facade when there is one",
     )
 
+    # Deno resolves through its import map rather than node_modules, so the same
+    # five packages are named there as `npm:` specifiers instead of as
+    # package.json dependencies, and the facade's two aliases are pruned.
+    let denoPath = fixtures.out + "/no-global-client-deno"
+    let deno = Gen.scope(
+      ws, denoPath, "no-global-client-deno",
+      template: "empty", legacyRuntime: false, remoteCoreLib: true, runtime: "deno",
+    )
+    let denoConfig = ws.withChanges(deno).directory("/" + denoPath).file("deno.json").contents
+    ["core", "session", "connect", "module", "telemetry"].each { layer =>
+      Asserts.stringContains(
+        denoConfig,
+        "\"@dagger.io/" + layer + "\": \"npm:@dagger.io/" + layer + "@",
+        "deno.json should map @dagger.io/" + layer + " to the registry. Got: " + denoConfig,
+      )
+    }
+    Asserts.stringNotContains(
+      denoConfig,
+      "\"@dagger.io/dagger\"",
+      "and carry no alias for a facade the scope does not have. Got: " + denoConfig,
+    )
+    # `~` and not the bounded range node and bun get: Deno rejects `>=x <y` as an
+    # invalid version requirement, so core is the one entry that differs.
+    Asserts.stringContains(
+      denoConfig,
+      "\"@dagger.io/core\": \"npm:@dagger.io/core@~",
+      "core has to be a tilde for Deno to parse it. Got: " + denoConfig,
+    )
+
     null
   }
 
