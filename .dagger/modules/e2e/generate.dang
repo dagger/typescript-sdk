@@ -2196,10 +2196,20 @@ type GenerateChecks {
     )
 
     let manifest = remote.layer.file(remotePath + "/clients/dagger/package.json").contents
+    # A bounded range, not the bare version: core's version is the engine's, so a
+    # republish without the engine moving is a patch under that release, and an
+    # exact pin cannot resolve it. The lower bound is still the release this
+    # bundle announces, and the upper bound keeps the next one out.
+    let engine = typescriptSdk().bundleEngineVersion.trimPrefix("v")
     Asserts.stringContains(
       manifest,
-      "\"@dagger.io/core\": \"" + typescriptSdk().bundleEngineVersion.trimPrefix("v") + "\"",
-      "core should be pinned at the engine release this bundle announces. Got: " + manifest,
+      "\"@dagger.io/core\": \">=" + engine + " <",
+      "core should be pinned from the engine release this bundle announces. Got: " + manifest,
+    )
+    Asserts.stringNotContains(
+      manifest,
+      "\"@dagger.io/core\": \"" + engine + "\"",
+      "and not at it exactly, or a core patch cannot be resolved. Got: " + manifest,
     )
 
     # The facade declares every package it imports, session and connect

@@ -1587,14 +1587,20 @@ type TypescriptSdk {
   let coreBundleFiles: [String!]! = ["core.js", "core.d.ts", "index.ts", "telemetry.ts"]
 
   """
-  The @dagger.io/session release this bundle was built against, read from the
-  facade's manifest so there is one source for it: the packager pins it there
-  from the committed layer manifest, and a client that names session has to
-  name the same one the facade does or a scope resolves two of them.
+  What the facade pins one layer at, read from its manifest rather than derived
+  here, so there is one source for it. The packager writes that manifest from
+  the committed layer versions and from the engine release, and a client that
+  names a layer has to name the same thing the facade does or a scope resolves
+  two of them.
+
+  core's entry is a bounded range, not a version: its version is the engine's,
+  so a republish without the engine moving becomes a patch under that release
+  (1.0.0-beta.25.2), which an exact pin cannot resolve. See facade-manifest.cjs
+  for why the bound is spelled out rather than a caret.
   """
-  let sessionVersion: String! {
+  let facadePin(name: String!): String! {
     let pinned = tsBundle.file("facade/package.json").contents
-      .split("\"@dagger.io/session\": \"")
+      .split("\"@dagger.io/" + name + "\": \"")
       .dropFirst(1)
       .join("")
       .split("\"")
@@ -2923,8 +2929,8 @@ type TypescriptSdk {
     # registry has them.
     let runtimeDeps = if (remoteCoreLib) {
       [
-        "  \"@dagger.io/core\": \"" + bundleEngineVersion.trimPrefix("v") + "\"",
-        "  \"@dagger.io/session\": \"" + sessionVersion + "\"",
+        "  \"@dagger.io/core\": \"" + facadePin("core") + "\"",
+        "  \"@dagger.io/session\": \"" + facadePin("session") + "\"",
       ]
     } else {
       ["  \"@dagger.io/dagger\": \"file:../dagger\""]

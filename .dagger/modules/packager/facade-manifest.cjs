@@ -19,6 +19,26 @@ if (!engineVersionPath || !out) {
 
 // `v1.0.0-beta.25` in the file, `1.0.0-beta.25` on npm.
 const coreVersion = fs.readFileSync(engineVersionPath, "utf8").trim().replace(/^v/, "")
+
+// core is pinned to a *bounded* range rather than that exact version, so a
+// patch under the same engine release is picked up without regenerating every
+// scope. core's version is the engine's, so when it has to be republished
+// without the engine moving it becomes e.g. 1.0.0-beta.25.2 — and nothing can
+// resolve that while the pin is exact.
+//
+// Bounded and not `^`: a caret on a prerelease also admits the *next* engine
+// beta (semver says ^1.0.0-beta.25 satisfies 1.0.0-beta.26), which would let
+// bindings drift from the engine they were generated for. The upper bound is
+// the next beta, so only patches of this one get in.
+const nextEngineVersion = coreVersion.replace(
+  /(\d+)$/,
+  (n) => String(Number(n) + 1),
+)
+if (nextEngineVersion === coreVersion) {
+  console.error(`cannot derive an upper bound from ${coreVersion}`)
+  process.exit(1)
+}
+const coreRange = `>=${coreVersion} <${nextEngineVersion}`
 const layerVersion = (layer) =>
   JSON.parse(fs.readFileSync(`src/${layer}/package.json`, "utf8")).version
 
@@ -33,7 +53,7 @@ const manifest = {
     "./telemetry": "./telemetry.ts",
   },
   dependencies: {
-    "@dagger.io/core": coreVersion,
+    "@dagger.io/core": coreRange,
     // Declared, not left to hoisting: index.ts re-exports from session
     // directly, and an undeclared transitive import is what Deno refuses.
     "@dagger.io/session": layerVersion("session"),
