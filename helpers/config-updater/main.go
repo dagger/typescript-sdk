@@ -86,6 +86,10 @@ func run(args []string) error {
 	case "shared-deps":
 		// shared-deps INPUT OUTPUT CORE_REL [CLIENT_NAME=CLIENT_REL ...]
 		//
+		// A CLIENT_REL of `version:<spec>` is a registry dependency rather than
+		// a path, which is how a scope with no vendored library names the
+		// packages it imports.
+		//
 		// Wire a package.json to the workspace's vendored shared core and to the
 		// client packages this scope declares, all as file: dependencies in the
 		// @dagger.io/* namespace the SDK owns. CORE_REL and each CLIENT_REL are
@@ -227,7 +231,13 @@ func updateSharedDeps(packageJSON, coreRel string, clientPairs []string) (string
 		if !ok || name == "" || rel == "" {
 			return "", fmt.Errorf("client spec %q must be [?]NAME=REL", pair)
 		}
-		desired["@dagger.io/"+name] = "file:" + rel
+		// A `version:` prefix means a registry spec rather than a path, for a
+		// scope that resolves the library from npm instead of carrying it.
+		if spec, ok := strings.CutPrefix(rel, "version:"); ok {
+			desired["@dagger.io/"+name] = spec
+		} else {
+			desired["@dagger.io/"+name] = "file:" + rel
+		}
 		if optional {
 			keepOnly["@dagger.io/"+name] = true
 		}

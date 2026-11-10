@@ -1,4 +1,4 @@
-import { object } from "@dagger.io/dagger"
+{{ if .SplitClients }}import { object } from "@dagger.io/module"{{ else }}import { object } from "@dagger.io/dagger"{{ end }}
 
 @object()
 export class {{ .ModuleName }} {}

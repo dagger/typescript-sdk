@@ -892,11 +892,10 @@ func (funcs typescriptTemplateFuncs) clientRuntimeImport() string {
 	if funcs.cfg.ModuleConfig == nil {
 		return "@dagger.io/session"
 	}
-	// With RemoteCoreLib a generated client is an independent package: it names
-	// the published packages it needs rather than reaching the scope's local
-	// facade by path. session exports both Context and BaseClient, so this one
-	// specifier still covers the pair.
-	if funcs.cfg.RemoteCoreLib {
+	// Without the aggregated client there is no facade to reach, so a client
+	// names the published packages it needs. session exports both Context and
+	// BaseClient, so this one specifier still covers the pair.
+	if funcs.cfg.SplitClients {
 		return "@dagger.io/session"
 	}
 	return "@dagger.io/dagger"
@@ -907,7 +906,7 @@ func (funcs typescriptTemplateFuncs) clientRuntimeImport() string {
 // package: it sits flat in clients/ and resolves through the module's own
 // dependency on the facade, which stays either way.
 func (funcs typescriptTemplateFuncs) clientCoreImport() string {
-	if funcs.cfg.ModuleConfig != nil && funcs.cfg.RemoteCoreLib {
+	if funcs.cfg.ModuleConfig != nil && funcs.cfg.SplitClients {
 		return "@dagger.io/core"
 	}
 	return funcs.coreImportSpec()
@@ -1193,6 +1192,11 @@ type CompatClient struct {
 // to attach, so its dag is not imported either.
 func (funcs typescriptTemplateFuncs) compatClients() []CompatClient {
 	if funcs.fullSchema == nil {
+		return nil
+	}
+	// The loader imports the shim for its side effect behind `if CompatClients`,
+	// so this is also what stops it importing a file that was never rendered.
+	if funcs.cfg.SplitClients {
 		return nil
 	}
 

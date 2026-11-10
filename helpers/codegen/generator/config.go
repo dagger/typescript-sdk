@@ -22,6 +22,16 @@ type Config struct {
 	// entrypoint the engine loads under a manifest `[entrypoint]` table.
 	DangEntrypointConfig *DangEntrypointGeneratorConfig
 
+	// SplitClients drops the aggregated @dagger.io/dagger facade: a scope
+	// imports each package by its own name, and the compat shim that re-attaches
+	// client root fields to the core dag is not generated, because there is no
+	// shared dag to re-attach them to.
+	//
+	// Phrased as the opt-out so the zero value is the shape every caller had
+	// before it existed. The SDK setting that drives it, globalClient, reads the
+	// other way round.
+	SplitClients bool
+
 	// RemoteCoreLib reports that the scope resolves the library from a registry
 	// rather than from a vendored bundle. A generated client is then an
 	// independent package, naming @dagger.io/core and @dagger.io/session
@@ -142,6 +152,11 @@ type EntrypointGeneratorConfig struct {
 	// resolve relative source-import paths for each registered @object class.
 	ModuleRoot string
 
+	// SplitRuntimeImports makes the entrypoint name each published package it
+	// needs rather than one aggregated specifier, and stops it requiring a
+	// facade that is not generated. Set when the scope has no facade.
+	SplitRuntimeImports bool
+
 	// SDKImportPath is the bare specifier the entrypoint uses to import
 	// runtime helpers (defaults to "@dagger.io/dagger" for TypeScript).
 	SDKImportPath string
@@ -210,6 +225,10 @@ type DangEntrypointGeneratorConfig struct {
 	// registry rather than from a vendored bundle, so clients/dagger holds the
 	// facade's source and neither client.gen.ts nor core.js exists to require.
 	RemoteCoreLib bool
+
+	// SplitRuntimeImports reports that the scope has no clients/dagger at all,
+	// so even its index.ts is not there to require.
+	SplitRuntimeImports bool
 
 	// DispatchFile is the dispatcher call() execs, relative to the module
 	// directory. Defaults to "entrypoint/__dagger.dispatch.ts".

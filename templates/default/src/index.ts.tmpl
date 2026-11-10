@@ -1,4 +1,5 @@
-import { dag, Workspace, Directory, Container, object, func } from "@dagger.io/dagger"
+{{ if .SplitClients }}import { dag, Workspace, Directory, Container } from "@dagger.io/core"
+import { object, func } from "@dagger.io/module"{{ else }}import { dag, Workspace, Directory, Container, object, func } from "@dagger.io/dagger"{{ end }}
 
 @object()
 export class {{ .ModuleName }} {

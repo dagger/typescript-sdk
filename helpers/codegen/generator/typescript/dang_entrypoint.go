@@ -62,6 +62,7 @@ func (g *TypeScriptGenerator) GenerateDangEntrypoint(ctx context.Context) (*gene
 		DispatchFile:          cfg.DispatchFile,
 		TSConfigPath:          cfg.TSConfigPath,
 		RemoteCoreLib:         cfg.RemoteCoreLib,
+		SplitRuntimeImports:   cfg.SplitRuntimeImports,
 		Include:               cfg.Include,
 	})
 

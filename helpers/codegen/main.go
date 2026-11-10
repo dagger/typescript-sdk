@@ -112,6 +112,7 @@ func runEntrypoint(args []string) error {
 		sourceDir    = fs.String("source-dir", "src", "the module's source directory, relative to its root")
 		dispatch     = fs.Bool("dispatch", false, "render the manifest-v2 dispatcher (stdin/stdout, no register) instead of the legacy entrypoint")
 		loaderImport = fs.String("loader-import", "", "where the entrypoint imports the object loader from, relative to the module root (default clients/loader.gen.js)")
+		splitImports = fs.Bool("split-runtime-imports", false, "name each published package the entrypoint needs instead of one aggregated specifier, for a scope with no facade")
 	)
 	if err := fs.Parse(args); err != nil {
 		return err
@@ -130,13 +131,14 @@ func runEntrypoint(args []string) error {
 	cfg := generator.Config{
 		OutputDir: *outputDir,
 		EntrypointConfig: &generator.EntrypointGeneratorConfig{
-			TypedefJSONPath:  *typedefPath,
-			OutputFile:       outName,
-			ModuleRoot:       *moduleRoot,
-			SDKImportPath:    *sdkImport,
-			SourceDir:        *sourceDir,
-			DispatchMode:     *dispatch,
-			LoaderImportPath: *loaderImport,
+			TypedefJSONPath:     *typedefPath,
+			OutputFile:          outName,
+			ModuleRoot:          *moduleRoot,
+			SDKImportPath:       *sdkImport,
+			SourceDir:           *sourceDir,
+			DispatchMode:        *dispatch,
+			LoaderImportPath:    *loaderImport,
+			SplitRuntimeImports: *splitImports,
 		},
 	}
 	gen := &typescriptgenerator.TypeScriptGenerator{Config: cfg}
@@ -172,6 +174,7 @@ func runDangEntrypoint(args []string) error {
 		dispatchFile  = fs.String("dispatch-file", typescriptgenerator.DefaultDispatchFile, "dispatcher call() execs, relative to the module directory")
 		tsconfigPath  = fs.String("tsconfig", "tsconfig.json", "tsconfig tsx loads, relative to the module directory (node only)")
 		remoteCoreLib = fs.Bool("remote-core-lib", false, "the module resolves @dagger.io/dagger from a registry, so clients/dagger carries no bundle")
+		splitRuntime  = fs.Bool("split-runtime-imports", false, "the scope has no clients/dagger: name each published package instead, and do not require the facade")
 	)
 	var includes []string
 	fs.Func("include", `workspace-relative path outside the module directory the module builds with, "!"-prefixed to exclude (repeatable)`, func(v string) error {
@@ -213,6 +216,7 @@ func runDangEntrypoint(args []string) error {
 			DispatchFile:          *dispatchFile,
 			TSConfigPath:          *tsconfigPath,
 			RemoteCoreLib:         *remoteCoreLib,
+			SplitRuntimeImports:   *splitRuntime,
 			Include:               includes,
 		},
 	}
@@ -308,6 +312,7 @@ func runModule(args []string) error {
 		outputDir         = fs.String("output", ".", "output directory for the generated bindings")
 		packaged          = fs.Bool("packaged-clients", false, "nest each client in its own clients/<module>/<module>.gen.ts package directory; the loader imports them relatively")
 		remoteLib         = fs.Bool("remote-core-lib", false, "the scope resolves the library from a registry, so each client names @dagger.io/core and @dagger.io/session instead of the local facade")
+		splitClients      = fs.Bool("split-clients", false, "drop the aggregated @dagger.io/dagger facade and the compat shim: the scope imports each package by its own name")
 		flat              = fs.Bool("flat-clients", false, "write the client files and the loader beside client.gen.ts in the output root, for the embedded [runtime] layout that ships them inside sdk/")
 		repoURL           = fs.String("workspace-repo-url", "", "Git repository the workspace was loaded from; source-map URLs into it are dropped for the module-relative filename")
 		clientsDir        = fs.String("clients-dir", "", "workspace-relative directory the generated client files land in; source-map filenames are rebased against it")
@@ -353,6 +358,7 @@ func runModule(args []string) error {
 	gen := &typescriptgenerator.TypeScriptGenerator{Config: generator.Config{
 		OutputDir:     *outputDir,
 		RemoteCoreLib: *remoteLib,
+		SplitClients:  *splitClients,
 		ModuleConfig: &generator.ModuleGeneratorConfig{
 			ModuleName:      *moduleName,
 			BoundModules:    bound,

@@ -487,6 +487,22 @@ func (c *entrypointFuncCtx) engineIfaceTypeName(iface *TypedefInterface) string 
 	return pascalize(c.module.Name) + iface.Name
 }
 
+// pick keeps the wanted names that are actually in the set, preserving the
+// order they are asked for. The dispatcher's name list differs by mode, so a
+// group can legitimately come out empty.
+func pick(have []string, want ...string) []string {
+	var out []string
+	for _, w := range want {
+		for _, h := range have {
+			if h == w {
+				out = append(out, w)
+				break
+			}
+		}
+	}
+	return out
+}
+
 // plannedImports returns an ordered slice of import lines to emit. Encodes
 // the named/namespace/side-effect plan for the imports template.
 func (c *entrypointFuncCtx) plannedImports() []importLine {
@@ -505,7 +521,24 @@ func (c *entrypointFuncCtx) plannedImports() []importLine {
 	}
 
 	var lines []importLine
-	lines = append(lines, importLine{From: sdk, Names: names})
+	if c.opts.SplitRuntimeImports {
+		// One line per package that owns the names, in layer order. session
+		// exports Context, connect owns the composition, module owns the
+		// registry read side, and everything else is a core binding.
+		for _, group := range []importLine{
+			{From: "@dagger.io/session", Names: pick(names, "Context")},
+			{From: "@dagger.io/connect", Names: pick(names, "connection")},
+			{From: "@dagger.io/module", Names: pick(names, "getRegisteredClass")},
+			{From: "@dagger.io/core", Names: pick(names,
+				"Error as DaggerError", "FunctionCachePolicy", "TypeDefKind", "dag")},
+		} {
+			if len(group.Names) > 0 {
+				lines = append(lines, group)
+			}
+		}
+	} else {
+		lines = append(lines, importLine{From: sdk, Names: names})
+	}
 	// The generated loader maps a type name to its client class whichever
 	// per-module file declares it — there is no single namespace to look
 	// classes up in once every module has its own client. Imported relative to
@@ -521,7 +554,13 @@ func (c *entrypointFuncCtx) plannedImports() []importLine {
 	// import outright. The loader is also what evaluates the compat shim that
 	// restores pre-1.0 `dag.<module>()`, so it has to be loaded either way.
 	lines = append(lines, importLine{From: loaderImport, Names: []string{"__loadObject as __loadCoreObject"}, SideEffect: true})
-	lines = append(lines, importLine{From: sdk + "/telemetry", Namespace: "* as telemetry"})
+	// A subpath of the facade when there is one, its own package otherwise —
+	// the facade's ./telemetry export is a re-export of exactly this.
+	telemetrySpec := sdk + "/telemetry"
+	if c.opts.SplitRuntimeImports {
+		telemetrySpec = "@dagger.io/telemetry"
+	}
+	lines = append(lines, importLine{From: telemetrySpec, Namespace: "* as telemetry"})
 
 	// Group user imports by file path, deduping side-effect-only files.
 	groups := map[string]*importLine{}
