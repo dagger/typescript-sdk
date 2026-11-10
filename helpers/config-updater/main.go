@@ -566,6 +566,19 @@ func isModuleAlias(key string) bool {
 // ("../../.dagger/core/typescript"). asArray selects tsconfig's []string value
 // shape over deno's plain string.
 func syncLibAliases(jsonStr, keyPath, libDir string, asArray bool) (string, error) {
+	// "-" means the scope has no facade: remove the aliases rather than point
+	// them at a directory that is not there. An import map entry for a missing
+	// file is one a user's own import resolves to and then fails on.
+	if libDir == "-" {
+		var err error
+		for _, alias := range []string{daggerLibPathAlias, daggerTelemetryPathAlias} {
+			jsonStr, err = sjson.Delete(jsonStr, keyPath+"."+gjson.Escape(alias))
+			if err != nil {
+				return "", fmt.Errorf("remove %s alias: %w", alias, err)
+			}
+		}
+		return jsonStr, nil
+	}
 	entries := []struct{ alias, target string }{
 		{daggerLibPathAlias, libDir + "/index.ts"},
 		{daggerTelemetryPathAlias, libDir + "/telemetry.ts"},
@@ -611,9 +624,22 @@ func updateScopeAliases(jsonStr, keyPath, libDir, clientsDir string, modules []s
 // aliases and any non-module key are untouched. asArray selects tsconfig's
 // []string value shape over deno's plain string.
 func syncModuleAliases(jsonStr, keyPath, clientsDir string, modules []string, asArray bool) (string, error) {
-	keep := map[string]bool{}
+	// A `NAME=TARGET` entry names its own target verbatim, which is how a
+	// published package gets an `npm:` specifier instead of a path. A bare NAME
+	// keeps the generated-client path.
+	type entry struct{ name, target string }
+	entries := make([]entry, 0, len(modules))
 	for _, module := range modules {
-		keep[moduleAlias(module)] = true
+		if name, target, ok := strings.Cut(module, "="); ok {
+			entries = append(entries, entry{name, target})
+			continue
+		}
+		entries = append(entries, entry{module, ""})
+	}
+
+	keep := map[string]bool{}
+	for _, e := range entries {
+		keep[moduleAlias(e.name)] = true
 	}
 
 	var stale []string
@@ -631,14 +657,18 @@ func syncModuleAliases(jsonStr, keyPath, clientsDir string, modules []string, as
 			return "", fmt.Errorf("remove stale module alias %s: %w", k, err)
 		}
 	}
-	for _, module := range modules {
-		var value any = moduleAliasTarget(clientsDir, module)
-		if asArray {
-			value = []string{moduleAliasTarget(clientsDir, module)}
+	for _, e := range entries {
+		target := e.target
+		if target == "" {
+			target = moduleAliasTarget(clientsDir, e.name)
 		}
-		jsonStr, err = sjson.Set(jsonStr, keyPath+"."+gjson.Escape(moduleAlias(module)), value)
+		var value any = target
+		if asArray {
+			value = []string{target}
+		}
+		jsonStr, err = sjson.Set(jsonStr, keyPath+"."+gjson.Escape(moduleAlias(e.name)), value)
 		if err != nil {
-			return "", fmt.Errorf("set module alias for %s: %w", module, err)
+			return "", fmt.Errorf("set module alias for %s: %w", e.name, err)
 		}
 	}
 	return jsonStr, nil

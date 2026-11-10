@@ -2274,22 +2274,21 @@ type TypescriptSdk {
       .withDirectory("/out", directory)
     let clientPairs = clientNames.map { name => name + "=./clients/" + name }
 
-    # Deno resolves @dagger.io/* through its import map rather than node_modules,
-    # and the map is written with paths to the vendored packages. A scope with no
-    # facade needs `npm:` specifiers there instead, which is not wired — so refuse
-    # rather than write a deno.json that resolves nothing.
-    if (runtime == Runtime.DENO and aggregatedClient == false) {
-      raise "a Deno scope cannot drop the aggregated client yet: its imports " +
-        "resolve through deno.json, which still maps @dagger.io/* to vendored " +
-        "paths rather than to the published packages. Set globalClient = true " +
-        "in the scope's settings, or use node or bun."
-    } else { null }
-
     if (runtime == Runtime.DENO) {
       # Deno resolves through its import map, so under an entrypoint the map
       # points at the packages: core at ./clients/dagger, each client in its
       # package directory (the trailing slash selects that form).
-      let denoCore = if (legacyRuntime == false) { "./clients/dagger" } else { "" }
+      # "-" prunes the facade aliases for a scope that has none; the layers below
+      # take their place. Deno resolves through this map rather than node_modules,
+      # so a published package is named here as an `npm:` specifier where node and
+      # bun would get a package.json dependency.
+      let denoCore = if (aggregatedClient == false) {
+        "-"
+      } else if (legacyRuntime == false) {
+        "./clients/dagger"
+      } else {
+        ""
+      }
       let denoClientsDir = if (legacyRuntime == false) { "clients/" } else { "sdk" }
       # Under an entrypoint the aliases are what was rendered, nothing more: the
       # self client exists only when it was asked for, and an import map entry
@@ -2298,8 +2297,37 @@ type TypescriptSdk {
       # sdk/<module>.gen.ts is generated either way, which is what makes a
       # module that imports its own client loadable in the first pass.
       let denoAliases = if (legacyRuntime == false) { clientNames } else { aliasModules }
+      # The same five packages node and bun declare in package.json, as import
+      # map entries. Each names its own target, so the alias is a registry
+      # specifier rather than a path.
+      #
+      # core is `~<engine>` here where node and bun get `>=<engine> <next>`,
+      # because Deno's npm specifiers accept only `^` and `~` — `>=x <y` is
+      # rejected outright as an invalid version requirement, as are hyphen and
+      # comma forms. Measured, all four.
+      #
+      # `~` is the lesser of two bad options rather than a good one. It admits a
+      # core patch under this engine release, which is the point: without that a
+      # Deno scope is stuck on the core that pins session exactly and ends up
+      # with two copies of it. The cost is that `~1.0.0-beta.25` also admits
+      # 1.0.0-beta.26, so a scope that reinstalls after a *newer* engine's core
+      # is published, without regenerating, can get bindings ahead of the API its
+      # manifest asks the engine to serve. `generate:up-to-date` is what catches
+      # a scope left stale that long.
+      let denoLibraryAliases = if (aggregatedClient) {
+        []
+      } else {
+        ["core", "session", "connect", "module", "telemetry"].map { layer =>
+          let spec = if (layer == "core") {
+            "~" + bundleEngineVersion.trimPrefix("v")
+          } else {
+            facadePin(layer)
+          }
+          layer + "=npm:@dagger.io/" + layer + "@" + spec
+        }
+      }
       configUpdater
-        .withExec(["config-updater", "deno-config", "/existing/deno.json", "/out/deno.json", denoCore, denoClientsDir] + denoAliases)
+        .withExec(["config-updater", "deno-config", "/existing/deno.json", "/out/deno.json", denoCore, denoClientsDir] + denoLibraryAliases + denoAliases)
         .directory("/out")
     } else if (legacyRuntime == false) {
       # package.json is the link: node/bun resolve every @dagger.io/* package
@@ -3020,7 +3048,13 @@ type TypescriptSdk {
     # `Context` and `BaseClient` in session, `dag` and every core type in core.
     # Siblings stay relative either way: they are generated beside it, and no
     # registry has them.
-    let runtimeDeps = if (remoteCoreLib) {
+    # On `aggregatedClient`, not `remoteCoreLib`: what a client *imports* follows
+    # whether a facade exists, so what it *declares* has to follow the same thing
+    # or the two disagree. With remoteCoreLib and globalClient together they did:
+    # the client imported @dagger.io/dagger and declared core and session
+    # instead. node and bun hid it by hoisting the module's own facade
+    # dependency; Deno would have refused it.
+    let runtimeDeps = if (aggregatedClient == false) {
       [
         "  \"@dagger.io/core\": \"" + facadePin("core") + "\"",
         "  \"@dagger.io/session\": \"" + facadePin("session") + "\"",
