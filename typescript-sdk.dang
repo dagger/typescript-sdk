@@ -3048,7 +3048,13 @@ type TypescriptSdk {
     # `Context` and `BaseClient` in session, `dag` and every core type in core.
     # Siblings stay relative either way: they are generated beside it, and no
     # registry has them.
-    let runtimeDeps = if (remoteCoreLib) {
+    # On `aggregatedClient`, not `remoteCoreLib`: what a client *imports* follows
+    # whether a facade exists, so what it *declares* has to follow the same thing
+    # or the two disagree. With remoteCoreLib and globalClient together they did:
+    # the client imported @dagger.io/dagger and declared core and session
+    # instead. node and bun hid it by hoisting the module's own facade
+    # dependency; Deno would have refused it.
+    let runtimeDeps = if (aggregatedClient == false) {
       [
         "  \"@dagger.io/core\": \"" + facadePin("core") + "\"",
         "  \"@dagger.io/session\": \"" + facadePin("session") + "\"",

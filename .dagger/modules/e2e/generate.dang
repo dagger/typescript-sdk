@@ -2266,6 +2266,23 @@ type GenerateChecks {
       "and from the facade when there is one",
     )
 
+    # What a client imports and what it declares have to agree. They did not:
+    # with remoteCoreLib and globalClient together the client imported the
+    # facade and declared core and session, which node and bun hide by hoisting
+    # and Deno refuses.
+    let globalTree = ws.withChanges(global).directory("/" + globalPath)
+    let globalClientManifest = globalTree.file("clients/" + clientName + "/package.json").contents
+    Asserts.stringContains(
+      globalClientManifest,
+      "file:../dagger",
+      "a client should declare the facade it imports. Got: " + globalClientManifest,
+    )
+    Asserts.stringNotContains(
+      globalClientManifest,
+      "@dagger.io/core",
+      "and not the packages it reaches through the facade. Got: " + globalClientManifest,
+    )
+
     # Deno resolves through its import map rather than node_modules, so the same
     # five packages are named there as `npm:` specifiers instead of as
     # package.json dependencies, and the facade's two aliases are pruned.
