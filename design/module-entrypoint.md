@@ -190,7 +190,9 @@ pub call(
   let reply = JSON.decode(
     runtime(workspace)
       .withExec(["tsx", "--no-deprecation", "--tsconfig", "tsconfig.json", "__dagger.dispatch.ts", "engine-call"], stdin: request)
-      .stdout,
+      .stdout rescue {
+        err: GraphQLError => raiseFunctionError(err)
+      },
   ) :: DispatchReply!
   let failure = reply.error
   if (failure != null) {
@@ -281,13 +283,18 @@ Request on stdin, one JSON object:
 ```
 
 Reply on stdout, one JSON object — `{ "result": "<json>" }` when the function
-returned, `{ "error": { "message": "…" } }` when it threw — and the dispatcher
-exits 0 either way. The result is a JSON string for the same reason the
-request's fields are (a Dang `JSON` scalar decodes from a string), and the error
-travels as data so the entrypoint can `raise` its message as the function's own
-error: a nonzero exit reaches the caller as `exit code: 1` with the message only
-in the exec log. A nonzero exit is the dispatcher itself failing. Logs on
-stderr. That is the whole protocol — no session channel.
+returned, `{ "error": { "message": "…" } }` when it threw. The result is a JSON
+string for the same reason the request's fields are (a Dang `JSON` scalar
+decodes from a string), and the error travels as data so the entrypoint can
+`raise` its message as the function's own error: the exec's own error is just
+its exit code, with the message only in the exec log. After an error reply the
+dispatcher exits 2, so the exec fails and is not cached: had it exited 0, the
+exec would be cached under the call digest and every later evaluation of the
+call would replay the error without running the function. The entrypoint
+rescues the failed exec and reads the reply from its error's `stdout`, the
+last 100 KiB the engine keeps. Any other nonzero exit, or one with no reply, is
+the dispatcher itself failing, raised as the exec's error. Logs on stderr. That
+is the whole protocol — no session channel.
 
 The dispatcher keeps: `connection()` (user code calls `dag`), the per-object
 `rebuild`/`serialize` helpers, and `__loadCoreObject` for ID-carrying arguments

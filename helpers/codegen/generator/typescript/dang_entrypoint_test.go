@@ -609,9 +609,11 @@ func TestGenerateDangEntrypointGuardsGeneratedFiles(t *testing.T) {
 }
 
 // TestGenerateDangEntrypointRaisesDispatchErrors pins the entrypoint's half of
-// the reply protocol: call() decodes what the dispatcher wrote and raises a
-// carried error's message, so a function that throws fails with what it threw
-// rather than with the exec's "exit code: 1".
+// the reply protocol: call() decodes what the dispatcher wrote, and when the
+// dispatcher failed its exec after replying with an error, raises the error's
+// message from the failed exec's stdout, so a function that throws fails with
+// what it threw rather than with the exec's "exit code: 2". The exec's own
+// error is raised when there is no reply.
 func TestGenerateDangEntrypointRaisesDispatchErrors(t *testing.T) {
 	gen := &TypeScriptGenerator{Config: generator.Config{
 		DangEntrypointConfig: &generator.DangEntrypointGeneratorConfig{
@@ -627,7 +629,10 @@ func TestGenerateDangEntrypointRaisesDispatchErrors(t *testing.T) {
 	got := readOverlay(t, state, DefaultDangEntrypointFile)
 
 	require.Contains(t, got, ") :: DispatchReply!")
-	require.Contains(t, got, "let failure = reply.error\n    if (failure != null) {\n      raise failure.message\n    }")
+	require.Contains(t, got, ".stdout rescue {\n          err: GraphQLError => raiseFunctionError(err)\n        },")
+	require.Contains(t, got, "(JSON.decode(err.extensions) :: {{stdout: String}}).stdout")
+	require.Contains(t, got, "if (failure != null) {\n      raise failure.message\n    }\n    raise err\n")
+	require.Contains(t, got, "let failure = reply.error\n    if (failure != null) {\n      raise failure.message\n    }\n    let result = reply.result")
 	require.NotContains(t, got, ".stdout :: JSON!")
 
 	// The reply types are declared beside the entrypoint, not inside it: a

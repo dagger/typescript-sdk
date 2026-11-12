@@ -538,9 +538,11 @@ type GenerateChecks {
   The dispatcher runs in a container, so a thrown error used to leave it as a
   nonzero exit and reach the caller as "exit code: 1", the message visible only
   in the exec log — where the builtin runtime's returnError gave them the
-  message itself. The dispatcher now replies with the error as data and the
-  recipe raises it, which is what keeps the two loading paths reporting the
-  same thing. This pins the recipe; the runtimes module runs one for real.
+  message itself. The dispatcher now replies with the error as data, then fails
+  its exec so that a failed call is not cached, and the recipe raises the error
+  from the failed exec's stdout, which is what keeps the two loading paths
+  reporting the same thing. This pins the recipe; the runtimes module runs one
+  for real.
   """
   entrypointReportsErrorsCheck(ws: Workspace!): Void @check {
     let recipe = entrypointRecipe(ws, Fixtures.out + "/entrypoint-errors", "entrypoint-errors")
@@ -552,6 +554,10 @@ type GenerateChecks {
     Asserts.stringContains(
       recipe, "raise failure.message",
       "the recipe should raise a thrown error's message as the function's error",
+    )
+    Asserts.stringContains(
+      recipe, "err: GraphQLError => raiseFunctionError(err)",
+      "the recipe should read the reply of a dispatcher that failed its exec, which it does so that a failed call is not cached",
     )
     Asserts.stringNotContains(
       recipe, ".stdout :: JSON!",
