@@ -509,9 +509,10 @@ func TestGenerateDangEntrypointImplementsContract(t *testing.T) {
 
 // TestGenerateDangEntrypointDeclaresClientVersion pins how the module process
 // learns which engine release its bindings are generated for: a variable on the
-// exec that starts it, beside the call digest. The dang.toml beside the program
-// is a separate channel: an engine carrying dagger/dagger#14902 takes the
-// entrypoint's view from it.
+// container that runs it, beside the call digest, set before the container is
+// built and the exec started. The dang.toml beside the program is a separate
+// channel: an engine carrying dagger/dagger#14902 takes the entrypoint's view
+// from it.
 func TestGenerateDangEntrypointDeclaresClientVersion(t *testing.T) {
 	gen := &TypeScriptGenerator{Config: generator.Config{
 		DangEntrypointConfig: &generator.DangEntrypointGeneratorConfig{
@@ -527,10 +528,12 @@ func TestGenerateDangEntrypointDeclaresClientVersion(t *testing.T) {
 	got := readOverlay(t, state, DefaultDangEntrypointFile)
 
 	require.Contains(t, got, strings.Join([]string{
-		`        .withEnvVariable("DAGGER_MODULE_CALL_DIGEST", callDigest ?? "")`,
-		`        .withEnvVariable("DAGGER_CLIENT_VERSION", "v1.0.0-beta.22")`,
-		`        .withExec(`,
+		`    let installed = runtime`,
+		`      .withEnvVariable("DAGGER_MODULE_CALL_DIGEST", callDigest ?? "")`,
+		`      .withEnvVariable("DAGGER_CLIENT_VERSION", "v1.0.0-beta.22")`,
+		`      .sync`,
 	}, "\n"))
+	require.Contains(t, got, "      installed\n        .withExec(")
 }
 
 func TestGenerateDangEntrypoint_RequiresClientVersion(t *testing.T) {

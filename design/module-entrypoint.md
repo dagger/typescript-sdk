@@ -187,8 +187,9 @@ pub call(
     fnName: fnName,
     fnArgs: fnArgs,
   }})
+  let installed = runtime(workspace).sync
   let reply = JSON.decode(
-    runtime(workspace)
+    installed
       .withExec(["tsx", "--no-deprecation", "--tsconfig", "tsconfig.json", "__dagger.dispatch.ts", "engine-call"], stdin: request)
       .stdout rescue {
         err: GraphQLError => raiseFunctionError(err)
@@ -292,9 +293,11 @@ dispatcher exits 2, so the exec fails and is not cached: had it exited 0, the
 exec would be cached under the call digest and every later evaluation of the
 call would replay the error without running the function. The entrypoint
 rescues the failed exec and reads the reply from its error's `stdout`, the
-last 100 KiB the engine keeps. Any other nonzero exit, or one with no reply, is
-the dispatcher itself failing, raised as the exec's error. Logs on stderr. That
-is the whole protocol — no session channel.
+last 100 KiB the engine keeps, which the dispatcher cuts an error reply to fit.
+A failed exec with an error reply raises that error; one without, such as a
+dispatcher that crashed, raises the exec's own. The container is built before
+the exec, outside the rescue, so a failed install keeps its own error. Logs on
+stderr. That is the whole protocol — no session channel.
 
 The dispatcher keeps: `connection()` (user code calls `dag`), the per-object
 `rebuild`/`serialize` helpers, and `__loadCoreObject` for ID-carrying arguments

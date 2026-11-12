@@ -11,9 +11,9 @@ The protocol: one JSON request on stdin, one JSON reply on stdout (CallReply in
 dispatch_v2), logs on stderr. The reply carries either the function's result or
 the error it threw. A thrown error exits 2 after its reply, so the exec fails
 and is not cached, and the entrypoint reads the reply from the failed exec's
-stdout to raise the error as the function's own, with its message. Any other
-nonzero exit is the dispatcher itself failing — an unreadable request, a
-session that never came up — and stays a hard failure.
+stdout to raise the error as the function's own, with its message. A failed
+exec without a reply is the dispatcher itself failing — an unreadable request,
+a session that never came up — and stays a hard failure.
 */ -}}
 {{- define "dispatch_entrypoint" -}}
 // AUTO-GENERATED — DO NOT EDIT.

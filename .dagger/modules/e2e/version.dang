@@ -29,8 +29,8 @@ type VersionChecks {
     Asserts.stringContains(
       program,
       ".withEnvVariable(\"DAGGER_MODULE_CALL_DIGEST\", callDigest ?? \"\")\n" +
-        "        .withEnvVariable(\"DAGGER_CLIENT_VERSION\", \"" + typescriptSdk.bundleEngineVersion + "\")\n" +
-        "        .withExec(",
+        "      .withEnvVariable(\"DAGGER_CLIENT_VERSION\", \"" + typescriptSdk.bundleEngineVersion + "\")\n" +
+        "      .sync",
       "the entrypoint should declare the client version beside the call digest, got:\n" + program,
     )
 

@@ -53,10 +53,15 @@ type Entrypoint implements ModuleEntrypoint {
   not cached: a failed call runs again the next time it is called. Exiting 0
   would cache the exec under the call digest, and every later evaluation of the
   call would replay the error without running the function. A failed exec
-  keeps the tail of its stdout in its error, so the reply is read from there.
-  An exec that failed with no reply is the dispatcher itself failing, and its
-  error is raised as it is. An error reply from an exec that succeeded anyway
-  is raised all the same.
+  keeps the tail of its stdout in its error, so the reply is read from there:
+  a failed exec with an error reply raises that reply, and one without, such as
+  a dispatcher that crashed, raises the exec's own error. An error reply from
+  an exec that succeeded anyway is raised all the same.
+
+  The container is built before the exec, outside the rescue, so that a failed
+  build, such as a failed install, keeps its own error, values and all: a
+  rescued error raised again keeps only its message on an engine before
+  dagger/dagger#15161.
 
   There is no session channel and no FunctionCall round-trip, so the
   dispatcher's logs have to go to stderr to keep stdout clean.
@@ -84,10 +89,12 @@ type Entrypoint implements ModuleEntrypoint {
       fnName: fnName,
       fnArgs: fnArgs,
     {{"}}"}})
+    let installed = runtime
+      .withEnvVariable("DAGGER_MODULE_CALL_DIGEST", callDigest ?? "")
+      .withEnvVariable("DAGGER_CLIENT_VERSION", {{ dangClientVersion }})
+      .sync
     let reply = JSON.decode(
-      runtime
-        .withEnvVariable("DAGGER_MODULE_CALL_DIGEST", callDigest ?? "")
-        .withEnvVariable("DAGGER_CLIENT_VERSION", {{ dangClientVersion }})
+      installed
         .withExec({{ dangDispatchExec }}, stdin: request)
         .stdout rescue {
           err: GraphQLError => raiseFunctionError(err)

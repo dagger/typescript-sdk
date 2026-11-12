@@ -153,13 +153,14 @@ type CallRequest = {
 type CallReply = { result: string } | { error: { message: string } }
 
 // The exit code of a call whose function threw, after it replied with the
-// error. Any other nonzero exit is the dispatcher itself failing.
+// error. The entrypoint tells the function's failure from the dispatcher's own
+// by the reply rather than by the code: a failed exec with an error reply on
+// stdout raises that error, and one without raises the exec's own.
 const functionFailedExitCode = 2
 
 // A failed exec keeps only the last 100 KiB of its stdout, which is where the
-// entrypoint reads the reply from. JSON escapes a character in at most six
-// bytes, so a message of 16 Ki characters always fits.
-const maxReportedMessage = 16 << 10
+// entrypoint reads the reply from, so an error reply has to fit in it whole.
+const maxErrorReplyBytes = 96 << 10
 
 // setEncoding rather than collecting Buffers: it decodes across chunk
 // boundaries just as correctly, and `Buffer` is the one Node global Deno does
@@ -198,15 +199,25 @@ function decodeRequest(raw: string): {
 // Only the message crosses the boundary. The builtin runtime's error channel
 // carried a typed error's extensions as values; the entrypoint can raise nothing
 // richer than a message, so they stop here. The stack stays in the exec log. A
-// message cut to size keeps the `[traceparent:...]` markers it cut, which name
-// where an API error came from.
+// message too long for its reply to fit is cut, keeping the
+// `[traceparent:...]` markers it cut, which name where an API error came from.
 function errorMessage(e: unknown): string {
   const message = thrownMessage(e)
-  if (message.length <= maxReportedMessage) {
-    return message
+  let fitted = message
+  let size = errorReplyBytes(fitted)
+  let keep = message.length
+  while (size > maxErrorReplyBytes && keep > 0) {
+    keep = Math.max(0, Math.floor((keep * maxErrorReplyBytes) / size) - 1)
+    const origins = message.slice(keep).match(/\s*\[traceparent:[0-9a-f]{32}-[0-9a-f]{16}\]/g) ?? []
+    fitted = message.slice(0, keep) + "..." + origins.join("")
+    size = errorReplyBytes(fitted)
   }
-  const origins = message.slice(maxReportedMessage).match(/\s*\[traceparent:[0-9a-f]{32}-[0-9a-f]{16}\]/g) ?? []
-  return message.slice(0, maxReportedMessage) + "..." + origins.join("")
+  return fitted
+}
+
+function errorReplyBytes(message: string): number {
+  const reply: CallReply = { error: { message } }
+  return new TextEncoder().encode(JSON.stringify(reply)).length
 }
 
 function thrownMessage(e: unknown): string {
