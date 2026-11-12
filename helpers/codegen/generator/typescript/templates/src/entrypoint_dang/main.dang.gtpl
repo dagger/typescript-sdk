@@ -44,12 +44,24 @@ type Entrypoint implements ModuleEntrypoint {
 
   The request goes in on stdin and the reply comes back on stdout as one JSON
   object, a DispatchReply: `result` carries the function's result, `error` what
-  it threw. The dispatcher exits 0 either way and the error travels as data,
-  because this is the only way its message reaches the caller: raised here it
-  becomes the function's own error, as returnError made it under the builtin
-  runtime, where a nonzero exit surfaces as the exec's "exit code: 1" with the
-  message buried in the exec log. A nonzero exit is therefore the dispatcher
-  itself failing, not the function, and stays an exec error.
+  it threw. The error travels as data because this is the only way its message
+  reaches the caller: raised here it becomes the function's own error, as
+  returnError made it under the builtin runtime, where the exec's own error is
+  just its "exit code: 2" with the message buried in the exec log.
+
+  A thrown error still fails the exec, with exit code 2, so that the exec is
+  not cached: a failed call runs again the next time it is called. Exiting 0
+  would cache the exec under the call digest, and every later evaluation of the
+  call would replay the error without running the function. A failed exec
+  keeps the tail of its stdout in its error, so the reply is read from there:
+  a failed exec with an error reply raises that reply, and one without, such as
+  a dispatcher that crashed, raises the exec's own error. An error reply from
+  an exec that succeeded anyway is raised all the same.
+
+  The container is built before the exec, outside the rescue, so that a failed
+  build, such as a failed install, keeps its own error, values and all: a
+  rescued error raised again keeps only its message on an engine before
+  dagger/dagger#15161.
 
   There is no session channel and no FunctionCall round-trip, so the
   dispatcher's logs have to go to stderr to keep stdout clean.
@@ -77,12 +89,16 @@ type Entrypoint implements ModuleEntrypoint {
       fnName: fnName,
       fnArgs: fnArgs,
     {{"}}"}})
+    let installed = runtime
+      .withEnvVariable("DAGGER_MODULE_CALL_DIGEST", callDigest ?? "")
+      .withEnvVariable("DAGGER_CLIENT_VERSION", {{ dangClientVersion }})
+      .sync
     let reply = JSON.decode(
-      runtime
-        .withEnvVariable("DAGGER_MODULE_CALL_DIGEST", callDigest ?? "")
-        .withEnvVariable("DAGGER_CLIENT_VERSION", {{ dangClientVersion }})
+      installed
         .withExec({{ dangDispatchExec }}, stdin: request)
-        .stdout,
+        .stdout rescue {
+          err: GraphQLError => raiseFunctionError(err)
+        },
     ) :: DispatchReply!
     let failure = reply.error
     if (failure != null) {
@@ -93,6 +109,19 @@ type Entrypoint implements ModuleEntrypoint {
       raise "the dispatcher replied with neither a result nor an error"
     }
     result
+  }
+
+  """
+  Raise the error a failed dispatcher exec replied with, or the exec's own
+  error when it replied with none.
+  """
+  let raiseFunctionError(err: GraphQLError!): String! {
+    let stdout = ((JSON.decode(err.extensions) :: {{"{{"}}stdout: String{{"}}"}}).stdout ?? "") rescue ""
+    let failure = ((JSON.decode(stdout) :: DispatchReply!).error) rescue null
+    if (failure != null) {
+      raise failure.message
+    }
+    raise err
   }
 
   """

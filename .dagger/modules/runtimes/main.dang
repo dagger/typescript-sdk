@@ -88,6 +88,58 @@ type Runtimes {
   }
 
   """
+  A function that throws should run again the next time it is called, as it
+  does under the builtin runtime: a failed call is never cached.
+
+  Each fixture throws a new nonce on every run, and is called twice in one
+  session. dagql keeps no result for a failed call, so the second call
+  evaluates the entrypoint again; if the dispatcher's exec succeeded the first
+  time, that exec answers again from the cache with the first error, and both
+  calls report the same nonce. Every runtime, because the dispatcher fails its
+  exec through `process.exitCode`, which each interpreter has to honor.
+  """
+  entrypointFailureRerunsCheck(ws: Workspace!): Void @check {
+    assertFailureReruns(ws, "node", "RuntimeNode")
+    assertFailureReruns(ws, "bun", "RuntimeBun")
+    assertFailureReruns(ws, "deno", "RuntimeDeno")
+  }
+
+  let assertFailureReruns(ws: Workspace!, runtime: String!, objectName: String!): Void {
+    let path = fixtures + "/" + runtime
+    let name = "runtime-" + runtime
+    let installed = typescriptSdk(legacyRuntime: false, skipGenerateFilename: "")
+      .generateScope(ws.withWorkdir(path), isModule: true, name: name, clients: [])
+      .withWorkdir(".")
+      .withModule(path, name: name)
+
+    let first = nonceFailure(installed, name, objectName)
+    let second = nonceFailure(installed, name, objectName)
+    if (first == second) {
+      raise "a failed " + runtime + " call was answered from the cache instead of running again: both calls failed with nonce " + first
+    }
+
+    null
+  }
+
+  """
+  The nonce a fixture's nonceFailure fails with. The rest of the message
+  differs from call to call anyway: it names the span the call failed in.
+  """
+  let nonceFailure(ws: Workspace!, name: String!, objectName: String!): String! {
+    let message = {
+      let ran = ws.artifacts(include: [name + ":nonce-failure"]).items.{{ value.{{ id }} }}
+      "nonceFailure did not fail; artifacts found: " + toString(ran.length)
+    } rescue {
+      err: GraphQLError => err.message
+    }
+    let after = message.split(objectName + " nonce: ")
+    if (after.length < 2) {
+      raise "the " + name + " fixture should fail with its nonce, got: " + message
+    }
+    (after[1] ?? "").split(" ")[0] ?? ""
+  }
+
+  """
   A secondary @object with a TypeScript constructor of its own should not stop
   an entrypoint module from loading, and should still round-trip.
 

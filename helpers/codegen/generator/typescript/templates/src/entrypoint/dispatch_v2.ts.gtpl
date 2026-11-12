@@ -12,11 +12,22 @@ type CallRequest = {
 // `result` is the function's JSON result as a *string*, for the same reason
 // receiverValue and fnArgs arrive as strings: the entrypoint materializes it into
 // a JSON scalar, which decodes from a string, and hands it to the engine
-// verbatim. `error` is what the function threw, carried as data rather than as a
-// nonzero exit so the entrypoint can raise it as the function's own error — an
-// exit code reaches the caller as "exit code: 1" with the message buried in the
-// exec log. A nonzero exit therefore means the dispatcher itself failed.
+// verbatim. `error` is what the function threw, carried as data so the
+// entrypoint can raise it as the function's own error — the exec's own error is
+// just its exit code, with the message buried in the exec log. The process
+// still exits with functionFailedExitCode after an error reply, so the exec
+// fails and is not cached: a failed call must run again the next time.
 type CallReply = { result: string } | { error: { message: string } }
+
+// The exit code of a call whose function threw, after it replied with the
+// error. The entrypoint tells the function's failure from the dispatcher's own
+// by the reply rather than by the code: a failed exec with an error reply on
+// stdout raises that error, and one without raises the exec's own.
+const functionFailedExitCode = 2
+
+// A failed exec keeps only the last 100 KiB of its stdout, which is where the
+// entrypoint reads the reply from, so an error reply has to fit in it whole.
+const maxErrorReplyBytes = 96 << 10
 
 // setEncoding rather than collecting Buffers: it decodes across chunk
 // boundaries just as correctly, and `Buffer` is the one Node global Deno does
@@ -54,8 +65,29 @@ function decodeRequest(raw: string): {
 
 // Only the message crosses the boundary. The builtin runtime's error channel
 // carried a typed error's extensions as values; the entrypoint can raise nothing
-// richer than a message, so they stop here. The stack stays in the exec log.
+// richer than a message, so they stop here. The stack stays in the exec log. A
+// message too long for its reply to fit is cut, keeping the
+// `[traceparent:...]` markers it cut, which name where an API error came from.
 function errorMessage(e: unknown): string {
+  const message = thrownMessage(e)
+  let fitted = message
+  let size = errorReplyBytes(fitted)
+  let keep = message.length
+  while (size > maxErrorReplyBytes && keep > 0) {
+    keep = Math.max(0, Math.floor((keep * maxErrorReplyBytes) / size) - 1)
+    const origins = message.slice(keep).match(/\s*\[traceparent:[0-9a-f]{32}-[0-9a-f]{16}\]/g) ?? []
+    fitted = message.slice(0, keep) + "..." + origins.join("")
+    size = errorReplyBytes(fitted)
+  }
+  return fitted
+}
+
+function errorReplyBytes(message: string): number {
+  const reply: CallReply = { error: { message } }
+  return new TextEncoder().encode(JSON.stringify(reply)).length
+}
+
+function thrownMessage(e: unknown): string {
   if (e instanceof Error) {
     return e.message
   }
@@ -83,6 +115,7 @@ async function engineCall(): Promise<void> {
       } catch (e: unknown) {
         console.error(e)
         reply = { error: { message: errorMessage(e) } }
+        process.exitCode = functionFailedExitCode
       }
       process.stdout.write(JSON.stringify(reply))
     },
