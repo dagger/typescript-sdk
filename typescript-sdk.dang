@@ -2614,14 +2614,21 @@ type TypescriptSdk {
         let name = path.trimSuffix("/package.json")
         rendered.filter { gen => gen == name + "/" + name + ".gen.ts" }.length > 0
       }
+    # Where the library sits is known, not inferred. Inferring it from a
+    # client.gen.ts meant that once a scope stopped carrying one — which is what
+    # remoteCoreLib does — nothing under that directory was owned any more, so
+    # the bundle it used to carry could never be pruned: 4.6MB of core.js and
+    # core.d.ts survived the flip, which is most of what the setting exists to
+    # shed. The inferred prefixes stay as well, for a layout this does not name.
+    let libraryDirs = if (legacyRuntime == false) { ["clients/dagger/"] } else { ["sdk/"] }
     let libraries = rendered
       .filter { path => path == "client.gen.ts" or path.trimSuffix("/client.gen.ts") != path }
       .map { path => path.trimSuffix("client.gen.ts") }
-    let library = if (remoteCoreLib) {
-      ["package.json"] + facadeFiles
-    } else {
-      ["package.json"] + coreBundleFiles
-    }
+      + libraryDirs
+    # Both shapes' files, so a flip in either direction prunes what the other
+    # one wrote. facadeFiles is a subset of coreBundleFiles, so naming the
+    # bundle covers it.
+    let library = ["package.json"] + coreBundleFiles
     let bundle = files.filter { path =>
       libraries.filter { prefix => library.filter { name => prefix + name == path }.length > 0 }.length > 0
     }
