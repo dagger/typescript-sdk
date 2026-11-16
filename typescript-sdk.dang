@@ -2614,14 +2614,32 @@ type TypescriptSdk {
         let name = path.trimSuffix("/package.json")
         rendered.filter { gen => gen == name + "/" + name + ".gen.ts" }.length > 0
       }
+    # A library package is recognised by the three files both of its shapes
+    # carry, not by a client.gen.ts beside it. Inferring it from the client
+    # meant that a directory which stopped carrying one stopped being owned at
+    # all — which is exactly what remoteCoreLib and globalClient do to
+    # clients/dagger — so 4.6MB of core.js and core.d.ts survived turning
+    # remoteCoreLib on, and the facade survived turning globalClient off. Both
+    # are most of what those settings exist to shed.
+    #
+    # Either the weighed directory is the package (a module's sdk/, a legacy
+    # .dagger/core) or the package is its `dagger` child, and which one it is
+    # cannot be read off the caller: each of them cleans up the other layout
+    # as well as writing its own. Asking for all three files keeps the first
+    # prefix from claiming a user's lone index.ts in a clients/ directory.
+    let libraryDirs = ["", "dagger/"].filter { prefix =>
+      ["index.ts", "telemetry.ts", "package.json"]
+        .filter { name => files.filter { path => path == prefix + name }.length > 0 }
+        .length == 3
+    }
     let libraries = rendered
       .filter { path => path == "client.gen.ts" or path.trimSuffix("/client.gen.ts") != path }
       .map { path => path.trimSuffix("client.gen.ts") }
-    let library = if (remoteCoreLib) {
-      ["package.json"] + facadeFiles
-    } else {
-      ["package.json"] + coreBundleFiles
-    }
+      + libraryDirs
+    # Both shapes' files, so a flip in either direction prunes what the other
+    # one wrote. facadeFiles is a subset of coreBundleFiles, so naming the
+    # bundle covers it.
+    let library = ["package.json"] + coreBundleFiles
     let bundle = files.filter { path =>
       libraries.filter { prefix => library.filter { name => prefix + name == path }.length > 0 }.length > 0
     }

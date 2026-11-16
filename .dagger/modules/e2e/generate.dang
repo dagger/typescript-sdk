@@ -2352,6 +2352,83 @@ type GenerateChecks {
   }
 
   """
+  Turning `remoteCoreLib` on takes the bundle the scope was carrying, and
+  turning `globalClient` off takes the facade that replaced it.
+
+  Shedding what the scope holds is most of why either setting exists, and
+  neither shed anything: ownedFiles read the library's location off a
+  client.gen.ts beside it, so a directory that stopped carrying one stopped
+  being owned at all. `dagger generate` reported no changes to apply with 4.6MB
+  of core.js and core.d.ts still on disk, and the facade outlived the setting
+  that had written it.
+
+  Both flips are asserted because each hid behind a different absent file: the
+  bundle keeps no client.gen.ts once the aggregated client goes, and the facade
+  never had a core.js. Asserted on the tree rather than on removedPaths, since
+  what matters is what the scope is left holding.
+  """
+  generatePrunesBundleOnFlipCheck(ws: Workspace!): Void @check {
+    let path = fixtures.out + "/prune-on-flip"
+    let name = "prune-on-flip"
+
+    let carried = ws.withChanges(
+      Gen.scope(ws, path, name, template: "empty", legacyRuntime: false, globalClient: true),
+    )
+    Asserts.assert(
+      carried.directory("/" + path).exists("clients/dagger/core.js"),
+      "the scope has to start out carrying a bundle for the flip to mean anything",
+    )
+
+    let flipped = Gen.scope(
+      carried, path, name,
+      template: "empty", legacyRuntime: false, remoteCoreLib: true, globalClient: true,
+    )
+    let facade = carried.withChanges(flipped)
+    let flippedTree = facade.directory("/" + path)
+    ["core.js", "core.d.ts"].each { file =>
+      Asserts.assert(
+        flippedTree.exists("clients/dagger/" + file) == false,
+        "turning remoteCoreLib on should take clients/dagger/" + file +
+          ", got removed [" + flipped.removedPaths.join(", ") + "]",
+      )
+    }
+    Asserts.assert(
+      flippedTree.exists("clients/dagger/index.ts"),
+      "and leave the facade's own source behind",
+    )
+
+    # The state a scope that flipped under the bug is sitting in, and the one
+    # the next run has to clear: a bundle beside a facade, with no client.gen.ts
+    # left to read the location off. Planted rather than reached by a sequence
+    # of flips, because the run that drops the aggregated client renders the
+    # client.gen.ts the old inference needed, so it was the run *after* the flip
+    # that went quiet — `no changes to apply`, bundle still there.
+    let stuck = facade
+      .withNewFile("/" + path + "/clients/dagger/core.js", "module.exports = {}\n")
+      .withNewFile("/" + path + "/clients/dagger/core.d.ts", "export {}\n")
+    let cleared = Gen.scope(
+      stuck, path, name,
+      template: "empty", legacyRuntime: false, remoteCoreLib: true, globalClient: true,
+    )
+    ["core.js", "core.d.ts"].each { file =>
+      Asserts.assert(
+        Asserts.contains(cleared.removedPaths, path + "/clients/dagger/" + file),
+        "a bundle left beside a facade should be taken on the next run, got removed [" +
+          cleared.removedPaths.join(", ") + "]",
+      )
+    }
+
+    let dropped = Gen.scope(facade, path, name, template: "empty", legacyRuntime: false, remoteCoreLib: true)
+    Asserts.assert(
+      facade.withChanges(dropped).directory("/" + path).exists("clients/dagger") == false,
+      "turning globalClient off should take the facade with it, got removed [" +
+        dropped.removedPaths.join(", ") + "]",
+    )
+
+    null
+  }
+
+  """
   With `remoteCoreLib`, a scope's clients/dagger is the facade's source over the
   published packages instead of the vendored bundle.
 

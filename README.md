@@ -86,6 +86,8 @@ client add`, and are persisted per scope in `dagger.toml`:
 | `packageManager` | `--package-manager` | unset |
 | `baseImage` | `--base-image` | unset |
 | `legacyRuntime` | `--legacy-runtime` | `false` (the module declares an `[entrypoint]`) |
+| `remoteCoreLib` | `--remote-core-lib` | `false` (the library is vendored into the scope) |
+| `globalClient` | `--global-client` | `false`, and implied while `remoteCoreLib` is off |
 | `targetVersion` | `--target-version` | unset (the release this SDK targets, the only one it accepts) |
 
 ```sh
@@ -244,25 +246,52 @@ What a scope gets depends on what the scope is:
 
 | Scope | Client output |
 | --- | --- |
-| A module | `sdk/` (the library) plus `clients/` (its per-module clients) |
-| Your own project | `clients/` — the vendored library plus one package per target, wired through your `package.json` |
+| A module | `clients/` (the library plus its per-module clients) and `entrypoint/`; under `legacyRuntime`, an `sdk/` holding both instead |
+| Your own project | `clients/` — the library plus one package per target, wired through your `package.json` |
 
-A module keeps its targets in a `clients/` directory beside the library:
-every module — a dependency, a recorded target, the module itself — becomes its
-own `clients/<module>.gen.ts` client with its own `dag` and entrypoint
-functions, reached through its own specifier. `sdk/` stays the core-only
-`@dagger.io/dagger` library:
+A module keeps its targets in `clients/`, beside the library: every module — a
+dependency, a recorded target, the module itself — becomes its own
+`clients/<module>/` package with its own `dag` and entrypoint functions, reached
+through its own specifier. `clients/dagger/` is the library:
 
 ```ts
-import { dag, Container } from "@dagger.io/dagger" // core API (sdk/)
-import { api } from "@dagger.io/api"               // a bound module (clients/api.gen.ts)
+import { dag, Container } from "@dagger.io/dagger" // core API (clients/dagger/)
+import { api } from "@dagger.io/api"               // a bound module (clients/api/)
 
 api().deploy(dag.container().from("alpine"))
 ```
 
-The `@dagger.io/<module>` aliases are written into `tsconfig.json` (or
-`deno.json`) at generation, so a client added inside a module is usable from it
-straight away.
+`package.json` is the link: the SDK writes a `file:` dependency per package and
+node and bun resolve them through `node_modules` once you install, so the
+tsconfig carries no path alias at all. The two layouts that cannot work that way
+get one — a Deno project through `deno.json`'s `imports`, and `legacyRuntime`
+through tsconfig `paths` into `sdk/`, which holds the clients as well as the
+library.
+
+### What `@dagger.io/dagger` is
+
+It is an aggregate of the published layers: `@dagger.io/core` for the bindings
+and the engine API, plus `session`, `connect`, `module` and `telemetry`. Two
+settings move a scope off it.
+
+`remoteCoreLib` resolves those layers from npm instead of vendoring ~5MB of
+bundled library into `clients/dagger/`. `globalClient` then decides whether the
+scope still gets `@dagger.io/dagger` on top as a facade re-exporting them —
+without it, a scope imports each package by the name that owns what it uses:
+
+```ts
+import { dag, Container } from "@dagger.io/core"
+import { object, func } from "@dagger.io/module"
+```
+
+`globalClient` has no effect while `remoteCoreLib` is off, because then the
+facade *is* the library — it carries the bundle, and there is nothing published
+to import instead.
+
+`dag.<dep>()`, the pre-1.0 way of reaching a dependency through the core client,
+exists only with the facade, and is deprecated where it exists. A scope without
+one reaches each dependency through that dependency's own client, which is the
+thing deprecating it.
 
 A standalone client scope renders the same client files as a module, packaged
 as real npm packages under the scope:
@@ -271,7 +300,8 @@ as real npm packages under the scope:
 <scope>/
   package.json     yours; gains a file: dependency on each package below
   clients/
-    dagger/        the vendored @dagger.io/dagger library
+    dagger/        the @dagger.io/dagger library; the vendored bundle, or
+                   just a facade over the published layers under remoteCoreLib
     <module>/      one package per target, named @dagger.io/<module>
 ```
 
@@ -304,13 +334,13 @@ dagger run -- npx -y tsx main.ts
 ```
 
 The `--` is needed: `dagger run` parses flags after the command, so `-y` would
-be read as its own. And it is `tsx` rather than `node` because the packages
-ship `.ts` sources with `.js` import specifiers, which plain `node main.ts`
-rejects with `ERR_MODULE_NOT_FOUND`.
+be read as its own. And it is `tsx` rather than `node` because the vendored
+library ships `.ts` sources with `.js` import specifiers, which plain
+`node main.ts` rejects with `ERR_MODULE_NOT_FOUND`. Under `remoteCoreLib` it
+arrives built, so `node --experimental-strip-types main.ts` is enough.
 
-No path aliases, no remote `@dagger.io/dagger` dependency — plain package
-resolution against the vendored, offline tree. The same packages can later come
-from a registry instead of a `file:` link.
+No path aliases — plain package resolution, against the vendored offline tree
+by default, or against the published layers under `remoteCoreLib`.
 
 A Deno project — one with a `deno.json` — is wired through its import map
 instead: `@dagger.io/dagger` and each `@dagger.io/<module>` land in `deno.json`'s
