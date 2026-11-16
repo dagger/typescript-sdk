@@ -656,7 +656,7 @@ func TestUpdateDenoConfig(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			res, err := updateDenoConfig(removeJSONComments(tc.denoConfig), tc.coreDir, tc.clientsDir, tc.modules)
+			res, err := updateDenoConfig(removeJSONComments(tc.denoConfig), tc.coreDir, tc.clientsDir, tc.modules, nil)
 			require.NoError(t, err)
 			require.JSONEq(t, tc.expected, res)
 		})

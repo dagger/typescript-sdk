@@ -1680,8 +1680,17 @@ type TypescriptSdk {
   for why the bound is spelled out rather than a caret.
   """
   let facadePin(name: String!): String! {
+    facadeDepPin("@dagger.io/" + name)
+  }
+
+  """
+  The same, keyed on a whole package name, for a dependency of the facade that
+  is not one of the layers — `graphql-request`, whose GraphQLClient index.ts
+  re-exports.
+  """
+  let facadeDepPin(pkg: String!): String! {
     let pinned = tsBundle.file("facade/package.json").contents
-      .split("\"@dagger.io/" + name + "\": \"")
+      .split("\"" + pkg + "\": \"")
       .dropFirst(1)
       .join("")
       .split("\"")
@@ -2333,8 +2342,23 @@ type TypescriptSdk {
           layer + "=npm:@dagger.io/" + layer + "@" + spec
         }
       }
+      # Everything else the facade depends on. `graphql-request` is the only one:
+      # index.ts re-exports its GraphQLClient, so a scope that keeps the facade
+      # has to resolve it, and Deno will not take it from the facade's
+      # package.json the way node and bun do. Written through the plain
+      # `imports` key rather than as a @dagger.io/* alias, which is why it is a
+      # separate exec below.
+      let denoExtraAliases = if (aggregatedClient and remoteCoreLib) {
+        ["graphql-request=npm:graphql-request@" + facadeDepPin("graphql-request")]
+      } else {
+        []
+      }
       configUpdater
-        .withExec(["config-updater", "deno-config", "/existing/deno.json", "/out/deno.json", denoCore, denoClientsDir] + denoLibraryAliases + denoAliases)
+        .withExec(
+          ["config-updater", "deno-config", "/existing/deno.json", "/out/deno.json", denoCore, denoClientsDir]
+            + denoLibraryAliases + denoAliases
+            + (if (denoExtraAliases.length == 0) { [] } else { ["--"] + denoExtraAliases }),
+        )
         .directory("/out")
     } else if (legacyRuntime == false) {
       # package.json is the link: node/bun resolve every @dagger.io/* package
