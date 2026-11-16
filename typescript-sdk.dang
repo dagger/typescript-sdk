@@ -2614,19 +2614,28 @@ type TypescriptSdk {
         let name = path.trimSuffix("/package.json")
         rendered.filter { gen => gen == name + "/" + name + ".gen.ts" }.length > 0
       }
-    # Where the bundle sits is read off the bundle, not off a client beside it.
-    # Inferring it only from client.gen.ts meant that once a directory stopped
-    # carrying one — which is what remoteCoreLib does — nothing in it was owned
-    # any more, so the 4.6MB of core.js and core.d.ts it used to carry survived
-    # the flip, which is most of what the setting exists to shed. core.js is a
-    # name only this SDK writes, and the paths here are relative to whatever
-    # directory the caller weighed, which a spelled-out prefix cannot be.
+    # A library package is recognised by the three files both of its shapes
+    # carry, not by a client.gen.ts beside it. Inferring it from the client
+    # meant that a directory which stopped carrying one stopped being owned at
+    # all — which is exactly what remoteCoreLib and globalClient do to
+    # clients/dagger — so 4.6MB of core.js and core.d.ts survived turning
+    # remoteCoreLib on, and the facade survived turning globalClient off. Both
+    # are most of what those settings exist to shed.
+    #
+    # Either the weighed directory is the package (a module's sdk/, a legacy
+    # .dagger/core) or the package is its `dagger` child, and which one it is
+    # cannot be read off the caller: each of them cleans up the other layout
+    # as well as writing its own. Asking for all three files keeps the first
+    # prefix from claiming a user's lone index.ts in a clients/ directory.
+    let libraryDirs = ["", "dagger/"].filter { prefix =>
+      ["index.ts", "telemetry.ts", "package.json"]
+        .filter { name => files.filter { path => path == prefix + name }.length > 0 }
+        .length == 3
+    }
     let libraries = rendered
       .filter { path => path == "client.gen.ts" or path.trimSuffix("/client.gen.ts") != path }
       .map { path => path.trimSuffix("client.gen.ts") }
-      + files
-        .filter { path => path == "core.js" or path.trimSuffix("/core.js") != path }
-        .map { path => path.trimSuffix("core.js") }
+      + libraryDirs
     # Both shapes' files, so a flip in either direction prunes what the other
     # one wrote. facadeFiles is a subset of coreBundleFiles, so naming the
     # bundle covers it.
