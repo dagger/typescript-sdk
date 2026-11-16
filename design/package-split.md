@@ -926,10 +926,14 @@ and the pre-v1 tree gets moved for nothing.
    `dag` and the core types from `@dagger.io/core`, the decorators from
    `@dagger.io/module`, each dependency from `@dagger.io/<name>`, and declares
    all five layers in its own `package.json`. It is implied when `remoteCoreLib`
-   is off, because then the facade *is* the library. A Deno scope cannot drop it
-   yet: its imports resolve through `deno.json`, which still maps `@dagger.io/*`
-   to vendored paths, so the combination is refused rather than written broken.
-   `e2e:generate/global-client-check` holds both shapes.
+   is off, because then the facade *is* the library. A Deno scope drops it too, with
+   one difference: its imports resolve through `deno.json`, so the five packages
+   are named there as `npm:` specifiers. core is `~<engine>` rather than the
+   bounded range, because Deno accepts only `^` and `~` — `>=x <y`, hyphen and
+   comma forms are all rejected as invalid version requirements, measured. The
+   tilde admits a core patch, which is the point, and also admits the next
+   engine's core, which is the cost. `e2e:generate/global-client-check` holds
+   all of it.
 
    It stays opt-in because the fallback is the unsolved half. The pins are what
    this bundle was built against, so an engine whose `core` was never published
