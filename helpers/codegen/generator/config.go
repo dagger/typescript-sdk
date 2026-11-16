@@ -24,8 +24,11 @@ type Config struct {
 
 	// SplitClients drops the aggregated @dagger.io/dagger facade: a scope
 	// imports each package by its own name, and the compat shim that re-attaches
-	// client root fields to the core dag is not generated, because there is no
-	// shared dag to re-attach them to.
+	// client root fields to the core dag is not generated either. Not for want of
+	// a dag to attach to — a split scope's Client comes from @dagger.io/core, the
+	// same class the facade re-exports, so the shim would work against that — but
+	// because the shim is generated @deprecated and importing each client by its
+	// own name is the thing deprecating it. `dag.<dep>()` is facade-only.
 	//
 	// Phrased as the opt-out so the zero value is the shape every caller had
 	// before it existed. The SDK setting that drives it, globalClient, reads the
