@@ -66,12 +66,24 @@ func run(args []string) error {
 		}
 		updated, err = updateTSConfig(input, extra[0], extra[1], extra[2:])
 	case "deno-config":
-		// deno-config INPUT OUTPUT CORE_DIR CLIENTS_DIR [MODULE...] — same
+		// deno-config INPUT OUTPUT CORE_DIR CLIENTS_DIR [MODULE...] [-- NAME=TARGET...]
+		//
+		// Everything after a bare "--" is a plain import entry whose key is used
+		// verbatim rather than scoped to @dagger.io/ — how a dependency of the
+		// facade that is not one of the layers gets into the map.
+		// Same
 		// aliases, as import-map entries.
 		if len(extra) < 2 {
 			return fmt.Errorf("usage: config-updater deno-config INPUT_PATH OUTPUT_PATH CORE_DIR CLIENTS_DIR [MODULE...]")
 		}
-		updated, err = updateDenoConfig(input, extra[0], extra[1], extra[2:])
+		modules, plain := extra[2:], []string(nil)
+		for i, a := range modules {
+			if a == "--" {
+				modules, plain = modules[:i], modules[i+1:]
+				break
+			}
+		}
+		updated, err = updateDenoConfig(input, extra[0], extra[1], modules, plain)
 	case "deno-deps":
 		// deno-deps INPUT OUTPUT CORE_DIR CLIENTS_DIR [MODULE...]
 		//
@@ -674,7 +686,7 @@ func syncModuleAliases(jsonStr, keyPath, clientsDir string, modules []string, as
 	return jsonStr, nil
 }
 
-func updateDenoConfig(denoConfig, coreDir, clientsDir string, modules []string) (string, error) {
+func updateDenoConfig(denoConfig, coreDir, clientsDir string, modules, plain []string) (string, error) {
 	// Deno resolves dependencies through this map rather than node_modules, so
 	// the compiler the module's own code needs has to be declared here.
 	denoConfig, err := setIfNotExists(denoConfig, "imports.typescript", "npm:typescript@"+defaultTypeScriptVersion)
@@ -697,6 +709,19 @@ func updateDenoConfig(denoConfig, coreDir, clientsDir string, modules []string) 
 	denoConfig, err = sjson.Set(denoConfig, "compilerOptions.experimentalDecorators", true)
 	if err != nil {
 		return "", fmt.Errorf("set experimentalDecorators: %w", err)
+	}
+
+	// Verbatim keys, so the @dagger.io/* alias syncing below leaves them alone —
+	// it prunes anything in its own namespace that it does not own.
+	for _, entry := range plain {
+		name, target, ok := strings.Cut(entry, "=")
+		if !ok || name == "" || target == "" {
+			return "", fmt.Errorf("plain import %q must be NAME=TARGET", entry)
+		}
+		denoConfig, err = sjson.Set(denoConfig, "imports."+gjson.Escape(name), target)
+		if err != nil {
+			return "", fmt.Errorf("set import %s: %w", name, err)
+		}
 	}
 
 	denoConfig, err = updateScopeAliases(denoConfig, "imports", libDir(coreDir), clientsDir, modules, false)

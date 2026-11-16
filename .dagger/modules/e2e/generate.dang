@@ -2318,6 +2318,36 @@ type GenerateChecks {
       "core has to be a tilde for Deno to parse it. Got: " + denoConfig,
     )
 
+    # A Deno scope that *keeps* the facade needs the same entries, plus
+    # graphql-request: the facade's own source imports all of them, and Deno
+    # will not take them from its package.json the way node and bun do. It
+    # failed with `Relative import path "@dagger.io/telemetry" not prefixed
+    # with /` until the map carried them.
+    let denoGlobalPath = fixtures.out + "/global-client-deno"
+    let denoGlobal = Gen.scope(
+      ws, denoGlobalPath, "global-client-deno",
+      template: "empty", legacyRuntime: false, remoteCoreLib: true,
+      globalClient: true, runtime: "deno",
+    )
+    let denoGlobalConfig = ws.withChanges(denoGlobal).directory("/" + denoGlobalPath).file("deno.json").contents
+    ["core", "session", "connect", "module", "telemetry"].each { layer =>
+      Asserts.stringContains(
+        denoGlobalConfig,
+        "\"@dagger.io/" + layer + "\": \"npm:@dagger.io/" + layer + "@",
+        "the facade imports @dagger.io/" + layer + ", so the map needs it. Got: " + denoGlobalConfig,
+      )
+    }
+    Asserts.stringContains(
+      denoGlobalConfig,
+      "\"graphql-request\": \"npm:graphql-request@",
+      "index.ts re-exports GraphQLClient, so the map needs it too. Got: " + denoGlobalConfig,
+    )
+    Asserts.stringContains(
+      denoGlobalConfig,
+      "\"@dagger.io/dagger\"",
+      "and the facade's own alias, since this scope has one. Got: " + denoGlobalConfig,
+    )
+
     null
   }
 
