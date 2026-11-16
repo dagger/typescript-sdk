@@ -2314,7 +2314,14 @@ type TypescriptSdk {
       # is published, without regenerating, can get bindings ahead of the API its
       # manifest asks the engine to serve. `generate:up-to-date` is what catches
       # a scope left stale that long.
-      let denoLibraryAliases = if (aggregatedClient) {
+      # On `remoteCoreLib`, not `aggregatedClient`: these have to be in the map
+      # whenever the library comes from a registry, because *something* imports
+      # them either way. Without a facade it is the module's own files; with one
+      # it is the facade, whose telemetry.ts re-exports @dagger.io/telemetry and
+      # whose index.ts re-exports the other four. node and bun resolve those
+      # through the facade's package.json, so only Deno notices — it failed with
+      # `Relative import path "@dagger.io/telemetry" not prefixed with /`.
+      let denoLibraryAliases = if (remoteCoreLib == false) {
         []
       } else {
         ["core", "session", "connect", "module", "telemetry"].map { layer =>
