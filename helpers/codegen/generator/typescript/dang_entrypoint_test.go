@@ -509,9 +509,10 @@ func TestGenerateDangEntrypointImplementsContract(t *testing.T) {
 
 // TestGenerateDangEntrypointDeclaresClientVersion pins how the module process
 // learns which engine release its bindings are generated for: a variable on the
-// exec that starts it, beside the call digest. The dang.toml beside the program
-// is a separate channel: an engine carrying dagger/dagger#14902 takes the
-// entrypoint's view from it.
+// container that runs it, beside the call digest, set before the container is
+// built and the exec started. The dang.toml beside the program is a separate
+// channel: an engine carrying dagger/dagger#14902 takes the entrypoint's view
+// from it.
 func TestGenerateDangEntrypointDeclaresClientVersion(t *testing.T) {
 	gen := &TypeScriptGenerator{Config: generator.Config{
 		DangEntrypointConfig: &generator.DangEntrypointGeneratorConfig{
@@ -527,10 +528,12 @@ func TestGenerateDangEntrypointDeclaresClientVersion(t *testing.T) {
 	got := readOverlay(t, state, DefaultDangEntrypointFile)
 
 	require.Contains(t, got, strings.Join([]string{
-		`        .withEnvVariable("DAGGER_MODULE_CALL_DIGEST", callDigest ?? "")`,
-		`        .withEnvVariable("DAGGER_CLIENT_VERSION", "v1.0.0-beta.22")`,
-		`        .withExec(`,
+		`    let installed = runtime`,
+		`      .withEnvVariable("DAGGER_MODULE_CALL_DIGEST", callDigest ?? "")`,
+		`      .withEnvVariable("DAGGER_CLIENT_VERSION", "v1.0.0-beta.22")`,
+		`      .sync`,
 	}, "\n"))
+	require.Contains(t, got, "      installed\n        .withExec(")
 }
 
 func TestGenerateDangEntrypoint_RequiresClientVersion(t *testing.T) {
@@ -609,9 +612,11 @@ func TestGenerateDangEntrypointGuardsGeneratedFiles(t *testing.T) {
 }
 
 // TestGenerateDangEntrypointRaisesDispatchErrors pins the entrypoint's half of
-// the reply protocol: call() decodes what the dispatcher wrote and raises a
-// carried error's message, so a function that throws fails with what it threw
-// rather than with the exec's "exit code: 1".
+// the reply protocol: call() decodes what the dispatcher wrote, and when the
+// dispatcher failed its exec after replying with an error, raises the error's
+// message from the failed exec's stdout, so a function that throws fails with
+// what it threw rather than with the exec's "exit code: 2". The exec's own
+// error is raised when there is no reply.
 func TestGenerateDangEntrypointRaisesDispatchErrors(t *testing.T) {
 	gen := &TypeScriptGenerator{Config: generator.Config{
 		DangEntrypointConfig: &generator.DangEntrypointGeneratorConfig{
@@ -627,7 +632,10 @@ func TestGenerateDangEntrypointRaisesDispatchErrors(t *testing.T) {
 	got := readOverlay(t, state, DefaultDangEntrypointFile)
 
 	require.Contains(t, got, ") :: DispatchReply!")
-	require.Contains(t, got, "let failure = reply.error\n    if (failure != null) {\n      raise failure.message\n    }")
+	require.Contains(t, got, ".stdout rescue {\n          err: GraphQLError => raiseFunctionError(err)\n        },")
+	require.Contains(t, got, "(JSON.decode(err.extensions) :: {{stdout: String}}).stdout")
+	require.Contains(t, got, "if (failure != null) {\n      raise failure.message\n    }\n    raise err\n")
+	require.Contains(t, got, "let failure = reply.error\n    if (failure != null) {\n      raise failure.message\n    }\n    let result = reply.result")
 	require.NotContains(t, got, ".stdout :: JSON!")
 
 	// The reply types are declared beside the entrypoint, not inside it: a

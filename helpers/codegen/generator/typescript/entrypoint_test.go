@@ -253,11 +253,12 @@ func TestGenerateEntrypointDispatchDoesNotServe(t *testing.T) {
 }
 
 // TestGenerateEntrypointDispatchReportsErrors pins how a thrown error leaves the
-// dispatcher: as data in the reply, with the process exiting 0, rather than as
-// a nonzero exit. The Dang entrypoint raises the carried message as the
-// function's own error — what the builtin runtime's returnError gave a caller —
-// where an exit code reached them as "exit code: 1" with the message only in
-// the exec log.
+// dispatcher: as data in the reply, followed by exit code 2. The Dang
+// entrypoint raises the carried message as the function's own error — what the
+// builtin runtime's returnError gave a caller — where the exec's own error was
+// only its exit code, with the message in the exec log. The exit still fails
+// the exec, so a failed call is not cached under its call digest and runs again
+// the next time it is called.
 func TestGenerateEntrypointDispatchReportsErrors(t *testing.T) {
 	gen := &TypeScriptGenerator{Config: generator.Config{
 		EntrypointConfig: &generator.EntrypointGeneratorConfig{
@@ -279,8 +280,10 @@ func TestGenerateEntrypointDispatchReportsErrors(t *testing.T) {
 	require.Contains(t, got, "process.stdout.write(JSON.stringify(reply))")
 
 	// The thrown error is caught inside the call: the stack still reaches the
-	// exec log, only the message crosses, and nothing exits.
-	require.Contains(t, got, "} catch (e: unknown) {\n        console.error(e)\n        reply = { error: { message: errorMessage(e) } }\n      }")
+	// exec log, only the message crosses, and the process fails once it has
+	// written its reply.
+	require.Contains(t, got, "} catch (e: unknown) {\n        console.error(e)\n        reply = { error: { message: errorMessage(e) } }\n        process.exitCode = functionFailedExitCode\n      }")
+	require.Contains(t, got, "const functionFailedExitCode = 2\n")
 
 	// The nonzero exit around main() stays, reserved for the dispatcher failing
 	// itself — an unreadable request, a session that never came up.
