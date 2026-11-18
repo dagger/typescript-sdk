@@ -3,4 +3,4 @@ engineVersion = "v1.0.0-beta.28"
 source = "../../../code"
 
 [runtime]
-  source = "typescript"
+source = "typescript"

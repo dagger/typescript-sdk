@@ -83,13 +83,21 @@ type ManifestChecks {
   The only `[entrypoint]` a module keeps is the generated one. A manifest that
   names a remote entrypoint source is rewritten to the generated entrypoint at
   generation, so a module always runs on the entrypoint this SDK wrote for it.
+
+  The remote has to be a source that really resolves, and pinned. It used to be
+  `sdk-helpers/entrypoint@main`, a subdirectory that does not exist at any ref
+  of that repo: engines before v1.0.0-beta.28 never looked, so the check passed
+  on a path that was never there, and beta.28 content-hashes an entrypoint
+  source as the workspace loads it and fails on the missing directory. A tag
+  rather than `@main` so the fixture cannot rot with someone else's default
+  branch again.
   """
   remoteEntrypointReplacedCheck(ws: Workspace!): Void @check {
     let path = Fixtures.out + "/manifest-remote-entrypoint"
     let input = ws
       .withNewFile(
         "/" + path + "/dagger-module.toml",
-        "name = \"manifest-remote-entrypoint\"\n\n[entrypoint]\n  kind = \"dang\"\n  source = \"github.com/dagger/sdk-helpers/entrypoint@main\"\n",
+        "name = \"manifest-remote-entrypoint\"\n\n[entrypoint]\n  kind = \"dang\"\n  source = \"github.com/dagger/sdk-helpers@v1.0.12\"\n",
       )
       .withNewFile(
         "/" + path + "/src/index.ts",
