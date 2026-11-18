@@ -143,7 +143,7 @@ type Entrypoint implements ModuleEntrypoint {
       installed
         .withExec(["tsx", "--no-deprecation", "--tsconfig", "tsconfig.json", "entrypoint/__dagger.dispatch.ts", "engine-call"], stdin: request)
         .stdout rescue {
-          err: GraphQLError => raiseFunctionError(err)
+          err: GraphQLError! => raiseFunctionError(err)
         },
     ) :: DispatchReply!
     let failure = reply.error

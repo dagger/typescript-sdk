@@ -1,5 +1,5 @@
 name = "parent-source-app"
-engineVersion = "v1.0.0-beta.25"
+engineVersion = "v1.0.0-beta.28"
 source = "../../../ci"
 
 [runtime]

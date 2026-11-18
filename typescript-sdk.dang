@@ -2809,7 +2809,7 @@ type TypescriptSdk {
       let target = prefix + path
       let current = acc.file(target).digest(excludeMetadata: true) rescue {
         # Nothing there yet, so nothing to compare against and nothing to skip.
-        err: Error => ""
+        err: Error! => ""
       }
       if (current == generated.file(path).digest(excludeMetadata: true)) {
         acc
@@ -2911,7 +2911,7 @@ type TypescriptSdk {
   """
   let selfClientTarget(ws: Workspace!, scope: String!, name: String!): [ClientTarget!]! {
     let selfSource = ws.moduleSource("/" + scope).{{ clientSchemaIntrospectionJSON.{{ contents }} }} rescue {
-      err: Error => null
+      err: Error! => null
     }
 
     if (selfSource == null) {

@@ -556,7 +556,7 @@ type GenerateChecks {
       "the recipe should raise a thrown error's message as the function's error",
     )
     Asserts.stringContains(
-      recipe, "err: GraphQLError => raiseFunctionError(err)",
+      recipe, "err: GraphQLError! => raiseFunctionError(err)",
       "the recipe should read the reply of a dispatcher that failed its exec, which it does so that a failed call is not cached",
     )
     Asserts.stringNotContains(
@@ -1647,7 +1647,7 @@ type GenerateChecks {
         .stdout
       "compiled"
     } rescue {
-      err: Error => "rejected"
+      err: Error! => "rejected"
     }
   }
 

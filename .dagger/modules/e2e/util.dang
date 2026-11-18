@@ -200,7 +200,7 @@ type Gen {
   """
   let failure(changes: Changeset!): String! {
     changes.addedPaths.join(", ") rescue {
-      err: Error => err.message
+      err: Error! => err.message
     }
   }
 }

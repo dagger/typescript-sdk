@@ -632,7 +632,7 @@ func TestGenerateDangEntrypointRaisesDispatchErrors(t *testing.T) {
 	got := readOverlay(t, state, DefaultDangEntrypointFile)
 
 	require.Contains(t, got, ") :: DispatchReply!")
-	require.Contains(t, got, ".stdout rescue {\n          err: GraphQLError => raiseFunctionError(err)\n        },")
+	require.Contains(t, got, ".stdout rescue {\n          err: GraphQLError! => raiseFunctionError(err)\n        },")
 	require.Contains(t, got, "(JSON.decode(err.extensions) :: {{stdout: String}}).stdout")
 	require.Contains(t, got, "if (failure != null) {\n      raise failure.message\n    }\n    raise err\n")
 	require.Contains(t, got, "let failure = reply.error\n    if (failure != null) {\n      raise failure.message\n    }\n    let result = reply.result")
