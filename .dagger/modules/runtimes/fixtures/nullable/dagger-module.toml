@@ -1,9 +1,9 @@
 name = "runtime-nullable"
-engineVersion = "v1.0.0-beta.25"
+engineVersion = "v1.0.0-beta.28"
 
 [runtime]
-  source = "typescript"
+source = "typescript"
 
 [[dependencies]]
-  name = "runtime-nullable-dep"
-  source = "../nullable-dep"
+name = "runtime-nullable-dep"
+source = "../nullable-dep"

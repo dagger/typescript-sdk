@@ -130,7 +130,7 @@ type Runtimes {
       let ran = ws.artifacts(include: [name + ":nonce-failure"]).items.{{ value.{{ id }} }}
       "nonceFailure did not fail; artifacts found: " + toString(ran.length)
     } rescue {
-      err: GraphQLError => err.message
+      err: GraphQLError! => err.message
     }
     let after = message.split(objectName + " nonce: ")
     if (after.length < 2) {

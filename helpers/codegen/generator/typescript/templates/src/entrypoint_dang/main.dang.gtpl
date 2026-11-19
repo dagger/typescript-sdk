@@ -97,7 +97,7 @@ type Entrypoint implements ModuleEntrypoint {
       installed
         .withExec({{ dangDispatchExec }}, stdin: request)
         .stdout rescue {
-          err: GraphQLError => raiseFunctionError(err)
+          err: GraphQLError! => raiseFunctionError(err)
         },
     ) :: DispatchReply!
     let failure = reply.error
