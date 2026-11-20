@@ -152,10 +152,13 @@ type Entrypoint implements ModuleEntrypoint {
   The module's dependencies, installed, as the node_modules a call mounts.
 
   Built from the module's manifest and lockfile alone — never from its source —
-  so editing a function reinstalls nothing. That is also why the install cannot
-  live in runtime: every exec after the module is mounted is keyed on
-  everything mounted, and anything installed before it under the mount point
-  would be hidden by it.
+  so editing a function reinstalls nothing. Two things are load-bearing for
+  that: installContext reads each of those files keyed by its content, and the
+  install opts out of nesting, which is what keeps the module's source digest
+  out of the exec's identity. That is also why the install cannot live in
+  runtime: every exec after the module is mounted is keyed on everything
+  mounted, and anything installed before it under the mount point would be
+  hidden by it.
   """
   let dependencies: Directory! {
     {{ dangDependenciesChain }}
