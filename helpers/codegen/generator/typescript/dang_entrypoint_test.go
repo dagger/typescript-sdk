@@ -293,13 +293,19 @@ func TestGenerateDangEntrypointSourcesInstall(t *testing.T) {
 
 	require.Contains(t, got, `let installDir = "/deps/" + currentModule.sourceSubpath`)
 	require.Contains(t, got,
-		`withDirectory("/deps", currentModule.contextDirectory.filter(exclude: [currentModule.sourceSubpath + "/**"]))`)
+		`let outside = currentModule.contextDirectory.filter(exclude: [currentModule.sourceSubpath + "/**"])`)
+	require.Contains(t, got, `acc.withFile(path, outside.file(path).sync(keyByContent: true))`)
+	require.Contains(t, got, `withDirectory("/deps", resourceContext)`)
 	// The module's own tree is dropped from that context and its manifest read
 	// back in, so the install stays keyed on the manifests and the resources
 	// rather than on the module's source.
-	require.Contains(t, got,
-		`withDirectory(installDir, currentModule.source, include: ["package.json", "package-lock.json", ".npmrc", "clients/**"])`)
+	require.Contains(t, got, `withDirectory(installDir, installContext)`)
 	require.Contains(t, got, `directory(installDir + "/node_modules")`)
+	// The context is what the module declared outside itself, and a read of it
+	// is keyed by the module's source along with everything else in it — so no
+	// read of it reaches the install.
+	require.NotContains(t, got, `withDirectory("/deps", currentModule.contextDirectory`)
+	require.NotContains(t, got, `withDirectory(installDir, currentModule.source`)
 
 	// With nothing declared the install reads the module directory alone, and
 	// needs no subpath at all.
@@ -307,7 +313,8 @@ func TestGenerateDangEntrypointSourcesInstall(t *testing.T) {
 	require.Contains(t, plain, `withWorkdir("/deps")`)
 	require.Contains(t, plain, `withDirectory("/deps", installContext)`)
 	require.NotContains(t, plain, "installDir")
-	require.NotContains(t, plain, `withDirectory("/deps", currentModule.contextDirectory`)
+	require.NotContains(t, plain, "resourceContext")
+	require.NotContains(t, plain, `currentModule.contextDirectory.filter(exclude: [currentModule.sourceSubpath`)
 }
 
 // TestGenerateDangEntrypointInstallNotKeyedByModule pins the two things that

@@ -965,17 +965,6 @@ func (c *dangFuncCtx) dangManagerSpec(name string) string {
 // the mount point is hidden by it.
 func (c *dangFuncCtx) dangDependenciesChain() string {
 	manifest := c.dangManifestFiles()
-	includes := make([]string, 0, len(manifest)+1)
-	for _, f := range manifest {
-		includes = append(includes, dangString(f))
-	}
-	// The module's file: dependencies — clients/dagger and each client package —
-	// have to be in the install context beside the manifest for the specifiers
-	// to resolve. The whole clients/ tree comes along: it is generated content
-	// that changes only on regeneration, so it keys the layer with the manifest
-	// rather than the module's source, and a one-line src edit reinstalls
-	// nothing.
-	includes = append(includes, dangString("clients/**"))
 
 	if len(c.opts.Include) == 0 {
 		calls := []string{
@@ -998,29 +987,30 @@ func (c *dangFuncCtx) dangDependenciesChain() string {
 	//
 	// The module's own tree is dropped from that context and its manifest read
 	// back in, which keeps the install keyed on the manifests and the resources
-	// rather than on the module's source.
-	//
-	// shortcut: the context read is keyed by the whole context, module source
-	// included, so this install still runs again for every source edit — the
-	// content keying installContext does cannot apply to a read that names no
-	// paths. Upgrade by rendering the resource patterns as reads of their own.
+	// rather than on the module's source — and both halves are read file by
+	// file, for the reason dangInstallContext gives.
 	calls := []string{
-		fmt.Sprintf(`withDirectory(%s, currentModule.contextDirectory.filter(exclude: [currentModule.sourceSubpath + "/**"]))`,
-			dangString(dangInstallDir)),
-		fmt.Sprintf("withDirectory(installDir, currentModule.source, include: [%s])",
-			strings.Join(includes, ", ")),
+		fmt.Sprintf("withDirectory(%s, resourceContext)", dangString(dangInstallDir)),
+		"withDirectory(installDir, installContext)",
 		"withWorkdir(installDir)",
 		`withDirectory(installDir + "/node_modules", directory)`,
 	}
 	calls = append(calls, c.dangInstallExecs()...)
 	calls = append(calls, `directory(installDir + "/node_modules")`)
 
-	return fmt.Sprintf("let installDir = %s + currentModule.sourceSubpath\n    %s",
-		dangString(dangInstallDir+"/"), dangChain("base", calls, "      "))
+	return fmt.Sprintf("let installDir = %s + currentModule.sourceSubpath\n    %s%s%s",
+		dangString(dangInstallDir+"/"),
+		c.dangInstallContext(manifest),
+		dangResourceContext,
+		dangChain("base", calls, "      "))
 }
 
 // dangInstallContext renders the `installContext` binding: the manifest and the
 // generated clients/ tree, every file keyed by its content.
+//
+// The clients come along because they are file: dependencies — clients/dagger
+// and each client package — and the specifiers in the manifest have nothing to
+// resolve to without them.
 //
 // Reading them off currentModule.source directly, even with an include filter,
 // keys the install by the whole module: the filter runs inside the read, so
@@ -1048,6 +1038,25 @@ func (c *dangFuncCtx) dangInstallContext(manifest []string) string {
     }
     `, strings.Join(names, ", "))
 }
+
+// dangResourceContext renders the `resourceContext` binding: everything the
+// module declared outside its own directory, which the engine put in the module
+// context and nothing else did — the test helper's "the module directory, the
+// manifest and whatever resources lists, and nothing else".
+//
+// Read file by file for the reason dangInstallContext gives, which a read of
+// the context cannot be told to do: filtered or not, what it depends on is the
+// context directory, and the module's own source is in there.
+//
+// shortcut: carries no symlink and no empty directory, which a file list cannot
+// describe. Upgrade when a resource tree needs one — a published package
+// vendored as a symlink would be the case to watch.
+const dangResourceContext = `let outside = currentModule.contextDirectory.filter(exclude: [currentModule.sourceSubpath + "/**"])
+    let resources = outside.glob("**").filter { path => path.hasSuffix("/") == false }
+    let resourceContext = resources.reduce(directory) { acc, path =>
+      acc.withFile(path, outside.file(path).sync(keyByContent: true))
+    }
+    `
 
 // dangRuntimeChain renders the body of the private runtime() helper: everything
 // up to but not including the per-call exec, so the whole build is shared across
