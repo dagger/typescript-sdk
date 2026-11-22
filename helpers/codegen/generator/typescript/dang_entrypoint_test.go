@@ -104,17 +104,17 @@ func TestGenerateDangEntrypointRuntimes(t *testing.T) {
 		{
 			runtime: "node",
 			image:   "node:24.13.1-alpine@sha256:",
-			exec:    `["tsx", "--no-deprecation", "--tsconfig", "tsconfig.json", "entrypoint/__dagger.dispatch.ts", "engine-call"]`,
+			exec:    `["tsx", "--no-deprecation", "--tsconfig", "tsconfig.json", "entrypoint/__dagger.dispatch.ts", "engine-call", "/dagger/result.json"]`,
 		},
 		{
 			runtime: "bun",
 			image:   "oven/bun:1.3.0-alpine@sha256:",
-			exec:    `["bun", "run", "entrypoint/__dagger.dispatch.ts", "engine-call"]`,
+			exec:    `["bun", "run", "entrypoint/__dagger.dispatch.ts", "engine-call", "/dagger/result.json"]`,
 		},
 		{
 			runtime: "deno",
 			image:   "denoland/deno:alpine-2.5.0@sha256:",
-			exec:    `["deno", "run", "-q", "-A", "entrypoint/__dagger.dispatch.ts", "engine-call"]`,
+			exec:    `["deno", "run", "-q", "-A", "entrypoint/__dagger.dispatch.ts", "engine-call", "/dagger/result.json"]`,
 		},
 	} {
 		t.Run(tc.runtime, func(t *testing.T) {
@@ -533,7 +533,7 @@ func TestGenerateDangEntrypointDeclaresClientVersion(t *testing.T) {
 		`      .withEnvVariable("DAGGER_CLIENT_VERSION", "v1.0.0-beta.22")`,
 		`      .sync`,
 	}, "\n"))
-	require.Contains(t, got, "      installed\n        .withExec(")
+	require.Contains(t, got, "    let result = installed\n      .withExec(")
 }
 
 func TestGenerateDangEntrypoint_RequiresClientVersion(t *testing.T) {
@@ -612,11 +612,18 @@ func TestGenerateDangEntrypointGuardsGeneratedFiles(t *testing.T) {
 }
 
 // TestGenerateDangEntrypointRaisesDispatchErrors pins the entrypoint's half of
-// the reply protocol: call() decodes what the dispatcher wrote, and when the
-// dispatcher failed its exec after replying with an error, raises the error's
-// message from the failed exec's stdout, so a function that throws fails with
-// what it threw rather than with the exec's "exit code: 2". The exec's own
-// error is raised when there is no reply.
+// the dispatcher's protocol.
+//
+// The result comes back in a file, not on stdout, which the function's own
+// console.log shares: a function that logged and returned used to fail with
+// "JSON.decode: invalid JSON", its logs and the reply run together.
+//
+// A failed exec's error carries the function's error when the engine read the
+// function error file the dispatcher wrote (its functionError extension), and
+// is raised unchanged, so the call fails with what the function threw, values
+// and all. On an engine without that file, the last marker line of the exec's
+// stderr holds the message; with neither, as when the process exited by
+// itself, the exec's own error is raised.
 func TestGenerateDangEntrypointRaisesDispatchErrors(t *testing.T) {
 	gen := &TypeScriptGenerator{Config: generator.Config{
 		DangEntrypointConfig: &generator.DangEntrypointGeneratorConfig{
@@ -631,17 +638,30 @@ func TestGenerateDangEntrypointRaisesDispatchErrors(t *testing.T) {
 	require.NoError(t, err)
 	got := readOverlay(t, state, DefaultDangEntrypointFile)
 
-	require.Contains(t, got, ") :: DispatchReply!")
-	require.Contains(t, got, ".stdout rescue {\n          err: GraphQLError! => raiseFunctionError(err)\n        },")
-	require.Contains(t, got, "(JSON.decode(err.extensions) :: {{stdout: String}}).stdout")
-	require.Contains(t, got, "if (failure != null) {\n      raise failure.message\n    }\n    raise err\n")
-	require.Contains(t, got, "let failure = reply.error\n    if (failure != null) {\n      raise failure.message\n    }\n    let result = reply.result")
-	require.NotContains(t, got, ".stdout :: JSON!")
+	require.Contains(t, got, strings.Join([]string{
+		`    let result = installed`,
+		`      .withExec(["tsx", "--no-deprecation", "--tsconfig", "tsconfig.json", "entrypoint/__dagger.dispatch.ts", "engine-call", "/dagger/result.json"], stdin: request)`,
+		`      .file("/dagger/result.json")`,
+		`      .contents rescue {`,
+		`        err: GraphQLError! => raiseFunctionError(err)`,
+		`      }`,
+		`    (result :: JSON!)`,
+	}, "\n"))
+	require.NotContains(t, got, ".stdout")
+	require.NotContains(t, got, "DispatchReply")
 
-	// The reply types are declared beside the entrypoint, not inside it: a
-	// field on Entrypoint would become a constructor argument, which the dang
-	// driver rejects (see TestGenerateDangEntrypointImplementsContract).
-	require.Contains(t, got, "\n}\n\n\"\"\"\nWhat the dispatcher writes to stdout")
-	require.Contains(t, got, "type DispatchReply {\n  result: JSON\n  error: DispatchError\n}")
-	require.Contains(t, got, "type DispatchError {\n  message: String!\n}")
+	require.Contains(t, got, strings.Join([]string{
+		`    let reported = ((JSON.decode(err.extensions) :: {{functionError: {{message: String, id: String}}}}).functionError != null) rescue false`,
+		`    if (reported) {`,
+		`      raise err`,
+		`    }`,
+	}, "\n"))
+	require.Contains(t, got, `    let marker = "::dagger-function-error::"`)
+	require.Contains(t, got, `    let stderr = ((JSON.decode(err.extensions) :: {{stderr: String}}).stderr ?? "") rescue ""`)
+	require.Contains(t, got, strings.Join([]string{
+		`    if (lines.isEmpty) {`,
+		`      raise err`,
+		`    }`,
+		`    raise ((JSON.decode(lines.takeLast(1).join("").trimPrefix(marker)) :: String!) rescue err.message)`,
+	}, "\n"))
 }

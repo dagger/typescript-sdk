@@ -134,6 +134,7 @@ func DangEntrypointTemplateFuncs(module *TypedefModule, opts DangEntrypointOptio
 		"dangDependenciesChain":    c.dangDependenciesChain,
 		"dangRuntimeChain":         c.dangRuntimeChain,
 		"dangDispatchExec":         c.dangDispatchExec,
+		"dangResultFile":           c.dangResultFile,
 		"dangRequireGeneratedBody": c.dangRequireGeneratedBody,
 		"dangSourcesMember":        c.dangSourcesMember,
 		"dangClientVersion":        c.dangClientVersion,
@@ -1033,6 +1034,16 @@ func (c *dangFuncCtx) dangRuntimeChain() string {
 	return dangChain("base", calls, "      ")
 }
 
+// DangResultFile is where the dispatcher writes a call's result, which call()
+// reads back from the exec that ran it. A file rather than stdout, which the
+// function's own logs share.
+const DangResultFile = "/dagger/result.json"
+
+// dangResultFile renders DangResultFile as a Dang string.
+func (c *dangFuncCtx) dangResultFile() string {
+	return dangString(DangResultFile)
+}
+
 // dangDispatchExec renders the argv that runs the generated dispatcher.
 func (c *dangFuncCtx) dangDispatchExec() string {
 	file := c.dispatchFile()
@@ -1040,15 +1051,15 @@ func (c *dangFuncCtx) dangDispatchExec() string {
 	var argv []string
 	switch c.opts.Runtime {
 	case "bun":
-		argv = []string{"bun", "run", file, "engine-call"}
+		argv = []string{"bun", "run", file, "engine-call", DangResultFile}
 	case "deno":
-		argv = []string{"deno", "run", "-q", "-A", file, "engine-call"}
+		argv = []string{"deno", "run", "-q", "-A", file, "engine-call", DangResultFile}
 	default:
 		tsconfig := c.opts.TSConfigPath
 		if tsconfig == "" {
 			tsconfig = "tsconfig.json"
 		}
-		argv = []string{"tsx", "--no-deprecation", "--tsconfig", tsconfig, file, "engine-call"}
+		argv = []string{"tsx", "--no-deprecation", "--tsconfig", tsconfig, file, "engine-call", DangResultFile}
 	}
 
 	quoted := make([]string, len(argv))
