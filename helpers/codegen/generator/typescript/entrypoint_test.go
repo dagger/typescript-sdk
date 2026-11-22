@@ -134,7 +134,7 @@ func TestGenerateEntrypointInterfaceReturnGuard(t *testing.T) {
 // It is the same file minus register(): under a module entrypoint the typedefs
 // come from the generated Dang program, so the container only ever runs a real
 // call. What that leaves is the dispatch half behind a different protocol — one
-// JSON request on stdin, one JSON result on stdout.
+// JSON request on stdin, the JSON result in a file.
 func TestGenerateEntrypointDispatch(t *testing.T) {
 	gen := &TypeScriptGenerator{Config: generator.Config{
 		EntrypointConfig: &generator.EntrypointGeneratorConfig{

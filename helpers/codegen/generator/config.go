@@ -169,7 +169,8 @@ type EntrypointGeneratorConfig struct {
 	SourceDir string
 
 	// DispatchMode renders the manifest-v2 dispatcher instead of the legacy
-	// entrypoint: one JSON request on stdin, one JSON result on stdout, and no
+	// entrypoint: one JSON request on stdin, the JSON result in a file, a
+	// failed call's error in the engine's function error file, and no
 	// register(). See EntrypointOptions.DispatchMode.
 	DispatchMode bool
 

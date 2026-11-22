@@ -86,7 +86,7 @@ result is `null`.
 | --- | --- |
 | `[runtime] source = "typescript"` → engine's builtin TS runtime (a Go module the engine compiles) | `[entrypoint] kind = "dang", source = "./entrypoint"` → generated Dang, evaluated in-process |
 | `register()` inside `__dagger.entrypoint.ts` chains `dag.typeDef()…` **in a container** to declare types | `types()` in Dang returns the same typedefs as literals, **no container** |
-| Container polls `dag.currentFunctionCall()`, reads `parentName`/`name`/`inputArgs`, writes `returnValue`/`returnError` | dispatcher reads one JSON request on **stdin**, writes one JSON result on **stdout** |
+| Container polls `dag.currentFunctionCall()`, reads `parentName`/`name`/`inputArgs`, writes `returnValue`/`returnError` | dispatcher reads one JSON request on **stdin**, writes the JSON result to a **file**, and a failed call's error to the engine's **function error file** |
 | Runtime container assembled by the engine's TS runtime from detected config | container assembled by our generated `call()`, with the recipe baked at codegen |
 | Module dir is what reaches the container (`ContextDirectory().Directory(subPath)`) | the **workspace** is passed in — files above the module dir are reachable (§10.3) |
 | Types require install + node start on every load | types are free; the container only exists for real calls |
@@ -102,7 +102,7 @@ hello/
 ├── dagger-module.toml          # name + [entrypoint], no [runtime]     (generated)
 ├── entrypoint/
 │   └── main.dang               # types() + call()                       (generated)
-├── __dagger.dispatch.ts        # stdin → invoke → stdout                (generated)
+├── __dagger.dispatch.ts        # stdin → invoke → result file           (generated)
 ├── sdk/                        # bundle + bindings, unchanged           (generated)
 ├── package.json / tsconfig.json                                         (generated)
 └── src/index.ts                # user code                              (author)
@@ -188,22 +188,13 @@ pub call(
     fnArgs: fnArgs,
   }})
   let installed = runtime(workspace).sync
-  let reply = JSON.decode(
-    installed
-      .withExec(["tsx", "--no-deprecation", "--tsconfig", "tsconfig.json", "__dagger.dispatch.ts", "engine-call"], stdin: request)
-      .stdout rescue {
-        err: GraphQLError => raiseFunctionError(err)
-      },
-  ) :: DispatchReply!
-  let failure = reply.error
-  if (failure != null) {
-    raise failure.message
-  }
-  let result = reply.result
-  if (result == null) {
-    raise "the dispatcher replied with neither a result nor an error"
-  }
-  result
+  let result = installed
+    .withExec(["tsx", "--no-deprecation", "--tsconfig", "tsconfig.json", "__dagger.dispatch.ts", "engine-call", "/dagger/result.json"], stdin: request)
+    .file("/dagger/result.json")
+    .contents rescue {
+      err: GraphQLError! => raiseFunctionError(err)
+    }
+  (result :: JSON!)
 }
 ```
 
@@ -242,7 +233,7 @@ generator has three `runtime()` templates and emits one:
 | prefix | `apk add ca-certificates`, `NODE_OPTIONS=--use-openssl-ca`, `npm i -g tsx@<pin>` (§8.1) | none | none |
 | install | yarn `yarn install --prod` · npm `npm install --omit=dev` · pnpm `npm i -g pnpm@<v>` + `pnpm install --shamefully-hoist=true --prod` | `bun install --no-verify --omit=dev --omit=peer --omit=optional` | `deno install --node-modules-dir=auto` |
 | cache | `/root/.cache/yarn` · `/root/.npm` · `/root/.local/share/pnpm/store` | `/root/.bun/install/cache` | `/deno-dir` (upstream mounts `/root/.deno/cache`, which that image caches nothing in, under a volume it misnames `mod-bun-cache-…`, `runtime_deno.go:25,29`) |
-| dispatcher exec | `tsx --no-deprecation --tsconfig <tsconfig> __dagger.dispatch.ts engine-call` | `bun run __dagger.dispatch.ts engine-call` | `deno run -q -A __dagger.dispatch.ts engine-call` |
+| dispatcher exec | `tsx --no-deprecation --tsconfig <tsconfig> __dagger.dispatch.ts engine-call <result file>` | `bun run __dagger.dispatch.ts engine-call <result file>` | `deno run -q -A __dagger.dispatch.ts engine-call <result file>` |
 
 Mounts, identical across the three: the module context (excluding
 `node_modules`), with the workdir at `currentModule.sourceSubpath` inside it,
@@ -283,21 +274,30 @@ Request on stdin, one JSON object:
 { "receiverType": "Hello", "receiverValue": "{…}", "fnName": "message", "fnArgs": "{…}" }
 ```
 
-Reply on stdout, one JSON object — `{ "result": "<json>" }` when the function
-returned, `{ "error": { "message": "…" } }` when it threw. The result is a JSON
-string for the same reason the request's fields are (a Dang `JSON` scalar
-decodes from a string), and the error travels as data so the entrypoint can
-`raise` its message as the function's own error: the exec's own error is just
-its exit code, with the message only in the exec log. After an error reply the
-dispatcher exits 2, so the exec fails and is not cached: had it exited 0, the
-exec would be cached under the call digest and every later evaluation of the
-call would replay the error without running the function. The entrypoint
-rescues the failed exec and reads the reply from its error's `stdout`, the
-last 100 KiB the engine keeps, which the dispatcher cuts an error reply to fit.
-A failed exec with an error reply raises that error; one without, such as a
-dispatcher that crashed, raises the exec's own. The container is built before
-the exec, outside the rescue, so a failed install keeps its own error. Logs on
-stderr. That is the whole protocol — no session channel.
+The result goes to the file the command line names (`/dagger/result.json`), as
+JSON, which the entrypoint reads back once the exec succeeded and hands the
+engine verbatim. Not to stdout: that is the function's own, and a `console.log`
+there used to corrupt a reply written beside it.
+
+A thrown error goes to the function error file the engine names in
+`DAGGER_FUNCTION_ERROR_PATH` (dagger/dagger#15249), as `{"message": …,
+"values": {…}}`: the full message, `[traceparent:…]` origins kept, and the
+extensions of the API error it is or wraps. The engine fails the exec with that
+error, values and all, and the entrypoint raises it unchanged. The call's logs
+then get a short stack trace of the module's own frames, or nothing for an API
+error whose origin the engine shows. An engine that names no file gets the whole
+error on stderr, then a `::dagger-function-error::` line carrying the message,
+which the entrypoint raises. Either way the dispatcher exits 2, so the exec
+fails and is not cached: had it exited 0, the exec would be cached under the
+call digest and every later evaluation of the call would replay the error
+without running the function. A failed exec with neither, such as one whose
+function called `process.exit`, raises the exec's own error. The container is
+built before the exec, outside the rescue, so a failed install keeps its own
+error. That is the whole protocol — no session channel.
+
+The module's code is imported only for its types and loaded with `import()`
+once the dispatcher runs, so a module that doesn't compile, or throws as it
+loads, fails with that error rather than with the process's exit code.
 
 The dispatcher keeps: `connection()` (user code calls `dag`), the per-object
 `rebuild`/`serialize` helpers, and `__loadCoreObject` for ID-carrying arguments

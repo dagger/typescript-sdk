@@ -246,7 +246,7 @@ function reportError(e: unknown): void {
     return
   }
   console.error(e)
-  console.error(functionErrorMarker + JSON.stringify(fittedMessage(reportedMessage(e))))
+  console.error(functionErrorMarker + JSON.stringify(fittedMessage(thrownMessage(e))))
 }
 
 // writeFunctionError writes e to the function error file the engine names, and
@@ -314,10 +314,17 @@ function shortenedValue(v: unknown, limit: number): unknown {
   return v
 }
 
-// errorValues are the extensions of the API error e is, or wraps through its
-// causes, as the engine sent them: none when there is no such error, or when it
-// was a response of several errors.
+// errorValues are e's own extensions, as the builtin runtime's formatError
+// returns them, or else the extensions of the API error e wraps through its
+// causes, as the engine sent them, as go-sdk takes those of the GraphQL error
+// an error wraps: so a function that wraps a failed exec still fails with an
+// ExecError's values. None when there is no such error, or when it was a
+// response of several errors.
 function errorValues(e: unknown): Record<string, unknown> {
+  const own = e instanceof Error && !isAPIError(e) ? (e as any).extensions : undefined
+  if (own !== null && typeof own === "object" && !Array.isArray(own)) {
+    return { ...own }
+  }
   const seen = new Set<unknown>()
   for (let err: unknown = e; err instanceof Error && !seen.has(err); err = (err as any).cause) {
     seen.add(err)
@@ -354,18 +361,25 @@ function withoutOrigins(message: string): string {
 // printError puts e on the call's logs for an engine that reads it from the
 // function error file: nothing for an API error with an origin, whose origin the
 // engine shows, with its logs; a short stack trace for anything else, causes and
-// all, of the module's own frames only.
+// all, of the module's own frames only. The causes stop at an API error: what
+// caused that is the GraphQL client's error, the whole response and request.
+// An AggregateError, such as Bun's for a module that doesn't build, lists the
+// errors it holds.
 function printError(e: unknown): void {
   if (isAPIError(e) && errorOrigins(e.message).length > 0) {
     return
   }
   const lines: string[] = []
   const seen = new Set<unknown>()
-  for (let err: unknown = e; err !== undefined && err !== null && !seen.has(err); err = err instanceof Error ? (err as any).cause : undefined) {
+  for (let err: unknown = e; err !== undefined && err !== null && !seen.has(err); err = err instanceof Error && !isAPIError(err) ? (err as any).cause : undefined) {
     seen.add(err)
     lines.push((seen.size > 1 ? "Caused by: " : "") + errorHeading(err))
     if (err instanceof Error && !isCompileError(err)) {
       lines.push(...userFrames(err))
+    }
+    const errors = (err as any).errors
+    if (err instanceof Error && Array.isArray(errors)) {
+      lines.push(...errors.map((inner: unknown) => "  " + errorHeading(inner).replace(/\n/g, "\n  ")))
     }
   }
   console.error(lines.join("\n"))
@@ -380,6 +394,11 @@ function errorHeading(e: unknown): string {
     return detail || summary
   }
   if (!(e instanceof Error)) {
+    // Such as Bun's BuildMessage, which names where it is apart.
+    const position = (e as any)?.position
+    if (typeof position?.file === "string" && typeof position?.line === "number") {
+      return `${position.file}:${position.line}:${position.column ?? 0}: ${thrownMessage(e)}`
+    }
     return thrownMessage(e)
   }
   const message = withoutOrigins(e.message)
@@ -431,8 +450,10 @@ function compileErrorParts(e: Error): [string, string] {
   return [summary.replace(/:$/, ""), detail.join("\n").trim()]
 }
 
-// reportedMessage is the message of the error a call fails with: what it threw,
-// or the summary of a compile error, whose details its logs show.
+// reportedMessage is the message of the error a call fails with, in the function
+// error file: what it threw, or the summary of a compile error, whose details
+// printError shows on its logs. The marker line has the whole message: there,
+// the logs are the whole error, which an older engine doesn't show.
 function reportedMessage(e: unknown): string {
   if (isCompileError(e)) {
     return compileErrorParts(e)[0]
@@ -459,9 +480,15 @@ function markerBytes(message: string): number {
   return byteLength(functionErrorMarker + JSON.stringify(message))
 }
 
+// thrownMessage is the message of what a function threw: an Error's, or that
+// of anything else carrying one, such as Bun's ResolveMessage for an import
+// that doesn't resolve, or else the value itself.
 function thrownMessage(e: unknown): string {
   if (e instanceof Error) {
     return e.message
+  }
+  if (typeof (e as any)?.message === "string") {
+    return (e as any).message
   }
   try {
     return JSON.stringify(e) ?? String(e)
