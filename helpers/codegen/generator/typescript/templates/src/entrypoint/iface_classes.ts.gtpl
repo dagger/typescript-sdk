@@ -22,10 +22,17 @@ class __Iface_{{ $iface.Name }} {
 {{ end -}}
 {{- end -}}
 
+{{- /* A call through one of the module's own interfaces selects the engine's
+names for the interface's function and arguments (ifaceFieldName), which can
+differ from the TS names: the method keeps the name the user declared, the wire
+carries the schema's. An argument or result of one of the module's own enums
+crosses as the engine's name for the member, converted from and to the TS
+enum's value (ifaceEnumMetadata, ifaceEnumResult). */ -}}
 {{- define "entrypoint_iface_method" -}}
 {{- $iface := .Iface -}}
 {{- $fn := .Fn -}}
 {{- $module := .Module -}}
+{{- $field := jsString (ifaceFieldName $fn.Name) -}}
   async {{ $fn.Name }}(
     {{- range $i, $arg := $fn.Arguments -}}
     {{- if $i }}, {{ end -}}
@@ -34,27 +41,33 @@ class __Iface_{{ $iface.Name }} {
   ): Promise<any> {
     const __args: Record<string, any> = {}
     {{- range $arg := $fn.Arguments }}
-    if ({{ $arg.Name }} !== undefined) __args[{{ jsString $arg.Name }}] = {{ $arg.Name }}
+    if ({{ $arg.Name }} !== undefined) __args[{{ jsString (ifaceFieldName $arg.Name) }}] = {{ $arg.Name }}
+    {{- end }}
+    {{- with ifaceEnumMetadata $fn }}
+    {{ . }}
     {{- end }}
     {{- if $fn.ReturnType }}
     {{- $kind := $fn.ReturnType.Kind }}
     {{- if eq $kind "VOID_KIND" }}
-    await this._ctx.select({{ jsString $fn.Name }}, __args).execute()
+    await this._ctx.select({{ $field }}, __args).execute()
+    {{- else if ifaceEnumResult "__name" $fn.ReturnType }}
+    const __name = await this._ctx.select({{ $field }}, __args).execute<any>()
+    return {{ ifaceEnumResult "__name" $fn.ReturnType }}
     {{- else if or (eq $kind "OBJECT_KIND") (eq $kind "INTERFACE_KIND") }}
     {{- $ret := $fn.ReturnType }}
     {{- if and (eq $kind "INTERFACE_KIND") (index $module.Interfaces $ret.Name) }}
-    return new __Iface_{{ $ret.Name }}(this._ctx.select({{ jsString $fn.Name }}, __args))
+    return new __Iface_{{ $ret.Name }}(this._ctx.select({{ $field }}, __args))
     {{- else if and (eq $kind "OBJECT_KIND") (index $module.Objects $ret.Name) }}
-    const __id = await this._ctx.select({{ jsString $fn.Name }}, __args).select("id").execute<string>()
+    const __id = await this._ctx.select({{ $field }}, __args).select("id").execute<string>()
     return rebuild{{ $ret.Name }}({ id: __id })
     {{- else }}
-    const __id = await this._ctx.select({{ jsString $fn.Name }}, __args).select("id").execute<string>()
+    const __id = await this._ctx.select({{ $field }}, __args).select("id").execute<string>()
     return __loadCoreObject(__id, {{ jsString $ret.Name }})
     {{- end }}
     {{- else if eq $kind "LIST_KIND" }}
     {{- $inner := $fn.ReturnType.TypeDef }}
     {{- if and $inner (or (eq $inner.Kind "OBJECT_KIND") (eq $inner.Kind "INTERFACE_KIND")) }}
-    const __ids = await this._ctx.select({{ jsString $fn.Name }}, __args).select("id").execute<{id: string}[]>()
+    const __ids = await this._ctx.select({{ $field }}, __args).select("id").execute<{id: string}[]>()
     {{- if and (eq $inner.Kind "INTERFACE_KIND") (index $module.Interfaces $inner.Name) }}
     return __ids.map(({ id }) => __Iface_{{ $inner.Name }}.fromID(id))
     {{- else if and (eq $inner.Kind "OBJECT_KIND") (index $module.Objects $inner.Name) }}
@@ -63,13 +76,13 @@ class __Iface_{{ $iface.Name }} {
     return __ids.map(({ id }) => __loadCoreObject(id, {{ jsString $inner.Name }}))
     {{- end }}
     {{- else }}
-    return await this._ctx.select({{ jsString $fn.Name }}, __args).execute()
+    return await this._ctx.select({{ $field }}, __args).execute()
     {{- end }}
     {{- else }}
-    return await this._ctx.select({{ jsString $fn.Name }}, __args).execute()
+    return await this._ctx.select({{ $field }}, __args).execute()
     {{- end }}
     {{- else }}
-    await this._ctx.select({{ jsString $fn.Name }}, __args).execute()
+    await this._ctx.select({{ $field }}, __args).execute()
     {{- end }}
   }
 {{- end -}}

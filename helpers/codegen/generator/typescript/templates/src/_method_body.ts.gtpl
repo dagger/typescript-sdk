@@ -13,7 +13,7 @@ is identical. The dot is an introspection.Field. */ -}}
 	{{- if gt (len $enums) 0 }}
 	const metadata = {
 	    {{- range $v := $enums }}
-	    {{ $v.Name | FormatName -}}: { is_enum: true, value_to_name: {{ $v | GetInputEnumValueType }}ValueToName },
+	    {{ $v.Name | FormatName -}}: { is_enum: true, value_to_name: {{ $v | GetInputEnumValueType | PascalCase }}ValueToName },
 	    {{- end }}
 	}
 {{ "" -}}
