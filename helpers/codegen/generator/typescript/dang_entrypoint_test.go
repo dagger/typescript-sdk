@@ -543,7 +543,7 @@ func TestGenerateDangEntrypointImplementsContract(t *testing.T) {
 	require.Contains(t, got, "pub types: [TypeDef!]! {")
 	require.Contains(t, got, "pub call(\n    receiverType: String!,")
 	require.Contains(t, got, "    callDigest: String,\n  ): JSON! {")
-	require.Contains(t, got, "# Needs Dagger v1.0.0-beta.18 or later")
+	require.Contains(t, got, "# Needs Dagger v1.0.0-beta.26 or later")
 }
 
 // TestGenerateDangEntrypointDeclaresClientVersion pins how the module process
