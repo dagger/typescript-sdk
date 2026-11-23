@@ -100481,13 +100481,13 @@ function ImageLayerCompressionNameToValue(name) {
 var ImageMediaTypes;
 (function(ImageMediaTypes2) {
   ImageMediaTypes2["Docker"] = "DOCKER";
-  ImageMediaTypes2["Oci"] = "OCI";
+  ImageMediaTypes2["OCI"] = "OCI";
 })(ImageMediaTypes || (ImageMediaTypes = {}));
 function ImageMediaTypesValueToName(value) {
   switch (value) {
     case ImageMediaTypes.Docker:
       return "DOCKER";
-    case ImageMediaTypes.Oci:
+    case ImageMediaTypes.OCI:
       return "OCI";
     default:
       return value;
@@ -100498,7 +100498,7 @@ function ImageMediaTypesNameToValue(name) {
     case "DOCKER":
       return ImageMediaTypes.Docker;
     case "OCI":
-      return ImageMediaTypes.Oci;
+      return ImageMediaTypes.OCI;
     default:
       return name;
   }
@@ -100668,14 +100668,14 @@ function ModuleSourceKindNameToValue(name) {
 }
 var NetworkProtocol;
 (function(NetworkProtocol2) {
-  NetworkProtocol2["Tcp"] = "TCP";
-  NetworkProtocol2["Udp"] = "UDP";
+  NetworkProtocol2["TCP"] = "TCP";
+  NetworkProtocol2["UDP"] = "UDP";
 })(NetworkProtocol || (NetworkProtocol = {}));
 function NetworkProtocolValueToName(value) {
   switch (value) {
-    case NetworkProtocol.Tcp:
+    case NetworkProtocol.TCP:
       return "TCP";
-    case NetworkProtocol.Udp:
+    case NetworkProtocol.UDP:
       return "UDP";
     default:
       return value;
@@ -100684,9 +100684,9 @@ function NetworkProtocolValueToName(value) {
 function NetworkProtocolNameToValue(name) {
   switch (name) {
     case "TCP":
-      return NetworkProtocol.Tcp;
+      return NetworkProtocol.TCP;
     case "UDP":
-      return NetworkProtocol.Udp;
+      return NetworkProtocol.UDP;
     default:
       return name;
   }
@@ -100718,14 +100718,14 @@ function PatchConflictNameToValue(name) {
 }
 var RegistryProtocol;
 (function(RegistryProtocol2) {
-  RegistryProtocol2["Http"] = "HTTP";
-  RegistryProtocol2["Https"] = "HTTPS";
+  RegistryProtocol2["HTTP"] = "HTTP";
+  RegistryProtocol2["HTTPS"] = "HTTPS";
 })(RegistryProtocol || (RegistryProtocol = {}));
 function RegistryProtocolValueToName(value) {
   switch (value) {
-    case RegistryProtocol.Http:
+    case RegistryProtocol.HTTP:
       return "HTTP";
-    case RegistryProtocol.Https:
+    case RegistryProtocol.HTTPS:
       return "HTTPS";
     default:
       return value;
@@ -100734,9 +100734,9 @@ function RegistryProtocolValueToName(value) {
 function RegistryProtocolNameToValue(name) {
   switch (name) {
     case "HTTP":
-      return RegistryProtocol.Http;
+      return RegistryProtocol.HTTP;
     case "HTTPS":
-      return RegistryProtocol.Https;
+      return RegistryProtocol.HTTPS;
     default:
       return name;
   }

@@ -2581,7 +2581,7 @@ declare function AgentStateValueToName(value: AgentState): string;
  * it can be properly used inside the module runtime.
  */
 declare function AgentStateNameToValue(name: string): AgentState;
-type ArtifactUriOpts = {
+type ArtifactURIOpts = {
     /**
      * Prefix the workspace's Git address and commit: dag://<workspace>@<commit>:<path>. Fails if the artifact has no workspace, or its workspace has no Git address.
      */
@@ -4495,7 +4495,7 @@ declare function ImageLayerCompressionNameToValue(name: string): ImageLayerCompr
  */
 declare enum ImageMediaTypes {
     Docker = "DOCKER",
-    Oci = "OCI"
+    OCI = "OCI"
 }
 /**
  * Utility function to convert a ImageMediaTypes value to its name so
@@ -4820,7 +4820,7 @@ type ModuleServeOpts = {
      */
     entrypoint?: boolean;
 };
-type ModuleSourceClientSchemaIntrospectionJsonOpts = {
+type ModuleSourceClientSchemaIntrospectionJSONOpts = {
     /**
      * The engine version of the client the schema is generated for, e.g. the engineVersion of the module that depends on this one: core is described as that client sees it, capped at this engine's version.
      *
@@ -4886,8 +4886,8 @@ type NamingModuleOpts = {
  * Transport layer network protocol associated to a port.
  */
 declare enum NetworkProtocol {
-    Tcp = "TCP",
-    Udp = "UDP"
+    TCP = "TCP",
+    UDP = "UDP"
 }
 /**
  * Utility function to convert a NetworkProtocol value to its name so
@@ -5048,7 +5048,7 @@ type ClientGitOpts = {
      */
     experimentalServiceHost?: Service;
 };
-type ClientHttpOpts = {
+type ClientHTTPOpts = {
     /**
      * File name to use for the file. Defaults to the last part of the URL.
      */
@@ -5124,7 +5124,7 @@ type ClientServeModuleOpts = {
      */
     refPin?: string;
 };
-type ClientSshfsVolumeOpts = {
+type ClientSSHFSVolumeOpts = {
     /**
      * known_hosts material used to verify the remote host key. Required unless insecureSkipHostKeyCheck is true.
      */
@@ -5150,8 +5150,8 @@ type ClientSshfsVolumeOpts = {
  * Transport protocol to use for registry operations.
  */
 declare enum RegistryProtocol {
-    Http = "HTTP",
-    Https = "HTTPS"
+    HTTP = "HTTP",
+    HTTPS = "HTTPS"
 }
 /**
  * Utility function to convert a RegistryProtocol value to its name so
@@ -5672,7 +5672,7 @@ type WorkspaceWithResetOpts = {
      */
     hard?: boolean;
 };
-type WorkspaceWithSdkOpts = {
+type WorkspaceWithSDKOpts = {
     /**
      * Override name for the installed SDK entry.
      */
@@ -5744,7 +5744,7 @@ type WorkspaceWithoutModuleOpts = {
      */
     here?: boolean;
 };
-type WorkspaceWithoutSdkOpts = {
+type WorkspaceWithoutSDKOpts = {
     /**
      * Write to the workspace config directory at the workspace cwd.
      */
@@ -6148,7 +6148,7 @@ declare class Artifact extends BaseClient {
      * @param opts.dimensionKeys Include the dimension keys as a query. Without them, the address is a path selector.
      * @param opts.typeAssertion Include the artifact type in the scheme: dag+container://.
      */
-    uri: (opts?: ArtifactUriOpts) => Promise<string>;
+    uri: (opts?: ArtifactURIOpts) => Promise<string>;
     /**
      * Evaluate the target in the workspace that supplied this artifact.
      * @param opts.arguments Field arguments as a JSON object.
@@ -10359,7 +10359,7 @@ declare class ModuleSource extends BaseClient {
      *
      * Use this rather than withEngineVersion, which makes this module declare another version and so changes its names.
      */
-    clientSchemaIntrospectionJson: (opts?: ModuleSourceClientSchemaIntrospectionJsonOpts) => File;
+    clientSchemaIntrospectionJson: (opts?: ModuleSourceClientSchemaIntrospectionJSONOpts) => File;
     /**
      * The ref to clone the root of the git repo from. Only valid for git sources.
      */
@@ -10939,7 +10939,7 @@ declare class Client extends BaseClient {
      * @param opts.authHeader Secret used to populate the Authorization HTTP header
      * @param opts.experimentalServiceHost A service which must be started before the URL is fetched.
      */
-    http: (url: string, opts?: ClientHttpOpts) => File;
+    http: (url: string, opts?: ClientHTTPOpts) => File;
     /**
      * Initialize a JSON value
      */
@@ -11042,7 +11042,7 @@ declare class Client extends BaseClient {
      * @param opts.experimentalServiceHost Service to use as the SSHFS network endpoint while verifying the original host key.
      * @param opts.followSymlinks Resolve symlinks on the remote host, so they appear as the files and directories they point to. Without it, absolute symlinks and symlinks containing ".." can't be read. With it, creating a symlink in the volume fails.
      */
-    sshfsVolume: (endpoint: string, privateKey: Secret, opts?: ClientSshfsVolumeOpts) => Volume;
+    sshfsVolume: (endpoint: string, privateKey: Secret, opts?: ClientSSHFSVolumeOpts) => Volume;
     /**
      * Create a new TypeDef.
      */
@@ -12037,7 +12037,7 @@ declare class Workspace extends BaseClient {
      * @param opts.here Write to the workspace config directory at the workspace cwd.
      * @param opts.asSdkName Optional override for the SDK name conventionally derived from the installed module name.
      */
-    withSdk: (ref: string, opts?: WorkspaceWithSdkOpts) => Workspace;
+    withSdk: (ref: string, opts?: WorkspaceWithSDKOpts) => Workspace;
     /**
      * Return this workspace with the selected module clients updated.
      *
@@ -12148,7 +12148,7 @@ declare class Workspace extends BaseClient {
      * @param name Name of the installed SDK entry to remove.
      * @param opts.here Write to the workspace config directory at the workspace cwd.
      */
-    withoutSdk: (name: string, opts?: WorkspaceWithoutSdkOpts) => Workspace;
+    withoutSdk: (name: string, opts?: WorkspaceWithoutSDKOpts) => Workspace;
     /**
      * Call the provided function with current Workspace.
      *
@@ -12580,4 +12580,4 @@ declare const enumType: () => (<T extends Class>(constructor: T) => T);
 declare const argument: (opts?: ArgumentOptions) => ((target: object, propertyKey: string | undefined, parameterIndex: number) => void);
 
 export { AcronymStyle, AcronymStyleNameToValue, AcronymStyleValueToName, Address, Agent, AgentMessage, AgentMessageDelivery, AgentMessageDeliveryNameToValue, AgentMessageDeliveryValueToName, AgentState, AgentStateNameToValue, AgentStateValueToName, Artifact, ArtifactDimension, ArtifactDimensionKey, ArtifactDimensionKind, ArtifactDimensionKindNameToValue, ArtifactDimensionKindValueToName, ArtifactPath, Artifacts, BaseClient, CacheSharingMode, CacheSharingModeNameToValue, CacheSharingModeValueToName, CacheVolume, Casing, CasingNameToValue, CasingValueToName, Changeset, ChangesetMergeConflict, ChangesetMergeConflictNameToValue, ChangesetMergeConflictValueToName, ChangesetsMergeConflict, ChangesetsMergeConflictNameToValue, ChangesetsMergeConflictValueToName, Check, Client, ClientFilesyncMirror, Cloud, CollectionDelta, CollectionTypeDef, Command, Connection, Container, Context, CurrentModule, DaggerSDKError, DiffStat, DiffStatKind, DiffStatKindNameToValue, DiffStatKindValueToName, Directory, DockerImageRefValidationError, ERROR_CODES, Engine, EngineCache, EngineCacheEntry, EngineCacheEntrySet, EngineSessionConnectParamsParseError, EngineSessionConnectionTimeoutError, EngineSessionError, EnumTypeDef, EnumValueTypeDef, EnvFile, EnvVariable, Error$1 as Error, ErrorValue, ExecError, ExistsType, ExistsTypeNameToValue, ExistsTypeValueToName, Expertise, FieldTypeDef, File, FileType, FileTypeNameToValue, FileTypeValueToName, FunctionArg, FunctionCachePolicy, FunctionCachePolicyNameToValue, FunctionCachePolicyValueToName, FunctionCall, FunctionCallArgValue, FunctionNotFound, Function_, GeneratedCode, Generator, GitBundle, GitBundleRef, GitCommit, GitPushDisposition, GitPushDispositionNameToValue, GitPushDispositionValueToName, GitPushResult, GitRef, GitRemote, GitRepository, GraphQLClient, GraphQLRequestError, HTTPState, HealthcheckConfig, Host, Identifier, IdentifierWord, IdentifierWordKind, IdentifierWordKindNameToValue, IdentifierWordKindValueToName, ImageLayerCompression, ImageLayerCompressionNameToValue, ImageLayerCompressionValueToName, ImageMediaTypes, ImageMediaTypesNameToValue, ImageMediaTypesValueToName, InitEngineSessionBinaryError, InputTypeDef, InterfaceTypeDef, IntrospectionError, JSONValue, LLM, LLMContent, LLMContentBlock, LLMContentBlockKind, LLMContentBlockKindNameToValue, LLMContentBlockKindValueToName, LLMMessage, LLMMessageOrigin, LLMMessageOriginKind, LLMMessageOriginKindNameToValue, LLMMessageOriginKindValueToName, LLMMessageRole, LLMMessageRoleNameToValue, LLMMessageRoleValueToName, LLMSkill, LLMTokenUsage, Label, ListTypeDef, ModuleConfigClient, ModuleNaming, ModuleSource, ModuleSourceExperimentalFeature, ModuleSourceExperimentalFeatureNameToValue, ModuleSourceExperimentalFeatureValueToName, ModuleSourceKind, ModuleSourceKindNameToValue, ModuleSourceKindValueToName, Module_, Naming, NamingTerm, NetworkProtocol, NetworkProtocolNameToValue, NetworkProtocolValueToName, NotAwaitedRequestError, ObjectTypeDef, PatchConflict, PatchConflictNameToValue, PatchConflictValueToName, Port, RegistryProtocol, RegistryProtocolNameToValue, RegistryProtocolValueToName, RemoteGitMirror, ReturnType, ReturnTypeNameToValue, ReturnTypeValueToName, SDKConfig, ScalarTypeDef, Schema, SearchResult, SearchSubmatch, Secret, Service, Socket, SourceMap, Stat, Terminal, TooManyNestedObjectsError, TypeDef, TypeDefKind, TypeDefKindNameToValue, TypeDefKindValueToName, UnknownDaggerError, Volume, Workspace, WorkspaceCommitPick, WorkspaceCommitPickReason, WorkspaceCommitPickReasonNameToValue, WorkspaceCommitPickReasonValueToName, WorkspaceCommitPickStatus, WorkspaceCommitPickStatusNameToValue, WorkspaceCommitPickStatusValueToName, WorkspaceGit, WorkspaceMigration, WorkspaceMigrationStep, WorkspaceModule, WorkspaceModuleSetting, WorkspaceSDK, _ExportableClient, _NodeClient, _SyncerClient, agent, argument, check, collection, computeQuery, connect, connection, dag, delta, enumType, field, func, generate, get, getRegisteredClass, getTracer, globalConnection, keys, object, shared, up, withGQLClient, withSession };
-export type { AddressContainerOpts, AddressDirectoryOpts, AddressFileOpts, AddressGitRefOpts, AgentNotifyOpts, AgentPauseOpts, AgentSendOpts, AgentStopOpts, ArtifactUriOpts, ArtifactValueOpts, ArtifactsFilterDirectivesOpts, ArtifactsFilterParentDirectivesOpts, ArtifactsFilterParentTypesOpts, ArtifactsFilterTypesOpts, ArtifactsPathDefinitionsOpts, BuildArg, Bytes, CallbackFct, ChangesetFilterOpts, ChangesetWithChangesetOpts, ChangesetWithChangesetsOpts, ClientBlobOpts, ClientCacheVolumeOpts, ClientContainerOpts, ClientCurrentTypeDefsOpts, ClientEngineVolumeOpts, ClientEnvFileOpts, ClientFileOpts, ClientGitOpts, ClientHttpOpts, ClientLLMOpts, ClientModuleSourceOpts, ClientNamingOpts, ClientSecretOpts, ClientServeModuleOpts, ClientSshfsVolumeOpts, ConnectOpts, ContainerAsServiceOpts, ContainerAsTarballOpts, ContainerDirectoryOpts, ContainerExistsOpts, ContainerExportImageOpts, ContainerExportOpts, ContainerFileOpts, ContainerFromOpts, ContainerImportOpts, ContainerLayerOpts, ContainerManifestOpts, ContainerPublishOpts, ContainerShellOpts, ContainerStatOpts, ContainerTerminalOpts, ContainerUpOpts, ContainerWithDefaultTerminalCmdOpts, ContainerWithDirectoryOpts, ContainerWithDockerHealthcheckOpts, ContainerWithEntrypointOpts, ContainerWithEnvVariableOpts, ContainerWithExecOpts, ContainerWithExposedPortOpts, ContainerWithFileOpts, ContainerWithFilesOpts, ContainerWithMountedCacheOpts, ContainerWithMountedDirectoryOpts, ContainerWithMountedFileOpts, ContainerWithMountedFilesOpts, ContainerWithMountedSecretOpts, ContainerWithMountedTempOpts, ContainerWithMountedVolumeOpts, ContainerWithNewFileOpts, ContainerWithRunOpts, ContainerWithShellOpts, ContainerWithSymlinkOpts, ContainerWithUnixSocketOpts, ContainerWithWorkdirOpts, ContainerWithoutDirectoryOpts, ContainerWithoutEntrypointOpts, ContainerWithoutExposedPortOpts, ContainerWithoutFileOpts, ContainerWithoutFilesOpts, ContainerWithoutMountOpts, ContainerWithoutUnixSocketOpts, CurrentModuleWorkdirOpts, DirectoryAsModuleOpts, DirectoryAsModuleSourceOpts, DirectoryAsWorkspaceOpts, DirectoryDirectoryOpts, DirectoryDockerBuildOpts, DirectoryEntriesOpts, DirectoryExistsOpts, DirectoryExportOpts, DirectoryFilterOpts, DirectorySearchOpts, DirectoryStatOpts, DirectoryTerminalOpts, DirectoryWithDirectoryOpts, DirectoryWithFileOpts, DirectoryWithFilesOpts, DirectoryWithNewDirectoryOpts, DirectoryWithNewFileOpts, DirectoryWithPatchFileOpts, DirectoryWithPatchOpts, EngineCacheEntrySetOpts, EngineCachePruneOpts, EnvFileGetOpts, EnvFileVariablesOpts, Exportable, FileAsEnvFileOpts, FileContentsOpts, FileDigestOpts, FileExportOpts, FileExtractOpts, FileSearchOpts, FileSyncOpts, FileWithReplacedOpts, FunctionWithArgOpts, FunctionWithCachePolicyOpts, FunctionWithDeprecatedOpts, GitCommitAncestorReleaseTagOpts, GitCommitChangesOpts, GitCommitReleaseTagOpts, GitCommitTreeOpts, GitRefAsWorkspaceOpts, GitRefLogOpts, GitRefPushOpts, GitRefTreeOpts, GitRefWithCommitOpts, GitRepositoryAsWorkspaceOpts, GitRepositoryBranchOpts, GitRepositoryBranchesOpts, GitRepositoryBundleOpts, GitRepositoryHeadOpts, GitRepositoryLatestOpts, GitRepositoryRefOpts, GitRepositoryTagOpts, GitRepositoryTagsOpts, GitRepositoryWithBundleOpts, GitRepositoryWithRemoteOpts, HostDirectoryOpts, HostFileOpts, HostFindUpOpts, HostServiceOpts, HostTunnelOpts, ID, IdentifierFormatOpts, JSON, JSONValueContentsOpts, LLMArtifactsOpts, LLMContentBlockInput, LLMContentWithFileOpts, LLMLoopOpts, LLMMessageOriginInput, LLMSpawnOpts, LLMStepOpts, LLMWithContentFileOpts, LLMWithContentOpts, LLMWithModelOpts, LLMWithPromptOpts, LLMWithResponseOpts, LLMWithToolResultOpts, LLMWithToolsOpts, Metadata, ModuleServeOpts, ModuleSourceClientSchemaIntrospectionJsonOpts, NamingFormatIdentifiersOpts, NamingModuleOpts, Node, PipelineLabel, Platform, PortForward, QueryTree, ServeSpec, ServiceEndpointOpts, ServicePortsOpts, ServiceStopOpts, ServiceTerminalOpts, ServiceUpOpts, Syncer, TypeDefWithEnumMemberOpts, TypeDefWithEnumOpts, TypeDefWithEnumValueOpts, TypeDefWithFieldOpts, TypeDefWithInterfaceOpts, TypeDefWithObjectOpts, TypeDefWithScalarOpts, Void, WorkspaceArtifactsOpts, WorkspaceChangesOpts, WorkspaceCompareCommitsFromOpts, WorkspaceConfigReadOpts, WorkspaceDirectoryOpts, WorkspaceExportOpts, WorkspaceFindRootsOpts, WorkspaceFindUpOpts, WorkspaceMigrateModuleOpts, WorkspaceMigrateOpts, WorkspaceSearchOpts, WorkspaceWithClientOpts, WorkspaceWithCommitOpts, WorkspaceWithCommitsFromOpts, WorkspaceWithConfigEnvOpts, WorkspaceWithConfigValueOpts, WorkspaceWithFileOpts, WorkspaceWithInitModuleOpts, WorkspaceWithModuleOpts, WorkspaceWithNewFileOpts, WorkspaceWithPatchFileOpts, WorkspaceWithResetOpts, WorkspaceWithSdkOpts, WorkspaceWithUpdatedClientsOpts, WorkspaceWithUpdatedLockOpts, WorkspaceWithUpdatedModulesOpts, WorkspaceWithoutClientOpts, WorkspaceWithoutConfigEnvOpts, WorkspaceWithoutConfigValueOpts, WorkspaceWithoutModuleOpts, WorkspaceWithoutSdkOpts, __DirectiveArgsOpts, __FieldArgsOpts, __TypeEnumValuesOpts, __TypeFieldsOpts, __TypeInputFieldsOpts, float };
+export type { AddressContainerOpts, AddressDirectoryOpts, AddressFileOpts, AddressGitRefOpts, AgentNotifyOpts, AgentPauseOpts, AgentSendOpts, AgentStopOpts, ArtifactURIOpts, ArtifactValueOpts, ArtifactsFilterDirectivesOpts, ArtifactsFilterParentDirectivesOpts, ArtifactsFilterParentTypesOpts, ArtifactsFilterTypesOpts, ArtifactsPathDefinitionsOpts, BuildArg, Bytes, CallbackFct, ChangesetFilterOpts, ChangesetWithChangesetOpts, ChangesetWithChangesetsOpts, ClientBlobOpts, ClientCacheVolumeOpts, ClientContainerOpts, ClientCurrentTypeDefsOpts, ClientEngineVolumeOpts, ClientEnvFileOpts, ClientFileOpts, ClientGitOpts, ClientHTTPOpts, ClientLLMOpts, ClientModuleSourceOpts, ClientNamingOpts, ClientSSHFSVolumeOpts, ClientSecretOpts, ClientServeModuleOpts, ConnectOpts, ContainerAsServiceOpts, ContainerAsTarballOpts, ContainerDirectoryOpts, ContainerExistsOpts, ContainerExportImageOpts, ContainerExportOpts, ContainerFileOpts, ContainerFromOpts, ContainerImportOpts, ContainerLayerOpts, ContainerManifestOpts, ContainerPublishOpts, ContainerShellOpts, ContainerStatOpts, ContainerTerminalOpts, ContainerUpOpts, ContainerWithDefaultTerminalCmdOpts, ContainerWithDirectoryOpts, ContainerWithDockerHealthcheckOpts, ContainerWithEntrypointOpts, ContainerWithEnvVariableOpts, ContainerWithExecOpts, ContainerWithExposedPortOpts, ContainerWithFileOpts, ContainerWithFilesOpts, ContainerWithMountedCacheOpts, ContainerWithMountedDirectoryOpts, ContainerWithMountedFileOpts, ContainerWithMountedFilesOpts, ContainerWithMountedSecretOpts, ContainerWithMountedTempOpts, ContainerWithMountedVolumeOpts, ContainerWithNewFileOpts, ContainerWithRunOpts, ContainerWithShellOpts, ContainerWithSymlinkOpts, ContainerWithUnixSocketOpts, ContainerWithWorkdirOpts, ContainerWithoutDirectoryOpts, ContainerWithoutEntrypointOpts, ContainerWithoutExposedPortOpts, ContainerWithoutFileOpts, ContainerWithoutFilesOpts, ContainerWithoutMountOpts, ContainerWithoutUnixSocketOpts, CurrentModuleWorkdirOpts, DirectoryAsModuleOpts, DirectoryAsModuleSourceOpts, DirectoryAsWorkspaceOpts, DirectoryDirectoryOpts, DirectoryDockerBuildOpts, DirectoryEntriesOpts, DirectoryExistsOpts, DirectoryExportOpts, DirectoryFilterOpts, DirectorySearchOpts, DirectoryStatOpts, DirectoryTerminalOpts, DirectoryWithDirectoryOpts, DirectoryWithFileOpts, DirectoryWithFilesOpts, DirectoryWithNewDirectoryOpts, DirectoryWithNewFileOpts, DirectoryWithPatchFileOpts, DirectoryWithPatchOpts, EngineCacheEntrySetOpts, EngineCachePruneOpts, EnvFileGetOpts, EnvFileVariablesOpts, Exportable, FileAsEnvFileOpts, FileContentsOpts, FileDigestOpts, FileExportOpts, FileExtractOpts, FileSearchOpts, FileSyncOpts, FileWithReplacedOpts, FunctionWithArgOpts, FunctionWithCachePolicyOpts, FunctionWithDeprecatedOpts, GitCommitAncestorReleaseTagOpts, GitCommitChangesOpts, GitCommitReleaseTagOpts, GitCommitTreeOpts, GitRefAsWorkspaceOpts, GitRefLogOpts, GitRefPushOpts, GitRefTreeOpts, GitRefWithCommitOpts, GitRepositoryAsWorkspaceOpts, GitRepositoryBranchOpts, GitRepositoryBranchesOpts, GitRepositoryBundleOpts, GitRepositoryHeadOpts, GitRepositoryLatestOpts, GitRepositoryRefOpts, GitRepositoryTagOpts, GitRepositoryTagsOpts, GitRepositoryWithBundleOpts, GitRepositoryWithRemoteOpts, HostDirectoryOpts, HostFileOpts, HostFindUpOpts, HostServiceOpts, HostTunnelOpts, ID, IdentifierFormatOpts, JSON, JSONValueContentsOpts, LLMArtifactsOpts, LLMContentBlockInput, LLMContentWithFileOpts, LLMLoopOpts, LLMMessageOriginInput, LLMSpawnOpts, LLMStepOpts, LLMWithContentFileOpts, LLMWithContentOpts, LLMWithModelOpts, LLMWithPromptOpts, LLMWithResponseOpts, LLMWithToolResultOpts, LLMWithToolsOpts, Metadata, ModuleServeOpts, ModuleSourceClientSchemaIntrospectionJSONOpts, NamingFormatIdentifiersOpts, NamingModuleOpts, Node, PipelineLabel, Platform, PortForward, QueryTree, ServeSpec, ServiceEndpointOpts, ServicePortsOpts, ServiceStopOpts, ServiceTerminalOpts, ServiceUpOpts, Syncer, TypeDefWithEnumMemberOpts, TypeDefWithEnumOpts, TypeDefWithEnumValueOpts, TypeDefWithFieldOpts, TypeDefWithInterfaceOpts, TypeDefWithObjectOpts, TypeDefWithScalarOpts, Void, WorkspaceArtifactsOpts, WorkspaceChangesOpts, WorkspaceCompareCommitsFromOpts, WorkspaceConfigReadOpts, WorkspaceDirectoryOpts, WorkspaceExportOpts, WorkspaceFindRootsOpts, WorkspaceFindUpOpts, WorkspaceMigrateModuleOpts, WorkspaceMigrateOpts, WorkspaceSearchOpts, WorkspaceWithClientOpts, WorkspaceWithCommitOpts, WorkspaceWithCommitsFromOpts, WorkspaceWithConfigEnvOpts, WorkspaceWithConfigValueOpts, WorkspaceWithFileOpts, WorkspaceWithInitModuleOpts, WorkspaceWithModuleOpts, WorkspaceWithNewFileOpts, WorkspaceWithPatchFileOpts, WorkspaceWithResetOpts, WorkspaceWithSDKOpts, WorkspaceWithUpdatedClientsOpts, WorkspaceWithUpdatedLockOpts, WorkspaceWithUpdatedModulesOpts, WorkspaceWithoutClientOpts, WorkspaceWithoutConfigEnvOpts, WorkspaceWithoutConfigValueOpts, WorkspaceWithoutModuleOpts, WorkspaceWithoutSDKOpts, __DirectiveArgsOpts, __FieldArgsOpts, __TypeEnumValuesOpts, __TypeFieldsOpts, __TypeInputFieldsOpts, float };
