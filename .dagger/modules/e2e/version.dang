@@ -121,6 +121,11 @@ type VersionChecks {
   it, so it establishes nothing about either value's effect at run time. Selecting
   an API view from the file takes dagger/dagger#14902, still open; reading the
   variable takes dagger/dagger#14881, released in v1.0.0-beta.22.
+
+  The pin it heals from has a floor, because the file picks the view the recipe
+  is inferred against and the recipe reads the manifest with an argument added in
+  v1.0.0-beta.26. Generation cannot rewrite a file it has to load the module
+  through first.
   """
   dangConfigCheck(ws: Workspace!): Void @check {
     let root = Fixtures.out + "/version-dang"
@@ -128,6 +133,13 @@ type VersionChecks {
     let name = "version-dang"
     let leaf = path + "/entrypoint/dang.toml"
     let release = typescriptSdk.bundleEngineVersion
+
+    # The oldest pin generation can still heal. It has to load the module
+    # through the recipe before it can rewrite this file, and the recipe reads
+    # the manifest with `sync(keyByContent:)`, which no older view has an
+    # argument for — so a pin under this one, and an unversioned one, fail
+    # instead, which is what the loop below pins.
+    let healable = "v1.0.0-beta.26"
 
     let fresh = Gen.scope(ws, path, name, template: "empty", legacyRuntime: false)
     let settled = ws.withChanges(fresh)
@@ -155,23 +167,35 @@ type VersionChecks {
       .generateScope(scoped, isModule: true, name: name, clients: [])
     Asserts.assert(generated.cwd == scoped.cwd, "generation changed cwd")
 
-    let customized = "# dropped when rendered\ndang = \"2.1\"\n\n[imports.Dagger]\ndagger = true\nservice = [\"./bin/dagger\", \"session\"]\n\n[imports.Lib]\npath = \"./lib\"\n"
+    let customized = "# dropped when rendered\ndang = \"2.1\"\n\n[imports.Dagger]\ndagger = \"" + healable + "\"\nservice = [\"./bin/dagger\", \"session\"]\n\n[imports.Lib]\npath = \"./lib\"\n"
     let owned = settled.withNewFile("/" + leaf, customized)
     let replaced = owned.withChanges(Gen.scope(owned, path, name, legacyRuntime: false))
     Asserts.assert(
       dangValue(replaced, leaf, ["imports", "Dagger", "dagger"]) == "\"" + release + "\"",
-      "an owned dagger = true should become the release",
+      "an owned older pin should become the release",
     )
     Asserts.assert(dangValue(replaced, leaf, ["imports", "Lib", "path"]) == "\"./lib\"", "another import should survive")
     Asserts.assert(dangValue(replaced, leaf, ["imports", "Dagger", "service"]) != "null", "an import's other settings should survive")
     Asserts.stringNotContains(replaced.file("/" + leaf).contents, "# dropped", "rendering through TOML drops comments")
     Asserts.assert(Gen.scope(replaced, path, name, legacyRuntime: false).isEmpty, "a replaced dang.toml should settle")
 
-    let older = settled.withNewFile("/" + leaf, "[imports.Dagger]\ndagger = \"v1.0.0-beta.19\"\n")
+    let older = settled.withNewFile("/" + leaf, "[imports.Dagger]\ndagger = \"" + healable + "\"\n")
     Asserts.assert(
       dangValue(older.withChanges(Gen.scope(older, path, name, legacyRuntime: false)), leaf, ["imports", "Dagger", "dagger"]) == "\"" + release + "\"",
       "an owned older pin should become the release",
     )
+
+    # Under `healable` there is nothing to heal with: the error comes from the
+    # engine inferring the recipe against the view this file selects, before any
+    # of the SDK runs, so it is the argument's name and not a message of ours.
+    # Deleting the file is the way out.
+    ["[imports.Dagger]\ndagger = \"v1.0.0-beta.19\"\n", "[imports.Dagger]\ndagger = true\n"].each { pin =>
+      let unloadable = Gen.failure(Gen.scope(settled.withNewFile("/" + leaf, pin), path, name, legacyRuntime: false))
+      Asserts.stringContains(
+        unloadable, "keyByContent",
+        "a pin the recipe cannot be loaded under should fail on the argument it lacks, got: " + unloadable,
+      )
+    }
 
     assertDangConflict(settled, path, name, "dang = \"2.0\"\n", "declares Dang language 2.0")
     assertDangConflict(settled, path, name, "[imports.Dagger]\npath = \"./dagger\"\n", "gives the Dagger import a `path`")
@@ -183,7 +207,7 @@ type VersionChecks {
 
     let spelled = settled.withNewFile(
       "/" + leaf,
-      "[imports.Dagger]\ndagger = true\n\n[imports.Remote]\ndagger = true\nendpoint = \"http://localhost:8080\"\n\n[imports.Engine]\ndagger = \"" + release.trimPrefix("v") + "+build\"\n",
+      "[imports.Dagger]\ndagger = \"" + release + "\"\n\n[imports.Remote]\ndagger = true\nendpoint = \"http://localhost:8080\"\n\n[imports.Engine]\ndagger = \"" + release.trimPrefix("v") + "+build\"\n",
     )
     let respelled = spelled.withChanges(Gen.scope(spelled, path, name, legacyRuntime: false))
     Asserts.assert(dangValue(respelled, leaf, ["imports", "Engine", "dagger"]) == "\"" + release.trimPrefix("v") + "+build\"", "an alias spelling the release should be kept as written")
@@ -219,7 +243,7 @@ type VersionChecks {
     let literal = settled.withNewFile(
       "/" + manifest,
       "name = \"" + name + "\"\n\n[entrypoint]\n  kind = \"dang\"\n  source = './entrypoint'\n",
-    ).withNewFile("/" + leaf, "[imports.Dagger]\ndagger = \"v1.0.0-beta.19\"\n")
+    ).withNewFile("/" + leaf, "[imports.Dagger]\ndagger = \"" + healable + "\"\n")
     Asserts.assert(
       dangValue(literal.withChanges(Gen.scope(literal, path, name, legacyRuntime: false)), leaf, ["imports", "Dagger", "dagger"]) == "\"" + release + "\"",
       "a literal-string source should still make an entrypoint owned",

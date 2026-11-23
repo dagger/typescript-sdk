@@ -293,22 +293,58 @@ func TestGenerateDangEntrypointSourcesInstall(t *testing.T) {
 
 	require.Contains(t, got, `let installDir = "/deps/" + currentModule.sourceSubpath`)
 	require.Contains(t, got,
-		`withDirectory("/deps", currentModule.contextDirectory.filter(exclude: [currentModule.sourceSubpath + "/**"]))`)
+		`let outside = currentModule.contextDirectory.filter(exclude: [currentModule.sourceSubpath + "/**"])`)
+	require.Contains(t, got, `acc.withFile(path, outside.file(path).sync(keyByContent: true))`)
+	require.Contains(t, got, `withDirectory("/deps", resourceContext)`)
 	// The module's own tree is dropped from that context and its manifest read
 	// back in, so the install stays keyed on the manifests and the resources
 	// rather than on the module's source.
-	require.Contains(t, got,
-		`withDirectory(installDir, currentModule.source, include: ["package.json", "package-lock.json", ".npmrc", "clients/**"])`)
+	require.Contains(t, got, `withDirectory(installDir, installContext)`)
 	require.Contains(t, got, `directory(installDir + "/node_modules")`)
+	// The context is what the module declared outside itself, and a read of it
+	// is keyed by the module's source along with everything else in it — so no
+	// read of it reaches the install.
+	require.NotContains(t, got, `withDirectory("/deps", currentModule.contextDirectory`)
+	require.NotContains(t, got, `withDirectory(installDir, currentModule.source`)
 
 	// With nothing declared the install reads the module directory alone, and
 	// needs no subpath at all.
 	plain := renderDangEntrypoint(t, "apps/web")
 	require.Contains(t, plain, `withWorkdir("/deps")`)
-	require.Contains(t, plain,
-		`withDirectory("/deps", currentModule.source, include: ["package.json", "package-lock.json", ".npmrc", "clients/**"])`)
+	require.Contains(t, plain, `withDirectory("/deps", installContext)`)
 	require.NotContains(t, plain, "installDir")
-	require.NotContains(t, plain, `withDirectory("/deps", currentModule.contextDirectory`)
+	require.NotContains(t, plain, "resourceContext")
+	require.NotContains(t, plain, `currentModule.contextDirectory.filter(exclude: [currentModule.sourceSubpath`)
+}
+
+// TestGenerateDangEntrypointInstallNotKeyedByModule pins the two things that
+// keep the install off the module's source, both of which a passing recipe
+// hides: it installs the same tree either way, only more often.
+//
+// The content keying is why reading the manifest does not drag the module's
+// source digest in behind it, and opting out of nesting is why the engine does
+// not attach the module to the exec itself (dagger/dagger#14767). Lose either
+// and every edit of every file in the module reinstalls.
+func TestGenerateDangEntrypointInstallNotKeyedByModule(t *testing.T) {
+	got := renderDangEntrypoint(t, "apps/web")
+
+	require.Contains(t, got, `let manifest = ["package.json", "package-lock.json", ".npmrc"].filter { name => src.exists(name) }`)
+	require.Contains(t, got, `let clients = src.glob("clients/**").filter { path => path.hasSuffix("/") == false }`)
+	require.Contains(t, got, `acc.withFile(path, src.file(path).sync(keyByContent: true))`)
+
+	// Nothing reads the module's source as one directory for the install.
+	require.NotContains(t, got, `withDirectory("/deps", currentModule.source`)
+
+	for _, exec := range []string{
+		`withExec(["apk", "add", "--no-cache", "ca-certificates"], disableDaggerInDagger: true)`,
+		`withExec(["npm", "install", "-g", "tsx@`,
+		`withExec(["npm", "install", "--omit=dev"], disableDaggerInDagger: true)`,
+	} {
+		require.Contains(t, got, exec)
+	}
+	// The dispatcher is the one exec that keeps nesting: it runs the module's
+	// own code, which calls Dagger.
+	require.NotContains(t, got, `"engine-call"], disableDaggerInDagger: true)`)
 }
 
 // TestGenerateDangEntrypointInstallsDependencies pins the install step. Under a
@@ -328,32 +364,32 @@ func TestGenerateDangEntrypointInstallsDependencies(t *testing.T) {
 	}{
 		{
 			name: "npm", runtime: "node", manager: "npm", version: "11.8.0",
-			exec:     `withExec(["npm", "install", "--omit=dev"])`,
+			exec:     `withExec(["npm", "install", "--omit=dev"], disableDaggerInDagger: true)`,
 			cache:    `withMountedCache("/root/.npm", cacheVolume("dagger-typescript-npm"))`,
 			manifest: `"package.json", "package-lock.json", ".npmrc"`,
 		},
 		{
 			name: "yarn", runtime: "node", manager: "yarn", version: "1.22.22",
-			exec:     `withExec(["yarn", "install", "--prod"])`,
+			exec:     `withExec(["yarn", "install", "--prod"], disableDaggerInDagger: true)`,
 			cache:    `withMountedCache("/root/.cache/yarn", cacheVolume("dagger-typescript-yarn"))`,
 			manifest: `"package.json", "yarn.lock", ".yarnrc.yml", ".npmrc"`,
 		},
 		{
 			name: "pnpm", runtime: "node", manager: "pnpm", version: "8.15.4",
-			exec:     `withExec(["pnpm", "install", "--shamefully-hoist=true", "--prod"])`,
+			exec:     `withExec(["pnpm", "install", "--shamefully-hoist=true", "--prod"], disableDaggerInDagger: true)`,
 			cache:    `withMountedCache("/root/.local/share/pnpm/store", cacheVolume("dagger-typescript-pnpm"))`,
 			manifest: `"package.json", "pnpm-lock.yaml", "pnpm-workspace.yaml", ".npmrc"`,
-			setup:    `withExec(["npm", "install", "-g", "pnpm@8.15.4"])`,
+			setup:    `withExec(["npm", "install", "-g", "pnpm@8.15.4"], disableDaggerInDagger: true)`,
 		},
 		{
 			name: "bun", runtime: "bun", manager: "bun",
-			exec:     `withExec(["bun", "install", "--no-verify", "--omit=dev", "--omit=peer", "--omit=optional"])`,
+			exec:     `withExec(["bun", "install", "--no-verify", "--omit=dev", "--omit=peer", "--omit=optional"], disableDaggerInDagger: true)`,
 			cache:    `withMountedCache("/root/.bun/install/cache", cacheVolume("dagger-typescript-bun"))`,
 			manifest: `"package.json", "bun.lock", "bun.lockb", "bunfig.toml", ".npmrc"`,
 		},
 		{
 			name: "deno", runtime: "deno", manager: "deno",
-			exec:     `withExec(["deno", "install", "--node-modules-dir=auto"])`,
+			exec:     `withExec(["deno", "install", "--node-modules-dir=auto"], disableDaggerInDagger: true)`,
 			cache:    `withMountedCache("/deno-dir", cacheVolume("dagger-typescript-deno"))`,
 			manifest: `"deno.json", "deno.lock"`,
 		},
@@ -378,8 +414,11 @@ func TestGenerateDangEntrypointInstallsDependencies(t *testing.T) {
 			require.Contains(t, got, tc.cache)
 			// The clients/ tree rides along with the manifest: the module's
 			// file: dependencies (clients/dagger and each client package) must be
-			// in the install context for the specifiers to resolve.
-			require.Contains(t, got, "include: ["+tc.manifest+`, "clients/**"]`)
+			// in the install context for the specifiers to resolve. Each file is
+			// read keyed by its content, so the install follows the manifest and
+			// the clients rather than the module's whole source.
+			require.Contains(t, got, "let manifest = ["+tc.manifest+`].filter { name => src.exists(name) }`)
+			require.Contains(t, got, `let clients = src.glob("clients/**")`)
 			if tc.setup != "" {
 				require.Contains(t, got, tc.setup)
 			}
@@ -416,7 +455,7 @@ func TestGenerateDangEntrypointNpmPinMatchingImage(t *testing.T) {
 	}
 
 	require.NotContains(t, render(t, "11.8.0"), `"npm", "install", "-g", "npm@`)
-	require.Contains(t, render(t, "10.9.0"), `withExec(["npm", "install", "-g", "npm@10.9.0"])`)
+	require.Contains(t, render(t, "10.9.0"), `withExec(["npm", "install", "-g", "npm@10.9.0"], disableDaggerInDagger: true)`)
 }
 
 // TestGenerateDangEntrypointYarnPin covers the yarn pin the node image cannot
@@ -445,17 +484,17 @@ func TestGenerateDangEntrypointYarnPin(t *testing.T) {
 	// nothing is spent on corepack.
 	for _, version := range []string{"1.22.22", "1.22.19"} {
 		classic := render(t, version)
-		require.Contains(t, classic, `withExec(["yarn", "install", "--prod"])`)
+		require.Contains(t, classic, `withExec(["yarn", "install", "--prod"], disableDaggerInDagger: true)`)
 		require.NotContains(t, classic, "corepack")
 	}
 
 	berry := render(t, "4.9.1")
-	require.Contains(t, berry, `withExec(["corepack", "enable", "yarn"])`)
-	require.Contains(t, berry, `withExec(["corepack", "prepare", "yarn@4.9.1", "--activate"])`)
+	require.Contains(t, berry, `withExec(["corepack", "enable", "yarn"], disableDaggerInDagger: true)`)
+	require.Contains(t, berry, `withExec(["corepack", "prepare", "yarn@4.9.1", "--activate"], disableDaggerInDagger: true)`)
 	// Berry's default linker writes no node_modules for the call to mount, and
 	// it has no --prod to reject the whole install over.
 	require.Contains(t, berry, `withEnvVariable("YARN_NODE_LINKER", "node-modules")`)
-	require.Contains(t, berry, `withExec(["yarn", "install"])`)
+	require.Contains(t, berry, `withExec(["yarn", "install"], disableDaggerInDagger: true)`)
 	require.NotContains(t, berry, `"yarn", "install", "--prod"`)
 }
 
@@ -504,7 +543,7 @@ func TestGenerateDangEntrypointImplementsContract(t *testing.T) {
 	require.Contains(t, got, "pub types: [TypeDef!]! {")
 	require.Contains(t, got, "pub call(\n    receiverType: String!,")
 	require.Contains(t, got, "    callDigest: String,\n  ): JSON! {")
-	require.Contains(t, got, "# Needs Dagger v1.0.0-beta.18 or later")
+	require.Contains(t, got, "# Needs Dagger v1.0.0-beta.26 or later")
 }
 
 // TestGenerateDangEntrypointDeclaresClientVersion pins how the module process

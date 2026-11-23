@@ -201,6 +201,25 @@ func dangChain(head string, calls []string, indent string) string {
 	return head + "\n" + indent + "." + strings.Join(calls, "\n"+indent+".")
 }
 
+// dangSetupExec renders a withExec for a step that prepares the container
+// rather than running the module: the image's packages, the loader, the
+// install.
+//
+// Every one of them opts out of nesting. Not for what it denies the command —
+// none of these call Dagger — but for what it keeps out of the exec's identity:
+// the engine attaches the module to a *nesting* exec so that currentModule
+// works in the process an entrypoint starts for a call (dagger/dagger#14767),
+// and an exec carrying the module's source digest runs again for every edit of
+// every file in the module. These steps read nothing of the module's source
+// except its manifest, so they must not be keyed by it.
+func dangSetupExec(argv ...string) string {
+	quoted := make([]string, len(argv))
+	for i, a := range argv {
+		quoted[i] = dangString(a)
+	}
+	return fmt.Sprintf("withExec([%s], disableDaggerInDagger: true)", strings.Join(quoted, ", "))
+}
+
 // dangSourceMapExpr replays a location captured at generation. Unlike the
 // TypeScript renderer's dag.sourceMap(), this is evaluated in the engine, so a
 // module keeps its source-map comments in dependents' bindings without a
@@ -808,7 +827,7 @@ func (c *dangFuncCtx) dangBaseChain() string {
 	default:
 		calls = append(calls,
 			fmt.Sprintf("from(%s)", dangString(c.baseImage(dangNodeImageRef))),
-			`withExec(["apk", "add", "--no-cache", "ca-certificates"])`,
+			dangSetupExec("apk", "add", "--no-cache", "ca-certificates"),
 			`withEnvVariable("NODE_OPTIONS", "--use-openssl-ca")`,
 		)
 	}
@@ -880,13 +899,13 @@ func (c *dangFuncCtx) dangManifestFiles() []string {
 func (c *dangFuncCtx) dangInstallExecs() []string {
 	switch c.packageManager() {
 	case "deno":
-		return []string{`withExec(["deno", "install", "--node-modules-dir=auto"])`}
+		return []string{dangSetupExec("deno", "install", "--node-modules-dir=auto")}
 	case "bun":
-		return []string{`withExec(["bun", "install", "--no-verify", "--omit=dev", "--omit=peer", "--omit=optional"])`}
+		return []string{dangSetupExec("bun", "install", "--no-verify", "--omit=dev", "--omit=peer", "--omit=optional")}
 	case "yarn":
 		major, _, _ := strings.Cut(c.opts.PackageManagerVersion, ".")
 		if major == "" || major == "1" {
-			return []string{`withExec(["yarn", "install", "--prod"])`}
+			return []string{dangSetupExec("yarn", "install", "--prod")}
 		}
 		// The node image ships yarn 1 with corepack bundled but *not* enabled, so
 		// yarn 1 refuses to run at all for a package.json pinning another major
@@ -894,12 +913,11 @@ func (c *dangFuncCtx) dangInstallExecs() []string {
 		// the way pnpm needs its global install — and the only one: yarn Berry is
 		// not published to npm.
 		return []string{
-			`withExec(["corepack", "enable", "yarn"])`,
+			dangSetupExec("corepack", "enable", "yarn"),
 			// --activate so the pin still holds when it came from this SDK's
 			// setting rather than from a packageManager field corepack can read:
 			// the shim falls back to corepack's own default (yarn 1) otherwise.
-			fmt.Sprintf(`withExec(["corepack", "prepare", %s, "--activate"])`,
-				dangString(c.dangManagerSpec("yarn"))),
+			dangSetupExec("corepack", "prepare", c.dangManagerSpec("yarn"), "--activate"),
 			// Berry takes no --prod, and its default PnP linker writes no
 			// node_modules for the call to mount. The env var overrides a
 			// .yarnrc.yml of the user's, which is the point: this recipe mounts
@@ -911,22 +929,21 @@ func (c *dangFuncCtx) dangInstallExecs() []string {
 			// pin has to keep installing. Upgrade when the pin's major is worth
 			// branching on.
 			`withEnvVariable("YARN_NODE_LINKER", "node-modules")`,
-			`withExec(["yarn", "install"])`,
+			dangSetupExec("yarn", "install"),
 		}
 	case "pnpm":
 		return []string{
-			fmt.Sprintf(`withExec(["npm", "install", "-g", %s])`, dangString(c.dangManagerSpec("pnpm"))),
-			`withExec(["pnpm", "install", "--shamefully-hoist=true", "--prod"])`,
+			dangSetupExec("npm", "install", "-g", c.dangManagerSpec("pnpm")),
+			dangSetupExec("pnpm", "install", "--shamefully-hoist=true", "--prod"),
 		}
 	default:
 		var calls []string
 		// The image already ships the version the SDK resolves a lockfile to, so
 		// only a pin that disagrees with it costs a global install.
 		if v := c.opts.PackageManagerVersion; v != "" && v != dangNodeNpmVersion {
-			calls = append(calls, fmt.Sprintf(`withExec(["npm", "install", "-g", %s])`,
-				dangString("npm@"+v)))
+			calls = append(calls, dangSetupExec("npm", "install", "-g", "npm@"+v))
 		}
-		return append(calls, `withExec(["npm", "install", "--omit=dev"])`)
+		return append(calls, dangSetupExec("npm", "install", "--omit=dev"))
 	}
 }
 
@@ -948,23 +965,11 @@ func (c *dangFuncCtx) dangManagerSpec(name string) string {
 // the mount point is hidden by it.
 func (c *dangFuncCtx) dangDependenciesChain() string {
 	manifest := c.dangManifestFiles()
-	includes := make([]string, 0, len(manifest)+1)
-	for _, f := range manifest {
-		includes = append(includes, dangString(f))
-	}
-	// The module's file: dependencies — clients/dagger and each client package —
-	// have to be in the install context beside the manifest for the specifiers
-	// to resolve. The whole clients/ tree comes along: it is generated content
-	// that changes only on regeneration, so it keys the layer with the manifest
-	// rather than the module's source, and a one-line src edit reinstalls
-	// nothing.
-	includes = append(includes, dangString("clients/**"))
 
 	if len(c.opts.Include) == 0 {
 		calls := []string{
 			fmt.Sprintf("withWorkdir(%s)", dangString(dangInstallDir)),
-			fmt.Sprintf("withDirectory(%s, currentModule.source, include: [%s])",
-				dangString(dangInstallDir), strings.Join(includes, ", ")),
+			fmt.Sprintf("withDirectory(%s, installContext)", dangString(dangInstallDir)),
 			// Seeded because a module that declares no dependency at all leaves
 			// npm creating nothing, and the read below would then name a missing
 			// path.
@@ -972,7 +977,7 @@ func (c *dangFuncCtx) dangDependenciesChain() string {
 		}
 		calls = append(calls, c.dangInstallExecs()...)
 		calls = append(calls, fmt.Sprintf("directory(%s)", dangString(dangInstallDir+"/node_modules")))
-		return dangChain("base", calls, "      ")
+		return c.dangInstallContext(manifest) + dangChain("base", calls, "      ")
 	}
 
 	// With resources the install needs the context: a file: dependency outside
@@ -982,21 +987,76 @@ func (c *dangFuncCtx) dangDependenciesChain() string {
 	//
 	// The module's own tree is dropped from that context and its manifest read
 	// back in, which keeps the install keyed on the manifests and the resources
-	// rather than on the module's source.
+	// rather than on the module's source — and both halves are read file by
+	// file, for the reason dangInstallContext gives.
 	calls := []string{
-		fmt.Sprintf(`withDirectory(%s, currentModule.contextDirectory.filter(exclude: [currentModule.sourceSubpath + "/**"]))`,
-			dangString(dangInstallDir)),
-		fmt.Sprintf("withDirectory(installDir, currentModule.source, include: [%s])",
-			strings.Join(includes, ", ")),
+		fmt.Sprintf("withDirectory(%s, resourceContext)", dangString(dangInstallDir)),
+		"withDirectory(installDir, installContext)",
 		"withWorkdir(installDir)",
 		`withDirectory(installDir + "/node_modules", directory)`,
 	}
 	calls = append(calls, c.dangInstallExecs()...)
 	calls = append(calls, `directory(installDir + "/node_modules")`)
 
-	return fmt.Sprintf("let installDir = %s + currentModule.sourceSubpath\n    %s",
-		dangString(dangInstallDir+"/"), dangChain("base", calls, "      "))
+	return fmt.Sprintf("let installDir = %s + currentModule.sourceSubpath\n    %s%s%s",
+		dangString(dangInstallDir+"/"),
+		c.dangInstallContext(manifest),
+		dangResourceContext,
+		dangChain("base", calls, "      "))
 }
+
+// dangInstallContext renders the `installContext` binding: the manifest and the
+// generated clients/ tree, every file keyed by its content.
+//
+// The clients come along because they are file: dependencies — clients/dagger
+// and each client package — and the specifiers in the manifest have nothing to
+// resolve to without them.
+//
+// Reading them off currentModule.source directly, even with an include filter,
+// keys the install by the whole module: the filter runs inside the read, so
+// what the read depends on is still the module's source directory, whose digest
+// moves on any file in it. A file synced with keyByContent is instead the same
+// result for any source holding the same bytes at the same path — so the
+// install layer follows the manifest and the clients, as it was always meant
+// to, and two modules with the same dependencies share one install.
+//
+// Needs Dagger v1.0.0-beta.26 or later for sync's keyByContent, which the
+// dang.toml generated beside this program pins.
+func (c *dangFuncCtx) dangInstallContext(manifest []string) string {
+	names := make([]string, len(manifest))
+	for i, f := range manifest {
+		names[i] = dangString(f)
+	}
+	// glob rather than naming clients/ as a directory: a directory read is one
+	// dependency on that whole tree, which is what the content keying is here to
+	// avoid. Directories come back with a trailing slash and have no file to read.
+	return fmt.Sprintf(`let src = currentModule.source
+    let manifest = [%s].filter { name => src.exists(name) }
+    let clients = src.glob("clients/**").filter { path => path.hasSuffix("/") == false }
+    let installContext = (manifest + clients).reduce(directory) { acc, path =>
+      acc.withFile(path, src.file(path).sync(keyByContent: true))
+    }
+    `, strings.Join(names, ", "))
+}
+
+// dangResourceContext renders the `resourceContext` binding: everything the
+// module declared outside its own directory, which the engine put in the module
+// context and nothing else did — the test helper's "the module directory, the
+// manifest and whatever resources lists, and nothing else".
+//
+// Read file by file for the reason dangInstallContext gives, which a read of
+// the context cannot be told to do: filtered or not, what it depends on is the
+// context directory, and the module's own source is in there.
+//
+// shortcut: carries no symlink and no empty directory, which a file list cannot
+// describe. Upgrade when a resource tree needs one — a published package
+// vendored as a symlink would be the case to watch.
+const dangResourceContext = `let outside = currentModule.contextDirectory.filter(exclude: [currentModule.sourceSubpath + "/**"])
+    let resources = outside.glob("**").filter { path => path.hasSuffix("/") == false }
+    let resourceContext = resources.reduce(directory) { acc, path =>
+      acc.withFile(path, outside.file(path).sync(keyByContent: true))
+    }
+    `
 
 // dangRuntimeChain renders the body of the private runtime() helper: everything
 // up to but not including the per-call exec, so the whole build is shared across
@@ -1009,8 +1069,7 @@ func (c *dangFuncCtx) dangRuntimeChain() string {
 	switch c.opts.Runtime {
 	case "bun", "deno":
 	default:
-		calls = append(calls,
-			fmt.Sprintf(`withExec(["npm", "install", "-g", %s])`, dangString("tsx@"+dangTsxVersion)))
+		calls = append(calls, dangSetupExec("npm", "install", "-g", "tsx@"+dangTsxVersion))
 	}
 
 	// The module context, not the caller's workspace: it holds the module
