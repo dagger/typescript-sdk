@@ -50,7 +50,7 @@ if (!registry || specs.length === 0) {
   process.exit(1)
 }
 
-const timeoutMs = Number(process.env.AWAIT_TIMEOUT_MS ?? 120000)
+const timeoutMs = Number(process.env.AWAIT_TIMEOUT_MS ?? 300000)
 const base = registry.replace(/\/+$/, "")
 
 // Scoped names are keyed with the slash escaped; the leading `@` is not.
