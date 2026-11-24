@@ -95,10 +95,13 @@ type EntrypointOptions struct {
 	SplitRuntimeImports bool
 
 	// DispatchMode renders the manifest-v2 dispatcher rather than the legacy
-	// entrypoint. The two differ only in how they talk to the engine: the
-	// dispatcher reads one JSON request on stdin and writes one JSON result on
-	// stdout, and has no register() because the typedefs now live in the Dang
-	// entrypoint. invoke() and every state helper are identical.
+	// entrypoint. The two differ in how they talk to the engine: the
+	// dispatcher reads one JSON request on stdin, writes the JSON result to the
+	// file its command line names and a failed call's error to the engine's
+	// function error file, and has no register() because the typedefs now live
+	// in the Dang entrypoint. It also loads the module's code at run time
+	// rather than importing it, so invoke() and the state helpers reach its
+	// classes through the namespaces it loaded (see userModules).
 	DispatchMode bool
 
 	// LoaderImportPath overrides where the entrypoint imports the object loader

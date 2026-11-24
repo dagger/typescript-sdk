@@ -53,7 +53,8 @@ type Runtimes {
 
   The entrypoint runs the dispatcher in a container, so a thrown error used to
   reach the engine as the exec's "exit code: 1", its message only in the exec
-  log. The dispatcher now replies with the error as data and the recipe raises
+  log. The dispatcher now reports the error in the engine's function error file,
+  or on a marker line of stderr for an engine without one, and the recipe raises
   it; this is the check that the message really comes out the other end.
 
   Exercised through a check because a check's result is the one thing a
@@ -536,8 +537,7 @@ type Runtimes {
   constructor before any call on it, so a module whose state carries an
   interface value serializes one without a caller. The fixture's state is a
   plain object, so this is the failing half of interfaceReturnsCheck, running
-  through the entrypoint dispatcher and its stdout protocol rather than the
-  runtime's.
+  through the entrypoint dispatcher and its protocol rather than the runtime's.
   """
   interfaceFieldEntrypointCheck(ws: Workspace!): Void @check {
     let path = fixtures + "/iface-field"

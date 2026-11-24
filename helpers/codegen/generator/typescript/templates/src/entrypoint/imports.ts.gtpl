@@ -1,6 +1,8 @@
 {{- define "entrypoint_imports" -}}
 {{- range plannedImports -}}
-{{- if and .SideEffect (not .Names) (not .Namespace) (not .Default) }}
+{{- if .TypeOnly }}
+import type {{ if .Default }}{{ .Default }}{{ else }}{ {{ range $i, $n := .Names }}{{ if $i }}, {{ end }}{{ $n }}{{ end }} }{{ end }} from "{{ .From }}"
+{{- else if and .SideEffect (not .Names) (not .Namespace) (not .Default) }}
 import "{{ .From }}"
 {{- else -}}
 {{- if .SideEffect }}

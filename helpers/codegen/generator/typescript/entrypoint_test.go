@@ -134,7 +134,7 @@ func TestGenerateEntrypointInterfaceReturnGuard(t *testing.T) {
 // It is the same file minus register(): under a module entrypoint the typedefs
 // come from the generated Dang program, so the container only ever runs a real
 // call. What that leaves is the dispatch half behind a different protocol — one
-// JSON request on stdin, one JSON result on stdout.
+// JSON request on stdin, the JSON result in a file.
 func TestGenerateEntrypointDispatch(t *testing.T) {
 	gen := &TypeScriptGenerator{Config: generator.Config{
 		EntrypointConfig: &generator.EntrypointGeneratorConfig{
@@ -165,9 +165,8 @@ func TestGenerateEntrypointDispatch(t *testing.T) {
 // actually removes, and the one thing it is easy to get wrong.
 //
 // register() and the engine's FunctionCall channel are gone, so the typedef
-// imports that only they used go too. The subtle part is LogOutput: stdout now
-// carries the result, so the session's logs have to move to stderr or they
-// corrupt it.
+// imports that only they used go too. The session's logs go to stderr, beside
+// the function's own.
 func TestGenerateEntrypointDispatchDropsRegister(t *testing.T) {
 	gen := &TypeScriptGenerator{Config: generator.Config{
 		EntrypointConfig: &generator.EntrypointGeneratorConfig{
@@ -252,13 +251,17 @@ func TestGenerateEntrypointDispatchDoesNotServe(t *testing.T) {
 	require.Contains(t, got, "__loadObject as __loadCoreObject")
 }
 
-// TestGenerateEntrypointDispatchReportsErrors pins how a thrown error leaves the
-// dispatcher: as data in the reply, followed by exit code 2. The Dang
-// entrypoint raises the carried message as the function's own error — what the
-// builtin runtime's returnError gave a caller — where the exec's own error was
-// only its exit code, with the message in the exec log. The exit still fails
-// the exec, so a failed call is not cached under its call digest and runs again
-// the next time it is called.
+// TestGenerateEntrypointDispatchReportsErrors pins how a call's result and a
+// thrown error leave the dispatcher.
+//
+// The result goes to the file the entrypoint names, never to stdout: that is
+// the function's own, and a console.log there used to corrupt the reply.
+//
+// A thrown error goes to the function error file the engine names, which the
+// engine fails the call with, values and all, followed by exit code 2. The
+// exit fails the exec, so a failed call is not cached under its call digest
+// and runs again the next time it is called. An engine that names no file
+// gets the error's message on a marker line of stderr instead.
 func TestGenerateEntrypointDispatchReportsErrors(t *testing.T) {
 	gen := &TypeScriptGenerator{Config: generator.Config{
 		EntrypointConfig: &generator.EntrypointGeneratorConfig{
@@ -274,18 +277,47 @@ func TestGenerateEntrypointDispatchReportsErrors(t *testing.T) {
 	require.NoError(t, err)
 	got := readOverlay(t, state, DefaultDispatchFile)
 
-	// One reply shape for both outcomes, so the entrypoint never has to guess
-	// whether a raw result is an error.
-	require.Contains(t, got, "type CallReply = { result: string } | { error: { message: string } }")
-	require.Contains(t, got, "process.stdout.write(JSON.stringify(reply))")
+	require.NotContains(t, got, "process.stdout.write")
+	require.Contains(t, got, "writeResult(resultPath, json)")
+	require.Contains(t, got, `import { mkdirSync, writeFileSync } from "node:fs"`)
 
-	// The thrown error is caught inside the call: the stack still reaches the
-	// exec log, only the message crosses, and the process fails once it has
-	// written its reply.
-	require.Contains(t, got, "} catch (e: unknown) {\n        console.error(e)\n        reply = { error: { message: errorMessage(e) } }\n        process.exitCode = functionFailedExitCode\n      }")
+	// The thrown error is caught inside the call and reported, and the process
+	// fails once it ends.
+	require.Contains(t, got, "} catch (e: unknown) {\n        reportError(e)\n        return\n      }")
 	require.Contains(t, got, "const functionFailedExitCode = 2\n")
+	require.Contains(t, got, "  process.exitCode = functionFailedExitCode\n  if (writeFunctionError(e)) {\n    printError(e)\n    return\n  }\n")
+	require.Contains(t, got, `const functionErrorPathEnv = "DAGGER_FUNCTION_ERROR_PATH"`)
+	require.Contains(t, got, `const functionErrorMarker = "::dagger-function-error::"`)
 
-	// The nonzero exit around main() stays, reserved for the dispatcher failing
-	// itself — an unreadable request, a session that never came up.
-	require.Contains(t, got, "main().catch((e) => {\n  console.error(e)\n  process.exit(1)\n})")
+	// What fails outside the call is reported the same way.
+	require.Contains(t, got, "main().catch((e) => {\n  reportError(e)\n  process.exit()\n})")
+}
+
+// TestGenerateEntrypointDispatchLoadsModuleCode pins how the dispatcher reaches
+// the module's own code: imported for its types only, and loaded at run time,
+// by loadModule, inside the dispatcher's error handling. A module that doesn't
+// compile used to fail the process before any of the dispatcher ran, so the
+// caller got "exit code: 1" and the compiler's error only among node's.
+func TestGenerateEntrypointDispatchLoadsModuleCode(t *testing.T) {
+	gen := &TypeScriptGenerator{Config: generator.Config{
+		EntrypointConfig: &generator.EntrypointGeneratorConfig{
+			TypedefJSONPath: "testdata/typedef_smoke.json",
+			ModuleRoot:      "/work",
+			SDKImportPath:   "@dagger.io/dagger",
+			SourceDir:       "src",
+			DispatchMode:    true,
+		},
+	}}
+
+	state, err := gen.GenerateEntrypoint(context.Background())
+	require.NoError(t, err)
+	got := readOverlay(t, state, DefaultDispatchFile)
+
+	require.Contains(t, got, `import type { Smoke } from "../src/index"`)
+	require.NotContains(t, got, `import { Smoke }`)
+	require.Contains(t, got, `let __module0: typeof import("../src/index")`)
+	require.Contains(t, got, "async function loadModule(): Promise<void> {\n  __module0 = await import(\"../src/index\")\n}")
+	require.Contains(t, got, "Object.create(__module0.Smoke.prototype)")
+	require.Contains(t, got, "await new __module0.Smoke(")
+	require.Contains(t, got, "    await loadModule()\n  } catch (e: unknown) {\n    reportError(e)\n    return\n  }")
 }

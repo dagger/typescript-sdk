@@ -301,7 +301,7 @@ type TypescriptSdk {
 
   """
   The dispatcher a generated entrypoint shells out to: one JSON request on
-  stdin, one JSON result on stdout.
+  stdin, the JSON result in the file its command line names.
 
   The mirror of legacyEntrypointFile, and only written for a module that
   declares an `[entrypoint]`: nothing else loads it, and a copy left behind in a

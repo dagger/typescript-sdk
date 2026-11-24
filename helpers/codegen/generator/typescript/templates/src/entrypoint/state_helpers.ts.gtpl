@@ -21,7 +21,12 @@ async function __interfaceID(value: any, ifaceName: string): Promise<string | nu
 {{ range $name := sortedKeysObjects $module.Objects -}}
 {{- $obj := index $module.Objects $name }}
 {{- if and (eq $obj.Kind "class") (not $obj.IsExported) }}
+{{- if dispatchMode }}
+// Registered as its file loads, so looked up by loadModule.
+let __cls_{{ $obj.Name }}: any
+{{- else }}
 const __cls_{{ $obj.Name }}: any = (() => { const c = getRegisteredClass({{ jsString $obj.Name }}); if (!c) throw new Error("class {{ $obj.Name }} is not registered (missing @object() decorator?)"); return c })()
+{{- end }}
 
 {{ end -}}
 {{ template "entrypoint_class_rebuild" (dict "Obj" $obj "Module" $module) }}

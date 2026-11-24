@@ -538,30 +538,37 @@ type GenerateChecks {
   The dispatcher runs in a container, so a thrown error used to leave it as a
   nonzero exit and reach the caller as "exit code: 1", the message visible only
   in the exec log — where the builtin runtime's returnError gave them the
-  message itself. The dispatcher now replies with the error as data, then fails
-  its exec so that a failed call is not cached, and the recipe raises the error
-  from the failed exec's stdout, which is what keeps the two loading paths
-  reporting the same thing. This pins the recipe; the runtimes module runs one
-  for real.
+  message itself. The dispatcher now reports the error in the function error
+  file the engine gives it, or on a marker line of stderr for an engine that
+  gives it none, then fails its exec so that a failed call is not cached, and
+  the recipe raises the error the engine made of the file unchanged, or the
+  marker's message, which is what keeps the two loading paths reporting the
+  same thing. The result comes back in a file, not on stdout, which the
+  function's logs share. This pins the recipe; the runtimes module runs one for
+  real.
   """
   entrypointReportsErrorsCheck(ws: Workspace!): Void @check {
     let recipe = entrypointRecipe(ws, Fixtures.out + "/entrypoint-errors", "entrypoint-errors")
 
     Asserts.stringContains(
-      recipe, ") :: DispatchReply!",
-      "the recipe should decode the dispatcher's reply",
+      recipe, ".functionError != null) rescue false",
+      "the recipe should raise the error the engine read from the function error file as it is",
     )
     Asserts.stringContains(
-      recipe, "raise failure.message",
-      "the recipe should raise a thrown error's message as the function's error",
+      recipe, "let marker = \"::dagger-function-error::\"",
+      "the recipe should raise a thrown error's message from the marker line on an engine without the function error file",
     )
     Asserts.stringContains(
       recipe, "err: GraphQLError! => raiseFunctionError(err)",
-      "the recipe should read the reply of a dispatcher that failed its exec, which it does so that a failed call is not cached",
+      "the recipe should read the error of a dispatcher that failed its exec, which it does so that a failed call is not cached",
+    )
+    Asserts.stringContains(
+      recipe, ".file(\"/dagger/result.json\")",
+      "the recipe should read the result from the file the dispatcher writes it to",
     )
     Asserts.stringNotContains(
-      recipe, ".stdout :: JSON!",
-      "the recipe should not take stdout as the result as it is",
+      recipe, ".stdout",
+      "the recipe should not read the result from stdout, which the function's logs share",
     )
 
     null

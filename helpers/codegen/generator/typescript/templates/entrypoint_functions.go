@@ -49,6 +49,8 @@ func EntrypointTemplateFuncs(module *TypedefModule, opts EntrypointOptions) temp
 		"hasDefault":           hasDefault,
 		"engineIfaceTypeName":  c.engineIfaceTypeName,
 		"plannedImports":       c.plannedImports,
+		"userModules":          c.userModules,
+		"dispatchMode":         func() bool { return c.opts.DispatchMode },
 		"isVariadic":           func(a *TypedefArgument) bool { return a.IsVariadic },
 		"propFieldName":        propFieldName,
 		"sortedKeysObjects":    sortedObjectKeys,
@@ -121,7 +123,68 @@ func (c *entrypointFuncCtx) classRuntimeRef(obj *TypedefObject) string {
 	if obj.Kind == "class" && !obj.IsExported {
 		return "__cls_" + obj.Name
 	}
+	if c.opts.DispatchMode && obj.Kind == "class" {
+		// The dispatcher imports the module's code only for its types, and
+		// loads it at run time (see userModules): a class is a member of the
+		// namespace its file loaded as.
+		if mod, ok := c.userModuleOf(obj); ok {
+			if obj.IsDefaultExport {
+				return mod.Var + ".default"
+			}
+			return mod.Var + "." + obj.Name
+		}
+	}
 	return c.classBinding(obj.Name)
+}
+
+// userModule is one file of the module's own code the dispatcher loads at run
+// time, and the variable it holds its namespace in.
+type userModule struct {
+	Var  string
+	From string
+}
+
+// userModules lists the files of the module's own code the dispatcher loads,
+// in the order it loads them: every file declaring a class, one entry per
+// file.
+//
+// The dispatcher imports them dynamically rather than with import
+// declarations, so that it is running when they load. An import declaration
+// is loaded before any of the importing file runs, so a module whose code
+// doesn't compile, or throws as it loads, would fail the process before the
+// dispatcher could report the error as the call's own: the caller would get
+// the process's exit code, and the compiler's error only in its logs, among
+// the runtime's.
+func (c *entrypointFuncCtx) userModules() []userModule {
+	var mods []userModule
+	seen := map[string]bool{}
+	for _, name := range sortedObjectKeys(c.module.Objects) {
+		obj := c.module.Objects[name]
+		if obj.Kind != "class" {
+			continue
+		}
+		from, err := userImportPath(obj, c.opts)
+		if err != nil || seen[from] {
+			continue
+		}
+		seen[from] = true
+		mods = append(mods, userModule{Var: fmt.Sprintf("__module%d", len(mods)), From: from})
+	}
+	return mods
+}
+
+// userModuleOf is the file of the module's own code that declares obj.
+func (c *entrypointFuncCtx) userModuleOf(obj *TypedefObject) (userModule, bool) {
+	from, err := userImportPath(obj, c.opts)
+	if err != nil {
+		return userModule{}, false
+	}
+	for _, mod := range c.userModules() {
+		if mod.From == from {
+			return mod, true
+		}
+	}
+	return userModule{}, false
 }
 
 func (c *entrypointFuncCtx) classTypeRef(obj *TypedefObject) string {
@@ -561,6 +624,11 @@ func (c *entrypointFuncCtx) plannedImports() []importLine {
 		telemetrySpec = "@dagger.io/telemetry"
 	}
 	lines = append(lines, importLine{From: telemetrySpec, Namespace: "* as telemetry"})
+	if c.opts.DispatchMode {
+		// The dispatcher writes the call's result, and its error, to the files
+		// the entrypoint and the engine read.
+		lines = append(lines, importLine{From: "node:fs", Names: []string{"mkdirSync", "writeFileSync"}})
+	}
 
 	// Group user imports by file path, deduping side-effect-only files.
 	groups := map[string]*importLine{}
@@ -598,7 +666,19 @@ func (c *entrypointFuncCtx) plannedImports() []importLine {
 	for _, p := range order {
 		g := groups[p]
 		sort.Strings(g.Names)
-		lines = append(lines, *g)
+		if !c.opts.DispatchMode {
+			lines = append(lines, *g)
+			continue
+		}
+		// The dispatcher loads the module's code at run time (userModules), so
+		// it imports only its types: a type-only import is erased, and loads
+		// nothing. One can't name a default and named bindings at once.
+		if g.Default != "" {
+			lines = append(lines, importLine{From: g.From, Default: g.Default, TypeOnly: true})
+		}
+		if len(g.Names) > 0 {
+			lines = append(lines, importLine{From: g.From, Names: g.Names, TypeOnly: true})
+		}
 	}
 	return lines
 }
@@ -609,6 +689,8 @@ type importLine struct {
 	Default    string // default import binding (e.g. `export default class Foo`)
 	Namespace  string
 	SideEffect bool
+	// TypeOnly imports the names for their types alone: `import type`.
+	TypeOnly bool
 }
 
 func userImportPath(obj *TypedefObject, opts EntrypointOptions) (string, error) {

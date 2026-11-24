@@ -5,15 +5,16 @@ It is the same file as __dagger.entrypoint.ts minus register(): under a module
 entrypoint the typedefs come from the generated Dang program, evaluated in the
 engine, so the container only ever exists to run a real call. What is left is the
 dispatch half — the iface wrappers, the per-object rebuild/serialize helpers,
-and invoke() — behind a stdin/stdout protocol.
+and invoke() — behind a stdin/file protocol.
 
-The protocol: one JSON request on stdin, one JSON reply on stdout (CallReply in
-dispatch_v2), logs on stderr. The reply carries either the function's result or
-the error it threw. A thrown error exits 2 after its reply, so the exec fails
-and is not cached, and the entrypoint reads the reply from the failed exec's
-stdout to raise the error as the function's own, with its message. A failed
-exec without a reply is the dispatcher itself failing — an unreadable request,
-a session that never came up — and stays a hard failure.
+The protocol: one JSON request on stdin, the JSON result in the file the
+entrypoint names on the command line, logs on stdout and stderr, which are the
+function's own. A failed call reports its error in the function error file the
+engine names (DAGGER_FUNCTION_ERROR_PATH), or, on an engine that names none, on
+a marker line of stderr, and exits 2, so the exec fails and is not cached. The
+entrypoint raises the exec's error as the engine made it from the file, or the
+marker's message; with neither, as when the process exited by itself, the
+exec's own error.
 */ -}}
 {{- define "dispatch_entrypoint" -}}
 // AUTO-GENERATED — DO NOT EDIT.
@@ -28,8 +29,10 @@ a session that never came up — and stays a hard failure.
 
 {{ template "entrypoint_dispatch_v2" . }}
 
+// Whatever fails outside the call — an unreadable request, a session that never
+// came up — is reported as the call's error all the same.
 main().catch((e) => {
-  console.error(e)
-  process.exit(1)
+  reportError(e)
+  process.exit()
 })
 {{- end -}}
