@@ -518,13 +518,13 @@ func (c *dangFuncCtx) dangFunctionExpr(fn *TypedefFunction) string {
 	}
 	switch fn.Cache {
 	case "never":
-		calls = append(calls, "withCachePolicy(FunctionCachePolicy.Never)")
+		calls = append(calls, "withCachePolicy(FunctionCachePolicy.NEVER)")
 	case "session":
-		calls = append(calls, "withCachePolicy(FunctionCachePolicy.PerSession)")
+		calls = append(calls, "withCachePolicy(FunctionCachePolicy.PER_SESSION)")
 	case "", "default":
 	default:
 		calls = append(calls, fmt.Sprintf(
-			"withCachePolicy(FunctionCachePolicy.Default, timeToLive: %s)", dangString(fn.Cache)))
+			"withCachePolicy(FunctionCachePolicy.DEFAULT, timeToLive: %s)", dangString(fn.Cache)))
 	}
 	if fn.Deprecated != "" {
 		calls = append(calls, fmt.Sprintf("withDeprecated(reason: %s)", dangString(fn.Deprecated)))
