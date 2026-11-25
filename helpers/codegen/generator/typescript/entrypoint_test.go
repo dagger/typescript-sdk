@@ -309,6 +309,7 @@ func TestGenerateEntrypointDispatchLoadsModuleCode(t *testing.T) {
 	gen := &TypeScriptGenerator{Config: generator.Config{
 		EntrypointConfig: &generator.EntrypointGeneratorConfig{
 			TypedefJSONPath: "testdata/typedef_smoke.json",
+			Naming:          smokeNaming(),
 			ModuleRoot:      "/work",
 			SDKImportPath:   "@dagger.io/dagger",
 			SourceDir:       "src",

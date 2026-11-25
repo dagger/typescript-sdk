@@ -43,6 +43,7 @@ func TestGenerateDangEntrypointCachePolicy(t *testing.T) {
 			gen := &TypeScriptGenerator{Config: generator.Config{
 				DangEntrypointConfig: &generator.DangEntrypointGeneratorConfig{
 					TypedefJSONPath: path,
+					Naming:          smokeNaming(),
 					ClientVersion:   "v1.0.0-beta.28",
 					Runtime:         "node",
 					ModulePath:      ".",
