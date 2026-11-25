@@ -9,6 +9,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"codegen/generator"
+	"codegen/generator/namingtest"
 )
 
 // TestGenerateDangEntrypoint pins the Dang program against the same typedef the
@@ -21,6 +22,7 @@ func TestGenerateDangEntrypoint(t *testing.T) {
 	gen := &TypeScriptGenerator{Config: generator.Config{
 		DangEntrypointConfig: &generator.DangEntrypointGeneratorConfig{
 			TypedefJSONPath: "testdata/typedef_smoke.json",
+			Naming:          smokeNaming(),
 			ClientVersion:   "v1.0.0-beta.20",
 			Runtime:         "node",
 			ModulePath:      ".",
@@ -59,6 +61,7 @@ func TestGenerateDangEntrypointDefaultConstructor(t *testing.T) {
 	gen := &TypeScriptGenerator{Config: generator.Config{
 		DangEntrypointConfig: &generator.DangEntrypointGeneratorConfig{
 			TypedefJSONPath: "testdata/typedef_no_ctor.json",
+			Naming:          naming(&namingtest.Engine{MainObject: "Test"}),
 			ClientVersion:   "v1.0.0-beta.20",
 			Runtime:         "node",
 			ModulePath:      ".",
@@ -121,6 +124,7 @@ func TestGenerateDangEntrypointRuntimes(t *testing.T) {
 			gen := &TypeScriptGenerator{Config: generator.Config{
 				DangEntrypointConfig: &generator.DangEntrypointGeneratorConfig{
 					TypedefJSONPath: "testdata/typedef_smoke.json",
+					Naming:          smokeNaming(),
 					ClientVersion:   "v1.0.0-beta.20",
 					Runtime:         tc.runtime,
 					ModulePath:      ".",
@@ -159,6 +163,7 @@ func TestGenerateDangEntrypointBaseImage(t *testing.T) {
 			gen := &TypeScriptGenerator{Config: generator.Config{
 				DangEntrypointConfig: &generator.DangEntrypointGeneratorConfig{
 					TypedefJSONPath: "testdata/typedef_smoke.json",
+					Naming:          smokeNaming(),
 					ClientVersion:   "v1.0.0-beta.20",
 					Runtime:         runtime,
 					ModulePath:      ".",
@@ -182,6 +187,7 @@ func renderDangEntrypoint(t *testing.T, modulePath string, include ...string) st
 	gen := &TypeScriptGenerator{Config: generator.Config{
 		DangEntrypointConfig: &generator.DangEntrypointGeneratorConfig{
 			TypedefJSONPath: "testdata/typedef_smoke.json",
+			Naming:          smokeNaming(),
 			ClientVersion:   "v1.0.0-beta.20",
 			Runtime:         "node",
 			ModulePath:      modulePath,
@@ -398,6 +404,7 @@ func TestGenerateDangEntrypointInstallsDependencies(t *testing.T) {
 			gen := &TypeScriptGenerator{Config: generator.Config{
 				DangEntrypointConfig: &generator.DangEntrypointGeneratorConfig{
 					TypedefJSONPath:       "testdata/typedef_smoke.json",
+					Naming:                smokeNaming(),
 					ClientVersion:         "v1.0.0-beta.20",
 					Runtime:               tc.runtime,
 					ModulePath:            ".",
@@ -443,6 +450,7 @@ func TestGenerateDangEntrypointNpmPinMatchingImage(t *testing.T) {
 		gen := &TypeScriptGenerator{Config: generator.Config{
 			DangEntrypointConfig: &generator.DangEntrypointGeneratorConfig{
 				TypedefJSONPath:       "testdata/typedef_smoke.json",
+				Naming:                smokeNaming(),
 				ClientVersion:         "v1.0.0-beta.20",
 				Runtime:               "node",
 				PackageManager:        "npm",
@@ -469,6 +477,7 @@ func TestGenerateDangEntrypointYarnPin(t *testing.T) {
 		gen := &TypeScriptGenerator{Config: generator.Config{
 			DangEntrypointConfig: &generator.DangEntrypointGeneratorConfig{
 				TypedefJSONPath:       "testdata/typedef_smoke.json",
+				Naming:                smokeNaming(),
 				ClientVersion:         "v1.0.0-beta.20",
 				Runtime:               "node",
 				PackageManager:        "yarn",
@@ -507,6 +516,7 @@ func TestGenerateDangEntrypointImplementsContract(t *testing.T) {
 	gen := &TypeScriptGenerator{Config: generator.Config{
 		DangEntrypointConfig: &generator.DangEntrypointGeneratorConfig{
 			TypedefJSONPath: "testdata/typedef_smoke.json",
+			Naming:          smokeNaming(),
 			ClientVersion:   "v1.0.0-beta.20",
 			Runtime:         "node",
 		},
@@ -556,7 +566,8 @@ func TestGenerateDangEntrypointDeclaresClientVersion(t *testing.T) {
 	gen := &TypeScriptGenerator{Config: generator.Config{
 		DangEntrypointConfig: &generator.DangEntrypointGeneratorConfig{
 			TypedefJSONPath: "testdata/typedef_smoke.json",
-			ClientVersion:   "v1.0.0-beta.22",
+			Naming:          smokeNaming(),
+			ClientVersion:   "v1.0.0-beta.26",
 			Runtime:         "node",
 			ModulePath:      ".",
 		},
@@ -569,7 +580,7 @@ func TestGenerateDangEntrypointDeclaresClientVersion(t *testing.T) {
 	require.Contains(t, got, strings.Join([]string{
 		`    let installed = runtime`,
 		`      .withEnvVariable("DAGGER_MODULE_CALL_DIGEST", callDigest ?? "")`,
-		`      .withEnvVariable("DAGGER_CLIENT_VERSION", "v1.0.0-beta.22")`,
+		`      .withEnvVariable("DAGGER_CLIENT_VERSION", "v1.0.0-beta.26")`,
 		`      .sync`,
 	}, "\n"))
 	require.Contains(t, got, "    let result = installed\n      .withExec(")
@@ -579,6 +590,7 @@ func TestGenerateDangEntrypoint_RequiresClientVersion(t *testing.T) {
 	gen := &TypeScriptGenerator{Config: generator.Config{
 		DangEntrypointConfig: &generator.DangEntrypointGeneratorConfig{
 			TypedefJSONPath: "testdata/typedef_smoke.json",
+			Naming:          smokeNaming(),
 		},
 	}}
 
@@ -616,6 +628,7 @@ func TestGenerateDangEntrypointGuardsGeneratedFiles(t *testing.T) {
 			gen := &TypeScriptGenerator{Config: generator.Config{
 				DangEntrypointConfig: &generator.DangEntrypointGeneratorConfig{
 					TypedefJSONPath: "testdata/typedef_smoke.json",
+					Naming:          smokeNaming(),
 					ClientVersion:   "v1.0.0-beta.20",
 					ModuleName:      "smoke-mod",
 					Runtime:         tc.runtime,
@@ -667,6 +680,7 @@ func TestGenerateDangEntrypointRaisesDispatchErrors(t *testing.T) {
 	gen := &TypeScriptGenerator{Config: generator.Config{
 		DangEntrypointConfig: &generator.DangEntrypointGeneratorConfig{
 			TypedefJSONPath: "testdata/typedef_smoke.json",
+			Naming:          smokeNaming(),
 			ClientVersion:   "v1.0.0-beta.20",
 			Runtime:         "node",
 			ModulePath:      ".",

@@ -109,7 +109,7 @@ func TestNullableObjectField(t *testing.T) {
 	require.Contains(t, b.String(), `.select("id")`)
 	require.Contains(t, b.String(), "if (response === null)")
 
-	tmpl = templates.New("v1.0.0-beta.9", nil, "", generator.Config{})
+	tmpl = templates.New("v1.0.0-beta.9", nil, "", generator.Config{}, identifiers(t))
 	b.Reset()
 	require.NoError(t, tmpl.ExecuteTemplate(&b, "object", object))
 	require.Contains(t, b.String(), "latestVersion = (): GitRef")
@@ -357,7 +357,7 @@ func TestModernTypeScriptFileInputNamedIDUsesFileType(t *testing.T) {
 
 func renderAPI(t *testing.T, schema *introspection.Schema, schemaVersion string) string {
 	t.Helper()
-	tmpl := templates.New(schemaVersion, schema, "", generator.Config{})
+	tmpl := templates.New(schemaVersion, schema, "", generator.Config{}, identifiers(t))
 	data := struct {
 		Schema        *introspection.Schema
 		SchemaVersion string

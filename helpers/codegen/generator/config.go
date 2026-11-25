@@ -1,6 +1,9 @@
 package generator
 
-import "strings"
+import (
+	"context"
+	"strings"
+)
 
 // Config drives one codegen run. ModuleConfig covers both a module's own
 // bindings and a standalone client scope — they render the same client files
@@ -40,6 +43,11 @@ type Config struct {
 	// independent package, naming @dagger.io/core and @dagger.io/session
 	// instead of reaching the scope's local facade by path.
 	RemoteCoreLib bool
+
+	// Engine is the session the bindings generators style the identifiers
+	// they generate through (Naming.formatIdentifiers): enum members' keys, enum
+	// converters, options types and the import aliases of the module clients.
+	Engine Engine
 }
 
 // ModuleGeneratorConfig drives a scope's client generation — the same for a
@@ -179,6 +187,30 @@ type EntrypointGeneratorConfig struct {
 	// embedded [runtime] layout passes sdk/loader.gen.js, since its loader ships
 	// inside the library directory.
 	LoaderImportPath string
+
+	// Naming is where the names of the module's own declarations come from,
+	// which calls through its interfaces select.
+	Naming ModuleNaming
+}
+
+// Engine runs GraphQL queries against the engine: the session codegen runs
+// in as a nested client.
+type Engine interface {
+	// Query runs query with variables and decodes the response's data into
+	// data. GraphQL errors are returned as an error.
+	Query(ctx context.Context, query string, variables map[string]any, data any) error
+}
+
+// ModuleNaming is the naming context of the source the engine serves. The
+// caller reads these strings from that source's ModuleSource.naming; the
+// generators recreate it with Naming.module through Engine. Version is the
+// module's naming version, not the running engine or generated core version.
+// Name and OriginalName differ when a module is loaded under an alias.
+type ModuleNaming struct {
+	Engine       Engine
+	Version      string
+	Name         string
+	OriginalName string
 }
 
 // Specific configuration for generating the Dang module entrypoint — the program
@@ -247,4 +279,9 @@ type DangEntrypointGeneratorConfig struct {
 	// module's code imports. A "!"-prefixed entry excludes. They are rebased to
 	// module-relative for the reads the generated `sources` member makes.
 	Include []string
+
+	// Naming is where the names of the module's own declarations come from:
+	// which object the engine takes for the main one decides which carries
+	// the constructor.
+	Naming ModuleNaming
 }

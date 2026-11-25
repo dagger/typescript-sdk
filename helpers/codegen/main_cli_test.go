@@ -2,12 +2,15 @@ package main
 
 import (
 	"encoding/json"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/require"
+
+	"codegen/generator/namingtest"
 )
 
 // minimalSchema is the smallest introspection response the generators accept:
@@ -149,10 +152,28 @@ func TestRunDispatch(t *testing.T) {
 	}
 }
 
+// nestIn runs the command under test nested in a session served by engine.
+func nestIn(t *testing.T, engine *namingtest.Engine) {
+	t.Helper()
+	server := httptest.NewServer(engine)
+	t.Cleanup(server.Close)
+	t.Setenv("DAGGER_SESSION_PORT", strings.TrimPrefix(server.URL, "http://127.0.0.1:"))
+	t.Setenv("DAGGER_SESSION_TOKEN", "token")
+}
+
+// styling is the session the bindings generators style identifiers through.
+func styling(t *testing.T) *namingtest.Engine {
+	t.Helper()
+	engine := &namingtest.Engine{Pascal: namingtest.Styles}
+	nestIn(t, engine)
+	return engine
+}
+
 // TestRunModule covers the module subcommand end to end, including the overlay
 // writing the result to disk — the step every generator finishes with and which
 // no other test exercises.
 func TestRunModule(t *testing.T) {
+	styling(t)
 	dir := t.TempDir()
 	out := filepath.Join(dir, "out")
 
@@ -172,6 +193,7 @@ func TestRunModule(t *testing.T) {
 }
 
 func TestRunClient(t *testing.T) {
+	styling(t)
 	dir := t.TempDir()
 	out := filepath.Join(dir, "out")
 	meta := writeFile(t, dir, "meta.json", `{
@@ -210,6 +232,7 @@ func TestRunClient(t *testing.T) {
 // TestRunClientServesEveryTarget covers a scope with several modules: one shared
 // core file, and each module rendered as its own client serving its own source.
 func TestRunClientServesEveryTarget(t *testing.T) {
+	engine := styling(t)
 	dir := t.TempDir()
 	out := filepath.Join(dir, "out")
 	meta := writeFile(t, dir, "meta.json", `{
@@ -250,6 +273,18 @@ func TestRunClientServesEveryTarget(t *testing.T) {
 	payments, err := os.ReadFile(filepath.Join(out, "payments.gen.ts"))
 	require.NoError(t, err)
 	require.Contains(t, string(payments), `await __dag.serveModule("github.com/acme/payments@main", { refPin: "deadbeef" })`)
+
+	// The identifiers are styled over the session, in one query.
+	require.Equal(t, 1, engine.Queries())
+
+	// Outside a session there is no engine to style them, and generation says
+	// so.
+	t.Setenv("DAGGER_SESSION_PORT", "")
+	require.ErrorContains(t, run([]string{
+		"client",
+		"--client-meta-path", meta,
+		"--output", out,
+	}), "no Dagger session")
 }
 
 // TestRunClientDropsWorkspaceSourceMapURLs covers a workspace loaded by address,
@@ -262,6 +297,7 @@ func TestRunClientServesEveryTarget(t *testing.T) {
 // repository whose name merely extends the workspace's.
 func TestRunClientDropsWorkspaceSourceMapURLs(t *testing.T) {
 	const commit = "d5fd9309bc53fe1f580a1faffacd73ef3d8c27e4"
+	styling(t)
 
 	dir := t.TempDir()
 	out := filepath.Join(dir, "out")
@@ -331,6 +367,7 @@ func TestRunClientRejectsUnservableModule(t *testing.T) {
 }
 
 func TestRunLibrary(t *testing.T) {
+	styling(t)
 	dir := t.TempDir()
 	out := filepath.Join(dir, "out")
 
@@ -346,6 +383,13 @@ func TestRunLibrary(t *testing.T) {
 	contents, err := os.ReadFile(filepath.Join(out, "client.gen.ts"))
 	require.NoError(t, err)
 	require.Contains(t, string(contents), `from "./core.js"`)
+}
+
+func TestModuleNamingNeedsSession(t *testing.T) {
+	t.Setenv("DAGGER_SESSION_PORT", "")
+	t.Setenv("DAGGER_SESSION_TOKEN", "")
+	_, err := moduleNaming("v1.0.0-beta.25", "alias", "original")
+	require.ErrorContains(t, err, "DAGGER_SESSION_PORT")
 }
 
 func TestRunEntrypoint(t *testing.T) {
@@ -371,15 +415,45 @@ func TestRunEntrypoint(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	require.NoError(t, run([]string{
-		"entrypoint",
-		"--typedef-json-path", writeFile(t, dir, "typedef.json", string(typedef)),
-		"--output", out,
-		"--module-root", "/work",
-	}))
-
-	contents, err := os.ReadFile(filepath.Join(out, "__dagger.entrypoint.ts"))
-	require.NoError(t, err)
-	require.Contains(t, string(contents), `import { App } from "./src/index"`)
-	require.Contains(t, string(contents), `case "hello":`)
+	// Neither renderer loads a source ID. The fake rejects node(id), and
+	// requires the exact naming version and both module names on each query.
+	for _, version := range []string{"v1.0.0-beta.25", "v1.0.0-beta.26"} {
+		for _, command := range []string{"entrypoint", "dang-entrypoint"} {
+			t.Run(command+"/"+version, func(t *testing.T) {
+				engine := &namingtest.Engine{Version: version, Name: "alias", OriginalName: "app", MainObject: "App"}
+				nestIn(t, engine)
+				args := []string{
+					command,
+					"--typedef-json-path", writeFile(t, dir, "typedef.json", string(typedef)),
+					"--output", out,
+				}
+				if command == "dang-entrypoint" {
+					// Core's version is deliberately different from naming's.
+					args = append(args, "--client-version", "v1.0.0-beta.20")
+				} else {
+					args = append(args, "--module-root", "/work")
+				}
+				flags := []string{"--naming-version", version, "--module-name", "alias", "--module-original-name", "app"}
+				for i := 0; i < len(flags); i += 2 {
+					missing := append([]string{}, args...)
+					missing = append(missing, flags[:i]...)
+					missing = append(missing, flags[i+2:]...)
+					require.ErrorContains(t, run(missing), flags[i]+" is required")
+				}
+				require.Equal(t, 0, engine.Queries())
+				require.NoError(t, run(append(args, flags...)))
+				require.Equal(t, 1, engine.Queries())
+				if command == "entrypoint" {
+					contents, err := os.ReadFile(filepath.Join(out, "__dagger.entrypoint.ts"))
+					require.NoError(t, err)
+					require.Contains(t, string(contents), `import { App } from "./src/index"`)
+					require.Contains(t, string(contents), `case "hello":`)
+				} else {
+					contents, err := os.ReadFile(filepath.Join(out, "entrypoint/main.dang"))
+					require.NoError(t, err)
+					require.Contains(t, string(contents), ".withConstructor(")
+				}
+			})
+		}
+	}
 }
