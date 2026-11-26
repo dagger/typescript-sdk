@@ -1,0 +1,63 @@
+type Codegen {
+  """
+  The codegen helper's own source, read from the repo root so go.mod and the
+  generator templates come with it.
+  """
+  pub source: Directory! @defaultPath(path: "/") @ignorePatterns(patterns: [
+    "*",
+    "!helpers/codegen",
+  ])
+
+  """
+  The codegen helper, compiled.
+
+  Exposed as a module so a consumer gets the binary this repo builds rather
+  than a recipe of its own: dagger/dagger renders @dagger.io/core's bindings
+  with it, and a second copy of the build would be a second thing to keep in
+  step. The packager builds its own containers from this same file.
+
+  Keyed by the source's content alone — nothing codegen does reads the commit,
+  so stamping one in would rebuild the binary, and regenerate everything
+  rendered with it, on every commit.
+  """
+  pub binary: File! {
+    container
+      .from("golang:1.25-alpine")
+      .withoutEntrypoint
+      .withMountedCache("/go/pkg/mod", cacheVolume("go-mod"))
+      .withMountedCache("/root/.cache/go-build", cacheVolume("go-build"))
+      .withDirectory("/helper", source.directory("helpers/codegen"))
+      .withWorkdir("/helper")
+      .withExec(["go", "build", "-ldflags=-s -w", "-o", "/codegen", "."])
+      .file("/codegen")
+  }
+
+  """
+  Render the library bindings — client.gen.ts — from an introspected schema.
+
+  The container to run in is the caller's, not one made here, because the
+  generator styles identifiers through `Naming.formatIdentifiers` over the
+  session its process is nested in. So which engine answers that is the
+  caller's choice, and the bindings describe the engine the caller meant: a
+  container of this module's own would reach whatever session happened to load
+  it, which is the ambient engine rather than the intended one.
+
+  The caller therefore has to hand over a container that can reach an engine —
+  one an SDK's `installClient` has configured, or one whose execs it runs under
+  privileged nesting.
+  """
+  pub library(container: Container!, introspectionJson: File!): Directory! {
+    container
+      .withFile("/usr/local/bin/codegen", binary)
+      .withMountedFile("/schema.json", introspectionJson)
+      .withExec([
+        "codegen",
+        "library",
+        "--introspection-json-path",
+        "/schema.json",
+        "--output",
+        "/out",
+      ])
+      .directory("/out")
+  }
+}

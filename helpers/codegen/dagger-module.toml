@@ -1,0 +1,6 @@
+name = "codegen"
+engineVersion = "v1.0.0-0"
+source = ".dagger"
+
+[runtime]
+source = "dang"
